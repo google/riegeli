@@ -23,9 +23,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/recycling_pool.h"
@@ -108,7 +108,7 @@ class SimpleEncoder : public ChunkEncoder {
   using ChunkEncoder::AddRecord;
   bool AddRecord(const google::protobuf::MessageLite& record,
                  SerializeOptions serialize_options) override;
-  bool AddRecord(absl::string_view record) override;
+  bool AddRecord(BytesRef record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(Chain&& record) override;
   bool AddRecord(const absl::Cord& record) override;

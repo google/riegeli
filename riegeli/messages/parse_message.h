@@ -30,9 +30,9 @@
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -150,9 +150,7 @@ absl::Status ParseLengthPrefixedMessage(Reader& src,
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-template <typename Src,
-          std::enable_if_t<SupportsToStringView<Src>::value, int> = 0>
-absl::Status ParseMessage(const Src& src, google::protobuf::MessageLite& dest,
+absl::Status ParseMessage(BytesRef src, google::protobuf::MessageLite& dest,
                           ParseOptions options = ParseOptions());
 absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
                           ParseOptions options = ParseOptions());
@@ -193,10 +191,6 @@ namespace messages_internal {
 absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
                               ParseOptions options);
 
-absl::Status ParseMessageImpl(absl::string_view src,
-                              google::protobuf::MessageLite& dest,
-                              ParseOptions options);
-
 }  // namespace messages_internal
 
 template <
@@ -213,14 +207,6 @@ inline absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
-}
-
-template <typename Src, std::enable_if_t<SupportsToStringView<Src>::value, int>>
-inline absl::Status ParseMessage(const Src& src,
-                                 google::protobuf::MessageLite& dest,
-                                 ParseOptions options) {
-  return messages_internal::ParseMessageImpl(riegeli::ToStringView(src), dest,
-                                             options);
 }
 
 }  // namespace riegeli

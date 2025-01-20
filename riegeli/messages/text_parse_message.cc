@@ -24,6 +24,7 @@
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/cord_reader.h"
@@ -71,13 +72,12 @@ absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
   return absl::OkStatus();
 }
 
-absl::Status TextParseMessageImpl(absl::string_view src,
-                                  google::protobuf::Message& dest,
-                                  const TextParseOptions& options) {
+}  // namespace messages_internal
+
+absl::Status TextParseMessage(BytesRef src, google::protobuf::Message& dest,
+                              const TextParseOptions& options) {
   return TextParseMessage(StringReader<>(src), dest, options);
 }
-
-}  // namespace messages_internal
 
 absl::Status TextParseMessage(const Chain& src, google::protobuf::Message& dest,
                               const TextParseOptions& options) {

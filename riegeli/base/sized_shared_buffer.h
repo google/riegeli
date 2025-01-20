@@ -55,7 +55,8 @@ class
   // Removes all data.
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
 
-  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  /*implicit*/ operator absl::string_view() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::string_view(data_, size_);
   }
 

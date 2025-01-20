@@ -36,6 +36,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_ref.h"
@@ -216,7 +217,7 @@ void TransposeEncoder::Clear() {
   next_message_id_ = chunk_encoding_internal::MessageId::kRoot + 1;
 }
 
-bool TransposeEncoder::AddRecord(absl::string_view record) {
+bool TransposeEncoder::AddRecord(BytesRef record) {
   StringReader<> reader(record);
   return AddRecordInternal(reader);
 }
@@ -233,7 +234,7 @@ bool TransposeEncoder::AddRecord(const absl::Cord& record) {
 
 bool TransposeEncoder::AddRecord(ExternalRef record) {
   if (record.size() <= kMaxBytesToCopy) {
-    StringReader<> reader{absl::string_view(record)};
+    StringReader<> reader(record);
     return AddRecordInternal(reader);
   } else {
     ChainReader<Chain> reader(riegeli::Maker<Chain>(std::move(record)));

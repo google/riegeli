@@ -29,6 +29,7 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -71,7 +72,7 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record,
   return true;
 }
 
-bool DeferredEncoder::AddRecord(absl::string_view record) {
+bool DeferredEncoder::AddRecord(BytesRef record) {
   return AddRecordImpl(record);
 }
 

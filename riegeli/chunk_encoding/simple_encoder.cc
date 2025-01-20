@@ -28,6 +28,7 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/bytes/writer.h"
@@ -86,9 +87,7 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
   return true;
 }
 
-bool SimpleEncoder::AddRecord(absl::string_view record) {
-  return AddRecordImpl(record);
-}
+bool SimpleEncoder::AddRecord(BytesRef record) { return AddRecordImpl(record); }
 
 bool SimpleEncoder::AddRecord(const Chain& record) {
   return AddRecordImpl(record);

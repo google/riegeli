@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -27,9 +26,9 @@
 #include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/compare.h"
 
 namespace riegeli {
@@ -69,48 +68,10 @@ class
 
   friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
 
-  // Opens a new `FILE*`, like with `fopen()` but taking
-  // `absl::string_view filename`, `absl::string_view mode`, and returning
-  // `absl::Status`.
-#ifndef _WIN32
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(absl::string_view filename,
-                                                 absl::string_view mode) {
-    return Open(std::string(filename).c_str(), std::string(mode).c_str());
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(absl::string_view filename,
-                                                 const std::string& mode) {
-    return Open(std::string(filename).c_str(), mode.c_str());
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(absl::string_view filename,
-                                                 const char* mode) {
-    return Open(std::string(filename).c_str(), mode);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(const std::string& filename,
-                                                 absl::string_view mode) {
-    return Open(filename.c_str(), std::string(mode).c_str());
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(const std::string& filename,
-                                                 const std::string& mode) {
-    return Open(filename.c_str(), mode.c_str());
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(const std::string& filename,
-                                                 const char* mode) {
-    return Open(filename.c_str(), mode);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(const char* filename,
-                                                 absl::string_view mode) {
-    return Open(filename, std::string(mode).c_str());
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(const char* filename,
-                                                 const std::string& mode) {
-    return Open(filename, mode.c_str());
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(const char* filename,
-                                                 const char* mode);
-#else   // _WIN32
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(absl::string_view filename,
-                                                 absl::string_view mode);
-#endif  // _WIN32
+  // Opens a new `FILE*`, like with `fopen()` but taking `CStringRef filename`,
+  // `CStringRef mode`, and returning `absl::Status`.
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(CStringRef filename,
+                                                 CStringRef mode);
 
   // Closes the `FILE*` if present.
   //
@@ -177,17 +138,19 @@ struct IsValidCFileTarget<
                                FILE*>>::value>> : std::true_type {};
 
 // `CFileTargetHasOpen<T>::value` is `true` if `T` supports `Open()` with the
-// signature like in `OwnedCFile`.
+// signature like in `OwnedCFile`, except that accepting `const char* filename`
+// and `const char* mode` are sufficient.
 
 template <typename T, typename Enable = void>
 struct CFileTargetHasOpen : std::false_type {};
 
 template <typename T>
 struct CFileTargetHasOpen<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(std::declval<T&>().Open(std::declval<absl::string_view>(),
-                                            std::declval<absl::string_view>())),
-           absl::Status>::value>> : std::true_type {};
+    T, std::enable_if_t<std::is_convertible<decltype(std::declval<T&>().Open(
+                                                std::declval<const char*>(),
+                                                std::declval<const char*>())),
+                                            absl::Status>::value>>
+    : std::true_type {};
 
 // Type-erased pointer to a target object like `OwnedCFile` or `UnownedCFile`
 // which stores and possibly owns a `FILE*`.

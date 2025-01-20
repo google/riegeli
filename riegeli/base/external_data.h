@@ -36,15 +36,12 @@ inline ExternalStorage RiegeliToExternalStorage(ExternalStorage* self) {
 // Type-erased external object with its deleter and a substring of a byte array
 // it owns.
 struct ExternalData {
+  /*implicit*/ operator absl::string_view() const { return substr; }
+
   // Indicates support for:
   //  * `ExternalRef(ExternalData&&)`
   //  * `ExternalRef(ExternalData&&, substr)`
   friend void RiegeliSupportsExternalRef(ExternalData*) {}
-
-  // Supports `ExternalRef`.
-  friend absl::string_view RiegeliToStringView(const ExternalData* self) {
-    return self->substr;
-  }
 
   // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(ExternalData* self) {

@@ -78,7 +78,7 @@ class StringReaderBase : public Reader {
 // By relying on CTAD the template argument can be deduced as
 // `absl::string_view` if there are no constructor arguments or if the first
 // constructor argument is an lvalue reference to a type convertible to
-// `absl::string_view` (to avoid unintended string copying), or `const char*`
+// `absl::string_view` (to avoid unintended string copying) or to `const char*`
 // (to compute `std::strlen()` early), otherwise as `TargetT` of the type of the
 // first constructor argument. This requires C++17.
 //

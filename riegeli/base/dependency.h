@@ -20,17 +20,22 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency_manager.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
+
+#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+#include <string_view>
+#endif
 
 namespace riegeli {
 
@@ -335,24 +340,27 @@ class DependencyImpl<
 };
 
 // Specialization of `DependencyImpl<absl::string_view, Manager>` when
-// `DependencyManagerRef<Manager>` supports `riegeli::ToStringView(object)`.
+// `DependencyManagerRef<Manager>` is convertible to `BytesRef`.
 template <typename Manager>
 class DependencyImpl<
     absl::string_view, Manager,
     std::enable_if_t<absl::conjunction<
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        SupportsToStringView<DependencyManagerRef<Manager>>>::value>>
+        std::is_convertible<DependencyManagerRef<Manager>, BytesRef>>::value>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
 
   absl::string_view get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return riegeli::ToStringView(*this->ptr());
+    return BytesRef(*this->ptr());
   }
 
   static constexpr bool kIsStable =
       DependencyImpl::DependencyManager::kIsStable ||
       std::is_same<Manager, absl::string_view>::value ||
+#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+      std::is_same<Manager, std::string_view>::value ||
+#endif
       std::is_same<Manager, absl::Span<const char>>::value ||
       std::is_same<Manager, absl::Span<char>>::value;
 

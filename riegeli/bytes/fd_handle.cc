@@ -33,6 +33,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/status.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
@@ -47,53 +48,47 @@ namespace riegeli {
 constexpr OwnedFd::Permissions OwnedFd::kDefaultPermissions;
 #endif
 
-#ifndef _WIN32
-absl::Status OwnedFd::Open(const char* filename, int mode,
+absl::Status OwnedFd::Open(CStringRef filename, int mode,
                            Permissions permissions) {
   Reset();
+#ifndef _WIN32
 again:
-  const int fd = open(filename, mode, permissions);
+  const int fd = open(filename.c_str(), mode, permissions);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;
     if (error_number == EINTR) goto again;
     return Annotate(absl::ErrnoToStatus(error_number, "open() failed"),
-                    absl::StrCat("opening ", filename));
+                    absl::StrCat("opening ", filename.c_str()));
   }
-  Reset(fd);
-  return absl::OkStatus();
-}
 #else   // _WIN32
-absl::Status OwnedFd::Open(absl::string_view filename, int mode,
-                           Permissions permissions) {
-  Reset();
   std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename, filename_wide))) {
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename.c_str(), filename_wide))) {
     return absl::InvalidArgumentError(
-        absl::StrCat("Filename not valid UTF-8: ", filename));
+        absl::StrCat("Filename not valid UTF-8: ", filename.c_str()));
   }
   int fd;
   if (ABSL_PREDICT_FALSE(_wsopen_s(&fd, filename_wide.c_str(), mode, _SH_DENYNO,
                                    permissions) != 0)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "_wsopen_s() failed"),
-                    absl::StrCat("opening ", filename));
+                    absl::StrCat("opening ", filename.c_str()));
   }
+#endif  // _WIN32
   Reset(fd);
   return absl::OkStatus();
 }
-#endif  // _WIN32
 
 #ifndef _WIN32
-absl::Status OwnedFd::OpenAt(int dir_fd, const char* filename, int mode,
+absl::Status OwnedFd::OpenAt(int dir_fd, CStringRef filename, int mode,
                              Permissions permissions) {
   Reset();
 again:
-  const int fd = openat(dir_fd, filename, mode, permissions);
+  const int fd = openat(dir_fd, filename.c_str(), mode, permissions);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;
     if (error_number == EINTR) goto again;
     return Annotate(absl::ErrnoToStatus(error_number, "openat() failed"),
-                    absl::StrCat("opening ", filename));
+                    absl::StrCat("opening ", filename.c_str()));
   }
   Reset(fd);
   return absl::OkStatus();

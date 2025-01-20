@@ -42,6 +42,7 @@
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
@@ -926,7 +927,7 @@ bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
   return WriteRecordImpl(size, record, std::move(serialize_options));
 }
 
-bool RecordWriterBase::WriteRecord(absl::string_view record) {
+bool RecordWriterBase::WriteRecord(BytesRef record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   return WriteRecordImpl(record.size(), record);
 }

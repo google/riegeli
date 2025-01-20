@@ -25,8 +25,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/external_data.h"
-#include "riegeli/base/to_string_view.h"
 
 namespace riegeli {
 
@@ -108,7 +108,7 @@ struct SupportsExternalRefWhole
           absl::disjunction<
               external_ref_internal::HasRiegeliSupportsExternalRefWhole<T>,
               external_ref_internal::HasRiegeliSupportsExternalRef<T>>,
-          SupportsToStringView<T>> {};
+          std::is_convertible<const T&, BytesRef>> {};
 
 template <typename T>
 struct SupportsExternalRefSubstr

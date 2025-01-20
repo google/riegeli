@@ -239,7 +239,7 @@ class FdReaderBase : public BufferedReader {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(int src, Options&& options);
-  const std::string& InitializeFilename(
+  const char* InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
   void InitializePos(int src, Options&& options
 #ifdef _WIN32
@@ -484,10 +484,10 @@ inline void FdReaderBase::Reset(BufferOptions buffer_options,
 #endif
 }
 
-inline const std::string& FdReaderBase::InitializeFilename(
+inline const char* FdReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
-  return filename_;
+  return filename_.c_str();
 }
 
 template <typename Src>

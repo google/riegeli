@@ -33,6 +33,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain_base.h"
 #include "riegeli/base/chain_details.h"
 #include "riegeli/base/compare.h"
@@ -77,7 +78,7 @@ class FlatCordBlock {
 
   const absl::Cord& src() const { return src_; }
 
-  explicit operator absl::string_view() const;
+  /*implicit*/ operator absl::string_view() const;
 
   // Supports `ExternalRef` and `Chain::Block`.
   friend void RiegeliDumpStructure(
@@ -149,7 +150,7 @@ inline Chain::RawBlock::RawBlock(const size_t* raw_capacity)
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::RawBlock::Copy() {
   IntrusiveSharedPtr<RawBlock> block = NewInternal(size());
-  block->Append(absl::string_view(*this));
+  block->Append(*this);
   RIEGELI_ASSERT(!block->wasteful())
       << "A full block should not be considered wasteful";
   return block;
@@ -440,7 +441,7 @@ bool Chain::ClearSlow() {
   return block_remains;
 }
 
-void Chain::Reset(absl::string_view src) {
+void Chain::Reset(BytesRef src) {
   size_ = 0;
   if (begin_ != end_ && ClearSlow()) {
     Append(src, Options().set_size_hint(src.size()));
@@ -547,23 +548,23 @@ absl::string_view Chain::FlattenSlow() {
          "contents already flat, use Flatten() instead";
   if (front()->empty()) {
     PopFront();
-    if (end_ - begin_ == 1) return absl::string_view(*front());
+    if (end_ - begin_ == 1) return *front();
   }
   if (back()->empty()) {
     PopBack();
-    if (end_ - begin_ == 1) return absl::string_view(*back());
+    if (end_ - begin_ == 1) return *back();
   }
   IntrusiveSharedPtr<RawBlock> block =
       RawBlock::NewInternal(NewBlockCapacity(0, size_, size_, Options()));
   const BlockPtr* iter = begin_;
   do {
-    block->Append(absl::string_view(*iter->block_ptr));
+    block->Append(*iter->block_ptr);
     ++iter;
   } while (iter != end_);
   UnrefBlocks(begin_, end_);
   end_ = begin_;
   PushBack(std::move(block));
-  return absl::string_view(*back());
+  return *back();
 }
 
 inline Chain::BlockPtr* Chain::NewBlockPtrs(size_t capacity) {
@@ -666,7 +667,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) const& {
   const BlockPtr* iter = begin_;
   do {
     ExternalRef(riegeli::Invoker(MakeBlock(), iter->block_ptr),
-                absl::string_view(*iter->block_ptr))
+                *iter->block_ptr)
         .AppendTo(dest);
     ++iter;
   } while (iter != end_);
@@ -681,7 +682,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) && {
   do {
     ExternalRef(riegeli::Invoker(MakeBlock(),
                                  IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
-                absl::string_view(*iter->block_ptr))
+                *iter->block_ptr)
         .AppendTo(dest);
     ++iter;
   } while (iter != end_);
@@ -716,7 +717,7 @@ inline void Chain::PrependToSlow(absl::Cord& dest) const& {
   do {
     --iter;
     ExternalRef(riegeli::Invoker(MakeBlock(), iter->block_ptr),
-                absl::string_view(*iter->block_ptr))
+                *iter->block_ptr)
         .PrependTo(dest);
   } while (iter != begin_);
 }
@@ -731,7 +732,7 @@ inline void Chain::PrependToSlow(absl::Cord& dest) && {
     --iter;
     ExternalRef(riegeli::Invoker(MakeBlock(),
                                  IntrusiveSharedPtr<RawBlock>(iter->block_ptr)),
-                absl::string_view(*iter->block_ptr))
+                *iter->block_ptr)
         .PrependTo(dest);
   } while (iter != begin_);
   end_ = begin_;
@@ -1236,7 +1237,7 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       IntrusiveSharedPtr<RawBlock> block =
           RawBlock::NewInternal(NewBlockCapacity(back()->size(), min_length,
                                                  recommended_length, options));
-      block->Append(absl::string_view(*back()));
+      block->Append(*back());
       SetBack(std::move(block));
     } else {
       IntrusiveSharedPtr<RawBlock> block;
@@ -1324,7 +1325,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       IntrusiveSharedPtr<RawBlock> block =
           RawBlock::NewInternal(NewBlockCapacity(front()->size(), min_length,
                                                  recommended_length, options));
-      block->Prepend(absl::string_view(*front()));
+      block->Prepend(*front());
       SetFront(std::move(block));
     } else {
       IntrusiveSharedPtr<RawBlock> block;
@@ -1355,7 +1356,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
   return buffer;
 }
 
-void Chain::Append(absl::string_view src, Options options) {
+void Chain::Append(BytesRef src, Options options) {
   while (!src.empty()) {
     const absl::Span<char> buffer =
         AppendBuffer(1, src.size(), src.size(), options);
@@ -1403,7 +1404,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
                 : UnsignedMax(size_ + src.front()->size(), kMaxShortDataSize);
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-        merged->Append(absl::string_view(*src.front()));
+        merged->Append(*src.front());
         PushBack(std::move(merged));
       }
       (src_iter++)->block_ptr->Unref<Ownership>();
@@ -1426,7 +1427,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
                   !back()->wasteful(src.front()->size()))) {
         // Boundary blocks can be appended in place; this is always cheaper than
         // merging them to a new block.
-        back()->Append(absl::string_view(*src.front()));
+        back()->Append(*src.front());
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
@@ -1440,8 +1441,8 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
                                    options)
                 : back()->size() + src.front()->size();
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
-        merged->Append(absl::string_view(*back()));
-        merged->Append(absl::string_view(*src.front()));
+        merged->Append(*back());
+        merged->Append(*src.front());
         SetBack(std::move(merged));
       }
       (src_iter++)->block_ptr->Unref<Ownership>();
@@ -1461,7 +1462,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
           src.front()->size() <= kAllocationCost + back()->size()) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
-        back()->Append(absl::string_view(*src.front()));
+        back()->Append(*src.front());
         (src_iter++)->block_ptr->Unref<Ownership>();
       } else {
         // Appending in place is not possible, or rewriting the last block is
@@ -1478,7 +1479,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
             !back()->wasteful(src.front()->size())) {
           // Appending in place is possible; this is always cheaper than
           // rewriting the first block of `src`.
-          back()->Append(absl::string_view(*src.front()));
+          back()->Append(*src.front());
         } else {
           // Appending in place is not possible.
           PushBack(src.front()->Copy());
@@ -1519,7 +1520,7 @@ inline void Chain::AppendRawBlock(RawBlockPtrRef&& block, Options options) {
             options);
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->AppendWithExplicitSizeToCopy(short_data(), kMaxShortDataSize);
-        merged->Append(absl::string_view(*block));
+        merged->Append(*block);
         PushBack(std::move(merged));
         size_ += block->size();
         return;
@@ -1536,7 +1537,7 @@ inline void Chain::AppendRawBlock(RawBlockPtrRef&& block, Options options) {
       if (back()->can_append(block->size())) {
         // Boundary blocks can be appended in place; this is always cheaper than
         // merging them to a new block.
-        back()->Append(absl::string_view(*block));
+        back()->Append(*block);
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
@@ -1545,8 +1546,8 @@ inline void Chain::AppendRawBlock(RawBlockPtrRef&& block, Options options) {
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
             NewBlockCapacity(back()->size(), block->size(), 0, options));
-        merged->Append(absl::string_view(*back()));
-        merged->Append(absl::string_view(*block));
+        merged->Append(*back());
+        merged->Append(*block);
         SetBack(std::move(merged));
       }
       size_ += block->size();
@@ -1564,7 +1565,7 @@ inline void Chain::AppendRawBlock(RawBlockPtrRef&& block, Options options) {
           block->size() <= kAllocationCost + back()->size()) {
         // Appending in place is possible and is cheaper than rewriting the last
         // block.
-        back()->Append(absl::string_view(*block));
+        back()->Append(*block);
         size_ += block->size();
         return;
       }
@@ -1635,7 +1636,7 @@ inline void Chain::AppendCordSlow(CordRef&& src, Options options) {
   }
 }
 
-void Chain::Prepend(absl::string_view src, Options options) {
+void Chain::Prepend(BytesRef src, Options options) {
   while (!src.empty()) {
     const absl::Span<char> buffer =
         PrependBuffer(1, src.size(), src.size(), options);
@@ -1681,7 +1682,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
                 : size_ + src.back()->size();
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->Prepend(short_data());
-        merged->Prepend(absl::string_view(*src.back()));
+        merged->Prepend(*src.back());
         PushFront(std::move(merged));
       }
       (--src_iter)->block_ptr->Unref<Ownership>();
@@ -1704,7 +1705,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
                   !front()->wasteful(src.back()->size()))) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
-        front()->Prepend(absl::string_view(*src.back()));
+        front()->Prepend(*src.back());
         RefreshFront();
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
@@ -1719,8 +1720,8 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
                                    options)
                 : front()->size() + src.back()->size();
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
-        merged->Prepend(absl::string_view(*front()));
-        merged->Prepend(absl::string_view(*src.back()));
+        merged->Prepend(*front());
+        merged->Prepend(*src.back());
         SetFront(std::move(merged));
       }
       (--src_iter)->block_ptr->Unref<Ownership>();
@@ -1740,7 +1741,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
           src.back()->size() <= kAllocationCost + front()->size()) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
-        front()->Prepend(absl::string_view(*src.back()));
+        front()->Prepend(*src.back());
         RefreshFront();
         (--src_iter)->block_ptr->Unref<Ownership>();
       } else {
@@ -1758,7 +1759,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
             !front()->wasteful(src.back()->size())) {
           // Prepending in place is possible; this is always cheaper than
           // rewriting the last block of `src`.
-          front()->Prepend(absl::string_view(*src.back()));
+          front()->Prepend(*src.back());
           RefreshFront();
         } else {
           // Prepending in place is not possible.
@@ -1799,7 +1800,7 @@ inline void Chain::PrependRawBlock(RawBlockPtrRef&& block, Options options) {
             NewBlockCapacity(size_, block->size(), 0, options);
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(capacity);
         merged->Prepend(short_data());
-        merged->Prepend(absl::string_view(*block));
+        merged->Prepend(*block);
         PushFront(std::move(merged));
         size_ += block->size();
         return;
@@ -1816,7 +1817,7 @@ inline void Chain::PrependRawBlock(RawBlockPtrRef&& block, Options options) {
       if (front()->can_prepend(block->size())) {
         // Boundary blocks can be prepended in place; this is always cheaper
         // than merging them to a new block.
-        front()->Prepend(absl::string_view(*block));
+        front()->Prepend(*block);
         RefreshFront();
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
@@ -1826,8 +1827,8 @@ inline void Chain::PrependRawBlock(RawBlockPtrRef&& block, Options options) {
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
             NewBlockCapacity(front()->size(), block->size(), 0, options));
-        merged->Prepend(absl::string_view(*front()));
-        merged->Prepend(absl::string_view(*block));
+        merged->Prepend(*front());
+        merged->Prepend(*block);
         SetFront(std::move(merged));
       }
       size_ += block->size();
@@ -1845,7 +1846,7 @@ inline void Chain::PrependRawBlock(RawBlockPtrRef&& block, Options options) {
           block->size() <= kAllocationCost + front()->size()) {
         // Prepending in place is possible and is cheaper than rewriting the
         // first block.
-        front()->Prepend(absl::string_view(*block));
+        front()->Prepend(*block);
         RefreshFront();
         size_ += block->size();
         return;
@@ -1943,8 +1944,8 @@ void Chain::RemoveSuffix(size_t length, Options options) {
                "RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
             NewBlockCapacity(back()->size() + last->size(), 0, 0, options));
-        merged->Append(absl::string_view(*back()));
-        merged->Append(absl::string_view(*last));
+        merged->Append(*back());
+        merged->Append(*last);
         SetBack(std::move(merged));
       }
     }
@@ -1952,7 +1953,7 @@ void Chain::RemoveSuffix(size_t length, Options options) {
   }
   IntrusiveSharedPtr<RawBlock> last = PopBack();
   if (length == last->size()) return;
-  absl::string_view data(*last);
+  absl::string_view data = *last;
   data.remove_suffix(length);
   // Compensate for increasing `size_` by `Append()`.
   size_ -= data.size();
@@ -1990,8 +1991,8 @@ void Chain::RemovePrefix(size_t length, Options options) {
                "RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
             NewBlockCapacity(first->size() + front()->size(), 0, 0, options));
-        merged->Prepend(absl::string_view(*front()));
-        merged->Prepend(absl::string_view(*first));
+        merged->Prepend(*front());
+        merged->Prepend(*first);
         SetFront(std::move(merged));
       }
     }
@@ -1999,7 +2000,7 @@ void Chain::RemovePrefix(size_t length, Options options) {
   }
   IntrusiveSharedPtr<RawBlock> first = PopFront();
   if (length == first->size()) return;
-  absl::string_view data(*first);
+  absl::string_view data = *first;
   data.remove_prefix(length);
   // Compensate for increasing `size_` by `Prepend()`.
   size_ -= data.size();

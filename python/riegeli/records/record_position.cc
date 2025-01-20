@@ -182,7 +182,7 @@ static PyRecordPositionObject* RecordPositionFromStr(PyTypeObject* cls,
     return nullptr;
   }
   RecordPosition pos;
-  if (ABSL_PREDICT_FALSE(!pos.FromString(absl::string_view(serialized)))) {
+  if (ABSL_PREDICT_FALSE(!pos.FromString(serialized))) {
     PyErr_SetString(PyExc_ValueError, "RecordPosition.from_str() failed");
     return nullptr;
   }
@@ -223,7 +223,7 @@ static PyRecordPositionObject* RecordPositionFromBytes(PyTypeObject* cls,
     return nullptr;
   }
   RecordPosition pos;
-  if (ABSL_PREDICT_FALSE(!pos.FromBytes(absl::string_view(serialized)))) {
+  if (ABSL_PREDICT_FALSE(!pos.FromBytes(serialized))) {
     PyErr_SetString(PyExc_ValueError, "RecordPosition.from_bytes() failed");
     return nullptr;
   }

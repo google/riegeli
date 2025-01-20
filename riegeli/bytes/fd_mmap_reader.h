@@ -181,7 +181,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   void Reset(Closed);
   void Reset();
   void Initialize(int src, Options&& options);
-  const std::string& InitializeFilename(
+  const char* InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
   void InitializePos(int src, Options&& options);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -370,10 +370,10 @@ inline void FdMMapReaderBase::Reset() {
   base_pos_to_sync_ = absl::nullopt;
 }
 
-inline const std::string& FdMMapReaderBase::InitializeFilename(
+inline const char* FdMMapReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
-  return filename_;
+  return filename_.c_str();
 }
 
 template <typename Src>

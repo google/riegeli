@@ -31,13 +31,13 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain_base.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/external_ref_support.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/temporary_storage.h"
-#include "riegeli/base/to_string_view.h"
 
 namespace riegeli {
 
@@ -80,8 +80,8 @@ namespace riegeli {
 //   // `substr` must be owned by the object if it gets created or moved, unless
 //   // `RiegeliExternalCopy()` (see below) recognizes cases when it is not.
 //   //
-//   // If `T` supports `riegeli::ToStringView()`, then also indicates support
-//   // for `ExternalRef(T&&)`.
+//   // If `T` is convertible to `BytesRef`, then also indicates support for
+//   // `ExternalRef(T&&)`.
 //   //
 //   // The parameter can also have type `const T*`. This also indicates
 //   // support for `ExternalRef(const T&, substr)` and possibly
@@ -95,8 +95,8 @@ namespace riegeli {
 //   // data before specifying the object to be moved).
 //   friend void RiegeliSupportsExternalRef(T*) {}
 //
-//   // Indicates support for `ExternalRef(T&&)` as long as `T` supports
-//   // `riegeli::ToStringView()`.
+//   // Indicates support for `ExternalRef(T&&)`, as long as `T` is convertible
+//   // to `BytesRef`.
 //   //
 //   // The parameter can also have type `const T*`. This also indicates support
 //   // for `ExternalRef(const T&)`, i.e. that `T` is copyable and copying it is
@@ -197,9 +197,9 @@ namespace riegeli {
 //   // The `substr` parameter is optional here. If absent here while the
 //   // `substr` parameter was given to `ExternalRef` constructor, then it is
 //   // propagated. If absent here while the `substr` parameter was not given
-//   // to `ExternalRef` constructor, then `riegeli::ToStringView(subobject)`
-//   // must be supported. If present here, it can be used to specify the data
-//   // if `riegeli::ToStringView(subobject)` is not supported.
+//   // to `ExternalRef` constructor, then `subobject` must be convertible to
+//   // `BytesRef`. If present here, it can be used to specify the data if
+//   // `subobject` is not convertible to `BytesRef`.
 //   template <typename Callback>
 //   friend void RiegeliExternalDelegate(T* self, absl::string_view substr,
 //                                       Callback&& delegate_to);
@@ -265,7 +265,7 @@ class ExternalRef {
   template <typename T,
             std::enable_if_t<HasCallOperatorSubstr<T>::value, int> = 0>
   static void CallOperatorWhole(T&& object) {
-    const absl::string_view data = riegeli::ToStringView(object);
+    const absl::string_view data = BytesRef(object);
     std::forward<T>(object)(data);
   }
   template <typename T,
@@ -284,7 +284,7 @@ class ExternalRef {
                        int> = 0>
   static void CallOperatorWhole(T&& object) {
     absl::remove_cvref_t<T> copy(object);
-    const absl::string_view data = riegeli::ToStringView(copy);
+    const absl::string_view data = BytesRef(copy);
     std::move(copy)(data);
   }
   template <
@@ -326,7 +326,7 @@ class ExternalRef {
   static void CallOperatorSubstr(
       T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
     absl::remove_cvref_t<T> copy(object);
-    const absl::string_view data = riegeli::ToStringView(copy);
+    const absl::string_view data = BytesRef(copy);
     std::move(copy)(data);
   }
   template <
@@ -354,11 +354,12 @@ class ExternalRef {
   }
 
 #if RIEGELI_DEBUG
-  template <typename T,
-            std::enable_if_t<SupportsToStringView<T>::value, int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::is_convertible<const T&, BytesRef>::value, int> = 0>
   static void AssertSubstr(const T& object, absl::string_view substr) {
     if (!substr.empty()) {
-      const absl::string_view whole = riegeli::ToStringView(object);
+      const BytesRef whole = object;
       RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), whole.data()))
           << "Failed precondition of ExternalRef: "
              "substring not contained in whole data";
@@ -369,7 +370,8 @@ class ExternalRef {
     }
   }
   template <typename T,
-            std::enable_if_t<!SupportsToStringView<T>::value, int> = 0>
+            std::enable_if_t<!std::is_convertible<const T&, BytesRef>::value,
+                             int> = 0>
 #else
   template <typename T>
 #endif
@@ -418,7 +420,7 @@ class ExternalRef {
               HasRiegeliExternalDelegateSubstr<T, Callback>>::value,
           int> = 0>
   static void ExternalDelegateWhole(T&& object, Callback&& delegate_to) {
-    const absl::string_view data = riegeli::ToStringView(object);
+    const absl::string_view data = BytesRef(object);
     RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)), data,
                             std::forward<Callback>(delegate_to));
   }
@@ -509,7 +511,7 @@ class ExternalRef {
                                  HasRiegeliToChainBlockSubstr<T>>::value,
                              int> = 0>
   static Chain::Block ToChainBlockWhole(T&& object) {
-    const absl::string_view data = riegeli::ToStringView(object);
+    const absl::string_view data = BytesRef(object);
     return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)),
                                data);
   }
@@ -548,10 +550,11 @@ class ExternalRef {
         delete;
 
     template <typename SubT,
-              std::enable_if_t<SupportsToStringView<SubT>::value, int> = 0>
+              std::enable_if_t<
+                  std::is_convertible<const SubT&, BytesRef>::value, int> = 0>
     void operator()(SubT&& subobject) && {
       // The constructor processes the subobject.
-      const absl::string_view data = riegeli::ToStringView(subobject);
+      const absl::string_view data = BytesRef(subobject);
       ConverterToChainBlockWhole<SubT> converter(
           std::forward<SubT>(subobject), data, context_, use_string_view_,
           use_chain_block_);
@@ -841,7 +844,7 @@ class ExternalRef {
                                   HasRiegeliToCordSubstr<T>>::value,
                 int> = 0>
   static absl::Cord ToCordWhole(T&& object) {
-    const absl::string_view data = riegeli::ToStringView(object);
+    const absl::string_view data = BytesRef(object);
     return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)), data);
   }
 
@@ -876,10 +879,11 @@ class ExternalRef {
     ConverterToCordWhole& operator=(const ConverterToCordWhole&) = delete;
 
     template <typename SubT,
-              std::enable_if_t<SupportsToStringView<SubT>::value, int> = 0>
+              std::enable_if_t<
+                  std::is_convertible<const SubT&, BytesRef>::value, int> = 0>
     void operator()(SubT&& subobject) && {
       // The constructor processes the subobject.
-      const absl::string_view data = riegeli::ToStringView(subobject);
+      const absl::string_view data = BytesRef(subobject);
       ConverterToCordWhole<SubT> converter(std::forward<SubT>(subobject), data,
                                            context_, use_string_view_,
                                            use_cord_);
@@ -991,8 +995,7 @@ class ExternalRef {
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
       ObjectForCordWhole<std::decay_t<T>> object_for_cord(
           std::forward<T>(object));
-      const absl::string_view moved_data =
-          riegeli::ToStringView(*object_for_cord);
+      const absl::string_view moved_data = BytesRef(*object_for_cord);
       use_cord_(context_, absl::MakeCordFromExternal(
                               moved_data, std::move(object_for_cord)));
     }
@@ -1233,7 +1236,7 @@ class ExternalRef {
                             HasToExternalDataSubstr<T>>::value,
           int> = 0>
   static ExternalData ToExternalDataWhole(T&& object) {
-    const absl::string_view data = riegeli::ToStringView(object);
+    const absl::string_view data = BytesRef(object);
     return ExternalRef::ToExternalDataSubstr(std::forward<T>(object), data);
   }
 
@@ -1261,10 +1264,11 @@ class ExternalRef {
         const ConverterToExternalDataWhole&) = delete;
 
     template <typename SubT,
-              std::enable_if_t<SupportsToStringView<SubT>::value, int> = 0>
+              std::enable_if_t<
+                  std::is_convertible<const SubT&, BytesRef>::value, int> = 0>
     void operator()(SubT&& subobject) && {
       // The constructor processes the subobject.
-      const absl::string_view data = riegeli::ToStringView(subobject);
+      const absl::string_view data = BytesRef(subobject);
       ConverterToExternalDataWhole<SubT> converter(
           std::forward<SubT>(subobject), data, context_, use_external_data_);
     }
@@ -1352,7 +1356,7 @@ class ExternalRef {
     void Callback(T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
       auto* const storage =
           new ExternalObjectWhole<std::decay_t<T>>(std::forward<T>(object));
-      const absl::string_view moved_data = riegeli::ToStringView(**storage);
+      const absl::string_view moved_data = BytesRef(**storage);
       use_external_data_(
           context_,
           ExternalData{
@@ -1539,7 +1543,7 @@ class ExternalRef {
     void Initialize(Initializer<T> object) {
       object_.emplace(
           std::move(object).Reference(std::move(temporary_storage_)));
-      StorageBase::Initialize(riegeli::ToStringView(*object_));
+      StorageBase::Initialize(BytesRef(*object_));
     }
 
     void ToChainBlock(size_t max_bytes_to_copy, void* context,
@@ -1603,7 +1607,7 @@ class ExternalRef {
       T&& reference =
           std::move(object).Reference(std::move(temporary_storage_));
       object_ = &reference;
-      StorageBase::Initialize(riegeli::ToStringView(*object_));
+      StorageBase::Initialize(BytesRef(*object_));
     }
 
     void ToChainBlock(size_t max_bytes_to_copy, void* context,
@@ -1802,8 +1806,8 @@ class ExternalRef {
 
  public:
   // The type of the `storage` parameter for the constructor and
-  // `ExternalRef::From()` which take an external object supporting
-  // `riegeli::ToStringView()`.
+  // `ExternalRef::From()` which take an external object convertible
+  // to `BytesRef`.
   template <typename T>
   using StorageWhole = typename StorageWholeImpl<T>::type;
 
@@ -1815,7 +1819,7 @@ class ExternalRef {
   // Constructs an `ExternalRef` from an external object or its `Initializer`.
   // See class comments for expectations on the external object.
   //
-  // The object must support `riegeli::ToStringView()`.
+  // The object must be convertible to `BytesRef`.
   //
   // `storage` must outlive usages of the returned `ExternalRef`.
   template <typename Arg,
@@ -1856,9 +1860,9 @@ class ExternalRef {
   // Like `ExternalRef` constructor, but `RiegeliSupportsExternalRef()` or
   // `RiegeliSupportsExternalRefWhole()` is not needed. The caller is
   // responsible for using an appropriate type of the external object.
-  template <
-      typename Arg,
-      std::enable_if_t<SupportsToStringView<TargetRefT<Arg>>::value, int> = 0>
+  template <typename Arg,
+            std::enable_if_t<
+                std::is_convertible<TargetRefT<Arg>, BytesRef>::value, int> = 0>
   static ExternalRef From(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                           StorageWhole<TargetRefT<Arg>>&& storage
                               ABSL_ATTRIBUTE_LIFETIME_BOUND = {}) {
@@ -1897,7 +1901,8 @@ class ExternalRef {
   // Returns the data as `absl::string_view`.
   //
   // This `ExternalRef` must outlive usages of the returned `absl::string_view`.
-  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  /*implicit*/ operator absl::string_view() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return storage_->substr();
   }
 

@@ -37,12 +37,12 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/write_int_internal.h"
@@ -92,18 +92,12 @@ inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char src) { return 1; }
 #if __cpp_char8_t
 inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char8_t src) { return 1; }
 #endif
-inline Position StringifiedSize(absl::string_view src) { return src.size(); }
+inline Position StringifiedSize(BytesRef src) { return src.size(); }
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline Position StringifiedSize(const char* src) {
   return absl::string_view(src).size();
 }
-template <typename Src,
-          std::enable_if_t<SupportsToStringView<Src>::value, int> = 0>
-inline Position StringifiedSize(Src&& src) {
-  return riegeli::ToStringView(src).size();
-}
 inline Position StringifiedSize(const Chain& src) { return src.size(); }
 inline Position StringifiedSize(const absl::Cord& src) { return src.size(); }
-inline Position StringifiedSize(const ExternalRef& src) { return src.size(); }
 inline Position StringifiedSize(ByteFill src) { return src.size(); }
 void StringifiedSize(signed char);
 void StringifiedSize(unsigned char);
@@ -120,15 +114,15 @@ void StringifiedSize(absl::uint128 src);
 void StringifiedSize(float);
 void StringifiedSize(double);
 void StringifiedSize(long double);
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<
-            HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
-            absl::negation<std::is_convertible<Src&&, const Chain&>>,
-            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>>::
-            value,
-        int> = 0>
+template <typename Src,
+          std::enable_if_t<
+              absl::conjunction<
+                  HasAbslStringify<Src>,
+                  absl::negation<std::is_convertible<Src&&, BytesRef>>,
+                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
+                  absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+                  absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+              int> = 0>
 void StringifiedSize(Src&&);
 void StringifiedSize(bool) = delete;
 void StringifiedSize(wchar_t) = delete;
@@ -278,16 +272,9 @@ class Writer : public Object {
 #if __cpp_char8_t
   bool Write(char8_t src) { return Write(static_cast<char>(src)); }
 #endif
-  bool Write(absl::string_view src);
+  bool Write(BytesRef src);
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   bool Write(const char* src) { return Write(absl::string_view(src)); }
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  bool Write(Src&& src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
@@ -322,7 +309,8 @@ class Writer : public Object {
       typename Src,
       std::enable_if_t<
           absl::conjunction<
-              HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
+              HasAbslStringify<Src>,
+              absl::negation<std::is_convertible<Src&&, BytesRef>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
               absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
               absl::negation<SupportsExternalRefWhole<Src>>,
@@ -803,7 +791,7 @@ inline bool Writer::Write(char src) {
   return true;
 }
 
-inline bool Writer::Write(absl::string_view src) {
+inline bool Writer::Write(BytesRef src) {
   AssertInitialized(src.data(), src.size());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
     // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
@@ -816,16 +804,6 @@ inline bool Writer::Write(absl::string_view src) {
   }
   AssertInitialized(start(), start_to_cursor());
   return WriteSlow(src);
-}
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline bool Writer::Write(Src&& src) {
-  return Write(riegeli::ToStringView(src));
 }
 
 inline bool Writer::Write(const Chain& src) {
@@ -975,16 +953,16 @@ inline bool Writer::Write(absl::uint128 src) {
   return write_int_internal::WriteUnsigned(src, *this);
 }
 
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<
-            HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
-            absl::negation<std::is_convertible<Src&&, const Chain&>>,
-            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-            absl::negation<SupportsExternalRefWhole<Src>>,
-            absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
-        int>>
+template <typename Src,
+          std::enable_if_t<
+              absl::conjunction<
+                  HasAbslStringify<Src>,
+                  absl::negation<std::is_convertible<Src&&, BytesRef>>,
+                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
+                  absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+                  absl::negation<SupportsExternalRefWhole<Src>>,
+                  absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+              int>>
 inline bool Writer::Write(Src&& src) {
   WriterAbslStringifySink sink(this);
   AbslStringify(sink, std::forward<Src>(src));
@@ -1125,6 +1103,8 @@ void AssociatedReader<ReaderClass>::Delete(Reader* reader) {
     writer_internal::DeleteReader(reader);
   }
 }
+
+inline void Test(const char* str) { StringifiedSize(str); }
 
 }  // namespace riegeli
 

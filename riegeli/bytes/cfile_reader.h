@@ -197,7 +197,7 @@ class CFileReaderBase : public BufferedReader {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(FILE* src, Options&& options);
-  const std::string& InitializeFilename(
+  const char* InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
   void InitializePos(FILE* src, Options&& options
 #ifdef _WIN32
@@ -383,10 +383,10 @@ inline void CFileReaderBase::Reset(BufferOptions buffer_options,
 #endif
 }
 
-inline const std::string& CFileReaderBase::InitializeFilename(
+inline const char* CFileReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
-  return filename_;
+  return filename_.c_str();
 }
 
 template <typename Src>
@@ -411,7 +411,7 @@ inline CFileReader<Src>::CFileReader(
     Initializer<std::string>::AllowingExplicit filename, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()) {
   absl::Status status = src_.manager().Open(
-      InitializeFilename(std::move(filename)), options.mode());
+      InitializeFilename(std::move(filename)), options.mode().c_str());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);
@@ -454,7 +454,7 @@ inline void CFileReader<Src>::Reset(
     Initializer<std::string>::AllowingExplicit filename, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   absl::Status status = src_.manager().Open(
-      InitializeFilename(std::move(filename)), options.mode());
+      InitializeFilename(std::move(filename)), options.mode().c_str());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     // Not `CFileReaderBase::Reset()` to preserve `filename()`.
     BufferedReader::Reset(kClosed);

@@ -15,7 +15,6 @@
 #ifndef RIEGELI_BYTES_FD_HANDLE_H_
 #define RIEGELI_BYTES_FD_HANDLE_H_
 
-#include "riegeli/base/assert.h"
 #ifdef _WIN32
 #include <sys/stat.h>
 #else
@@ -23,7 +22,6 @@
 #endif
 
 #include <cstddef>
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -31,8 +29,9 @@
 #include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/compare.h"
 
 namespace riegeli {
@@ -85,44 +84,18 @@ class
 
   friend bool operator==(const OwnedFd& a, int b) { return a.get() == b; }
 
-  // Opens a new fd, like with `open()` but taking `absl::string_view filename`
+  // Opens a new fd, like with `open()` but taking `CStringRef filename`
   // and returning `absl::Status`.
-#ifndef _WIN32
   ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
-      absl::string_view filename, int mode,
-      Permissions permissions = kDefaultPermissions) {
-    return Open(std::string(filename).c_str(), mode, permissions);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
-      const std::string& filename, int mode,
-      Permissions permissions = kDefaultPermissions) {
-    return Open(filename.c_str(), mode, permissions);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
-      const char* filename, int mode,
+      CStringRef filename, int mode,
       Permissions permissions = kDefaultPermissions);
-#else
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
-      absl::string_view filename, int mode,
-      Permissions permissions = kDefaultPermissions);
-#endif
 
 #ifndef _WIN32
   // Opens a new fd with the filename interpreted relatively to the directory
   // specified by an existing fd, like with `openat()` but taking
   // `absl::string_view filename` and returning `absl::Status`.
   ABSL_ATTRIBUTE_REINITIALIZES absl::Status OpenAt(
-      int dir_fd, absl::string_view filename, int mode,
-      Permissions permissions = kDefaultPermissions) {
-    return OpenAt(dir_fd, std::string(filename).c_str(), mode, permissions);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status OpenAt(
-      int dir_fd, const std::string& filename, int mode,
-      Permissions permissions = kDefaultPermissions) {
-    return OpenAt(dir_fd, filename.c_str(), mode, permissions);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status OpenAt(
-      int dir_fd, const char* filename, int mode,
+      int dir_fd, CStringRef filename, int mode,
       Permissions permissions = kDefaultPermissions);
 #endif  // !_WIN32
 
@@ -181,21 +154,23 @@ struct IsValidFdTarget<
                                int>>::value>> : std::true_type {};
 
 // `FdTargetHasOpen<T>::value` is `true` if `T` supports `Open()` with the
-// signature like in `OwnedFd` (with `permissions` present).
+// signature like in `OwnedFd` (with `permissions` present), except that
+// `const char* filename` is sufficient.
 
 template <typename T, typename Enable = void>
 struct FdTargetHasOpen : std::false_type {};
 
 template <typename T>
-struct FdTargetHasOpen<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(std::declval<T&>().Open(
-               std::declval<absl::string_view>(), std::declval<int>(),
-               std::declval<OwnedFd::Permissions>())),
-           absl::Status>::value>> : std::true_type {};
+struct FdTargetHasOpen<T,
+                       std::enable_if_t<std::is_convertible<
+                           decltype(std::declval<T&>().Open(
+                               std::declval<const char*>(), std::declval<int>(),
+                               std::declval<OwnedFd::Permissions>())),
+                           absl::Status>::value>> : std::true_type {};
 
 // `FdTargetHasOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
-// signature like in `OwnedFd` (with `permissions` present).
+// signature like in `OwnedFd` (with `permissions` present), except that
+// `const char* filename` is sufficient.
 
 template <typename T, typename Enable = void>
 struct FdTargetHasOpenAt : std::false_type {};
@@ -204,7 +179,7 @@ template <typename T>
 struct FdTargetHasOpenAt<
     T, std::enable_if_t<std::is_convertible<
            decltype(std::declval<T&>().OpenAt(
-               std::declval<int>(), std::declval<absl::string_view>(),
+               std::declval<int>(), std::declval<const char*>(),
                std::declval<int>(), std::declval<OwnedFd::Permissions>())),
            absl::Status>::value>> : std::true_type {};
 

@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -34,6 +33,7 @@
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/external_ref.h"
@@ -42,7 +42,6 @@
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/stable_dependency.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
@@ -472,17 +471,7 @@ class RecordWriterBase : public Object {
   //  * `false` - failure (`!ok()`)
   bool WriteRecord(const google::protobuf::MessageLite& record,
                    SerializeOptions serialize_options = SerializeOptions());
-  bool WriteRecord(absl::string_view record);
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteRecord(const char* record) {
-    return WriteRecord(absl::string_view(record));
-  }
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  bool WriteRecord(Src&& record);
+  bool WriteRecord(BytesRef record);
   bool WriteRecord(const Chain& record);
   bool WriteRecord(Chain&& record);
   bool WriteRecord(const absl::Cord& record);
@@ -707,16 +696,6 @@ explicit RecordWriter(Dest&& dest, RecordWriterBase::Options options =
 #endif
 
 // Implementation details follow.
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline bool RecordWriterBase::WriteRecord(Src&& record) {
-  return WriteRecord(riegeli::ToStringView(record));
-}
 
 template <typename Src,
           std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>

@@ -167,8 +167,7 @@ explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
     absl::conjunction<
         absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
         std::is_lvalue_reference<Dest>,
-        std::is_constructible<absl::Span<char>, Dest>,
-        absl::negation<std::is_pointer<std::remove_reference_t<Dest>>>>::value,
+        std::is_constructible<absl::Span<char>, Dest>>::value,
     DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit ArrayWriter(char* dest, size_t size) -> ArrayWriter<absl::Span<char>>;
 #endif

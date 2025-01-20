@@ -482,7 +482,8 @@ class BytesLike {
   }
 
   // Returns the binary contents.
-  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  /*implicit*/ operator absl::string_view() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::string_view(static_cast<const char*>(buffer_.buf),
                              IntCast<size_t>(buffer_.len));
   }
@@ -517,7 +518,7 @@ class StrOrBytes {
   bool FromPython(PyObject* object ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   // Returns the text contents.
-  explicit operator absl::string_view() const { return data_; }
+  /*implicit*/ operator absl::string_view() const { return data_; }
 
  private:
   absl::string_view data_;

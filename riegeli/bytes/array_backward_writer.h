@@ -150,9 +150,7 @@ explicit ArrayBackwardWriter(Dest&& dest)
         absl::conjunction<
             absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
             std::is_lvalue_reference<Dest>,
-            std::is_constructible<absl::Span<char>, Dest>,
-            absl::negation<std::is_pointer<std::remove_reference_t<Dest>>>>::
-            value,
+            std::is_constructible<absl::Span<char>, Dest>>::value,
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit ArrayBackwardWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                              size_t size)

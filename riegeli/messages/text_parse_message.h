@@ -28,9 +28,9 @@
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -121,10 +121,8 @@ absl::Status TextParseMessage(
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-template <typename Src,
-          std::enable_if_t<SupportsToStringView<Src>::value, int> = 0>
 absl::Status TextParseMessage(
-    const Src& src, google::protobuf::Message& dest,
+    BytesRef src, google::protobuf::Message& dest,
     const TextParseOptions& options = TextParseOptions());
 absl::Status TextParseMessage(
     const Chain& src, google::protobuf::Message& dest,
@@ -138,10 +136,6 @@ absl::Status TextParseMessage(
 namespace messages_internal {
 
 absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
-                                  const TextParseOptions& options);
-
-absl::Status TextParseMessageImpl(absl::string_view src,
-                                  google::protobuf::Message& dest,
                                   const TextParseOptions& options);
 
 }  // namespace messages_internal
@@ -160,14 +154,6 @@ inline absl::Status TextParseMessage(Src&& src, google::protobuf::Message& dest,
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
-}
-
-template <typename Src, std::enable_if_t<SupportsToStringView<Src>::value, int>>
-inline absl::Status TextParseMessage(const Src& src,
-                                     google::protobuf::Message& dest,
-                                     const TextParseOptions& options) {
-  return messages_internal::TextParseMessageImpl(riegeli::ToStringView(src),
-                                                 dest, options);
 }
 
 }  // namespace riegeli

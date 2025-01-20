@@ -377,7 +377,7 @@ class FdWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
   void Initialize(int dest, Options&& options);
-  const std::string& InitializeFilename(
+  const char* InitializeFilename(
       Initializer<std::string>::AllowingExplicit filename);
   void InitializePos(int dest, Options&& options, bool mode_was_passed_to_open);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -671,10 +671,10 @@ inline void FdWriterBase::Reset(BufferOptions buffer_options) {
   read_mode_ = false;
 }
 
-inline const std::string& FdWriterBase::InitializeFilename(
+inline const char* FdWriterBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
-  return filename_;
+  return filename_.c_str();
 }
 
 template <typename Dest>

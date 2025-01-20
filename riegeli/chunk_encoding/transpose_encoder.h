@@ -27,9 +27,9 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_ref.h"
@@ -130,7 +130,7 @@ class TransposeEncoder : public ChunkEncoder {
   // string. Such records are internally stored separately -- these are not
   // broken down into columns.
   using ChunkEncoder::AddRecord;
-  bool AddRecord(absl::string_view record) override;
+  bool AddRecord(BytesRef record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(const absl::Cord& record) override;
   bool AddRecord(ExternalRef record) override;

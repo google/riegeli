@@ -33,6 +33,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -178,11 +179,8 @@ absl::Status ParseLengthPrefixedMessage(Reader& src,
   return ParseMessageWithLength(src, IntCast<size_t>(length), dest, options);
 }
 
-namespace messages_internal {
-
-absl::Status ParseMessageImpl(absl::string_view src,
-                              google::protobuf::MessageLite& dest,
-                              ParseOptions options) {
+absl::Status ParseMessage(BytesRef src, google::protobuf::MessageLite& dest,
+                          ParseOptions options) {
   bool parse_ok;
   if (ABSL_PREDICT_FALSE(src.size() >
                          unsigned{std::numeric_limits<int>::max()})) {
@@ -203,8 +201,6 @@ absl::Status ParseMessageImpl(absl::string_view src,
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
-
-}  // namespace messages_internal
 
 absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
                           ParseOptions options) {

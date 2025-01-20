@@ -34,6 +34,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/status.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
@@ -41,22 +42,22 @@
 
 namespace riegeli {
 
-#ifndef _WIN32
-absl::Status OwnedCFile::Open(const char* filename, const char* mode) {
+absl::Status OwnedCFile::Open(CStringRef filename, CStringRef mode) {
   Reset();
+#ifndef _WIN32
 #ifndef __APPLE__
-  FILE* const file = fopen(filename, mode);
+  FILE* const file = fopen(filename.c_str(), mode.c_str());
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "fopen() failed"),
-                    absl::StrCat("opening ", filename));
+                    absl::StrCat("opening ", filename.c_str()));
   }
 #else   // __APPLE__
   // Emulate `fopen()` with `open()` + `fdopen()`, adding support for 'e'
   // (`O_CLOEXEC`).
-  const char* fdopen_mode = mode;
   mode_t open_mode;
-  switch (mode[0]) {
+  const char* mode_ptr = mode.c_str();
+  switch (mode_ptr[0]) {
     case 'r':
       open_mode = O_RDONLY;
       break;
@@ -67,11 +68,11 @@ absl::Status OwnedCFile::Open(const char* filename, const char* mode) {
       open_mode = O_WRONLY | O_CREAT | O_APPEND;
       break;
     default:
-      return absl::InvalidArgumentError(
-          absl::StrCat("Mode must begin with 'r', 'w', or 'a': ", mode));
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Mode must begin with 'r', 'w', or 'a': ", mode.c_str()));
   }
-  for (++mode; *mode != '\0' && *mode != ','; ++mode) {
-    switch (*mode) {
+  for (++mode_ptr; *mode_ptr != '\0' && *mode_ptr != ','; ++mode_ptr) {
+    switch (*mode_ptr) {
       case '+':
         open_mode = (open_mode & ~O_ACCMODE) | O_RDWR;
         break;
@@ -87,47 +88,41 @@ absl::Status OwnedCFile::Open(const char* filename, const char* mode) {
         break;
     }
   }
-  const int fd = open(filename, open_mode, 0666);
+  const int fd = open(filename.c_str(), open_mode, 0666);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "open() failed"),
-                    absl::StrCat("opening ", filename));
+                    absl::StrCat("opening ", filename.c_str()));
   }
-  FILE* const file = fdopen(fd, fdopen_mode);
+  FILE* const file = fdopen(fd, mode.c_str());
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     close(fd);
     return Annotate(absl::ErrnoToStatus(error_number, "fdopen() failed"),
-                    absl::StrCat("opening ", filename));
+                    absl::StrCat("opening ", filename.c_str()));
   }
 #endif  // __APPLE__
-  Reset(file);
-  return absl::OkStatus();
-}
 #else   // _WIN32
-absl::Status OwnedCFile::Open(absl::string_view filename,
-                              absl::string_view mode) {
-  Reset();
   std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename, filename_wide))) {
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename.c_str(), filename_wide))) {
     return absl::InvalidArgumentError(
-        absl::StrCat("Filename not valid UTF-8: ", filename));
+        absl::StrCat("Filename not valid UTF-8: ", filename.c_str()));
   }
   std::wstring mode_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode, mode_wide))) {
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode.c_str(), mode_wide))) {
     return absl::InvalidArgumentError(
-        absl::StrCat("Mode not valid UTF-8: ", mode));
+        absl::StrCat("Mode not valid UTF-8: ", mode.c_str()));
   }
   FILE* const file = _wfopen(filename_wide.c_str(), mode_wide.c_str());
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "_wfopen() failed"),
-                    absl::StrCat("opening ", filename));
+                    absl::StrCat("opening ", filename.c_str()));
   }
+#endif  // _WIN32
   Reset(file);
   return absl::OkStatus();
 }
-#endif  // _WIN32
 
 absl::Status OwnedCFile::Close() {
   if (is_open()) {

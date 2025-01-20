@@ -23,14 +23,13 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/messages/serialize_message.h"
@@ -59,17 +58,10 @@ class ChunkEncoder : public Object {
   bool AddRecord(const google::protobuf::MessageLite& record);
   virtual bool AddRecord(const google::protobuf::MessageLite& record,
                          SerializeOptions serialize_options);
-  virtual bool AddRecord(absl::string_view record) = 0;
+  virtual bool AddRecord(BytesRef record) = 0;
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool AddRecord(const char* record) {
     return AddRecord(absl::string_view(record));
   }
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  bool AddRecord(Src&& record);
   virtual bool AddRecord(const Chain& record) = 0;
   virtual bool AddRecord(Chain&& record);
   virtual bool AddRecord(const absl::Cord& record) = 0;
@@ -126,16 +118,6 @@ inline void ChunkEncoder::Clear() {
 inline bool ChunkEncoder::AddRecord(
     const google::protobuf::MessageLite& record) {
   return AddRecord(record, SerializeOptions());
-}
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline bool ChunkEncoder::AddRecord(Src&& record) {
-  return AddRecord(riegeli::ToStringView(record));
 }
 
 template <typename Src,

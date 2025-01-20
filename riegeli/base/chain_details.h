@@ -37,6 +37,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain_base.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
@@ -47,7 +48,6 @@
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -457,7 +457,7 @@ void RiegeliDumpStructure(const std::string* self, std::ostream& dest);
 template <typename T>
 struct Chain::ExternalMethodsFor {
   // Creates an external block containing an external object constructed from
-  // `object`, and sets block data to `riegeli::ToStringView(new_object)`.
+  // `object`, and sets block data to `BytesRef(new_object)`.
   static IntrusiveSharedPtr<RawBlock> NewBlock(Initializer<T> object);
 
   // Creates an external block containing an external object constructed from
@@ -505,7 +505,7 @@ Chain::ExternalMethodsFor<T>::NewBlock(Initializer<T> object,
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
   chain_internal::CallOperator(std::move(block->unchecked_external_object<T>()),
-                               absl::string_view(*block));
+                               *block);
   block->unchecked_external_object<T>().~T();
   DeleteAligned<RawBlock, UnsignedMax(alignof(RawBlock), alignof(T))>(
       block, RawBlock::kExternalAllocatedSize<T>());
@@ -514,8 +514,8 @@ void Chain::ExternalMethodsFor<T>::DeleteBlock(RawBlock* block) {
 template <typename T>
 void Chain::ExternalMethodsFor<T>::DumpStructure(const RawBlock& block,
                                                  std::ostream& dest) {
-  chain_internal::DumpStructure(&block.unchecked_external_object<T>(),
-                                absl::string_view(block), dest);
+  chain_internal::DumpStructure(&block.unchecked_external_object<T>(), block,
+                                dest);
 }
 
 template <typename T>
@@ -527,15 +527,14 @@ template <typename T>
 void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
     const RawBlock* block, MemoryEstimator& memory_estimator) {
   chain_internal::RegisterSubobjects(&block->unchecked_external_object<T>(),
-                                     absl::string_view(*block),
-                                     memory_estimator);
+                                     *block, memory_estimator);
 }
 
 template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
   std::move(object).ConstructAt(&unchecked_external_object<T>());
-  substr_ = riegeli::ToStringView(unchecked_external_object<T>());
+  substr_ = BytesRef(unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -703,7 +702,7 @@ inline Chain::BlockRef::operator absl::string_view() const {
   if (ptr_ == BlockIterator::kBeginShortData) {
     return chain_->short_data();
   } else {
-    return absl::string_view(*ptr_.as_ptr()->block_ptr);
+    return *ptr_.as_ptr()->block_ptr;
   }
 }
 
@@ -848,9 +847,10 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
 
 template <
     typename T,
-    std::enable_if_t<absl::conjunction<NotSelfCopy<Chain::Block, TargetT<T>>,
-                                       SupportsToStringView<TargetT<T>>>::value,
-                     int>>
+    std::enable_if_t<
+        absl::conjunction<NotSelfCopy<Chain::Block, TargetT<T>>,
+                          std::is_convertible<TargetT<T>, BytesRef>>::value,
+        int>>
 inline Chain::Block::Block(T&& object)
     : block_(
           ExternalMethodsFor<TargetT<T>>::NewBlock(std::forward<T>(object))) {}
@@ -959,17 +959,7 @@ constexpr size_t Chain::kExternalAllocatedSize() {
   return RawBlock::kExternalAllocatedSize<T>();
 }
 
-inline Chain::Chain(absl::string_view src) { Initialize(src); }
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline Chain::Chain(Src&& src) {
-  Initialize(riegeli::ToStringView(src));
-}
+inline Chain::Chain(BytesRef src) { Initialize(src); }
 
 inline Chain::Chain(Block src) {
   if (src.raw_block() != nullptr) Initialize(std::move(src));
@@ -1035,16 +1025,6 @@ inline Chain::~Chain() {
 }
 
 inline void Chain::Reset() { Clear(); }
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline void Chain::Reset(Src&& src) {
-  Reset(riegeli::ToStringView(src));
-}
 
 inline void Chain::Reset(ExternalRef src) { std::move(src).AssignTo(*this); }
 
@@ -1135,7 +1115,7 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const
     case 0:
       return short_data();
     case 1:
-      return absl::string_view(*front());
+      return *front();
     default:
       return absl::nullopt;
   }
@@ -1146,7 +1126,7 @@ inline absl::string_view Chain::Flatten() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     case 0:
       return short_data();
     case 1:
-      return absl::string_view(*front());
+      return *front();
     default:
       return FlattenSlow();
   }
@@ -1160,26 +1140,6 @@ inline absl::Span<char> Chain::AppendFixedBuffer(size_t length, Options options)
 inline absl::Span<char> Chain::PrependFixedBuffer(
     size_t length, Options options) ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return PrependBuffer(length, length, length, options);
-}
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline void Chain::Append(Src&& src, Options options) {
-  Append(riegeli::ToStringView(src), options);
-}
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline void Chain::Prepend(Src&& src, Options options) {
-  Prepend(riegeli::ToStringView(src), options);
 }
 
 inline void Chain::Append(ExternalRef src) { std::move(src).AppendTo(*this); }

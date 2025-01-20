@@ -224,13 +224,46 @@ cc_library(
 )
 
 cc_library(
-    name = "to_string_view",
-    hdrs = ["to_string_view.h"],
+    name = "string_ref",
+    hdrs = ["string_ref.h"],
     deps = [
+        ":assert",
+        ":compare",
+        ":type_traits",
+        "@com_google_absl//absl/base:config",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "bytes_ref",
+    hdrs = ["bytes_ref.h"],
+    deps = [
+        ":compare",
+        ":string_ref",
+        ":type_traits",
+        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "c_string_ref",
+    hdrs = ["c_string_ref.h"],
+    deps = [
+        ":compare",
+        ":initializer",
+        ":string_ref",
+        ":type_traits",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -270,12 +303,13 @@ cc_library(
     ],
     deps = [
         ":assert",
+        ":bytes_ref",
         ":compare",
         ":initializer",
         ":reset",
-        ":to_string_view",
         ":type_id",
         ":type_traits",
+        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",
@@ -477,6 +511,7 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":buffering",
+        ":bytes_ref",
         ":compare",
         ":cord_utils",
         ":external_data",
@@ -486,7 +521,6 @@ cc_library(
         ":shared_ptr",
         ":stream_utils",
         ":string_utils",
-        ":to_string_view",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",
@@ -541,13 +575,16 @@ cc_library(
     deps = [
         ":arithmetic",
         ":assert",
+        ":bytes_ref",
         ":compare",
         ":estimated_allocated_size",
         ":external_data",
         ":new_aligned",
+        ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
 )

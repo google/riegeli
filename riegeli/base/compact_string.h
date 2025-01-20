@@ -27,12 +27,15 @@
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/new_aligned.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -87,7 +90,7 @@ class
   explicit CompactString(size_t size) : repr_(MakeRepr(size)) {}
 
   // Creates a `CompactString` which holds a copy of `src`.
-  explicit CompactString(absl::string_view src) : repr_(MakeRepr(src)) {}
+  explicit CompactString(BytesRef src) : repr_(MakeRepr(src)) {}
 
   CompactString(const CompactString& that);
   CompactString& operator=(const CompactString& that);
@@ -100,24 +103,26 @@ class
     return *this;
   }
 
-  CompactString& operator=(absl::string_view src);
+  CompactString& operator=(BytesRef src);
 
   ~CompactString() { DeleteRepr(repr_); }
 
+  /*implicit*/ operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
   bool empty() const { return size() == 0; }
-
-  // Returns the data pointer. Never `nullptr`.
-  char* data() ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
-
+  char* data() ABSL_ATTRIBUTE_LIFETIME_BOUND;              // Never `nullptr`.
+  const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND;  // Never `nullptr`.
   size_t size() const;
-
   size_t capacity() const;
-
-  operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   char& operator[](size_t index) ABSL_ATTRIBUTE_LIFETIME_BOUND;
   const char& operator[](size_t index) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  char& at(size_t index) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const char& at(size_t index) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  char& front() ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const char& front() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  char& back() ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const char& back() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   void clear() { set_size(0); }
 
@@ -265,12 +270,21 @@ class
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
 
-  friend bool operator==(const CompactString& a, absl::string_view b) {
-    return absl::string_view(a) == b;
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<NotSelfCopy<CompactString, T>,
+                                  std::is_convertible<T&&, BytesRef>>::value,
+                int> = 0>
+  friend bool operator==(const CompactString& a, T&& b) {
+    return absl::string_view(a) == BytesRef(std::forward<T>(b));
   }
-  friend StrongOrdering RIEGELI_COMPARE(const CompactString& a,
-                                        absl::string_view b) {
-    return riegeli::Compare(absl::string_view(a), b);
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<NotSelfCopy<CompactString, T>,
+                                  std::is_convertible<T&&, BytesRef>>::value,
+                int> = 0>
+  friend StrongOrdering RIEGELI_COMPARE(const CompactString& a, T&& b) {
+    return riegeli::Compare(absl::string_view(a), BytesRef(std::forward<T>(b)));
   }
 
   template <typename HashState>
@@ -625,7 +639,7 @@ inline CompactString& CompactString::operator=(const CompactString& that) {
   return *this;
 }
 
-inline CompactString& CompactString::operator=(absl::string_view src) {
+inline CompactString& CompactString::operator=(BytesRef src) {
   if (ABSL_PREDICT_TRUE(src.size() <= capacity())) {
     set_size(src.size());
     // `std::memmove(_, nullptr, 0)` is undefined.
@@ -680,6 +694,43 @@ inline const char& CompactString::operator[](size_t index) const
   RIEGELI_ASSERT_LT(index, size())
       << "Failed precondition of CompactString::operator[]: index out of range";
   return data()[index];
+}
+
+inline char& CompactString::at(size_t index) ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_CHECK_LT(index, size())
+      << "Failed precondition of CompactString::at(): index out of range";
+  return data()[index];
+}
+
+inline const char& CompactString::at(size_t index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_CHECK_LT(index, size())
+      << "Failed precondition of CompactString::at(): index out of range";
+  return data()[index];
+}
+
+inline char& CompactString::front() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_ASSERT(!empty())
+      << "Failed precondition of CompactString::front(): empty string";
+  return data()[0];
+}
+
+inline const char& CompactString::front() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_ASSERT(!empty())
+      << "Failed precondition of CompactString::front(): empty string";
+  return data()[0];
+}
+
+inline char& CompactString::back() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_ASSERT(!empty())
+      << "Failed precondition of CompactString::back(): empty string";
+  return data()[size() - 1];
+}
+
+inline const char& CompactString::back() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_ASSERT(!empty())
+      << "Failed precondition of CompactString::back(): empty string";
+  return data()[size() - 1];
 }
 
 inline void CompactString::set_size(size_t new_size) {

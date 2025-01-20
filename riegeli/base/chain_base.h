@@ -38,6 +38,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/external_ref_support.h"
@@ -46,7 +47,6 @@
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/ownership.h"
 #include "riegeli/base/ref_count.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -192,16 +192,7 @@ class Chain : public WithCompare<Chain> {
   constexpr Chain() = default;
 
   // Converts from a string-like type.
-  explicit Chain(absl::string_view src);
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  explicit Chain(const char* src) : Chain(absl::string_view(src)) {}
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  explicit Chain(Src&& src);
+  explicit Chain(BytesRef src);
   explicit Chain(Block src);
   explicit Chain(const absl::Cord& src);
   explicit Chain(absl::Cord&& src);
@@ -225,18 +216,7 @@ class Chain : public WithCompare<Chain> {
   // Makes `*this` equivalent to a newly constructed `Chain`. This avoids
   // constructing a temporary `Chain` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view src);
-  ABSL_ATTRIBUTE_REINITIALIZES ABSL_ATTRIBUTE_ALWAYS_INLINE void Reset(
-      const char* src) {
-    Reset(absl::string_view(src));
-  }
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(BytesRef src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Block src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const absl::Cord& src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::Cord&& src);
@@ -323,18 +303,7 @@ class Chain : public WithCompare<Chain> {
       size_t length, Options options = Options()) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Appends/prepends a string-like type.
-  void Append(absl::string_view src, Options options = Options());
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  void Append(const char* src, Options options = Options()) {
-    Append(absl::string_view(src), options);
-  }
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  void Append(Src&& src, Options options = Options());
+  void Append(BytesRef src, Options options = Options());
   void Append(const Chain& src, Options options = Options());
   void Append(Chain&& src, Options options = Options());
   void Append(const Block& src, Options options = Options());
@@ -349,18 +318,7 @@ class Chain : public WithCompare<Chain> {
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   void Append(Src&& src, Options options);
-  void Prepend(absl::string_view src, Options options = Options());
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  void Prepend(const char* src, Options options = Options()) {
-    Prepend(absl::string_view(src), options);
-  }
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  void Prepend(Src&& src, Options options = Options());
+  void Prepend(BytesRef src, Options options = Options());
   void Prepend(const Chain& src, Options options = Options());
   void Prepend(Chain&& src, Options options = Options());
   void Prepend(const Block& src, Options options = Options());
@@ -658,8 +616,8 @@ class Chain::RawBlock {
   explicit RawBlock(const size_t* raw_capacity);
 
   // Constructs an external block containing an external object of type `T`,
-  // and sets block data to `riegeli::ToStringView(new_object)`. This
-  // constructor is public for `NewAligned()`.
+  // and sets block data to `BytesRef(new_object)`. This constructor is public
+  // for `NewAligned()`.
   template <typename T>
   explicit RawBlock(Initializer<T> object);
 
@@ -683,7 +641,7 @@ class Chain::RawBlock {
 
   bool TryClear();
 
-  explicit operator absl::string_view() const { return substr_; }
+  /*implicit*/ operator absl::string_view() const { return substr_; }
   bool empty() const { return substr_.empty(); }
   size_t size() const { return substr_.size(); }
   const char* data_begin() const { return substr_.data(); }
@@ -768,11 +726,12 @@ class Chain::RawBlock {
   static constexpr size_t kExternalObjectOffset();
 
 #if RIEGELI_DEBUG
-  template <typename T,
-            std::enable_if_t<SupportsToStringView<T>::value, int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::is_convertible<const T&, BytesRef>::value, int> = 0>
   static void AssertSubstr(const T& object, absl::string_view substr) {
     if (!substr.empty()) {
-      const absl::string_view whole = riegeli::ToStringView(object);
+      const BytesRef whole = object;
       RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), whole.data()))
           << "Failed precondition of Chain::Block::Block(): "
              "substring not contained in whole data";
@@ -783,7 +742,8 @@ class Chain::RawBlock {
     }
   }
   template <typename T,
-            std::enable_if_t<!SupportsToStringView<T>::value, int> = 0>
+            std::enable_if_t<!std::is_convertible<const T&, BytesRef>::value,
+                             int> = 0>
 #else
   template <typename T>
 #endif
@@ -836,8 +796,8 @@ class Chain::Block {
   // If the `substr` parameter is given, `substr` must be owned by the object
   // after it gets created or moved.
   //
-  // If the `substr` parameter is not given, `T` must support
-  // `riegeli::ToStringView()`.
+  // If the `substr` parameter is not given, `T` must be convertible to
+  // `BytesRef`.
   //
   // `T` may also support the following member functions, either with or without
   // the `substr` parameter, with the following definitions assumed by default:
@@ -864,11 +824,12 @@ class Chain::Block {
   // The `substr` parameter of these member functions, if present, will get the
   // `substr` parameter passed to `FromExternal()`. Having `substr` available in
   // these functions might avoid storing `substr` in the external object.
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSelfCopy<Block, TargetT<T>>,
-                                  SupportsToStringView<TargetT<T>>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<
+          absl::conjunction<NotSelfCopy<Block, TargetT<T>>,
+                            std::is_convertible<TargetT<T>, BytesRef>>::value,
+          int> = 0>
   explicit Block(T&& object);
   template <typename T>
   explicit Block(T&& object, absl::string_view substr);
@@ -879,9 +840,10 @@ class Chain::Block {
   Block(Block&& that) = default;
   Block& operator=(Block&& that) = default;
 
-  explicit operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  /*implicit*/ operator absl::string_view() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (block_ == nullptr) return absl::string_view();
-    return absl::string_view(*block_);
+    return *block_;
   }
 
   bool empty() const { return block_ == nullptr || block_->empty(); }

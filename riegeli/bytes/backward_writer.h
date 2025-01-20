@@ -36,11 +36,11 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/to_string_view.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/restricted_chain_writer.h"
@@ -160,16 +160,9 @@ class BackwardWriter : public Object {
 #if __cpp_char8_t
   bool Write(char8_t src) { return Write(static_cast<char>(src)); }
 #endif
-  bool Write(absl::string_view src);
+  bool Write(BytesRef src);
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   bool Write(const char* src) { return Write(absl::string_view(src)); }
-  template <typename Src,
-            std::enable_if_t<
-                absl::conjunction<
-                    SupportsToStringView<Src>,
-                    absl::negation<SupportsExternalRefWhole<Src>>>::value,
-                int> = 0>
-  bool Write(Src&& src);
   bool Write(const Chain& src);
   bool Write(Chain&& src);
   bool Write(const absl::Cord& src);
@@ -204,7 +197,8 @@ class BackwardWriter : public Object {
       typename Src,
       std::enable_if_t<
           absl::conjunction<
-              HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
+              HasAbslStringify<Src>,
+              absl::negation<std::is_convertible<Src&&, BytesRef>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
               absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
               absl::negation<SupportsExternalRefWhole<Src>>,
@@ -582,7 +576,7 @@ inline bool BackwardWriter::Write(char src) {
   return true;
 }
 
-inline bool BackwardWriter::Write(absl::string_view src) {
+inline bool BackwardWriter::Write(BytesRef src) {
   AssertInitialized(src.data(), src.size());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
     // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
@@ -595,16 +589,6 @@ inline bool BackwardWriter::Write(absl::string_view src) {
   }
   AssertInitialized(cursor(), start_to_cursor());
   return WriteSlow(src);
-}
-
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<SupportsToStringView<Src>,
-                          absl::negation<SupportsExternalRefWhole<Src>>>::value,
-        int>>
-inline bool BackwardWriter::Write(Src&& src) {
-  return Write(riegeli::ToStringView(src));
 }
 
 inline bool BackwardWriter::Write(const Chain& src) {
@@ -754,16 +738,16 @@ inline bool BackwardWriter::Write(absl::uint128 src) {
   return write_int_internal::WriteUnsigned(src, *this);
 }
 
-template <
-    typename Src,
-    std::enable_if_t<
-        absl::conjunction<
-            HasAbslStringify<Src>, absl::negation<SupportsToStringView<Src>>,
-            absl::negation<std::is_convertible<Src&&, const Chain&>>,
-            absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-            absl::negation<SupportsExternalRefWhole<Src>>,
-            absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
-        int>>
+template <typename Src,
+          std::enable_if_t<
+              absl::conjunction<
+                  HasAbslStringify<Src>,
+                  absl::negation<std::is_convertible<Src&&, BytesRef>>,
+                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
+                  absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+                  absl::negation<SupportsExternalRefWhole<Src>>,
+                  absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+              int>>
 inline bool BackwardWriter::Write(Src&& src) {
   RestrictedChainWriter chain_writer;
   WriterAbslStringifySink sink(&chain_writer);
