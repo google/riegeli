@@ -36,6 +36,223 @@
 
 namespace riegeli {
 
+namespace fd_internal {
+
+#ifndef _WIN32
+using Permissions = mode_t;
+#else
+using Permissions = int;
+#endif
+
+}  // namespace fd_internal
+
+// `IsValidFdTarget<T>::value` is `true` if `T*` is a valid constructor
+// argument for `FdHandle`.
+
+template <typename T, typename Enable = void>
+struct IsValidFdTarget : std::false_type {};
+
+template <typename T>
+struct IsValidFdTarget<
+    T, std::enable_if_t<absl::conjunction<
+           absl::negation<std::is_const<T>>,
+           std::is_convertible<decltype(std::declval<const T&>().get()),
+                               int>>::value>> : std::true_type {};
+
+// `FdTargetHasOpen<T>::value` is `true` if `T` supports `Open()` with the
+// signature like in `OwnedFd` (with `permissions` present), except that
+// `const char* filename` is sufficient.
+
+template <typename T, typename Enable = void>
+struct FdTargetHasOpen : std::false_type {};
+
+template <typename T>
+struct FdTargetHasOpen<T,
+                       std::enable_if_t<std::is_convertible<
+                           decltype(std::declval<T&>().Open(
+                               std::declval<const char*>(), std::declval<int>(),
+                               std::declval<fd_internal::Permissions>())),
+                           absl::Status>::value>> : std::true_type {};
+
+// `FdTargetHasOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
+// signature like in `OwnedFd` (with `permissions` present), except that
+// `const char* filename` is sufficient.
+
+template <typename T, typename Enable = void>
+struct FdTargetHasOpenAt : std::false_type {};
+
+template <typename T>
+struct FdTargetHasOpenAt<
+    T, std::enable_if_t<std::is_convertible<
+           decltype(std::declval<T&>().OpenAt(
+               std::declval<int>(), std::declval<const char*>(),
+               std::declval<int>(), std::declval<fd_internal::Permissions>())),
+           absl::Status>::value>> : std::true_type {};
+
+// Type-erased pointer to a target object like `UnownedFd` or `OwnedFd` which
+// stores and possibly owns a fd.
+//
+// The target should support:
+//
+// ```
+//   // Returns the fd.
+//   int get() const;
+//
+//   // Returns `true` if the target owns the fd, i.e. is responsible for
+//   // closing it and the fd is present.
+//   //
+//   // Optional. If absent, the presence of `Close()` determines whether the
+//   // target is considered to own the fd.
+//   bool IsOwning() const;
+//
+//   // Opens a new fd, like with `open()` but returning `absl::Status`.
+//   //
+//   // Optional. Used by `FdReader` and `FdWriter` constructors from the
+//   // filename.
+//   absl::Status Open(const char* filename, int mode,
+//                     OwnedFd::Permissions permissions);
+//
+//   // Closes the fd if `IsOwning()`.
+//   //
+//   // Returns `absl::OkStatus()` if `!IsOwning()`.
+//   //
+//   // Optional. If absent, `absl::OkStatus()` is assumed.
+//   absl::Status Close();
+// ```
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        FdHandle : public WithEqual<FdHandle> {
+ public:
+  // Creates an `FdHandle` which does not point to a target.
+  FdHandle() = default;
+  /*implicit*/ FdHandle(std::nullptr_t) noexcept {}
+
+  // Creates an `FdHandle` which points to `target`.
+  template <typename T, std::enable_if_t<IsValidFdTarget<T>::value, int> = 0>
+  explicit FdHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : methods_(&kMethods<T>), target_(RIEGELI_EVAL_ASSERT_NOTNULL(target)) {}
+
+  FdHandle(const FdHandle& that) = default;
+  FdHandle& operator=(const FdHandle& that) = default;
+
+  // Returns `true` if the fd is present.
+  bool is_open() const { return **this >= 0; }
+
+  // Returns the fd.
+  int operator*() const { return methods_->get(target_); }
+
+  // Returns `true` if the `FdHandle` owns the fd, i.e. is responsible for
+  // closing it and the fd is present.
+  bool IsOwning() const { return methods_->is_owning(target_); }
+
+  // Closes the fd if `IsOwning()`.
+  //
+  // Returns `absl::OkStatus()` if `!IsOwning()`.
+  absl::Status Close() { return methods_->close(target_); }
+
+  friend bool operator==(FdHandle a, FdHandle b) {
+    return a.target_ == b.target_;
+  }
+
+ private:
+  struct Methods {
+    int (*get)(const void* target);
+    bool (*is_owning)(const void* target);
+    absl::Status (*close)(void* target);
+  };
+
+  template <typename T, typename Enable = void>
+  struct FdTargetHasIsOwning : std::false_type {};
+  template <typename T>
+  struct FdTargetHasIsOwning<
+      T, std::enable_if_t<std::is_convertible<
+             decltype(std::declval<const T&>().IsOwning()), bool>::value>>
+      : std::true_type {};
+
+  template <typename T, typename Enable = void>
+  struct FdTargetHasClose : std::false_type {};
+  template <typename T>
+  struct FdTargetHasClose<
+      T, std::enable_if_t<std::is_convertible<
+             decltype(std::declval<T&>().Close()), absl::Status>::value>>
+      : std::true_type {};
+
+  template <typename T>
+  static int GetMethod(const void* target) {
+    return static_cast<const T*>(target)->get();
+  }
+
+  template <typename T,
+            std::enable_if_t<FdTargetHasIsOwning<T>::value, int> = 0>
+  static bool IsOwningMethod(const void* target) {
+    return static_cast<const T*>(target)->IsOwning();
+  }
+  template <typename T,
+            std::enable_if_t<!FdTargetHasIsOwning<T>::value, int> = 0>
+  static bool IsOwningMethod(const void* target) {
+    return FdTargetHasClose<T>::value &&
+           static_cast<const T*>(target)->get() >= 0;
+  }
+
+  template <typename T, std::enable_if_t<FdTargetHasClose<T>::value, int> = 0>
+  static absl::Status CloseMethod(void* target) {
+    return static_cast<T*>(target)->Close();
+  }
+  template <typename T, std::enable_if_t<!FdTargetHasClose<T>::value, int> = 0>
+  static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED void* target) {
+    return absl::OkStatus();
+  }
+
+  template <typename T>
+  static constexpr Methods kMethods = {GetMethod<T>, IsOwningMethod<T>,
+                                       CloseMethod<T>};
+
+  const Methods* methods_ = nullptr;
+  void* target_ = nullptr;
+};
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+template <typename T>
+constexpr FdHandle::Methods FdHandle::kMethods;
+#endif
+
+// Stores a file descriptor but does not own it, i.e. is not responsible for
+// closing it.
+//
+// The fd can be negative which means absent.
+class UnownedFd : public WithEqual<UnownedFd> {
+ public:
+  // Creates an `UnownedFd` which does not store a fd.
+  UnownedFd() = default;
+
+  // Creates an `UnownedFd` which stores `fd`.
+  explicit UnownedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept : fd_(fd) {}
+
+  UnownedFd(const UnownedFd& that) = default;
+  UnownedFd& operator=(const UnownedFd& that) = default;
+
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd = -1) { fd_ = fd; }
+
+  // Returns `true` if the fd is present.
+  bool is_open() const { return fd_ >= 0; }
+
+  // Returns the fd.
+  int get() const { return fd_; }
+
+  friend bool operator==(UnownedFd a, UnownedFd b) {
+    return a.get() == b.get();
+  }
+  friend bool operator==(UnownedFd a, int b) { return a.get() == b; }
+
+ private:
+  int fd_ = -1;
+};
+
 // Owns a file descriptor, i.e. stores it and is responsible for closing it.
 //
 // The fd can be negative which means absent.
@@ -45,11 +262,10 @@ class
 #endif
         OwnedFd : public WithEqual<OwnedFd> {
  public:
+  using Permissions = fd_internal::Permissions;
 #ifndef _WIN32
-  using Permissions = mode_t;
   static constexpr Permissions kDefaultPermissions = 0666;
 #else
-  using Permissions = int;
   static constexpr Permissions kDefaultPermissions = _S_IREAD | _S_IWRITE;
 #endif
 
@@ -108,218 +324,9 @@ class
   int fd_ = -1;
 };
 
-// Stores a file descriptor but does not own it, i.e. is not responsible for
-// closing it.
-//
-// The fd can be negative which means absent.
-class UnownedFd : public WithEqual<UnownedFd> {
- public:
-  // Creates an `UnownedFd` which does not store a fd.
-  UnownedFd() = default;
-
-  // Creates an `UnownedFd` which stores `fd`.
-  explicit UnownedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept : fd_(fd) {}
-
-  UnownedFd(const UnownedFd& that) = default;
-  UnownedFd& operator=(const UnownedFd& that) = default;
-
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd = -1) { fd_ = fd; }
-
-  // Returns `true` if the fd is present.
-  bool is_open() const { return fd_ >= 0; }
-
-  // Returns the fd.
-  int get() const { return fd_; }
-
-  friend bool operator==(UnownedFd a, UnownedFd b) {
-    return a.get() == b.get();
-  }
-  friend bool operator==(UnownedFd a, int b) { return a.get() == b; }
-
- private:
-  int fd_ = -1;
-};
-
-// `IsValidFdTarget<T>::value` is `true` if `T*` is a valid constructor
-// argument for `FdHandle`.
-
-template <typename T, typename Enable = void>
-struct IsValidFdTarget : std::false_type {};
-
-template <typename T>
-struct IsValidFdTarget<
-    T, std::enable_if_t<absl::conjunction<
-           absl::negation<std::is_const<T>>,
-           std::is_convertible<decltype(std::declval<const T&>().get()),
-                               int>>::value>> : std::true_type {};
-
-// `FdTargetHasOpen<T>::value` is `true` if `T` supports `Open()` with the
-// signature like in `OwnedFd` (with `permissions` present), except that
-// `const char* filename` is sufficient.
-
-template <typename T, typename Enable = void>
-struct FdTargetHasOpen : std::false_type {};
-
-template <typename T>
-struct FdTargetHasOpen<T,
-                       std::enable_if_t<std::is_convertible<
-                           decltype(std::declval<T&>().Open(
-                               std::declval<const char*>(), std::declval<int>(),
-                               std::declval<OwnedFd::Permissions>())),
-                           absl::Status>::value>> : std::true_type {};
-
-// `FdTargetHasOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
-// signature like in `OwnedFd` (with `permissions` present), except that
-// `const char* filename` is sufficient.
-
-template <typename T, typename Enable = void>
-struct FdTargetHasOpenAt : std::false_type {};
-
-template <typename T>
-struct FdTargetHasOpenAt<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(std::declval<T&>().OpenAt(
-               std::declval<int>(), std::declval<const char*>(),
-               std::declval<int>(), std::declval<OwnedFd::Permissions>())),
-           absl::Status>::value>> : std::true_type {};
-
-// Type-erased pointer to a target object like `OwnedFd` or `UnownedFd` which
-// stores and possibly owns a fd.
-//
-// The target should support:
-//
-// ```
-//   // Returns the fd.
-//   int get() const;
-//
-//   // Returns `true` if the target owns the fd, i.e. is responsible for
-//   // closing it and the fd is present.
-//   //
-//   // Optional. If absent, the presence of `Close()` determines whether the
-//   // target is considered to own the fd.
-//   bool IsOwning() const;
-//
-//   // Opens a new fd, like with `open()` but returning `absl::Status`.
-//   //
-//   // Optional. Used by `FdReader` and `FdWriter` constructors from the
-//   // filename.
-//   absl::Status Open(const char* filename, int mode,
-//                     OwnedFd::Permissions permissions);
-//
-//   // Closes the fd if `IsOwning()`.
-//   //
-//   // Returns `absl::OkStatus()` if `!IsOwning()`.
-//   //
-//   // Optional. If absent, `absl::OkStatus()` is assumed.
-//   absl::Status Close();
-// ```
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-        FdHandle : public WithEqual<FdHandle> {
- public:
-  // Creates an `FdHandle` which does not point to a target.
-  FdHandle() = default;
-  /*implicit*/ FdHandle(std::nullptr_t) noexcept {}
-
-  // Creates an `FdHandle` which points to `target`.
-  template <typename T, std::enable_if_t<IsValidFdTarget<T>::value, int> = 0>
-  explicit FdHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : methods_(&kMethods<T>), target_(RIEGELI_EVAL_ASSERT_NOTNULL(target)) {}
-
-  FdHandle(const FdHandle& that) = default;
-  FdHandle& operator=(const FdHandle& that) = default;
-
-  // Returns `true` if the fd is present.
-  bool is_open() const { return **this >= 0; }
-
-  // Returns the fd.
-  int operator*() const { return methods_->get(target_); }
-
-  friend bool operator==(FdHandle a, FdHandle b) {
-    return a.target_ == b.target_;
-  }
-
-  // Returns `true` if the `FdHandle` owns the fd, i.e. is responsible for
-  // closing it and the fd is present.
-  bool IsOwning() const { return methods_->is_owning(target_); }
-
-  // Closes the fd if `IsOwning()`.
-  //
-  // Returns `absl::OkStatus()` if `!IsOwning()`.
-  absl::Status Close() { return methods_->close(target_); }
-
- private:
-  template <typename T, typename Enable = void>
-  struct FdTargetHasClose : std::false_type {};
-
-  template <typename T>
-  struct FdTargetHasClose<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(std::declval<T&>().Close()), absl::Status>::value>>
-      : std::true_type {};
-
-  template <typename T, typename Enable = void>
-  struct FdTargetHasIsOwning : std::false_type {};
-
-  template <typename T>
-  struct FdTargetHasIsOwning<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(std::declval<const T&>().IsOwning()), bool>::value>>
-      : std::true_type {};
-
-  template <typename T>
-  static int GetMethod(const void* target) {
-    return static_cast<const T*>(target)->get();
-  }
-
-  template <typename T,
-            std::enable_if_t<FdTargetHasIsOwning<T>::value, int> = 0>
-  static bool IsOwningMethod(const void* target) {
-    return static_cast<const T*>(target)->IsOwning();
-  }
-  template <typename T,
-            std::enable_if_t<!FdTargetHasIsOwning<T>::value, int> = 0>
-  static bool IsOwningMethod(const void* target) {
-    return FdTargetHasClose<T>::value &&
-           static_cast<const T*>(target)->get() >= 0;
-  }
-
-  template <typename T, std::enable_if_t<FdTargetHasClose<T>::value, int> = 0>
-  static absl::Status CloseMethod(void* target) {
-    return static_cast<T*>(target)->Close();
-  }
-  template <typename T, std::enable_if_t<!FdTargetHasClose<T>::value, int> = 0>
-  static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED void* target) {
-    return absl::OkStatus();
-  }
-
-  struct Methods {
-    int (*get)(const void* target);
-    bool (*is_owning)(const void* target);
-    absl::Status (*close)(void* target);
-  };
-
-  template <typename T>
-  static constexpr Methods kMethods = {GetMethod<T>, IsOwningMethod<T>,
-                                       CloseMethod<T>};
-
-  const Methods* methods_ = nullptr;
-  void* target_ = nullptr;
-};
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename T>
-constexpr FdHandle::Methods FdHandle::kMethods;
-#endif
-
-// Type-erased object like `OwnedFd` or `UnownedFd` which stores and possibly
+// Type-erased object like `UnownedFd` or `OownedFd` which stores and possibly
 // owns a fd.
-using AnyFd = Any<FdHandle>::Inlining<OwnedFd, UnownedFd>;
+using AnyFd = Any<FdHandle>::Inlining<UnownedFd, OwnedFd>;
 
 }  // namespace riegeli
 
