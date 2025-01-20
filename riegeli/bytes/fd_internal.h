@@ -1,4 +1,4 @@
-// Copyright 2017 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,22 +15,12 @@
 #ifndef RIEGELI_BYTES_FD_INTERNAL_H_
 #define RIEGELI_BYTES_FD_INTERNAL_H_
 
-// Warning: Do not include this header in other headers, because the definition
-// of `off_t` depends on `_FILE_OFFSET_BITS` which can reliably be set only
-// in a standalone compilation unit.
+#ifndef __APPLE__
+#include <fcntl.h>
+#endif
 
 #include <string>
 
-#ifdef _WIN32
-#include <io.h>
-#endif
-#include <sys/stat.h>
-#include <sys/types.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
-#include "absl/strings/string_view.h"
 #include "riegeli/base/constexpr.h"
 
 namespace riegeli {
@@ -42,41 +32,15 @@ namespace fd_internal {
 void FilenameForFd(int fd, std::string& filename);
 
 #ifndef _WIN32
-
-using Offset = off_t;
-
-inline Offset LSeek(int fd, Offset offset, int whence) {
-  return lseek(fd, offset, whence);
-}
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kLSeekFunctionName, "lseek()");
-
-using StatInfo = struct stat;
-
-inline int FStat(int fd, StatInfo* stat_info) { return fstat(fd, stat_info); }
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "fstat()");
-
-#else  // _WIN32
-
-using Offset = __int64;
-
-inline Offset LSeek(int fd, Offset offset, int whence) {
-  return _lseeki64(fd, offset, whence);
-}
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kLSeekFunctionName, "_lseeki64()");
-
-// `struct __stat64` in a namespace does not work in MSVC due to a bug regarding
-// https://en.cppreference.com/w/cpp/language/elaborated_type_specifier.
-using StatInfo = struct ::__stat64;
-
-inline int FStat(int fd, StatInfo* stat_info) {
-  return _fstat64(fd, stat_info);
-}
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "_fstat64()");
-
+#ifndef __APPLE__
+RIEGELI_INLINE_CONSTEXPR(int, kCloseOnExec, O_CLOEXEC);
+#else   // __APPLE__
+// On Darwin `O_CLOEXEC` is available conditionally, so `kCloseOnExec` is
+// defined out of line.
+extern const int kCloseOnExec;
+#endif  // __APPLE__
+#else   // _WIN32
+RIEGELI_INLINE_CONSTEXPR(int, kCloseOnExec, _O_NOINHERIT);
 #endif  // _WIN32
 
 }  // namespace fd_internal

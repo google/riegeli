@@ -56,6 +56,7 @@
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/cfile_internal.h"
+#include "riegeli/bytes/cfile_internal_for_cc.h"
 #include "riegeli/bytes/cfile_reader.h"
 #include "riegeli/bytes/file_mode_string.h"
 #include "riegeli/bytes/reader.h"

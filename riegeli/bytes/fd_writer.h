@@ -42,7 +42,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_handle.h"
-#include "riegeli/bytes/fd_internal_for_headers.h"
+#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

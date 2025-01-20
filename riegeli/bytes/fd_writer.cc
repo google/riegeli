@@ -70,6 +70,7 @@
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal.h"
+#include "riegeli/bytes/fd_internal_for_cc.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"

@@ -80,6 +80,7 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal.h"
+#include "riegeli/bytes/fd_internal_for_cc.h"
 #ifndef _WIN32
 #include "riegeli/bytes/fd_writer.h"
 #endif

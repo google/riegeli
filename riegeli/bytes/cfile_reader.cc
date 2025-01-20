@@ -55,6 +55,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/cfile_internal.h"
+#include "riegeli/bytes/cfile_internal_for_cc.h"
 
 namespace riegeli {
 

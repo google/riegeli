@@ -1102,7 +1102,6 @@ cc_library(
         ":buffered_reader",
         ":fd_handle",
         ":fd_internal",
-        ":fd_internal_for_headers",
         ":reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -1141,7 +1140,6 @@ cc_library(
         ":chain_reader",
         ":fd_handle",
         ":fd_internal",
-        ":fd_internal_for_headers",
         ":reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -1179,7 +1177,6 @@ cc_library(
         ":buffered_writer",
         ":fd_handle",
         ":fd_internal",
-        ":fd_internal_for_headers",
         ":fd_reader",
         ":reader",
         ":writer",
@@ -1207,7 +1204,13 @@ cc_library(
 cc_library(
     name = "fd_internal",
     srcs = ["fd_internal.cc"],
-    hdrs = ["fd_internal.h"],
+    hdrs = [
+        "fd_internal.h",
+        "fd_internal_for_cc.h",
+    ],
+    # fd_internal.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:constexpr",
@@ -1220,17 +1223,6 @@ cc_library(
             "@com_google_absl//absl/base:core_headers",
         ],
     }),
-)
-
-cc_library(
-    name = "fd_internal_for_headers",
-    srcs = ["fd_internal_for_headers.cc"],
-    hdrs = ["fd_internal_for_headers.h"],
-    # fd_internal_for_headers.cc has #define before #include to influence what
-    # the included files provide.
-    features = ["-use_header_modules"],
-    visibility = ["//visibility:private"],
-    deps = ["//riegeli/base:constexpr"],
 )
 
 cc_library(
@@ -1447,7 +1439,10 @@ cc_library(
 cc_library(
     name = "cfile_internal",
     srcs = ["cfile_internal.cc"],
-    hdrs = ["cfile_internal.h"],
+    hdrs = [
+        "cfile_internal.h",
+        "cfile_internal_for_cc.h",
+    ],
     visibility = ["//visibility:private"],
     deps = [
         ":fd_internal",

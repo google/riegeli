@@ -38,7 +38,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_handle.h"
-#include "riegeli/bytes/fd_internal_for_headers.h"
+#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {

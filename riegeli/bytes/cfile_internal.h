@@ -1,4 +1,4 @@
-// Copyright 2022 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,90 +15,18 @@
 #ifndef RIEGELI_BYTES_CFILE_INTERNAL_H_
 #define RIEGELI_BYTES_CFILE_INTERNAL_H_
 
-// Warning: Do not include this header in other headers, because the definition
-// of `off_t` depends on `_FILE_OFFSET_BITS` which can reliably be set only
-// in a standalone compilation unit.
-
 #include <stdio.h>
-#ifndef _WIN32
-#include <sys/types.h>
-#endif
 
 #include <string>
-#include <type_traits>
-#include <utility>
-
-#include "absl/meta/type_traits.h"
-#include "absl/strings/string_view.h"
-#include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 namespace cfile_internal {
 
 // Infers a filename from the fd corresponding to the `FILE` by reading the
-// symlink target for `absl::StrCat("/proc/self/fd/", fd)` (on Windows returns a
-// `absl::StrCat("<fd ", fd, ">")` placeholder instead), or returning
+// symlink target for `absl::StrCat("/proc/self/fd/", fd)` (on Windows returns
+// a `absl::StrCat("<fd ", fd, ">")` placeholder instead), or returning
 // "<unknown>" if there is no corresponding fd.
 void FilenameForCFile(FILE* file, std::string& filename);
-
-#ifndef _WIN32
-
-// Use `fseeko()` and `ftello()` when available, otherwise `fseek()` and
-// `ftell()`.
-
-template <typename File, typename Enable = void>
-struct HaveFSeekO : std::false_type {};
-
-template <typename File>
-struct HaveFSeekO<File, absl::void_t<decltype(fseeko(std::declval<File*>(),
-                                                     std::declval<off_t>(),
-                                                     std::declval<int>())),
-                                     decltype(ftello(std::declval<File*>()))>>
-    : std::true_type {};
-
-using Offset = absl::conditional_t<HaveFSeekO<FILE>::value, off_t, long>;
-
-template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
-inline int FSeek(File* file, Offset offset, int whence) {
-  return fseeko(file, offset, whence);
-}
-
-template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline int FSeek(File* file, Offset offset, int whence) {
-  return fseek(file, offset, whence);
-}
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFSeekFunctionName,
-                         HaveFSeekO<FILE>::value ? "fseeko()" : "fseek()");
-
-template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
-inline Offset FTell(File* file) {
-  return ftello(file);
-}
-
-template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline Offset FTell(File* file) {
-  return ftell(file);
-}
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName,
-                         HaveFSeekO<FILE>::value ? "ftello()" : "ftell()");
-
-#else  // _WIN32
-
-using Offset = __int64;
-
-inline int FSeek(FILE* file, Offset offset, int whence) {
-  return _fseeki64(file, offset, whence);
-}
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFSeekFunctionName, "_fseeki64");
-
-inline Offset FTell(FILE* file) { return _ftelli64(file); }
-
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName, "_ftelli64()");
-
-#endif  // _WIN32
 
 }  // namespace cfile_internal
 }  // namespace riegeli

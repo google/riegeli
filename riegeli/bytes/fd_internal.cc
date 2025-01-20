@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,16 +14,19 @@
 
 #ifndef _WIN32
 
-// Make `readlink()` available.
-#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600
+// Make `readlink()` available, and make `O_CLOEXEC` available on Darwin.
+#if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 700
 #undef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
+#define _XOPEN_SOURCE 700
 #endif
 
 #endif
 
 #include "riegeli/bytes/fd_internal.h"
 
+#ifdef __APPLE__
+#include <fcntl.h>
+#endif
 #ifndef _WIN32
 #include <stddef.h>
 #include <unistd.h>
@@ -55,6 +58,12 @@ void FilenameForFd(int fd, std::string& filename) {
   absl::StrAppend(&filename, "<fd ", fd, ">");
 #endif  // _WIN32
 }
+
+#ifdef __APPLE__
+// On Darwin `O_CLOEXEC` is available conditionally, so `kCloseOnExec` is
+// defined out of line.
+extern const int kCloseOnExec = O_CLOEXEC;
+#endif  // __APPLE__
 
 }  // namespace fd_internal
 }  // namespace riegeli
