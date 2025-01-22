@@ -15,12 +15,17 @@
 #ifndef RIEGELI_BASE_TYPE_ERASED_REF_H_
 #define RIEGELI_BASE_TYPE_ERASED_REF_H_
 
+#include <array>
+#include <cstddef>
 #include <memory>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -36,7 +41,11 @@ namespace riegeli {
 // and references to functions.
 //
 // Specifying `T` or `T&&` for recovery is interchangeable.
-class TypeErasedRef {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        TypeErasedRef {
  private:
   template <typename T>
   struct IsFunctionRef : std::false_type {};
@@ -47,6 +56,8 @@ class TypeErasedRef {
  public:
   // Creates an empty `TypeErasedRef`.
   TypeErasedRef() = default;
+  // There is no conversion from `std::nullptr_t` because that should bind to a
+  // reference to `nullptr` instead of being empty.
 
   // Wraps `std::forward<T>(value)`.
   template <typename T,
@@ -55,7 +66,10 @@ class TypeErasedRef {
                                   absl::negation<IsFunctionRef<T>>>::value,
                 int> = 0>
   explicit TypeErasedRef(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : ptr_(const_cast<absl::remove_cvref_t<T>*>(std::addressof(value))) {}
+      : ptr_(const_cast<absl::remove_cvref_t<T>*>(std::addressof(value))) {
+    RIEGELI_ASSERT(repr_ != Repr())
+        << "A non-empty pointer is assumed to have a non-zero representation";
+  }
 
   // Wraps a function reference.
   template <typename T,
@@ -64,7 +78,10 @@ class TypeErasedRef {
                 // reference, so it is never `TypeErasedRef`.
                 IsFunctionRef<T>::value, int> = 0>
   explicit TypeErasedRef(T&& value)
-      : function_ptr_(reinterpret_cast<void (*)()>(&value)) {}
+      : function_ptr_(reinterpret_cast<void (*)()>(&value)) {
+    RIEGELI_ASSERT(repr_ != Repr())
+        << "A non-empty pointer is assumed to have a non-zero representation";
+  }
 
   TypeErasedRef(const TypeErasedRef& that) = default;
   TypeErasedRef& operator=(const TypeErasedRef& that) = default;
@@ -82,10 +99,17 @@ class TypeErasedRef {
     return *reinterpret_cast<std::remove_reference_t<T>*>(function_ptr_);
   }
 
+  friend bool operator==(TypeErasedRef a, std::nullptr_t) {
+    return a.repr_ == Repr();
+  }
+
  private:
+  using Repr = std::array<char, UnsignedMax(sizeof(void*), sizeof(void (*)()))>;
+
   union {
     void* ptr_;
     void (*function_ptr_)();
+    Repr repr_ = {};
   };
 };
 

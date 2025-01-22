@@ -22,12 +22,13 @@
 #include "absl/types/optional.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/type_erased_ref.h"
 
 namespace riegeli {
 
 bool DigesterBaseHandle::WriteChainFallback(
-    void* target, const Chain& src,
-    bool (*write)(void* target, absl::string_view src)) {
+    TypeErasedRef target, const Chain& src,
+    bool (*write)(TypeErasedRef target, absl::string_view src)) {
   for (const absl::string_view fragment : src.blocks()) {
     if (ABSL_PREDICT_FALSE(!write(target, fragment))) return false;
   }
@@ -35,14 +36,14 @@ bool DigesterBaseHandle::WriteChainFallback(
 }
 
 void DigesterBaseHandle::WriteChainFallback(
-    void* target, const Chain& src,
-    void (*write)(void* target, absl::string_view src)) {
+    TypeErasedRef target, const Chain& src,
+    void (*write)(TypeErasedRef target, absl::string_view src)) {
   for (const absl::string_view fragment : src.blocks()) write(target, fragment);
 }
 
 bool DigesterBaseHandle::WriteCordFallback(
-    void* target, const absl::Cord& src,
-    bool (*write)(void* target, absl::string_view src)) {
+    TypeErasedRef target, const absl::Cord& src,
+    bool (*write)(TypeErasedRef target, absl::string_view src)) {
   {
     const absl::optional<absl::string_view> flat = src.TryFlat();
     if (flat != absl::nullopt) {
@@ -56,8 +57,8 @@ bool DigesterBaseHandle::WriteCordFallback(
 }
 
 void DigesterBaseHandle::WriteCordFallback(
-    void* target, const absl::Cord& src,
-    void (*write)(void* target, absl::string_view src)) {
+    TypeErasedRef target, const absl::Cord& src,
+    void (*write)(TypeErasedRef target, absl::string_view src)) {
   {
     const absl::optional<absl::string_view> flat = src.TryFlat();
     if (flat != absl::nullopt) {
@@ -69,8 +70,8 @@ void DigesterBaseHandle::WriteCordFallback(
 }
 
 bool DigesterBaseHandle::WriteByteFillFallback(
-    void* target, ByteFill src,
-    bool (*write)(void* target, absl::string_view src)) {
+    TypeErasedRef target, ByteFill src,
+    bool (*write)(TypeErasedRef target, absl::string_view src)) {
   for (const absl::string_view fragment : src.blocks()) {
     if (ABSL_PREDICT_FALSE(!write(target, fragment))) return false;
   }
@@ -78,8 +79,8 @@ bool DigesterBaseHandle::WriteByteFillFallback(
 }
 
 void DigesterBaseHandle::WriteByteFillFallback(
-    void* target, ByteFill src,
-    void (*write)(void* target, absl::string_view src)) {
+    TypeErasedRef target, ByteFill src,
+    void (*write)(TypeErasedRef target, absl::string_view src)) {
   for (const absl::string_view fragment : src.blocks()) write(target, fragment);
 }
 

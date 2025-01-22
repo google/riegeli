@@ -125,11 +125,11 @@ absl::Status OwnedCFile::Open(CStringRef filename, CStringRef mode) {
 }
 
 absl::Status OwnedCFile::Close() {
-  if (is_open()) {
-    if (ABSL_PREDICT_FALSE(fclose(Release()) != 0)) {
-      const int error_number = errno;
-      return absl::ErrnoToStatus(error_number, "fclose() failed");
-    }
+  FILE* const file = Release();
+  if (file == nullptr) return absl::OkStatus();
+  if (ABSL_PREDICT_FALSE(fclose(file) != 0)) {
+    const int error_number = errno;
+    return absl::ErrnoToStatus(error_number, "fclose() failed");
   }
   return absl::OkStatus();
 }

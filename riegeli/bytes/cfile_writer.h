@@ -406,7 +406,7 @@ class CFileWriter : public CFileWriterBase {
     return dest_.get();
   }
   FILE* DestFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
-    return *dest_;
+    return dest_.get().get();
   }
 
  protected:
@@ -508,7 +508,7 @@ inline const std::string& CFileWriterBase::InitializeFilename(
 template <typename Dest>
 inline CFileWriter<Dest>::CFileWriter(Initializer<Dest> dest, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(*dest_, std::move(options));
+  Initialize(dest_.get().get(), std::move(options));
 }
 
 template <typename Dest>
@@ -533,7 +533,8 @@ inline CFileWriter<Dest>::CFileWriter(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_fopen=*/true);
+  InitializePos(dest_.get().get(), std::move(options),
+                /*mode_was_passed_to_fopen=*/true);
 }
 
 template <typename Dest>
@@ -546,7 +547,7 @@ template <typename Dest>
 inline void CFileWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(*dest_, std::move(options));
+  Initialize(dest_.get().get(), std::move(options));
 }
 
 template <typename Dest>
@@ -571,7 +572,8 @@ inline void CFileWriter<Dest>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_fopen=*/true);
+  InitializePos(dest_.get().get(), std::move(options),
+                /*mode_was_passed_to_fopen=*/true);
 }
 
 template <typename Dest>
@@ -596,7 +598,7 @@ bool CFileWriter<Dest>::FlushImpl(FlushType flush_type) {
       ABSL_FALLTHROUGH_INTENDED;
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:
-      if (ABSL_PREDICT_FALSE(fflush(*dest_) != 0)) {
+      if (ABSL_PREDICT_FALSE(fflush(dest_.get().get()) != 0)) {
         return FailOperation("fflush()");
       }
       return true;

@@ -30,9 +30,9 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/type_erased_ref.h"
 
 namespace riegeli {
 
@@ -46,7 +46,7 @@ using Permissions = int;
 
 }  // namespace fd_internal
 
-// `IsValidFdTarget<T>::value` is `true` if `T*` is a valid constructor
+// `IsValidFdTarget<T>::value` is `true` if `T&` is a valid constructor
 // argument for `FdHandle`.
 
 template <typename T, typename Enable = void>
@@ -125,23 +125,28 @@ class
 #endif
         FdHandle : public WithEqual<FdHandle> {
  public:
-  // Creates an `FdHandle` which does not point to a target.
+  // Creates an `FdHandle` which does not refer to a target.
   FdHandle() = default;
-  /*implicit*/ FdHandle(std::nullptr_t) noexcept {}
+  /*implicit*/ FdHandle(std::nullptr_t) {}
 
-  // Creates an `FdHandle` which points to `target`.
-  template <typename T, std::enable_if_t<IsValidFdTarget<T>::value, int> = 0>
-  explicit FdHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : methods_(&kMethods<T>), target_(RIEGELI_EVAL_ASSERT_NOTNULL(target)) {}
+  // Creates an `FdHandle` which refers to `target`.
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<std::is_convertible<T&, const FdHandle&>>,
+                    IsValidFdTarget<T>>::value,
+                int> = 0>
+  /*implicit*/ FdHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : methods_(&kMethods<T>), target_(target) {}
 
   FdHandle(const FdHandle& that) = default;
   FdHandle& operator=(const FdHandle& that) = default;
 
   // Returns `true` if the fd is present.
-  bool is_open() const { return **this >= 0; }
+  bool is_open() const { return *this != nullptr; }
 
   // Returns the fd.
-  int operator*() const { return methods_->get(target_); }
+  int get() const { return methods_->get(target_); }
 
   // Returns `true` if the `FdHandle` owns the fd, i.e. is responsible for
   // closing it and the fd is present.
@@ -152,15 +157,17 @@ class
   // Returns `absl::OkStatus()` if `!IsOwning()`.
   absl::Status Close() { return methods_->close(target_); }
 
-  friend bool operator==(FdHandle a, FdHandle b) {
-    return a.target_ == b.target_;
+  friend bool operator==(FdHandle a, FdHandle b) { return a.get() == b.get(); }
+  friend bool operator==(FdHandle a, int b) { return a.get() == b; }
+  friend bool operator==(FdHandle a, std::nullptr_t) {
+    return a.target_ == nullptr || a.get() < 0;
   }
 
  private:
   struct Methods {
-    int (*get)(const void* target);
-    bool (*is_owning)(const void* target);
-    absl::Status (*close)(void* target);
+    int (*get)(TypeErasedRef target);
+    bool (*is_owning)(TypeErasedRef target);
+    absl::Status (*close)(TypeErasedRef target);
   };
 
   template <typename T, typename Enable = void>
@@ -180,28 +187,27 @@ class
       : std::true_type {};
 
   template <typename T>
-  static int GetMethod(const void* target) {
-    return static_cast<const T*>(target)->get();
+  static int GetMethod(TypeErasedRef target) {
+    return target.Cast<const T&>().get();
   }
 
   template <typename T,
             std::enable_if_t<FdTargetHasIsOwning<T>::value, int> = 0>
-  static bool IsOwningMethod(const void* target) {
-    return static_cast<const T*>(target)->IsOwning();
+  static bool IsOwningMethod(TypeErasedRef target) {
+    return target.Cast<const T&>().IsOwning();
   }
   template <typename T,
             std::enable_if_t<!FdTargetHasIsOwning<T>::value, int> = 0>
-  static bool IsOwningMethod(const void* target) {
-    return FdTargetHasClose<T>::value &&
-           static_cast<const T*>(target)->get() >= 0;
+  static bool IsOwningMethod(TypeErasedRef target) {
+    return FdTargetHasClose<T>::value && target.Cast<const T&>().get() >= 0;
   }
 
   template <typename T, std::enable_if_t<FdTargetHasClose<T>::value, int> = 0>
-  static absl::Status CloseMethod(void* target) {
-    return static_cast<T*>(target)->Close();
+  static absl::Status CloseMethod(TypeErasedRef target) {
+    return target.Cast<T&>().Close();
   }
   template <typename T, std::enable_if_t<!FdTargetHasClose<T>::value, int> = 0>
-  static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED void* target) {
+  static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
     return absl::OkStatus();
   }
 
@@ -210,7 +216,7 @@ class
                                        CloseMethod<T>};
 
   const Methods* methods_ = nullptr;
-  void* target_ = nullptr;
+  TypeErasedRef target_;
 };
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at
@@ -225,21 +231,29 @@ constexpr FdHandle::Methods FdHandle::kMethods;
 // closing it.
 //
 // The fd can be negative which means absent.
-class UnownedFd : public WithEqual<UnownedFd> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        UnownedFd : public WithEqual<UnownedFd> {
  public:
   // Creates an `UnownedFd` which does not store a fd.
   UnownedFd() = default;
+  /*implicit*/ UnownedFd(std::nullptr_t) {}
 
   // Creates an `UnownedFd` which stores `fd`.
-  explicit UnownedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept : fd_(fd) {}
+  explicit UnownedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) : fd_(fd) {}
 
   UnownedFd(const UnownedFd& that) = default;
   UnownedFd& operator=(const UnownedFd& that) = default;
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd = -1) { fd_ = fd; }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::nullptr_t = nullptr) {
+    fd_ = -1;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd) { fd_ = fd; }
 
   // Returns `true` if the fd is present.
-  bool is_open() const { return fd_ >= 0; }
+  bool is_open() const { return *this != nullptr; }
 
   // Returns the fd.
   int get() const { return fd_; }
@@ -248,6 +262,7 @@ class UnownedFd : public WithEqual<UnownedFd> {
     return a.get() == b.get();
   }
   friend bool operator==(UnownedFd a, int b) { return a.get() == b; }
+  friend bool operator==(UnownedFd a, std::nullptr_t) { return a.get() < 0; }
 
  private:
   int fd_ = -1;
@@ -257,10 +272,13 @@ class UnownedFd : public WithEqual<UnownedFd> {
 //
 // The fd can be negative which means absent.
 class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
 #endif
-        OwnedFd : public WithEqual<OwnedFd> {
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+        ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+            OwnedFd : public WithEqual<OwnedFd> {
  public:
   using Permissions = fd_internal::Permissions;
 #ifndef _WIN32
@@ -271,9 +289,10 @@ class
 
   // Creates an `OwnedFd` which does not own a fd.
   OwnedFd() = default;
+  /*implicit*/ OwnedFd(std::nullptr_t) {}
 
   // Creates an `OwnedFd` which owns `fd`.
-  explicit OwnedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept : fd_(fd) {}
+  explicit OwnedFd(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND) : fd_(fd) {}
 
   // The moved-from fd is left absent.
   OwnedFd(OwnedFd&& that) noexcept : fd_(that.Release()) {}
@@ -284,13 +303,17 @@ class
 
   ~OwnedFd() { Close().IgnoreError(); }
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd = -1) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::nullptr_t = nullptr) {
+    Close().IgnoreError();
+    fd_ = -1;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd) {
     Close().IgnoreError();
     fd_ = fd;
   }
 
   // Returns `true` if the fd is present.
-  bool is_open() const { return fd_ >= 0; }
+  bool is_open() const { return *this != nullptr; }
 
   // Returns the fd.
   int get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return fd_; }
@@ -299,6 +322,9 @@ class
   int Release() { return std::exchange(fd_, -1); }
 
   friend bool operator==(const OwnedFd& a, int b) { return a.get() == b; }
+  friend bool operator==(const OwnedFd& a, std::nullptr_t) {
+    return a.get() < 0;
+  }
 
   // Opens a new fd, like with `open()` but taking `CStringRef filename`
   // and returning `absl::Status`.

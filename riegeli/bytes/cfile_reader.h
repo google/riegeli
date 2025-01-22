@@ -303,7 +303,9 @@ class CFileReader : public CFileReaderBase {
   CFileHandle SrcCFileHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
     return src_.get();
   }
-  FILE* SrcFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *src_; }
+  FILE* SrcFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get().get();
+  }
 
  protected:
   void Done() override;
@@ -393,7 +395,7 @@ template <typename Src>
 inline CFileReader<Src>::CFileReader(Initializer<Src> src, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
-  Initialize(*src_, std::move(options));
+  Initialize(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -418,9 +420,9 @@ inline CFileReader<Src>::CFileReader(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options)
+  InitializePos(src_.get().get(), std::move(options)
 #ifdef _WIN32
-                           ,
+                                      ,
                 /*mode_was_passed_to_fopen=*/true
 #endif
   );
@@ -436,7 +438,7 @@ template <typename Src>
 inline void CFileReader<Src>::Reset(Initializer<Src> src, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(*src_, std::move(options));
+  Initialize(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -461,9 +463,9 @@ inline void CFileReader<Src>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options)
+  InitializePos(src_.get().get(), std::move(options)
 #ifdef _WIN32
-                           ,
+                                      ,
                 /*mode_was_passed_to_fopen=*/true
 #endif
   );

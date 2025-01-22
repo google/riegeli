@@ -196,8 +196,11 @@ cc_library(
     name = "type_erased_ref",
     hdrs = ["type_erased_ref.h"],
     deps = [
+        ":arithmetic",
+        ":assert",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",
     ],
 )

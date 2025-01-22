@@ -302,7 +302,9 @@ class FdMMapReader : public FdMMapReaderBase {
   FdHandle SrcFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
     return src_.get();
   }
-  int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *src_; }
+  int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get().get();
+  }
 
  protected:
   void Done() override;
@@ -379,7 +381,7 @@ inline const char* FdMMapReaderBase::InitializeFilename(
 template <typename Src>
 inline FdMMapReader<Src>::FdMMapReader(Initializer<Src> src, Options options)
     : src_(std::move(src)) {
-  Initialize(*src_, std::move(options));
+  Initialize(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -404,7 +406,7 @@ inline FdMMapReader<Src>::FdMMapReader(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options));
+  InitializePos(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -422,7 +424,7 @@ inline FdMMapReader<Src>::FdMMapReader(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options));
+  InitializePos(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -435,7 +437,7 @@ template <typename Src>
 inline void FdMMapReader<Src>::Reset(Initializer<Src> src, Options options) {
   FdMMapReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(*src_, std::move(options));
+  Initialize(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -461,7 +463,7 @@ inline void FdMMapReader<Src>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options));
+  InitializePos(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -480,7 +482,7 @@ inline void FdMMapReader<Src>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options));
+  InitializePos(src_.get().get(), std::move(options));
 }
 
 template <typename Src>

@@ -573,7 +573,9 @@ class FdWriter : public FdWriterBase {
   FdHandle DestFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
     return dest_.get();
   }
-  int DestFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *dest_; }
+  int DestFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return dest_.get().get();
+  }
 
  protected:
   void Done() override;
@@ -680,7 +682,7 @@ inline const char* FdWriterBase::InitializeFilename(
 template <typename Dest>
 inline FdWriter<Dest>::FdWriter(Initializer<Dest> dest, Options options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(*dest_, std::move(options));
+  Initialize(dest_.get().get(), std::move(options));
 }
 
 template <typename Dest>
@@ -706,7 +708,8 @@ inline FdWriter<Dest>::FdWriter(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
+  InitializePos(dest_.get().get(), std::move(options),
+                /*mode_was_passed_to_open=*/true);
 }
 
 template <typename Dest>
@@ -725,7 +728,8 @@ inline FdWriter<Dest>::FdWriter(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
+  InitializePos(dest_.get().get(), std::move(options),
+                /*mode_was_passed_to_open=*/true);
 }
 
 template <typename Dest>
@@ -738,7 +742,7 @@ template <typename Dest>
 inline void FdWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(*dest_, std::move(options));
+  Initialize(dest_.get().get(), std::move(options));
 }
 
 template <typename Dest>
@@ -764,7 +768,8 @@ inline void FdWriter<Dest>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
+  InitializePos(dest_.get().get(), std::move(options),
+                /*mode_was_passed_to_open=*/true);
 }
 
 template <typename Dest>
@@ -783,7 +788,8 @@ inline void FdWriter<Dest>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*dest_, std::move(options), /*mode_was_passed_to_open=*/true);
+  InitializePos(dest_.get().get(), std::move(options),
+                /*mode_was_passed_to_open=*/true);
 }
 
 template <typename Dest>

@@ -65,8 +65,8 @@ class
     return methods_and_handle_.handle;
   }
 
-  // If `Handle` is `Base*`, `AnyBase<Base*>` can be used as a smart pointer to
-  // `Base`, for convenience.
+  // If `Handle` supports `operator*`, `AnyBase<Handle>` can be used as a smart
+  // pointer to the result of `operator*`, for convenience.
   template <typename DependentHandle = Handle,
             std::enable_if_t<HasDereference<DependentHandle>::value, int> = 0>
   decltype(*std::declval<DependentHandle>()) operator*() const
@@ -82,12 +82,12 @@ class
     return get();
   }
 
-  // If `Handle` is `Base*`, `AnyBase<Base*>` can be compared against `nullptr`.
-  template <typename DependentHandle = Handle,
-            std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,
-                             int> = 0>
+  // `AnyBase<Handle>` can be compared against `nullptr`. A non-empty `AnyBase`
+  // delegates the comparison `Handle` if it supports `operator==` with
+  // `nullptr`, otherwise it returns `false`. An empty `AnyBase` returns `true`.
   friend bool operator==(const AnyBase& a, std::nullptr_t) {
-    return a.get() == nullptr;
+    return a.methods_and_handle_.methods == &NullMethods::kMethods ||
+           a.EqualNullptrInternal();
   }
 
   // If `true`, the `AnyBase` owns the dependent object, i.e. closing the host
@@ -132,7 +132,7 @@ class
 
   ~AnyBase() { Destroy(); }
 
-  void Reset();
+  void Reset(std::nullptr_t = nullptr);
 
   // Initializes the state, avoiding a redundant indirection and adopting them
   // from `manager` instead if `Manager` is already a compatible `Any` or
@@ -186,6 +186,19 @@ class
             std::enable_if_t<
                 !IsComparableAgainstNullptr<DependentHandle>::value, int> = 0>
   void AssertNotNull(ABSL_ATTRIBUTE_UNUSED absl::string_view message) const {}
+
+  template <typename DependentHandle = Handle,
+            std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,
+                             int> = 0>
+  bool EqualNullptrInternal() const {
+    return get() == nullptr;
+  }
+  template <typename DependentHandle = Handle,
+            std::enable_if_t<
+                !IsComparableAgainstNullptr<DependentHandle>::value, int> = 0>
+  bool EqualNullptrInternal() const {
+    return false;
+  }
 
   MethodsAndHandle methods_and_handle_;
   Repr repr_;
@@ -243,6 +256,7 @@ class
 
   // Creates an empty `Any`.
   Any() noexcept { this->Initialize(); }
+  /*implicit*/ Any(std::nullptr_t) { this->Initialize(); }
 
   // Holds a `Dependency<Handle, TargetT<Manager>>`.
   template <
@@ -290,7 +304,9 @@ class
 
   // Makes `*this` equivalent to a newly constructed `Any`. This avoids
   // constructing a temporary `Any` and moving from it.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset() { Any::AnyBase::Reset(); }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::nullptr_t = nullptr) {
+    Any::AnyBase::Reset();
+  }
 };
 
 // Specialization of `DependencyManagerImpl<Any<Handle>>`:
@@ -413,6 +429,7 @@ class
  public:
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }
+  /*implicit*/ AnyRef(std::nullptr_t) { this->Initialize(); }
 
   // Holds a `Dependency<Handle, TargetRefT<Manager>&&>` when
   // `TargetRefT<Manager>` is not a reference.
@@ -692,7 +709,7 @@ inline void AnyBase<Handle, inline_size, inline_align>::Destroy() {
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
-inline void AnyBase<Handle, inline_size, inline_align>::Reset() {
+inline void AnyBase<Handle, inline_size, inline_align>::Reset(std::nullptr_t) {
   methods_and_handle_.handle = SentinelHandle<Handle>();
   methods_and_handle_.methods->destroy(repr_.storage);
   methods_and_handle_.methods = &NullMethods::kMethods;

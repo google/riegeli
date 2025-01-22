@@ -397,7 +397,9 @@ class FdReader : public FdReaderBase {
   FdHandle SrcFdHandle() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
     return src_.get();
   }
-  int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override { return *src_; }
+  int SrcFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+    return src_.get().get();
+  }
 
  protected:
   void Done() override;
@@ -494,7 +496,7 @@ template <typename Src>
 inline FdReader<Src>::FdReader(Initializer<Src> src, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
-  Initialize(*src_, std::move(options));
+  Initialize(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -520,9 +522,9 @@ inline FdReader<Src>::FdReader(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options)
+  InitializePos(src_.get().get(), std::move(options)
 #ifdef _WIN32
-                           ,
+                                      ,
                 /*mode_was_passed_to_open=*/true
 #endif
   );
@@ -544,9 +546,9 @@ inline FdReader<Src>::FdReader(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options)
+  InitializePos(src_.get().get(), std::move(options)
 #ifdef _WIN32
-                           ,
+                                      ,
                 /*mode_was_passed_to_open=*/true
 #endif
   );
@@ -562,7 +564,7 @@ template <typename Src>
 inline void FdReader<Src>::Reset(Initializer<Src> src, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(*src_, std::move(options));
+  Initialize(src_.get().get(), std::move(options));
 }
 
 template <typename Src>
@@ -588,9 +590,9 @@ inline void FdReader<Src>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options)
+  InitializePos(src_.get().get(), std::move(options)
 #ifdef _WIN32
-                           ,
+                                      ,
                 /*mode_was_passed_to_open=*/true
 #endif
   );
@@ -612,9 +614,9 @@ inline void FdReader<Src>::Reset(
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(*src_, std::move(options)
+  InitializePos(src_.get().get(), std::move(options)
 #ifdef _WIN32
-                           ,
+                                      ,
                 /*mode_was_passed_to_open=*/true
 #endif
   );

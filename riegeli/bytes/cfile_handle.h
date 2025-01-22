@@ -27,13 +27,13 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/type_erased_ref.h"
 
 namespace riegeli {
 
-// `IsValidCFileTarget<T>::value` is `true` if `T*` is a valid constructor
+// `IsValidCFileTarget<T>::value` is `true` if `T&` is a valid constructor
 // argument for `CFileHandle`.
 
 template <typename T, typename Enable = void>
@@ -96,23 +96,28 @@ class
 #endif
         CFileHandle : public WithEqual<CFileHandle> {
  public:
-  // Creates a `CFileHandle` which does not point to a target.
+  // Creates a `CFileHandle` which does not refer to a target.
   CFileHandle() = default;
-  /*implicit*/ CFileHandle(std::nullptr_t) noexcept {}
+  /*implicit*/ CFileHandle(std::nullptr_t) {}
 
-  // Creates a `CFileHandle` which points to `target`.
-  template <typename T, std::enable_if_t<IsValidCFileTarget<T>::value, int> = 0>
-  explicit CFileHandle(T* target ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : methods_(&kMethods<T>), target_(RIEGELI_EVAL_ASSERT_NOTNULL(target)) {}
+  // Creates a `CFileHandle` which refers to `target`.
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<std::is_convertible<T&, const CFileHandle&>>,
+                    IsValidCFileTarget<T>>::value,
+                int> = 0>
+  /*implicit*/ CFileHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : methods_(&kMethods<T>), target_(target) {}
 
   CFileHandle(const CFileHandle& that) = default;
   CFileHandle& operator=(const CFileHandle& that) = default;
 
   // Returns `true` if the `FILE*` is present.
-  bool is_open() const { return **this != nullptr; }
+  bool is_open() const { return *this != nullptr; }
 
   // Returns the `FILE*`.
-  FILE* operator*() const { return methods_->get(target_); }
+  FILE* get() const { return methods_->get(target_); }
 
   // Returns `true` if the `CFileHandle` owns the `FILE*`, i.e. is responsible
   // for closing it and the `FILE*` is present.
@@ -124,14 +129,18 @@ class
   absl::Status Close() { return methods_->close(target_); }
 
   friend bool operator==(CFileHandle a, CFileHandle b) {
-    return a.target_ == b.target_;
+    return a.get() == b.get();
+  }
+  friend bool operator==(CFileHandle a, FILE* b) { return a.get() == b; }
+  friend bool operator==(CFileHandle a, std::nullptr_t) {
+    return a.target_ == nullptr || a.get() == nullptr;
   }
 
  private:
   struct Methods {
-    FILE* (*get)(const void* target);
-    bool (*is_owning)(const void* target);
-    absl::Status (*close)(void* target);
+    FILE* (*get)(TypeErasedRef target);
+    bool (*is_owning)(TypeErasedRef target);
+    absl::Status (*close)(TypeErasedRef target);
   };
 
   template <typename T, typename Enable = void>
@@ -151,30 +160,30 @@ class
       : std::true_type {};
 
   template <typename T>
-  static FILE* GetMethod(const void* target) {
-    return static_cast<const T*>(target)->get();
+  static FILE* GetMethod(TypeErasedRef target) {
+    return target.Cast<const T&>().get();
   }
 
   template <typename T,
             std::enable_if_t<CFileTargetHasIsOwning<T>::value, int> = 0>
-  static bool IsOwningMethod(const void* target) {
-    return static_cast<const T*>(target)->IsOwning();
+  static bool IsOwningMethod(TypeErasedRef target) {
+    return target.Cast<const T&>().IsOwning();
   }
   template <typename T,
             std::enable_if_t<!CFileTargetHasIsOwning<T>::value, int> = 0>
-  static bool IsOwningMethod(const void* target) {
+  static bool IsOwningMethod(TypeErasedRef target) {
     return CFileTargetHasClose<T>::value &&
-           static_cast<const T*>(target)->get() != nullptr;
+           target.Cast<const T&>().get() != nullptr;
   }
 
   template <typename T,
             std::enable_if_t<CFileTargetHasClose<T>::value, int> = 0>
-  static absl::Status CloseMethod(void* target) {
-    return static_cast<T*>(target)->Close();
+  static absl::Status CloseMethod(TypeErasedRef target) {
+    return target.Cast<T&>().Close();
   }
   template <typename T,
             std::enable_if_t<!CFileTargetHasClose<T>::value, int> = 0>
-  static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED void* target) {
+  static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
     return absl::OkStatus();
   }
 
@@ -183,7 +192,7 @@ class
                                        CloseMethod<T>};
 
   const Methods* methods_ = nullptr;
-  void* target_ = nullptr;
+  TypeErasedRef target_;
 };
 
 // Before C++17 if a constexpr static data member is ODR-used, its definition at
@@ -205,9 +214,10 @@ class
  public:
   // Creates an `UnownedCFile` which does not store a file.
   UnownedCFile() = default;
+  /*implicit*/ UnownedCFile(std::nullptr_t) {}
 
   // Creates an `UnownedCFile` which stores `file`.
-  explicit UnownedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept
+  explicit UnownedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : file_(file) {}
 
   UnownedCFile(const UnownedCFile& that) = default;
@@ -218,7 +228,7 @@ class
   }
 
   // Returns `true` if the `FILE*` is present.
-  bool is_open() const { return file_ != nullptr; }
+  bool is_open() const { return *this != nullptr; }
 
   // Returns the `FILE*`.
   FILE* get() const { return file_; }
@@ -243,10 +253,10 @@ class
  public:
   // Creates an `OwnedCFile` which does not own a file.
   OwnedCFile() = default;
+  /*implicit*/ OwnedCFile(std::nullptr_t) {}
 
   // Creates an `OwnedCFile` which owns `file`.
-  explicit OwnedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND) noexcept
-      : file_(file) {}
+  explicit OwnedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND) : file_(file) {}
 
   // The moved-from `FILE*` is left absent.
   OwnedCFile(OwnedCFile&& that) = default;
@@ -257,7 +267,7 @@ class
   }
 
   // Returns `true` if the `FILE*` is present.
-  bool is_open() const { return file_ != nullptr; }
+  bool is_open() const { return *this != nullptr; }
 
   // Returns the `FILE*`.
   FILE* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return file_.get(); }

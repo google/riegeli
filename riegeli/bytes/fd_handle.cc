@@ -96,34 +96,34 @@ again:
 #endif  // !_WIN32
 
 absl::Status OwnedFd::Close() {
-  if (is_open()) {
+  const int fd = Release();
+  if (fd < 0) return absl::OkStatus();
 #ifndef _WIN32
-    // http://austingroupbugs.net/view.php?id=529 explains this mess.
+  // http://austingroupbugs.net/view.php?id=529 explains this mess.
 #ifdef POSIX_CLOSE_RESTART
-    // Avoid `EINTR` by using `posix_close(_, 0)` if available.
-    if (ABSL_PREDICT_FALSE(posix_close(Release(), 0) < 0)) {
-      const int error_number = errno;
-      if (error_number != EINPROGRESS) {
-        return absl::ErrnoToStatus(error_number, "posix_close() failed");
-      }
+  // Avoid `EINTR` by using `posix_close(_, 0)` if available.
+  if (ABSL_PREDICT_FALSE(posix_close(fd, 0) < 0)) {
+    const int error_number = errno;
+    if (error_number != EINPROGRESS) {
+      return absl::ErrnoToStatus(error_number, "posix_close() failed");
     }
+  }
 #else   // !POSIX_CLOSE_RESTART
-    if (ABSL_PREDICT_FALSE(close(Release()) < 0)) {
-      const int error_number = errno;
-      // After `EINTR` it is unspecified whether `fd` has been closed or not.
-      // Assume that it is closed, which is the case e.g. on Linux.
-      if (error_number != EINPROGRESS && error_number != EINTR) {
-        return absl::ErrnoToStatus(error_number, "close() failed");
-      }
+  if (ABSL_PREDICT_FALSE(close(fd) < 0)) {
+    const int error_number = errno;
+    // After `EINTR` it is unspecified whether `fd` has been closed or not.
+    // Assume that it is closed, which is the case e.g. on Linux.
+    if (error_number != EINPROGRESS && error_number != EINTR) {
+      return absl::ErrnoToStatus(error_number, "close() failed");
     }
+  }
 #endif  // !POSIX_CLOSE_RESTART
 #else   // _WIN32
-    if (ABSL_PREDICT_FALSE(_close(Release()) < 0)) {
-      const int error_number = errno;
-      return absl::ErrnoToStatus(error_number, "_close() failed");
-    }
-#endif  // _WIN32
+  if (ABSL_PREDICT_FALSE(_close(fd) < 0)) {
+    const int error_number = errno;
+    return absl::ErrnoToStatus(error_number, "_close() failed");
   }
+#endif  // _WIN32
   return absl::OkStatus();
 }
 

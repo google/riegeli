@@ -23,12 +23,12 @@ cc_library(
     deps = [
         ":digest_converter",
         "//riegeli/base:any",
-        "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
         "//riegeli/base:compare",
         "//riegeli/base:dependency",
+        "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
