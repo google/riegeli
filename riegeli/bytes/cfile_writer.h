@@ -373,7 +373,7 @@ class CFileWriter : public CFileWriterBase {
   //
   // This constructor is present only if `Dest` supports `Open()`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int> = 0>
+            std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
   explicit CFileWriter(Initializer<std::string>::AllowingExplicit filename,
                        Options options = Options());
 
@@ -391,7 +391,7 @@ class CFileWriter : public CFileWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* dest,
                                           Options options = Options());
   template <typename DependentDest = Dest,
-            std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int> = 0>
+            std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
@@ -521,7 +521,7 @@ inline CFileWriter<Dest>::CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int>>
+          std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int>>
 inline CFileWriter<Dest>::CFileWriter(
     Initializer<std::string>::AllowingExplicit filename, Options options)
     : CFileWriterBase(options.buffer_options()) {
@@ -560,7 +560,7 @@ inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<CFileTargetHasOpen<DependentDest>::value, int>>
+          std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int>>
 inline void CFileWriter<Dest>::Reset(
     Initializer<std::string>::AllowingExplicit filename, Options options) {
   CFileWriterBase::Reset(options.buffer_options());

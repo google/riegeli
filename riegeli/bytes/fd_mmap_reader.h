@@ -254,7 +254,7 @@ class FdMMapReader : public FdMMapReaderBase {
   //
   // This constructor is present only if `Src` supports `Open()`.
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
   explicit FdMMapReader(Initializer<std::string>::AllowingExplicit filename,
                         Options options = Options());
 
@@ -265,7 +265,7 @@ class FdMMapReader : public FdMMapReaderBase {
   //
   // This constructor is present only if `Src` supports `Open()`.
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
   explicit FdMMapReader(int dir_fd,
                         Initializer<std::string>::AllowingExplicit filename,
                         Options options = Options());
@@ -283,12 +283,12 @@ class FdMMapReader : public FdMMapReaderBase {
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       int dir_fd, Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
@@ -394,7 +394,7 @@ inline FdMMapReader<Src>::FdMMapReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
 inline FdMMapReader<Src>::FdMMapReader(
     Initializer<std::string>::AllowingExplicit filename, Options options) {
   absl::Status status =
@@ -411,7 +411,7 @@ inline FdMMapReader<Src>::FdMMapReader(
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int>>
 inline FdMMapReader<Src>::FdMMapReader(
     int dir_fd, Initializer<std::string>::AllowingExplicit filename,
     Options options) {
@@ -450,7 +450,7 @@ inline void FdMMapReader<Src>::Reset(int src, Options options) {
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
 inline void FdMMapReader<Src>::Reset(
     Initializer<std::string>::AllowingExplicit filename, Options options) {
   FdMMapReaderBase::Reset();
@@ -468,7 +468,7 @@ inline void FdMMapReader<Src>::Reset(
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int>>
 inline void FdMMapReader<Src>::Reset(
     int dir_fd, Initializer<std::string>::AllowingExplicit filename,
     Options options) {

@@ -271,7 +271,7 @@ class CFileReader : public CFileReaderBase {
   //
   // This constructor is present only if `Src` supports `Open()`.
   template <typename DependentSrc = Src,
-            std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int> = 0>
+            std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
   explicit CFileReader(Initializer<std::string>::AllowingExplicit filename,
                        Options options = Options());
 
@@ -289,7 +289,7 @@ class CFileReader : public CFileReaderBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* src,
                                           Options options = Options());
   template <typename DependentSrc = Src,
-            std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int> = 0>
+            std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
@@ -408,7 +408,7 @@ inline CFileReader<Src>::CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int>>
+          std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int>>
 inline CFileReader<Src>::CFileReader(
     Initializer<std::string>::AllowingExplicit filename, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()) {
@@ -451,7 +451,7 @@ inline void CFileReader<Src>::Reset(FILE* src, Options options) {
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<CFileTargetHasOpen<DependentSrc>::value, int>>
+          std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int>>
 inline void CFileReader<Src>::Reset(
     Initializer<std::string>::AllowingExplicit filename, Options options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());

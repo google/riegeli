@@ -46,43 +46,43 @@ using Permissions = int;
 
 }  // namespace fd_internal
 
-// `IsValidFdTarget<T>::value` is `true` if `T&` is a valid constructor
+// `SupportsFdHandle<T>::value` is `true` if `T&` is a valid constructor
 // argument for `FdHandle`.
 
 template <typename T, typename Enable = void>
-struct IsValidFdTarget : std::false_type {};
+struct SupportsFdHandle : std::false_type {};
 
 template <typename T>
-struct IsValidFdTarget<
+struct SupportsFdHandle<
     T, std::enable_if_t<absl::conjunction<
            absl::negation<std::is_const<T>>,
            std::is_convertible<decltype(std::declval<const T&>().get()),
                                int>>::value>> : std::true_type {};
 
-// `FdTargetHasOpen<T>::value` is `true` if `T` supports `Open()` with the
+// `FdSupportsOpen<T>::value` is `true` if `T` supports `Open()` with the
 // signature like in `OwnedFd` (with `permissions` present), except that
 // `const char* filename` is sufficient.
 
 template <typename T, typename Enable = void>
-struct FdTargetHasOpen : std::false_type {};
+struct FdSupportsOpen : std::false_type {};
 
 template <typename T>
-struct FdTargetHasOpen<T,
-                       std::enable_if_t<std::is_convertible<
-                           decltype(std::declval<T&>().Open(
-                               std::declval<const char*>(), std::declval<int>(),
-                               std::declval<fd_internal::Permissions>())),
-                           absl::Status>::value>> : std::true_type {};
+struct FdSupportsOpen<T,
+                      std::enable_if_t<std::is_convertible<
+                          decltype(std::declval<T&>().Open(
+                              std::declval<const char*>(), std::declval<int>(),
+                              std::declval<fd_internal::Permissions>())),
+                          absl::Status>::value>> : std::true_type {};
 
-// `FdTargetHasOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
+// `FdSupportsOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
 // signature like in `OwnedFd` (with `permissions` present), except that
 // `const char* filename` is sufficient.
 
 template <typename T, typename Enable = void>
-struct FdTargetHasOpenAt : std::false_type {};
+struct FdSupportsOpenAt : std::false_type {};
 
 template <typename T>
-struct FdTargetHasOpenAt<
+struct FdSupportsOpenAt<
     T, std::enable_if_t<std::is_convertible<
            decltype(std::declval<T&>().OpenAt(
                std::declval<int>(), std::declval<const char*>(),
@@ -134,7 +134,7 @@ class
             std::enable_if_t<
                 absl::conjunction<
                     absl::negation<std::is_convertible<T&, const FdHandle&>>,
-                    IsValidFdTarget<T>>::value,
+                    SupportsFdHandle<T>>::value,
                 int> = 0>
   /*implicit*/ FdHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
@@ -171,17 +171,17 @@ class
   };
 
   template <typename T, typename Enable = void>
-  struct FdTargetHasIsOwning : std::false_type {};
+  struct HasIsOwning : std::false_type {};
   template <typename T>
-  struct FdTargetHasIsOwning<
+  struct HasIsOwning<
       T, std::enable_if_t<std::is_convertible<
              decltype(std::declval<const T&>().IsOwning()), bool>::value>>
       : std::true_type {};
 
   template <typename T, typename Enable = void>
-  struct FdTargetHasClose : std::false_type {};
+  struct HasClose : std::false_type {};
   template <typename T>
-  struct FdTargetHasClose<
+  struct HasClose<
       T, std::enable_if_t<std::is_convertible<
              decltype(std::declval<T&>().Close()), absl::Status>::value>>
       : std::true_type {};
@@ -191,22 +191,20 @@ class
     return target.Cast<const T&>().get();
   }
 
-  template <typename T,
-            std::enable_if_t<FdTargetHasIsOwning<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<HasIsOwning<T>::value, int> = 0>
   static bool IsOwningMethod(TypeErasedRef target) {
     return target.Cast<const T&>().IsOwning();
   }
-  template <typename T,
-            std::enable_if_t<!FdTargetHasIsOwning<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<!HasIsOwning<T>::value, int> = 0>
   static bool IsOwningMethod(TypeErasedRef target) {
-    return FdTargetHasClose<T>::value && target.Cast<const T&>().get() >= 0;
+    return HasClose<T>::value && target.Cast<const T&>().get() >= 0;
   }
 
-  template <typename T, std::enable_if_t<FdTargetHasClose<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<HasClose<T>::value, int> = 0>
   static absl::Status CloseMethod(TypeErasedRef target) {
     return target.Cast<T&>().Close();
   }
-  template <typename T, std::enable_if_t<!FdTargetHasClose<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<!HasClose<T>::value, int> = 0>
   static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
     return absl::OkStatus();
   }

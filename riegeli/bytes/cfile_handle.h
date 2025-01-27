@@ -33,28 +33,28 @@
 
 namespace riegeli {
 
-// `IsValidCFileTarget<T>::value` is `true` if `T&` is a valid constructor
+// `SupportsCFileHandle<T>::value` is `true` if `T&` is a valid constructor
 // argument for `CFileHandle`.
 
 template <typename T, typename Enable = void>
-struct IsValidCFileTarget : std::false_type {};
+struct SupportsCFileHandle : std::false_type {};
 
 template <typename T>
-struct IsValidCFileTarget<
+struct SupportsCFileHandle<
     T, std::enable_if_t<absl::conjunction<
            absl::negation<std::is_const<T>>,
            std::is_convertible<decltype(std::declval<const T&>().get()),
                                FILE*>>::value>> : std::true_type {};
 
-// `CFileTargetHasOpen<T>::value` is `true` if `T` supports `Open()` with the
+// `CFileSupportsOpen<T>::value` is `true` if `T` supports `Open()` with the
 // signature like in `OwnedCFile`, except that accepting `const char* filename`
 // and `const char* mode` are sufficient.
 
 template <typename T, typename Enable = void>
-struct CFileTargetHasOpen : std::false_type {};
+struct CFileSupportsOpen : std::false_type {};
 
 template <typename T>
-struct CFileTargetHasOpen<
+struct CFileSupportsOpen<
     T, std::enable_if_t<std::is_convertible<decltype(std::declval<T&>().Open(
                                                 std::declval<const char*>(),
                                                 std::declval<const char*>())),
@@ -105,7 +105,7 @@ class
             std::enable_if_t<
                 absl::conjunction<
                     absl::negation<std::is_convertible<T&, const CFileHandle&>>,
-                    IsValidCFileTarget<T>>::value,
+                    SupportsCFileHandle<T>>::value,
                 int> = 0>
   /*implicit*/ CFileHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
@@ -144,17 +144,17 @@ class
   };
 
   template <typename T, typename Enable = void>
-  struct CFileTargetHasIsOwning : std::false_type {};
+  struct HasIsOwning : std::false_type {};
   template <typename T>
-  struct CFileTargetHasIsOwning<
+  struct HasIsOwning<
       T, std::enable_if_t<std::is_convertible<
              decltype(std::declval<const T&>().IsOwning()), bool>::value>>
       : std::true_type {};
 
   template <typename T, typename Enable = void>
-  struct CFileTargetHasClose : std::false_type {};
+  struct HasClose : std::false_type {};
   template <typename T>
-  struct CFileTargetHasClose<
+  struct HasClose<
       T, std::enable_if_t<std::is_convertible<
              decltype(std::declval<T&>().Close()), absl::Status>::value>>
       : std::true_type {};
@@ -164,25 +164,20 @@ class
     return target.Cast<const T&>().get();
   }
 
-  template <typename T,
-            std::enable_if_t<CFileTargetHasIsOwning<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<HasIsOwning<T>::value, int> = 0>
   static bool IsOwningMethod(TypeErasedRef target) {
     return target.Cast<const T&>().IsOwning();
   }
-  template <typename T,
-            std::enable_if_t<!CFileTargetHasIsOwning<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<!HasIsOwning<T>::value, int> = 0>
   static bool IsOwningMethod(TypeErasedRef target) {
-    return CFileTargetHasClose<T>::value &&
-           target.Cast<const T&>().get() != nullptr;
+    return HasClose<T>::value && target.Cast<const T&>().get() != nullptr;
   }
 
-  template <typename T,
-            std::enable_if_t<CFileTargetHasClose<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<HasClose<T>::value, int> = 0>
   static absl::Status CloseMethod(TypeErasedRef target) {
     return target.Cast<T&>().Close();
   }
-  template <typename T,
-            std::enable_if_t<!CFileTargetHasClose<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<!HasClose<T>::value, int> = 0>
   static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
     return absl::OkStatus();
   }

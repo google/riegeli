@@ -524,7 +524,7 @@ class FdWriter : public FdWriterBase {
   //
   // This constructor is present only if `Dest` supports `Open()`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpen<DependentDest>::value, int> = 0>
   explicit FdWriter(Initializer<std::string>::AllowingExplicit filename,
                     Options options = Options());
 
@@ -535,7 +535,7 @@ class FdWriter : public FdWriterBase {
   //
   // This constructor is present only if `Dest` supports `OpenAt()`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int> = 0>
   explicit FdWriter(int dir_fd,
                     Initializer<std::string>::AllowingExplicit filename,
                     Options options = Options());
@@ -554,12 +554,12 @@ class FdWriter : public FdWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dest,
                                           Options options = Options());
   template <typename DependentDest = Dest,
-            std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpen<DependentDest>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
   template <typename DependentDest = Dest,
-            std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       int dir_fd, Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
@@ -695,7 +695,7 @@ inline FdWriter<Dest>::FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int>>
+          std::enable_if_t<FdSupportsOpen<DependentDest>::value, int>>
 inline FdWriter<Dest>::FdWriter(
     Initializer<std::string>::AllowingExplicit filename, Options options)
     : FdWriterBase(options.buffer_options()) {
@@ -714,7 +714,7 @@ inline FdWriter<Dest>::FdWriter(
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int>>
+          std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int>>
 inline FdWriter<Dest>::FdWriter(
     int dir_fd, Initializer<std::string>::AllowingExplicit filename,
     Options options)
@@ -755,7 +755,7 @@ inline void FdWriter<Dest>::Reset(int dest, Options options) {
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<FdTargetHasOpen<DependentDest>::value, int>>
+          std::enable_if_t<FdSupportsOpen<DependentDest>::value, int>>
 inline void FdWriter<Dest>::Reset(
     Initializer<std::string>::AllowingExplicit filename, Options options) {
   FdWriterBase::Reset(options.buffer_options());
@@ -774,7 +774,7 @@ inline void FdWriter<Dest>::Reset(
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<FdTargetHasOpenAt<DependentDest>::value, int>>
+          std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int>>
 inline void FdWriter<Dest>::Reset(
     int dir_fd, Initializer<std::string>::AllowingExplicit filename,
     Options options) {

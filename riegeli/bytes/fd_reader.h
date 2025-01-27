@@ -349,7 +349,7 @@ class FdReader : public FdReaderBase {
   //
   // This constructor is present only if `Src` supports `Open()`.
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
   explicit FdReader(Initializer<std::string>::AllowingExplicit filename,
                     Options options = Options());
 
@@ -360,7 +360,7 @@ class FdReader : public FdReaderBase {
   //
   // This constructor is present only if `Src` supports `OpenAt()`.
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
   explicit FdReader(int dir_fd,
                     Initializer<std::string>::AllowingExplicit filename,
                     Options options = Options());
@@ -378,12 +378,12 @@ class FdReader : public FdReaderBase {
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
   template <typename DependentSrc = Src,
-            std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int> = 0>
+            std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       int dir_fd, Initializer<std::string>::AllowingExplicit filename,
       Options options = Options());
@@ -509,7 +509,7 @@ inline FdReader<Src>::FdReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
 inline FdReader<Src>::FdReader(
     Initializer<std::string>::AllowingExplicit filename, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()) {
@@ -532,7 +532,7 @@ inline FdReader<Src>::FdReader(
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int>>
 inline FdReader<Src>::FdReader(
     int dir_fd, Initializer<std::string>::AllowingExplicit filename,
     Options options)
@@ -577,7 +577,7 @@ inline void FdReader<Src>::Reset(int src, Options options) {
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpen<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
 inline void FdReader<Src>::Reset(
     Initializer<std::string>::AllowingExplicit filename, Options options) {
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
@@ -600,7 +600,7 @@ inline void FdReader<Src>::Reset(
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<FdTargetHasOpenAt<DependentSrc>::value, int>>
+          std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int>>
 inline void FdReader<Src>::Reset(
     int dir_fd, Initializer<std::string>::AllowingExplicit filename,
     Options options) {

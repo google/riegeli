@@ -44,14 +44,14 @@
 
 namespace riegeli {
 
-// `IsValidDigesterBaseTarget<T>::value` is `true` when `T&` is a valid
+// `SupportsDigesterBaseHandle<T>::value` is `true` when `T&` is a valid
 // constructor argument for `DigesterBaseHandle`.
 
 template <typename T, typename Enable = void>
-struct IsValidDigesterBaseTarget : std::false_type {};
+struct SupportsDigesterBaseHandle : std::false_type {};
 
 template <typename T>
-struct IsValidDigesterBaseTarget<
+struct SupportsDigesterBaseHandle<
     T, std::enable_if_t<absl::conjunction<
            absl::negation<std::is_const<T>>,
            std::is_void<absl::void_t<decltype(std::declval<T&>().Write(
@@ -141,7 +141,7 @@ class
       typename T,
       std::enable_if_t<absl::conjunction<absl::negation<std::is_convertible<
                                              T&, const DigesterBaseHandle&>>,
-                                         IsValidDigesterBaseTarget<T>>::value,
+                                         SupportsDigesterBaseHandle<T>>::value,
                        int> = 0>
   /*implicit*/ DigesterBaseHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
@@ -447,17 +447,17 @@ struct DigestOfDigesterTarget<
 
 }  // namespace digester_handle_internal
 
-// `IsValidDigesterTarget<T, DigestType>::value` is `true` when `T&` is a valid
+// `SupportsDigesterHandle<T, DigestType>::value` is `true` when `T&` is a valid
 // constructor argument for `DigesterHandle<DigestType>`.
 
 template <typename T, typename DigestType, typename Enable = void>
-struct IsValidDigesterTarget : std::false_type {};
+struct SupportsDigesterHandle : std::false_type {};
 
 template <typename T, typename DigestType>
-struct IsValidDigesterTarget<
+struct SupportsDigesterHandle<
     T, DigestType,
     std::enable_if_t<absl::conjunction<
-        IsValidDigesterBaseTarget<T>,
+        SupportsDigesterBaseHandle<T>,
         HasDigestConverter<
             typename digester_handle_internal::DigestOfDigesterTarget<T>::type,
             DigestType>>::value>> : std::true_type {};
@@ -499,7 +499,7 @@ class DigesterHandle : public DigesterBaseHandle {
       std::enable_if_t<
           absl::conjunction<
               absl::negation<std::is_convertible<T&, const DigesterHandle&>>,
-              IsValidDigesterTarget<T, DigestType>>::value,
+              SupportsDigesterHandle<T, DigestType>>::value,
           int> = 0>
   /*implicit*/ DigesterHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : DigesterBaseHandle(&kMethods<T>, target) {}
@@ -573,7 +573,7 @@ class DigesterHandle : public DigesterBaseHandle {
 DigesterHandle() -> DigesterHandle<DeleteCtad<>>;
 DigesterHandle(std::nullptr_t) -> DigesterHandle<DeleteCtad<std::nullptr_t>>;
 template <typename T,
-          std::enable_if_t<IsValidDigesterBaseTarget<T>::value, int> = 0>
+          std::enable_if_t<SupportsDigesterBaseHandle<T>::value, int> = 0>
 explicit DigesterHandle(T& target) -> DigesterHandle<
     typename digester_handle_internal::DigestOfDigesterTarget<T>::type>;
 #endif
@@ -587,7 +587,7 @@ class DependencyImpl<
     DigesterBaseHandle, Manager,
     std::enable_if_t<absl::conjunction<
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        IsValidDigesterBaseTarget<DependencyManagerRef<Manager>>>::value>>
+        SupportsDigesterBaseHandle<DependencyManagerRef<Manager>>>::value>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
