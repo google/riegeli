@@ -193,13 +193,13 @@ class Chain : public WithCompare<Chain> {
 
   // Converts from a string-like type.
   explicit Chain(BytesRef src);
-  explicit Chain(Block src);
-  explicit Chain(const absl::Cord& src);
-  explicit Chain(absl::Cord&& src);
   explicit Chain(ExternalRef src);
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   explicit Chain(Src&& src);
+  explicit Chain(Block src);
+  explicit Chain(const absl::Cord& src);
+  explicit Chain(absl::Cord&& src);
 
   Chain(const Chain& that);
   Chain& operator=(const Chain& that);
@@ -217,13 +217,13 @@ class Chain : public WithCompare<Chain> {
   // constructing a temporary `Chain` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(BytesRef src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Block src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const absl::Cord& src);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::Cord&& src);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(ExternalRef src);
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Block src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const absl::Cord& src);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::Cord&& src);
 
   // Removes all data.
   ABSL_ATTRIBUTE_REINITIALIZES void Clear();
@@ -304,12 +304,6 @@ class Chain : public WithCompare<Chain> {
 
   // Appends/prepends a string-like type.
   void Append(BytesRef src, Options options = Options());
-  void Append(const Chain& src, Options options = Options());
-  void Append(Chain&& src, Options options = Options());
-  void Append(const Block& src, Options options = Options());
-  void Append(Block&& src, Options options = Options());
-  void Append(const absl::Cord& src, Options options = Options());
-  void Append(absl::Cord&& src, Options options = Options());
   void Append(ExternalRef src);
   void Append(ExternalRef src, Options options);
   template <typename Src,
@@ -318,13 +312,13 @@ class Chain : public WithCompare<Chain> {
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   void Append(Src&& src, Options options);
+  void Append(const Chain& src, Options options = Options());
+  void Append(Chain&& src, Options options = Options());
+  void Append(const Block& src, Options options = Options());
+  void Append(Block&& src, Options options = Options());
+  void Append(const absl::Cord& src, Options options = Options());
+  void Append(absl::Cord&& src, Options options = Options());
   void Prepend(BytesRef src, Options options = Options());
-  void Prepend(const Chain& src, Options options = Options());
-  void Prepend(Chain&& src, Options options = Options());
-  void Prepend(const Block& src, Options options = Options());
-  void Prepend(Block&& src, Options options = Options());
-  void Prepend(const absl::Cord& src, Options options = Options());
-  void Prepend(absl::Cord&& src, Options options = Options());
   void Prepend(ExternalRef src);
   void Prepend(ExternalRef src, Options options);
   template <typename Src,
@@ -333,6 +327,12 @@ class Chain : public WithCompare<Chain> {
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   void Prepend(Src&& src, Options options);
+  void Prepend(const Chain& src, Options options = Options());
+  void Prepend(Chain&& src, Options options = Options());
+  void Prepend(const Block& src, Options options = Options());
+  void Prepend(Block&& src, Options options = Options());
+  void Prepend(const absl::Cord& src, Options options = Options());
+  void Prepend(absl::Cord&& src, Options options = Options());
 
   // `AppendFrom(iter, length)` is equivalent to
   // `Append(absl::Cord::AdvanceAndRead(&iter, length))` but more efficient.

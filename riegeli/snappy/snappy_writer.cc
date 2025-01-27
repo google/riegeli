@@ -139,6 +139,22 @@ bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   return true;
 }
 
+bool SnappyWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(std::move(src));
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  move_start_pos(src.size());
+  uncompressed_.Append(std::move(src), options_);
+  return true;
+}
+
 bool SnappyWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -152,36 +168,6 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
   }
   move_start_pos(src.size());
   uncompressed_.Append(src, options_);
-  return true;
-}
-
-bool SnappyWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ByteFill): "
-         "enough space available, use Write(ByteFill) instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(IntCast<size_t>(pos()) >
-                             std::numeric_limits<uint32_t>::max() ||
-                         src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(pos()))) {
-    return FailOverflow();
-  }
-  const size_t first_length = UnsignedMin(
-      RoundUp<kBlockSize>(IntCast<size_t>(pos())) - IntCast<size_t>(pos()),
-      IntCast<size_t>(src.size()));
-  if (first_length > 0) {
-    if (ABSL_PREDICT_FALSE(!Push(first_length))) return false;
-    std::memset(cursor(), src.fill(), first_length);
-    move_cursor(first_length);
-    src.Extract(first_length);
-  }
-  Write(src.Extract(RoundDown<kBlockSize>(IntCast<size_t>(src.size()))));
-  const size_t last_length = IntCast<size_t>(src.size());
-  if (last_length > 0) {
-    if (ABSL_PREDICT_FALSE(!Push(last_length))) return false;
-    std::memset(cursor(), src.fill(), last_length);
-    move_cursor(last_length);
-  }
   return true;
 }
 
@@ -243,19 +229,33 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
   return true;
 }
 
-bool SnappyWriterBase::WriteSlow(ExternalRef src) {
+bool SnappyWriterBase::WriteSlow(ByteFill src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
-  if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(std::move(src));
+      << "Failed precondition of Writer::WriteSlow(ByteFill): "
+         "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(IntCast<size_t>(pos()) >
+                             std::numeric_limits<uint32_t>::max() ||
+                         src.size() > std::numeric_limits<uint32_t>::max() -
+                                          IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
-  move_start_pos(src.size());
-  uncompressed_.Append(std::move(src), options_);
+  const size_t first_length = UnsignedMin(
+      RoundUp<kBlockSize>(IntCast<size_t>(pos())) - IntCast<size_t>(pos()),
+      IntCast<size_t>(src.size()));
+  if (first_length > 0) {
+    if (ABSL_PREDICT_FALSE(!Push(first_length))) return false;
+    std::memset(cursor(), src.fill(), first_length);
+    move_cursor(first_length);
+    src.Extract(first_length);
+  }
+  Write(src.Extract(RoundDown<kBlockSize>(IntCast<size_t>(src.size()))));
+  const size_t last_length = IntCast<size_t>(src.size());
+  if (last_length > 0) {
+    if (ABSL_PREDICT_FALSE(!Push(last_length))) return false;
+    std::memset(cursor(), src.fill(), last_length);
+    move_cursor(last_length);
+  }
   return true;
 }
 

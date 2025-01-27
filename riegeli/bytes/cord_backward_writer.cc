@@ -174,6 +174,27 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
   return true;
 }
 
+bool CordBackwardWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (src.size() <= MaxBytesToCopy()) {
+    return BackwardWriter::WriteSlow(std::move(src));
+  }
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  absl::Cord& dest = *DestCord();
+  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+      << "CordBackwardWriter destination changed unexpectedly";
+  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  move_start_pos(src.size());
+  std::move(src).PrependTo(dest);
+  return true;
+}
+
 bool CordBackwardWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
@@ -259,27 +280,6 @@ bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   }
   move_start_pos(src.size());
   dest.Prepend(std::move(src));
-  return true;
-}
-
-bool CordBackwardWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
-  if (src.size() <= MaxBytesToCopy()) {
-    return BackwardWriter::WriteSlow(std::move(src));
-  }
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
-      << "CordBackwardWriter destination changed unexpectedly";
-  SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
-    return FailOverflow();
-  }
-  move_start_pos(src.size());
-  std::move(src).PrependTo(dest);
   return true;
 }
 

@@ -235,6 +235,26 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   return true;
 }
 
+bool CordWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(std::move(src));
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  absl::Cord& dest = *DestCord();
+  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+      << "CordWriter destination changed unexpectedly";
+  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  ShrinkTail(src.size());
+  move_start_pos(src.size());
+  std::move(src).AppendTo(dest);
+  return true;
+}
+
 bool CordWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -322,26 +342,6 @@ bool CordWriterBase::WriteSlow(absl::Cord&& src) {
   ShrinkTail(src.size());
   move_start_pos(src.size());
   dest.Append(std::move(src));
-  return true;
-}
-
-bool CordWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
-  if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(std::move(src));
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
-      << "CordWriter destination changed unexpectedly";
-  SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
-    return FailOverflow();
-  }
-  ShrinkTail(src.size());
-  move_start_pos(src.size());
-  std::move(src).AppendTo(dest);
   return true;
 }
 

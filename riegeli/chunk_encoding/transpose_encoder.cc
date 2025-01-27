@@ -222,16 +222,6 @@ bool TransposeEncoder::AddRecord(BytesRef record) {
   return AddRecordInternal(reader);
 }
 
-bool TransposeEncoder::AddRecord(const Chain& record) {
-  ChainReader<> reader(&record);
-  return AddRecordInternal(reader);
-}
-
-bool TransposeEncoder::AddRecord(const absl::Cord& record) {
-  CordReader<> reader(&record);
-  return AddRecordInternal(reader);
-}
-
 bool TransposeEncoder::AddRecord(ExternalRef record) {
   if (record.size() <= kMaxBytesToCopy) {
     StringReader<> reader(record);
@@ -240,6 +230,16 @@ bool TransposeEncoder::AddRecord(ExternalRef record) {
     ChainReader<Chain> reader(riegeli::Maker<Chain>(std::move(record)));
     return AddRecordInternal(reader);
   }
+}
+
+bool TransposeEncoder::AddRecord(const Chain& record) {
+  ChainReader<> reader(&record);
+  return AddRecordInternal(reader);
+}
+
+bool TransposeEncoder::AddRecord(const absl::Cord& record) {
+  CordReader<> reader(&record);
+  return AddRecordInternal(reader);
 }
 
 bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {

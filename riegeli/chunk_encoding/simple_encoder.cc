@@ -89,6 +89,10 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
 
 bool SimpleEncoder::AddRecord(BytesRef record) { return AddRecordImpl(record); }
 
+bool SimpleEncoder::AddRecord(ExternalRef record) {
+  return AddRecordImpl(std::move(record));
+}
+
 bool SimpleEncoder::AddRecord(const Chain& record) {
   return AddRecordImpl(record);
 }
@@ -102,10 +106,6 @@ bool SimpleEncoder::AddRecord(const absl::Cord& record) {
 }
 
 bool SimpleEncoder::AddRecord(absl::Cord&& record) {
-  return AddRecordImpl(std::move(record));
-}
-
-bool SimpleEncoder::AddRecord(ExternalRef record) {
   return AddRecordImpl(std::move(record));
 }
 

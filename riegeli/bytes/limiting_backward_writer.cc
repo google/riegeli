@@ -104,6 +104,17 @@ bool LimitingBackwardWriterBase::WriteSlow(absl::string_view src) {
   });
 }
 
+bool LimitingBackwardWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  return WriteInternal(std::move(src), [](ExternalRef src, size_t length) {
+    Chain result(std::move(src));
+    result.RemovePrefix(length);
+    return result;
+  });
+}
+
 bool LimitingBackwardWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
@@ -146,17 +157,6 @@ bool LimitingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
                          src.RemovePrefix(length);
                          return std::move(src);
                        });
-}
-
-bool LimitingBackwardWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
-  return WriteInternal(std::move(src), [](ExternalRef src, size_t length) {
-    Chain result(std::move(src));
-    result.RemovePrefix(length);
-    return result;
-  });
 }
 
 template <typename Src, typename RemovePrefix>

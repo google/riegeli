@@ -275,14 +275,14 @@ class Writer : public Object {
   bool Write(BytesRef src);
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   bool Write(const char* src) { return Write(absl::string_view(src)); }
-  bool Write(const Chain& src);
-  bool Write(Chain&& src);
-  bool Write(const absl::Cord& src);
-  bool Write(absl::Cord&& src);
   bool Write(ExternalRef src);
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   bool Write(Src&& src);
+  bool Write(const Chain& src);
+  bool Write(Chain&& src);
+  bool Write(const absl::Cord& src);
+  bool Write(absl::Cord&& src);
   bool Write(ByteFill src);
 
   // Writes a stringified value to the buffer and/or the destination.
@@ -313,7 +313,6 @@ class Writer : public Object {
               absl::negation<std::is_convertible<Src&&, BytesRef>>,
               absl::negation<std::is_convertible<Src&&, const Chain&>>,
               absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-              absl::negation<SupportsExternalRefWhole<Src>>,
               absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
           int> = 0>
   bool Write(Src&& src);
@@ -535,8 +534,8 @@ class Writer : public Object {
   // By default:
   //  * `WriteSlow(absl::string_view)` and `WriteSlow(ByteFill)` are
   //     implemented in terms of `PushSlow()`
-  //  * `WriteSlow(const Chain&)`, `WriteSlow(const absl::Cord&)`, and
-  //    `WriteSlow(ExternalRef)` are implemented in terms of
+  //  * `WriteSlow(ExternalRef)`, `WriteSlow(const Chain&)`, and
+  //    `WriteSlow(const absl::Cord&)` are implemented in terms of
   //    `WriteSlow(absl::string_view)`
   //  * `WriteSlow(Chain&&)` is implemented in terms of
   //    `WriteSlow(const Chain&)`
@@ -546,16 +545,16 @@ class Writer : public Object {
   // Precondition for `WriteSlow(absl::string_view)`:
   //   `available() < src.size()`
   //
-  // Precondition for `WriteSlow(const Chain&)`, `WriteSlow(Chain&&)`,
-  // `WriteSlow(const absl::Cord&)`, `WriteSlow(absl::Cord&&), and
-  // `WriteSlow(ExternalRef)`, and `WriteSlow(ByteFill)`:
+  // Precondition for `WriteSlow(ExternalRef)`, `WriteSlow(const Chain&)`,
+  // `WriteSlow(Chain&&)`, `WriteSlow(const absl::Cord&)`,
+  // `WriteSlow(absl::Cord&&), and `WriteSlow(ByteFill)`:
   //   `UnsignedMin(available(), kMaxBytesToCopy) < src.size()`
   virtual bool WriteSlow(absl::string_view src);
+  virtual bool WriteSlow(ExternalRef src);
   virtual bool WriteSlow(const Chain& src);
   virtual bool WriteSlow(Chain&& src);
   virtual bool WriteSlow(const absl::Cord& src);
   virtual bool WriteSlow(absl::Cord&& src);
-  virtual bool WriteSlow(ExternalRef src);
   virtual bool WriteSlow(ByteFill src);
 
   // Implementation of `Flush()`, except that the parameter is not defaulted,
@@ -806,6 +805,27 @@ inline bool Writer::Write(BytesRef src) {
   return WriteSlow(src);
 }
 
+inline bool Writer::Write(ExternalRef src) {
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
+    // undefined.
+    if (ABSL_PREDICT_TRUE(!src.empty())) {
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
+    }
+    return true;
+  }
+  AssertInitialized(start(), start_to_cursor());
+  return WriteSlow(std::move(src));
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline bool Writer::Write(Src&& src) {
+  return Write(ExternalRef(std::forward<Src>(src)));
+}
+
 inline bool Writer::Write(const Chain& src) {
 #ifdef MEMORY_SANITIZER
   for (const absl::string_view fragment : src.blocks()) {
@@ -868,27 +888,6 @@ inline bool Writer::Write(absl::Cord&& src) {
   }
   AssertInitialized(start(), start_to_cursor());
   return WriteSlow(std::move(src));
-}
-
-inline bool Writer::Write(ExternalRef src) {
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-    // undefined.
-    if (ABSL_PREDICT_TRUE(!src.empty())) {
-      std::memcpy(cursor(), src.data(), src.size());
-      move_cursor(src.size());
-    }
-    return true;
-  }
-  AssertInitialized(start(), start_to_cursor());
-  return WriteSlow(std::move(src));
-}
-
-template <typename Src,
-          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
-inline bool Writer::Write(Src&& src) {
-  return Write(ExternalRef(std::forward<Src>(src)));
 }
 
 inline bool Writer::Write(ByteFill src) {
@@ -960,7 +959,6 @@ template <typename Src,
                   absl::negation<std::is_convertible<Src&&, BytesRef>>,
                   absl::negation<std::is_convertible<Src&&, const Chain&>>,
                   absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-                  absl::negation<SupportsExternalRefWhole<Src>>,
                   absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
               int>>
 inline bool Writer::Write(Src&& src) {

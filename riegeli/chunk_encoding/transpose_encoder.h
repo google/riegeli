@@ -131,9 +131,9 @@ class TransposeEncoder : public ChunkEncoder {
   // broken down into columns.
   using ChunkEncoder::AddRecord;
   bool AddRecord(BytesRef record) override;
+  bool AddRecord(ExternalRef record) override;
   bool AddRecord(const Chain& record) override;
   bool AddRecord(const absl::Cord& record) override;
-  bool AddRecord(ExternalRef record) override;
 
   bool AddRecords(Chain records, std::vector<size_t> limits) override;
 

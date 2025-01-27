@@ -108,6 +108,34 @@ bool ResizableWriterBase::PushSlow(size_t min_length,
   return true;
 }
 
+bool ResizableWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  if (!uses_secondary_buffer()) {
+    GrowDestToCapacityAndMakeBuffer();
+    if (src.size() <= available()) {
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
+      return true;
+    }
+    set_start_pos(pos());
+    set_buffer();
+    written_size_ = 0;
+  } else {
+    SyncSecondaryBuffer();
+  }
+  move_start_pos(src.size());
+  secondary_buffer_.Append(std::move(src), options_);
+  MakeSecondaryBuffer();
+  return true;
+}
+
 bool ResizableWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -205,34 +233,6 @@ bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
     GrowDestToCapacityAndMakeBuffer();
     if (src.size() <= available()) {
       cord_internal::CopyCordToArray(src, cursor());
-      move_cursor(src.size());
-      return true;
-    }
-    set_start_pos(pos());
-    set_buffer();
-    written_size_ = 0;
-  } else {
-    SyncSecondaryBuffer();
-  }
-  move_start_pos(src.size());
-  secondary_buffer_.Append(std::move(src), options_);
-  MakeSecondaryBuffer();
-  return true;
-}
-
-bool ResizableWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
-    return FailOverflow();
-  }
-  if (!uses_secondary_buffer()) {
-    GrowDestToCapacityAndMakeBuffer();
-    if (src.size() <= available()) {
-      std::memcpy(cursor(), src.data(), src.size());
       move_cursor(src.size());
       return true;
     }

@@ -71,6 +71,24 @@ bool RestrictedChainWriter::PushSlow(size_t min_length,
   return true;
 }
 
+bool RestrictedChainWriter::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+      << "RestrictedChainWriter destination changed unexpectedly";
+  SyncBuffer();
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  move_start_pos(src.size());
+  dest_.Append(std::move(src));
+  MakeBuffer();
+  return true;
+}
+
 bool RestrictedChainWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -129,24 +147,6 @@ bool RestrictedChainWriter::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
-      << "RestrictedChainWriter destination changed unexpectedly";
-  SyncBuffer();
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
-    return FailOverflow();
-  }
-  move_start_pos(src.size());
-  dest_.Append(std::move(src));
-  MakeBuffer();
-  return true;
-}
-
-bool RestrictedChainWriter::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";

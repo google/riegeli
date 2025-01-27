@@ -110,11 +110,11 @@ class SnappyWriterBase : public Writer {
   void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
-  bool WriteSlow(ExternalRef src) override;
   bool WriteSlow(ByteFill src) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 

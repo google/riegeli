@@ -105,6 +105,17 @@ bool LimitingWriterBase::WriteSlow(absl::string_view src) {
   });
 }
 
+bool LimitingWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  return WriteInternal(std::move(src), [](ExternalRef src, size_t length) {
+    Chain result(std::move(src));
+    result.RemoveSuffix(length);
+    return result;
+  });
+}
+
 bool LimitingWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -147,17 +158,6 @@ bool LimitingWriterBase::WriteSlow(absl::Cord&& src) {
                          src.RemoveSuffix(length);
                          return std::move(src);
                        });
-}
-
-bool LimitingWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
-  return WriteInternal(std::move(src), [](ExternalRef src, size_t length) {
-    Chain result(std::move(src));
-    result.RemoveSuffix(length);
-    return result;
-  });
 }
 
 template <typename Src, typename RemoveSuffix>

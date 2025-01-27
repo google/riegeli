@@ -151,6 +151,46 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   return true;
 }
 
+bool StringWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  std::string& dest = *DestString();
+  RIEGELI_ASSERT_EQ(UnsignedMax(limit_pos(), written_size_),
+                    dest.size() + secondary_buffer_.size())
+      << "StringWriter destination changed unexpectedly";
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  if (!uses_secondary_buffer()) {
+    SyncDestBuffer(dest);
+    const size_t cursor_index = IntCast<size_t>(start_pos());
+    const size_t new_cursor_index = cursor_index + src.size();
+    if (new_cursor_index <= dest.capacity()) {
+      if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
+        std::memcpy(&dest[cursor_index], src.data(), src.size());
+      } else {
+        dest.erase(cursor_index);
+        // TODO: When `absl::string_view` becomes C++17
+        // `std::string_view`: `dest.append(absl::string_view(src))`
+        dest.append(src.data(), src.size());
+      }
+      GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
+      return true;
+    }
+    dest.erase(cursor_index);
+    written_size_ = 0;
+  } else {
+    SyncSecondaryBuffer();
+  }
+  move_start_pos(src.size());
+  secondary_buffer_.Append(std::move(src), options_);
+  MakeSecondaryBuffer();
+  return true;
+}
+
 bool StringWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -288,46 +328,6 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
       } else {
         dest.erase(cursor_index);
         cord_internal::AppendCordToString(src, dest);
-      }
-      GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
-      return true;
-    }
-    dest.erase(cursor_index);
-    written_size_ = 0;
-  } else {
-    SyncSecondaryBuffer();
-  }
-  move_start_pos(src.size());
-  secondary_buffer_.Append(std::move(src), options_);
-  MakeSecondaryBuffer();
-  return true;
-}
-
-bool StringWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  std::string& dest = *DestString();
-  RIEGELI_ASSERT_EQ(UnsignedMax(limit_pos(), written_size_),
-                    dest.size() + secondary_buffer_.size())
-      << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
-    return FailOverflow();
-  }
-  if (!uses_secondary_buffer()) {
-    SyncDestBuffer(dest);
-    const size_t cursor_index = IntCast<size_t>(start_pos());
-    const size_t new_cursor_index = cursor_index + src.size();
-    if (new_cursor_index <= dest.capacity()) {
-      if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        std::memcpy(&dest[cursor_index], src.data(), src.size());
-      } else {
-        dest.erase(cursor_index);
-        // TODO: When `absl::string_view` becomes C++17
-        // `std::string_view`: `dest.append(absl::string_view(src))`
-        dest.append(src.data(), src.size());
       }
       GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;

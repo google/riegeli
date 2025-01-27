@@ -932,6 +932,12 @@ bool RecordWriterBase::WriteRecord(BytesRef record) {
   return WriteRecordImpl(record.size(), record);
 }
 
+bool RecordWriterBase::WriteRecord(ExternalRef record) {
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  const size_t size = record.size();
+  return WriteRecordImpl(size, std::move(record));
+}
+
 bool RecordWriterBase::WriteRecord(const Chain& record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   return WriteRecordImpl(record.size(), record);
@@ -949,12 +955,6 @@ bool RecordWriterBase::WriteRecord(const absl::Cord& record) {
 }
 
 bool RecordWriterBase::WriteRecord(absl::Cord&& record) {
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  const size_t size = record.size();
-  return WriteRecordImpl(size, std::move(record));
-}
-
-bool RecordWriterBase::WriteRecord(ExternalRef record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const size_t size = record.size();
   return WriteRecordImpl(size, std::move(record));

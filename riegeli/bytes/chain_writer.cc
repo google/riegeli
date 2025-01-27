@@ -168,6 +168,26 @@ bool ChainWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   return true;
 }
 
+bool ChainWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Chain& dest = *DestChain();
+  RIEGELI_ASSERT_LE(limit_pos(), dest.size())
+      << "ChainWriter destination changed unexpectedly";
+  SyncBuffer(dest);
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(start_pos()))) {
+    return FailOverflow();
+  }
+  ShrinkTail(src.size());
+  move_start_pos(src.size());
+  dest.Append(std::move(src), options_);
+  MakeBuffer(dest);
+  return true;
+}
+
 bool ChainWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -232,26 +252,6 @@ bool ChainWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  Chain& dest = *DestChain();
-  RIEGELI_ASSERT_LE(limit_pos(), dest.size())
-      << "ChainWriter destination changed unexpectedly";
-  SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
-    return FailOverflow();
-  }
-  ShrinkTail(src.size());
-  move_start_pos(src.size());
-  dest.Append(std::move(src), options_);
-  MakeBuffer(dest);
-  return true;
-}
-
-bool ChainWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_LE(limit_pos(), dest.size())

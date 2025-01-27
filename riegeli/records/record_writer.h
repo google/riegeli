@@ -472,14 +472,14 @@ class RecordWriterBase : public Object {
   bool WriteRecord(const google::protobuf::MessageLite& record,
                    SerializeOptions serialize_options = SerializeOptions());
   bool WriteRecord(BytesRef record);
-  bool WriteRecord(const Chain& record);
-  bool WriteRecord(Chain&& record);
-  bool WriteRecord(const absl::Cord& record);
-  bool WriteRecord(absl::Cord&& record);
   bool WriteRecord(ExternalRef record);
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   bool WriteRecord(Src&& src);
+  bool WriteRecord(const Chain& record);
+  bool WriteRecord(Chain&& record);
+  bool WriteRecord(const absl::Cord& record);
+  bool WriteRecord(absl::Cord&& record);
 
   // Finalizes any open chunk and pushes buffered data to the destination.
   // If `Options::parallelism() > 0`, waits for any background writing to

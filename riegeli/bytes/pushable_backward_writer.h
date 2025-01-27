@@ -128,22 +128,22 @@ class PushableBackwardWriter : public BackwardWriter {
   //   like the corresponding `BackwardWriter` functions
   //   `!scratch_used()`
   virtual bool WriteBehindScratch(absl::string_view src);
+  virtual bool WriteBehindScratch(ExternalRef src);
   virtual bool WriteBehindScratch(const Chain& src);
   virtual bool WriteBehindScratch(Chain&& src);
   virtual bool WriteBehindScratch(const absl::Cord& src);
   virtual bool WriteBehindScratch(absl::Cord&& src);
-  virtual bool WriteBehindScratch(ExternalRef src);
   virtual bool WriteBehindScratch(ByteFill src);
   virtual bool FlushBehindScratch(FlushType flush_type);
   virtual bool TruncateBehindScratch(Position new_size);
 
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   bool WriteSlow(absl::string_view src) override;
+  bool WriteSlow(ExternalRef src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(absl::Cord&& src) override;
-  bool WriteSlow(ExternalRef src) override;
   bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool TruncateImpl(Position new_size) override;

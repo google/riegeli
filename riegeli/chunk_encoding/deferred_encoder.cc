@@ -76,6 +76,10 @@ bool DeferredEncoder::AddRecord(BytesRef record) {
   return AddRecordImpl(record);
 }
 
+bool DeferredEncoder::AddRecord(ExternalRef record) {
+  return AddRecordImpl(std::move(record));
+}
+
 bool DeferredEncoder::AddRecord(const Chain& record) {
   return AddRecordImpl(record);
 }
@@ -89,10 +93,6 @@ bool DeferredEncoder::AddRecord(const absl::Cord& record) {
 }
 
 bool DeferredEncoder::AddRecord(absl::Cord&& record) {
-  return AddRecordImpl(std::move(record));
-}
-
-bool DeferredEncoder::AddRecord(ExternalRef record) {
   return AddRecordImpl(std::move(record));
 }
 

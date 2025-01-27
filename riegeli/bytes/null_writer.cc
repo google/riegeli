@@ -95,6 +95,20 @@ bool NullWriter::WriteSlow(absl::string_view src) {
   return MakeBuffer();
 }
 
+bool NullWriter::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  SyncBuffer();
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         std::numeric_limits<Position>::max() - start_pos())) {
+    return FailOverflow();
+  }
+  move_start_pos(src.size());
+  return MakeBuffer();
+}
+
 bool NullWriter::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
@@ -113,20 +127,6 @@ bool NullWriter::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  if (ABSL_PREDICT_FALSE(!ok())) return false;
-  SyncBuffer();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
-    return FailOverflow();
-  }
-  move_start_pos(src.size());
-  return MakeBuffer();
-}
-
-bool NullWriter::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of Writer::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >

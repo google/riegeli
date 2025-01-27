@@ -961,16 +961,16 @@ constexpr size_t Chain::kExternalAllocatedSize() {
 
 inline Chain::Chain(BytesRef src) { Initialize(src); }
 
-inline Chain::Chain(Block src) {
-  if (src.raw_block() != nullptr) Initialize(std::move(src));
-}
-
 inline Chain::Chain(ExternalRef src) { std::move(src).InitializeTo(*this); }
 
 template <typename Src,
           std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
 inline Chain::Chain(Src&& src) {
   ExternalRef(std::forward<Src>(src)).InitializeTo(*this);
+}
+
+inline Chain::Chain(Block src) {
+  if (src.raw_block() != nullptr) Initialize(std::move(src));
 }
 
 inline Chain::Chain(Chain&& that) noexcept

@@ -73,6 +73,13 @@ bool WrappingBackwardWriterBase::WriteSlow(absl::string_view src) {
   return WriteInternal(src);
 }
 
+bool WrappingBackwardWriterBase::WriteSlow(ExternalRef src) {
+  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
+         "enough space available, use Write(ExternalRef) instead";
+  return WriteInternal(std::move(src));
+}
+
 bool WrappingBackwardWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
@@ -98,13 +105,6 @@ bool WrappingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  return WriteInternal(std::move(src));
-}
-
-bool WrappingBackwardWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
-      << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
-         "enough space available, use Write(ExternalRef) instead";
   return WriteInternal(std::move(src));
 }
 

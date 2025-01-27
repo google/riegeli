@@ -62,14 +62,14 @@ class ChunkEncoder : public Object {
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool AddRecord(const char* record) {
     return AddRecord(absl::string_view(record));
   }
-  virtual bool AddRecord(const Chain& record) = 0;
-  virtual bool AddRecord(Chain&& record);
-  virtual bool AddRecord(const absl::Cord& record) = 0;
-  virtual bool AddRecord(absl::Cord&& record);
   virtual bool AddRecord(ExternalRef record) = 0;
   template <typename Src,
             std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
   bool AddRecord(Src&& src);
+  virtual bool AddRecord(const Chain& record) = 0;
+  virtual bool AddRecord(Chain&& record);
+  virtual bool AddRecord(const absl::Cord& record) = 0;
+  virtual bool AddRecord(absl::Cord&& record);
 
   // Add multiple records, expressed as concatenated record values and sorted
   // record end positions.
