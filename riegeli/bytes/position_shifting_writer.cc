@@ -49,12 +49,12 @@ void PositionShiftingWriterBase::Done() {
   associated_reader_.Reset();
 }
 
-bool PositionShiftingWriterBase::FailUnderflow(Position new_pos,
+bool PositionShiftingWriterBase::FailUnderflow(absl::string_view operation,
+                                               Position new_pos,
                                                Object& object) {
   return object.Fail(absl::InvalidArgumentError(
-      absl::StrCat("PositionShiftingWriter does not support "
-                   "seeking before the base position: ",
-                   new_pos, " < ", base_pos_)));
+      absl::StrCat("PositionShiftingWriter does not support ", operation,
+                   " before the base position: ", new_pos, " < ", base_pos_)));
 }
 
 absl::Status PositionShiftingWriterBase::AnnotateStatusImpl(
@@ -160,7 +160,7 @@ bool PositionShiftingWriterBase::SeekSlow(Position new_pos) {
          "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(new_pos < base_pos_)) {
-    return FailUnderflow(new_pos, *this);
+    return FailUnderflow("seeking", new_pos, *this);
   }
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
@@ -192,7 +192,7 @@ bool PositionShiftingWriterBase::SupportsTruncate() {
 bool PositionShiftingWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(new_size < base_pos_)) {
-    return FailUnderflow(new_size, *this);
+    return FailUnderflow("truncating", new_size, *this);
   }
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
@@ -218,7 +218,7 @@ Reader* PositionShiftingWriterBase::ReadModeImpl(Position initial_pos) {
       base_reader,
       PositionShiftingReaderBase::Options().set_base_pos(base_pos_));
   if (ABSL_PREDICT_FALSE(initial_pos < base_pos_)) {
-    FailUnderflow(initial_pos, *reader);
+    FailUnderflow("seeking", initial_pos, *reader);
   }
   return reader;
 }
