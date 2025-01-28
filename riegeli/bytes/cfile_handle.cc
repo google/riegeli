@@ -42,6 +42,13 @@
 
 namespace riegeli {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+constexpr CFileHandle::Methods CFileHandle::kMethodsDefault;
+#endif
+
 absl::Status OwnedCFile::Open(CStringRef filename, CStringRef mode) {
   Reset();
 #ifndef _WIN32

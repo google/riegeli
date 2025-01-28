@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BYTES_FD_HANDLE_H_
 #define RIEGELI_BYTES_FD_HANDLE_H_
 
+#include "riegeli/base/type_traits.h"
 #ifdef _WIN32
 #include <sys/stat.h>
 #else
@@ -131,11 +132,9 @@ class
 
   // Creates an `FdHandle` which refers to `target`.
   template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_convertible<T&, const FdHandle&>>,
-                    SupportsFdHandle<T>>::value,
-                int> = 0>
+            std::enable_if_t<absl::conjunction<NotSelfCopy<FdHandle, T&>,
+                                               SupportsFdHandle<T>>::value,
+                             int> = 0>
   /*implicit*/ FdHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
 
@@ -186,6 +185,23 @@ class
              decltype(std::declval<T&>().Close()), absl::Status>::value>>
       : std::true_type {};
 
+  static int GetMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return -1;
+  }
+
+  static bool IsOwningMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return false;
+  }
+
+  static absl::Status CloseMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return absl::OkStatus();
+  }
+
+  static constexpr Methods kMethodsDefault = {
+      GetMethodDefault, IsOwningMethodDefault, CloseMethodDefault};
+
   template <typename T>
   static int GetMethod(TypeErasedRef target) {
     return target.Cast<const T&>().get();
@@ -213,7 +229,7 @@ class
   static constexpr Methods kMethods = {GetMethod<T>, IsOwningMethod<T>,
                                        CloseMethod<T>};
 
-  const Methods* methods_ = nullptr;
+  const Methods* methods_ = &kMethodsDefault;
   TypeErasedRef target_;
 };
 
@@ -294,7 +310,7 @@ class
 
   // The moved-from fd is left absent.
   OwnedFd(OwnedFd&& that) noexcept : fd_(that.Release()) {}
-  OwnedFd& operator=(OwnedFd&& that) {
+  OwnedFd& operator=(OwnedFd&& that) noexcept {
     Reset(that.Release());
     return *this;
   }

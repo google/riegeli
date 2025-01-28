@@ -20,11 +20,25 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/type_erased_ref.h"
 
 namespace riegeli {
+
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+constexpr DigesterBaseHandle::Methods DigesterBaseHandle::kMethodsDefault;
+#endif
+
+void DigesterBaseHandle::FailedDigestMethodDefault() {
+  RIEGELI_CHECK_UNREACHABLE()
+      << "DigesterHandle::Digest() called on a default-constructed "
+         "DigesterHandle with a non-void DigesterHandle::DigestType";
+}
 
 bool DigesterBaseHandle::WriteChainFallback(
     TypeErasedRef target, const Chain& src,

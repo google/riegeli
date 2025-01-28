@@ -30,6 +30,7 @@
 #include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/type_erased_ref.h"
+#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -102,11 +103,9 @@ class
 
   // Creates a `CFileHandle` which refers to `target`.
   template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<std::is_convertible<T&, const CFileHandle&>>,
-                    SupportsCFileHandle<T>>::value,
-                int> = 0>
+            std::enable_if_t<absl::conjunction<NotSelfCopy<CFileHandle, T&>,
+                                               SupportsCFileHandle<T>>::value,
+                             int> = 0>
   /*implicit*/ CFileHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
 
@@ -159,6 +158,23 @@ class
              decltype(std::declval<T&>().Close()), absl::Status>::value>>
       : std::true_type {};
 
+  static FILE* GetMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return nullptr;
+  }
+
+  static bool IsOwningMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return false;
+  }
+
+  static absl::Status CloseMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return absl::OkStatus();
+  }
+
+  static constexpr Methods kMethodsDefault = {
+      GetMethodDefault, IsOwningMethodDefault, CloseMethodDefault};
+
   template <typename T>
   static FILE* GetMethod(TypeErasedRef target) {
     return target.Cast<const T&>().get();
@@ -186,7 +202,7 @@ class
   static constexpr Methods kMethods = {GetMethod<T>, IsOwningMethod<T>,
                                        CloseMethod<T>};
 
-  const Methods* methods_ = nullptr;
+  const Methods* methods_ = &kMethodsDefault;
   TypeErasedRef target_;
 };
 

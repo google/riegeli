@@ -139,8 +139,7 @@ class
   // Creates a `DigesterBaseHandle` which refers to `target`.
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<absl::negation<std::is_convertible<
-                                             T&, const DigesterBaseHandle&>>,
+      std::enable_if_t<absl::conjunction<NotSelfCopy<DigesterBaseHandle, T&>,
                                          SupportsDigesterBaseHandle<T>>::value,
                        int> = 0>
   /*implicit*/ DigesterBaseHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -227,6 +226,9 @@ class
   // Can return `absl::OkStatus()` if tracking the status is not supported.
   absl::Status status() const { return methods()->status(target()); }
 
+ protected:
+  ABSL_ATTRIBUTE_NORETURN static void FailedDigestMethodDefault();
+
  private:
   template <
       typename Function,
@@ -293,6 +295,42 @@ class
       T, std::enable_if_t<std::is_convertible<
              decltype(std::declval<const T&>().status()), absl::Status>::value>>
       : std::true_type {};
+
+  static void SetWriteSizeHintMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
+
+  static bool WriteMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+                                 ABSL_ATTRIBUTE_UNUSED absl::string_view src) {
+    return true;
+  }
+
+  static bool WriteChainMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef
+                                          target,
+                                      ABSL_ATTRIBUTE_UNUSED const Chain& src) {
+    return true;
+  }
+
+  static bool WriteCordMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+      ABSL_ATTRIBUTE_UNUSED const absl::Cord& src) {
+    return true;
+  }
+
+  static bool WriteByteFillMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef
+                                             target,
+                                         ABSL_ATTRIBUTE_UNUSED ByteFill src) {
+    return true;
+  }
+
+  static bool CloseMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return true;
+  }
+
+  static absl::Status StatusMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return absl::OkStatus();
+  }
 
   template <
       typename T,
@@ -409,6 +447,14 @@ class
     absl::Status (*status)(TypeErasedRef target);
   };
 
+  static constexpr Methods kMethodsDefault = {SetWriteSizeHintMethodDefault,
+                                              WriteMethodDefault,
+                                              WriteChainMethodDefault,
+                                              WriteCordMethodDefault,
+                                              WriteByteFillMethodDefault,
+                                              CloseMethodDefault,
+                                              StatusMethodDefault};
+
   template <typename T>
   static constexpr Methods kMethods = {SetWriteSizeHintMethod<T>,
                                        WriteMethod<T>,
@@ -418,8 +464,7 @@ class
                                        CloseMethod<T>,
                                        StatusMethod<T>};
 
-  template <typename T>
-  explicit DigesterBaseHandle(const Methods* methods, T& target)
+  explicit DigesterBaseHandle(const Methods* methods, TypeErasedRef target)
       : methods_(methods), target_(target) {}
 
   const Methods* methods() const { return methods_; }
@@ -428,7 +473,7 @@ class
  private:
   class DigesterAbslStringifySink;
 
-  const Methods* methods_ = nullptr;
+  const Methods* methods_ = &kMethodsDefault;
   TypeErasedRef target_;
 };
 
@@ -490,19 +535,18 @@ class DigesterHandle : public DigesterBaseHandle {
   using DigestType = DigestTypeParam;
 
   // Creates a `DigesterHandle` which does not refer to a target.
-  DigesterHandle() = default;
-  /*implicit*/ DigesterHandle(std::nullptr_t) {}
+  DigesterHandle() noexcept
+      : DigesterBaseHandle(&kMethodsDefault, TypeErasedRef()) {}
+  /*implicit*/ DigesterHandle(std::nullptr_t) : DigesterHandle() {}
 
   // Creates a `DigesterHandle` which refers to `target`.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<std::is_convertible<T&, const DigesterHandle&>>,
-              SupportsDigesterHandle<T, DigestType>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<NotSelfCopy<DigesterHandle, T&>,
+                                  SupportsDigesterHandle<T, DigestType>>::value,
+                int> = 0>
   /*implicit*/ DigesterHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : DigesterBaseHandle(&kMethods<T>, target) {}
+      : DigesterBaseHandle(&kMethods<T>, TypeErasedRef(target)) {}
 
   DigesterHandle(const DigesterHandle& that) = default;
   DigesterHandle& operator=(const DigesterHandle& that) = default;
@@ -529,6 +573,18 @@ class DigesterHandle : public DigesterBaseHandle {
       T, absl::void_t<decltype(std::declval<T&>().Digest())>> : std::true_type {
   };
 
+  template <typename DependentDigestType = DigestType,
+            std::enable_if_t<std::is_void<DependentDigestType>::value, int> = 0>
+  static DigestType DigestMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {}
+  template <
+      typename DependentDigestType = DigestType,
+      std::enable_if_t<!std::is_void<DependentDigestType>::value, int> = 0>
+  static DigestType DigestMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    FailedDigestMethodDefault();
+  }
+
   template <typename T,
             std::enable_if_t<DigesterTargetHasDigest<T>::value, int> = 0>
   static DigestType DigestMethod(TypeErasedRef target) {
@@ -536,10 +592,11 @@ class DigesterHandle : public DigesterBaseHandle {
         [&]() -> decltype(auto) { return target.Cast<T&>().Digest(); });
   }
   template <typename T,
-            std::enable_if_t<!DigesterTargetHasDigest<T>::value, int> = 0>
-  static DigestType DigestMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return ConvertDigest<DigestType>([] {});
-  }
+            std::enable_if_t<
+                absl::conjunction<absl::negation<DigesterTargetHasDigest<T>>,
+                                  std::is_void<DigestType>>::value,
+                int> = 0>
+  static DigestType DigestMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {}
 
   struct Methods : DigesterBaseHandle::Methods {
     // MSVC does not like the `DigestType` alias here for some reason.
@@ -547,10 +604,22 @@ class DigesterHandle : public DigesterBaseHandle {
   };
 
 #if __cpp_aggregate_bases
+  static constexpr Methods kMethodsDefault = {
+      DigesterBaseHandle::kMethodsDefault, DigestMethodDefault};
+
   template <typename T>
   static constexpr Methods kMethods = {DigesterBaseHandle::kMethods<T>,
                                        DigestMethod<T>};
 #else   // !__cpp_aggregate_bases
+  static constexpr Methods MakeMethodsDefault() {
+    Methods methods;
+    static_cast<DigesterBaseHandle::Methods&>(methods) =
+        DigesterBaseHandle::kMethodsDefault;
+    methods.digest = DigestMethodDefault;
+    return methods;
+  }
+  static constexpr Methods kMethodsDefault = MakeMethodsDefault();
+
   template <typename T>
   static constexpr Methods MakeMethods() {
     Methods methods;
