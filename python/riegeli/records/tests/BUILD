@@ -12,7 +12,6 @@ licenses(["notice"])
 py_test(
     name = "records_test",
     srcs = ["records_test.py"],
-    srcs_version = "PY3",
     deps = [
         ":records_test_py_pb2",
         "//python/riegeli",

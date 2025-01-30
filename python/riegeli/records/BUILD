@@ -89,7 +89,6 @@ py_extension(
 py_library(
     name = "skipped_region",
     srcs = ["skipped_region.py"],
-    srcs_version = "PY3",
 )
 
 proto_library(
