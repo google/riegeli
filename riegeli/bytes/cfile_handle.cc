@@ -13,7 +13,6 @@
 // limitations under the License.
 
 // Make `O_CLOEXEC` available on Darwin.
-#include "riegeli/bytes/path_ref.h"
 #if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 700
 #undef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 700
@@ -37,6 +36,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/status.h"
+#include "riegeli/bytes/path_ref.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
 #endif

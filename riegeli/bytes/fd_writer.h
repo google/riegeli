@@ -17,9 +17,6 @@
 
 #include <fcntl.h>
 #include <stdint.h>
-
-#include "riegeli/bytes/path_ref.h"
-
 #ifdef _WIN32
 #include <sys/stat.h>
 #endif
@@ -45,6 +42,7 @@
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal.h"
+#include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
