@@ -53,11 +53,19 @@
 namespace riegeli {
 namespace tensorflow {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+constexpr size_t FileReaderBase::Options::kDefaultMaxBufferSize;
+#endif
+
 bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
   absl::string_view filename;
   {
     const absl::Status status = src->Name(&filename);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
+      filename_ = "<unknown>";
       if (!absl::IsUnimplemented(status)) {
         return FailOperation(status, "RandomAccessFile::Name()");
       }
@@ -125,15 +133,12 @@ inline bool FileReaderBase::FailOperation(const absl::Status& status,
 }
 
 inline absl::Status FileReaderBase::NoRandomAccessStatus() {
-  return absl::UnimplementedError(
-      "A non-empty filename required for random access");
+  return absl::UnimplementedError("A filename required for random access");
 }
 
 absl::Status FileReaderBase::AnnotateStatusImpl(absl::Status status) {
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("reading ", filename_));
-  }
-  return Reader::AnnotateStatusImpl(std::move(status));
+  return Reader::AnnotateStatusImpl(
+      Annotate(status, absl::StrCat("reading ", filename_)));
 }
 
 inline void FileReaderBase::SyncBuffer() {

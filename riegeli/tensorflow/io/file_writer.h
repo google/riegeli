@@ -39,6 +39,7 @@
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
+#include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
@@ -111,7 +112,7 @@ class FileWriterBase : public Writer {
     return filename_;
   }
 
-  bool SupportsReadMode() override { return !filename_.empty(); }
+  bool SupportsReadMode() override { return file_system_ != nullptr; }
 
  protected:
   explicit FileWriterBase(Closed) noexcept : Writer(kClosed) {}
@@ -160,12 +161,9 @@ class FileWriterBase : public Writer {
   bool WriteInternal(absl::string_view src);
   bool WriteInternal(const absl::Cord& src);
 
-  std::string filename_;
-  // Invariant:
-  //   if `is_open() && !filename_.empty()` then `env_ != nullptr`
+  std::string filename_{kDefaultFilename};
+  // Invariant: if `is_open()` then `env_ != nullptr`
   ::tensorflow::Env* env_ = nullptr;
-  // Invariant:
-  //   if `is_open() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
   WriteBufferSizer buffer_sizer_;
   // Buffered data to be written.
@@ -268,7 +266,7 @@ inline FileWriterBase::FileWriterBase(BufferOptions buffer_options,
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
     : Writer(static_cast<Writer&&>(that)),
-      filename_(std::exchange(that.filename_, std::string())),
+      filename_(std::exchange(that.filename_, std::string(kDefaultFilename))),
       env_(that.env_),
       file_system_(that.file_system_),
       buffer_sizer_(that.buffer_sizer_),
@@ -278,7 +276,7 @@ inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
 inline FileWriterBase& FileWriterBase::operator=(
     FileWriterBase&& that) noexcept {
   Writer::operator=(static_cast<Writer&&>(that));
-  filename_ = std::exchange(that.filename_, std::string());
+  filename_ = std::exchange(that.filename_, std::string(kDefaultFilename));
   env_ = that.env_;
   file_system_ = that.file_system_;
   buffer_sizer_ = that.buffer_sizer_;
@@ -289,7 +287,7 @@ inline FileWriterBase& FileWriterBase::operator=(
 
 inline void FileWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
-  filename_ = std::string();
+  filename_ = std::string(kDefaultFilename);
   env_ = nullptr;
   file_system_ = nullptr;
   buffer_sizer_.Reset();
@@ -300,8 +298,9 @@ inline void FileWriterBase::Reset(Closed) {
 inline void FileWriterBase::Reset(BufferOptions buffer_options,
                                   ::tensorflow::Env* env) {
   Writer::Reset();
+  // `filename_` will be set by `InitializeFilename()`.
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();
-  // `filename_` and `file_system_` will be set by `InitializeFilename()`.
+  file_system_ = nullptr;
   buffer_sizer_.Reset(buffer_options);
   associated_reader_.Reset();
 }

@@ -25,19 +25,27 @@
 #include <io.h>
 #include <share.h>
 #else
+#include <stddef.h>
 #include <unistd.h>
 #endif
 
 #include <cerrno>
+#ifndef _WIN32
+#include <utility>
+#endif
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "riegeli/base/c_string_ref.h"
+#include "absl/strings/string_view.h"
+#ifndef _WIN32
+#include "riegeli/base/compact_string.h"
+#endif
 #include "riegeli/base/status.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
 #endif
+#include "riegeli/bytes/path_ref.h"
 
 namespace riegeli {
 
@@ -49,49 +57,73 @@ constexpr FdHandle::Methods FdHandle::kMethodsDefault;
 constexpr OwnedFd::Permissions OwnedFd::kDefaultPermissions;
 #endif
 
-absl::Status OwnedFd::Open(CStringRef filename, int mode,
+namespace fd_internal {
+
+template class FdBase<UnownedFdDeleter>;
+template class FdBase<OwnedFdDeleter>;
+
+}  // namespace fd_internal
+
+absl::Status OwnedFd::Open(PathRef filename, int mode,
                            Permissions permissions) {
-  Reset();
 #ifndef _WIN32
+  ResetCFilename(filename);
 again:
-  const int fd = open(filename.c_str(), mode, permissions);
+  const int fd = open(c_filename(), mode, permissions);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;
     if (error_number == EINTR) goto again;
     return Annotate(absl::ErrnoToStatus(error_number, "open() failed"),
-                    absl::StrCat("opening ", filename.c_str()));
+                    absl::StrCat("opening ", absl::string_view(filename)));
   }
 #else   // _WIN32
+  Reset(-1, filename);
   std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename.c_str(), filename_wide))) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Filename not valid UTF-8: ", filename.c_str()));
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename, filename_wide))) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Filename not valid UTF-8: ", absl::string_view(filename)));
   }
   int fd;
   if (ABSL_PREDICT_FALSE(_wsopen_s(&fd, filename_wide.c_str(), mode, _SH_DENYNO,
                                    permissions) != 0)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "_wsopen_s() failed"),
-                    absl::StrCat("opening ", filename.c_str()));
+                    absl::StrCat("opening ", absl::string_view(filename)));
   }
 #endif  // _WIN32
-  Reset(fd);
+  SetFdKeepFilename(fd);
   return absl::OkStatus();
 }
 
 #ifndef _WIN32
-absl::Status OwnedFd::OpenAt(int dir_fd, CStringRef filename, int mode,
+absl::Status OwnedFd::OpenAt(UnownedFd dir_fd, PathRef filename, int mode,
                              Permissions permissions) {
-  Reset();
+  absl::string_view dir_filename;
+  bool needs_slash = false;
+  if (dir_fd != AT_FDCWD && (filename.empty() || filename.front() != '/')) {
+    dir_filename = dir_fd.filename();
+    needs_slash = !dir_filename.empty() && dir_filename.back() != '/';
+  }
+  CompactString full_filename;
+  const size_t relative_filename_pos =
+      dir_filename.size() + (needs_slash ? 1 : 0);
+  // Reserve 1 extra char so that `c_str()` does not need reallocation.
+  full_filename.reserve(relative_filename_pos + filename.size() + 1);
+  full_filename = dir_filename;
+  if (needs_slash) *full_filename.append(1) = '/';
+  full_filename.append(filename);
+  ResetFilename(std::move(full_filename));
+
 again:
-  const int fd = openat(dir_fd, filename.c_str(), mode, permissions);
+  const int fd = openat(dir_fd.get(), c_filename() + relative_filename_pos,
+                        mode, permissions);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;
     if (error_number == EINTR) goto again;
     return Annotate(absl::ErrnoToStatus(error_number, "openat() failed"),
-                    absl::StrCat("opening ", filename.c_str()));
+                    absl::StrCat("opening ", this->filename()));
   }
-  Reset(fd);
+  SetFdKeepFilename(fd);
   return absl::OkStatus();
 }
 #endif  // !_WIN32
@@ -106,7 +138,8 @@ absl::Status OwnedFd::Close() {
   if (ABSL_PREDICT_FALSE(posix_close(fd, 0) < 0)) {
     const int error_number = errno;
     if (error_number != EINPROGRESS) {
-      return absl::ErrnoToStatus(error_number, "posix_close() failed");
+      return Annotate(absl::ErrnoToStatus(error_number, "posix_close() failed"),
+                      absl::StrCat("closing ", filename()));
     }
   }
 #else   // !POSIX_CLOSE_RESTART
@@ -115,14 +148,16 @@ absl::Status OwnedFd::Close() {
     // After `EINTR` it is unspecified whether `fd` has been closed or not.
     // Assume that it is closed, which is the case e.g. on Linux.
     if (error_number != EINPROGRESS && error_number != EINTR) {
-      return absl::ErrnoToStatus(error_number, "close() failed");
+      return Annotate(absl::ErrnoToStatus(error_number, "close() failed"),
+                      absl::StrCat("closing ", filename()));
     }
   }
 #endif  // !POSIX_CLOSE_RESTART
 #else   // _WIN32
   if (ABSL_PREDICT_FALSE(_close(fd) < 0)) {
     const int error_number = errno;
-    return absl::ErrnoToStatus(error_number, "_close() failed");
+    return Annotate(absl::ErrnoToStatus(error_number, "_close() failed"),
+                    absl::StrCat("closing ", filename()));
   }
 #endif  // _WIN32
   return absl::OkStatus();

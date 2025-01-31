@@ -55,7 +55,6 @@
 #include <limits>
 #include <memory>
 #include <ostream>
-#include <string>
 #ifndef _WIN32
 #include <type_traits>
 #endif
@@ -89,7 +88,6 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/fd_handle.h"
-#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/fd_internal_for_cc.h"
 #include "riegeli/bytes/reader.h"
 
@@ -205,7 +203,6 @@ void MMapBlock::operator()(absl::string_view data) const {
 void FdMMapReaderBase::Initialize(int src, Options&& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
-  fd_internal::FilenameForFd(src, filename_);
   InitializePos(src, std::move(options));
 }
 
@@ -332,10 +329,8 @@ bool FdMMapReaderBase::FailWindowsOperation(absl::string_view operation) {
 #endif  // _WIN32
 
 absl::Status FdMMapReaderBase::AnnotateStatusImpl(absl::Status status) {
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("reading ", filename_));
-  }
-  return ChainReader::AnnotateStatusImpl(std::move(status));
+  return ChainReader::AnnotateStatusImpl(
+      Annotate(status, absl::StrCat("reading ", filename())));
 }
 
 #ifndef _WIN32
@@ -366,10 +361,10 @@ bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
 std::unique_ptr<Reader> FdMMapReaderBase::NewReaderImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
-  const int src = SrcFd();
   std::unique_ptr<FdMMapReader<UnownedFd>> reader =
       std::make_unique<FdMMapReader<UnownedFd>>(kClosed);
-  reader->InitializeWithExistingData(src, filename(), ChainReader::src());
+  reader->InitializeWithExistingData(UnownedFd(SrcFdHandle()),
+                                     ChainReader::src());
   reader->Seek(initial_pos);
   return reader;
 }

@@ -17,11 +17,13 @@
 
 #include <fcntl.h>
 #include <stdint.h>
+
+#include "riegeli/bytes/path_ref.h"
+
 #ifdef _WIN32
 #include <sys/stat.h>
 #endif
 
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -357,10 +359,17 @@ class FdWriterBase : public BufferedWriter {
 
   TypeId GetTypeId() const override;
 
-  // Returns the original name of the file being written to. Unchanged by
-  // `Close()`.
+  // Returns the filename of the fd being written to, or "<none>" for
+  // closed-constructed or moved-from `FdWriter`. Unchanged by `Close()`.
+  //
+  // If the constructor from filename was used, this is the filename passed to
+  // the constructor, otherwise a filename is inferred from the fd. This can be
+  // a placeholder instead of a real filename if the fd does not refer to a
+  // named file or inferring the filename is not supported.
+  //
+  // If `Dest` does not support `filename()`, returns "<unsupported>".
   absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return filename_;
+    return DestFdHandle().filename();
   }
 
   bool SupportsRandomAccess() override;
@@ -377,8 +386,6 @@ class FdWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
   void Initialize(int dest, Options&& options);
-  const char* InitializeFilename(
-      Initializer<std::string>::AllowingExplicit filename);
   void InitializePos(int dest, Options&& options, bool mode_was_passed_to_open);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 #ifdef _WIN32
@@ -414,7 +421,6 @@ class FdWriterBase : public BufferedWriter {
   bool SeekInternal(int dest, Position new_pos);
   bool TruncateInternal(int dest, Position new_size);
 
-  std::string filename_;
   bool has_independent_pos_ = false;
   // Invariant except on Windows:
   //   if `supports_read_mode_ == LazyBoolState::kUnknown` then
@@ -524,9 +530,11 @@ class FdWriter : public FdWriterBase {
   //
   // This constructor is present only if `Dest` supports `Open()`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<FdSupportsOpen<DependentDest>::value, int> = 0>
-  explicit FdWriter(Initializer<std::string>::AllowingExplicit filename,
-                    Options options = Options());
+            std::enable_if_t<absl::conjunction<FdSupportsOpen<DependentDest>,
+                                               std::is_default_constructible<
+                                                   DependentDest>>::value,
+                             int> = 0>
+  explicit FdWriter(PathRef filename, Options options = Options());
 
   // Opens a file for writing, with the filename interpreted relatively to the
   // directory specified by an existing fd.
@@ -535,9 +543,11 @@ class FdWriter : public FdWriterBase {
   //
   // This constructor is present only if `Dest` supports `OpenAt()`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int> = 0>
-  explicit FdWriter(int dir_fd,
-                    Initializer<std::string>::AllowingExplicit filename,
+            std::enable_if_t<absl::conjunction<FdSupportsOpenAt<DependentDest>,
+                                               std::is_default_constructible<
+                                                   DependentDest>>::value,
+                             int> = 0>
+  explicit FdWriter(UnownedFd dir_fd, PathRef filename,
                     Options options = Options());
 
   FdWriter(FdWriter&& that) = default;
@@ -553,16 +563,20 @@ class FdWriter : public FdWriterBase {
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dest,
                                           Options options = Options());
-  template <typename DependentDest = Dest,
-            std::enable_if_t<FdSupportsOpen<DependentDest>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      Initializer<std::string>::AllowingExplicit filename,
-      Options options = Options());
-  template <typename DependentDest = Dest,
-            std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      int dir_fd, Initializer<std::string>::AllowingExplicit filename,
-      Options options = Options());
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<absl::conjunction<FdSupportsOpen<DependentDest>,
+                                         SupportsReset<DependentDest>>::value,
+                       int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
+                                          Options options = Options());
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<absl::conjunction<FdSupportsOpenAt<DependentDest>,
+                                         SupportsReset<DependentDest>>::value,
+                       int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(UnownedFd dir_fd, PathRef filename,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
   // Unchanged by `Close()`.
@@ -577,10 +591,23 @@ class FdWriter : public FdWriterBase {
     return dest_.get().get();
   }
 
+  // An optimized implementation in a derived class, avoiding a virtual call.
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.get().filename();
+  }
+
  protected:
   void Done() override;
 
  private:
+  template <typename DependentDest = Dest,
+            std::enable_if_t<FdSupportsOpen<DependentDest>::value, int> = 0>
+  void OpenImpl(absl::string_view filename, Options&& options);
+  template <typename DependentDest = Dest,
+            std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int> = 0>
+  void OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
+                  Options&& options);
+
   // The object providing and possibly owning the fd being written to.
   Dependency<FdHandle, Dest> dest_;
 };
@@ -592,13 +619,10 @@ template <typename Dest>
 explicit FdWriter(Dest&& dest,
                   FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<std::conditional_t<
-        absl::disjunction<
-            std::is_convertible<Dest&&, int>,
-            std::is_convertible<
-                Dest&&, Initializer<std::string>::AllowingExplicit>>::value,
+        absl::disjunction<std::is_convertible<Dest&&, int>,
+                          std::is_convertible<Dest&&, PathRef>>::value,
         OwnedFd, TargetT<Dest>>>;
-explicit FdWriter(int dir_fd,
-                  Initializer<std::string>::AllowingExplicit filename,
+explicit FdWriter(UnownedFd dir_fd, PathRef filename,
                   FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<OwnedFd>;
 #endif
@@ -610,7 +634,6 @@ inline FdWriterBase::FdWriterBase(BufferOptions buffer_options)
 
 inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
-      filename_(std::exchange(that.filename_, std::string())),
       has_independent_pos_(that.has_independent_pos_),
       supports_random_access_(
           std::exchange(that.supports_random_access_, LazyBoolState::kUnknown)),
@@ -627,7 +650,6 @@ inline FdWriterBase::FdWriterBase(FdWriterBase&& that) noexcept
 
 inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
-  filename_ = std::exchange(that.filename_, std::string());
   has_independent_pos_ = that.has_independent_pos_;
   supports_random_access_ =
       std::exchange(that.supports_random_access_, LazyBoolState::kUnknown),
@@ -645,7 +667,6 @@ inline FdWriterBase& FdWriterBase::operator=(FdWriterBase&& that) noexcept {
 
 inline void FdWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
-  filename_ = std::string();
   has_independent_pos_ = false;
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
@@ -660,7 +681,6 @@ inline void FdWriterBase::Reset(Closed) {
 
 inline void FdWriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   has_independent_pos_ = false;
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
@@ -671,12 +691,6 @@ inline void FdWriterBase::Reset(BufferOptions buffer_options) {
 #endif
   associated_reader_.Reset();
   read_mode_ = false;
-}
-
-inline const char* FdWriterBase::InitializeFilename(
-    Initializer<std::string>::AllowingExplicit filename) {
-  riegeli::Reset(filename_, std::move(filename));
-  return filename_.c_str();
 }
 
 template <typename Dest>
@@ -694,42 +708,28 @@ inline FdWriter<Dest>::FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
     : FdWriter(riegeli::Maker(dest), std::move(options)) {}
 
 template <typename Dest>
-template <typename DependentDest,
-          std::enable_if_t<FdSupportsOpen<DependentDest>::value, int>>
-inline FdWriter<Dest>::FdWriter(
-    Initializer<std::string>::AllowingExplicit filename, Options options)
-    : FdWriterBase(options.buffer_options()) {
-  absl::Status status =
-      dest_.manager().Open(InitializeFilename(std::move(filename)),
-                           options.mode(), options.permissions());
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `FdWriterBase::Reset()` to preserve `filename()`.
-    BufferedWriter::Reset(kClosed);
-    FailWithoutAnnotation(std::move(status));
-    return;
-  }
-  InitializePos(dest_.get().get(), std::move(options),
-                /*mode_was_passed_to_open=*/true);
+template <
+    typename DependentDest,
+    std::enable_if_t<
+        absl::conjunction<FdSupportsOpen<DependentDest>,
+                          std::is_default_constructible<DependentDest>>::value,
+        int>>
+inline FdWriter<Dest>::FdWriter(PathRef filename, Options options)
+    : FdWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
+  OpenImpl(filename, std::move(options));
 }
 
 template <typename Dest>
-template <typename DependentDest,
-          std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int>>
-inline FdWriter<Dest>::FdWriter(
-    int dir_fd, Initializer<std::string>::AllowingExplicit filename,
-    Options options)
-    : FdWriterBase(options.buffer_options()) {
-  absl::Status status =
-      dest_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
-                             options.mode(), options.permissions());
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `FdWriterBase::Reset()` to preserve `filename()`.
-    BufferedWriter::Reset(kClosed);
-    FailWithoutAnnotation(std::move(status));
-    return;
-  }
-  InitializePos(dest_.get().get(), std::move(options),
-                /*mode_was_passed_to_open=*/true);
+template <
+    typename DependentDest,
+    std::enable_if_t<
+        absl::conjunction<FdSupportsOpenAt<DependentDest>,
+                          std::is_default_constructible<DependentDest>>::value,
+        int>>
+inline FdWriter<Dest>::FdWriter(UnownedFd dir_fd, PathRef filename,
+                                Options options)
+    : FdWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
+  OpenAtImpl(std::move(dir_fd), filename, std::move(options));
 }
 
 template <typename Dest>
@@ -754,17 +754,38 @@ inline void FdWriter<Dest>::Reset(int dest, Options options) {
 }
 
 template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<absl::conjunction<FdSupportsOpen<DependentDest>,
+                                       SupportsReset<DependentDest>>::value,
+                     int>>
+inline void FdWriter<Dest>::Reset(PathRef filename, Options options) {
+  riegeli::Reset(dest_.manager());
+  FdWriterBase::Reset(options.buffer_options());
+  OpenImpl(filename, std::move(options));
+}
+
+template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<absl::conjunction<FdSupportsOpenAt<DependentDest>,
+                                       SupportsReset<DependentDest>>::value,
+                     int>>
+inline void FdWriter<Dest>::Reset(UnownedFd dir_fd, PathRef filename,
+                                  Options options) {
+  riegeli::Reset(dest_.manager());
+  FdWriterBase::Reset(options.buffer_options());
+  OpenAtImpl(dir_fd, filename, std::move(options));
+}
+
+template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<FdSupportsOpen<DependentDest>::value, int>>
-inline void FdWriter<Dest>::Reset(
-    Initializer<std::string>::AllowingExplicit filename, Options options) {
-  FdWriterBase::Reset(options.buffer_options());
+void FdWriter<Dest>::OpenImpl(absl::string_view filename, Options&& options) {
   absl::Status status =
-      dest_.manager().Open(InitializeFilename(std::move(filename)),
-                           options.mode(), options.permissions());
+      dest_.manager().Open(filename, options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `FdWriterBase::Reset()` to preserve `filename()`.
-    BufferedWriter::Reset(kClosed);
+    FdWriterBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));
     return;
   }
@@ -775,16 +796,12 @@ inline void FdWriter<Dest>::Reset(
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int>>
-inline void FdWriter<Dest>::Reset(
-    int dir_fd, Initializer<std::string>::AllowingExplicit filename,
-    Options options) {
-  FdWriterBase::Reset(options.buffer_options());
-  absl::Status status =
-      dest_.manager().OpenAt(dir_fd, InitializeFilename(std::move(filename)),
-                             options.mode(), options.permissions());
+void FdWriter<Dest>::OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
+                                Options&& options) {
+  absl::Status status = dest_.manager().OpenAt(
+      std::move(dir_fd), filename, options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `FdWriterBase::Reset()` to preserve `filename()`.
-    BufferedWriter::Reset(kClosed);
+    FdWriterBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));
     return;
   }

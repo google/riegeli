@@ -16,20 +16,19 @@
 
 #include <stdio.h>
 
-#include <string>
-
 #include "absl/base/optimization.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/bytes/fd_internal.h"
 
 namespace riegeli {
 namespace cfile_internal {
 
-void FilenameForCFile(FILE* file, std::string& filename) {
+CompactString FilenameForCFile(FILE* file) {
   const int fd = fileno(file);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
-    filename = "<unknown>";
+    return CompactString("<unknown>");
   } else {
-    fd_internal::FilenameForFd(fd, filename);
+    return fd_internal::FilenameForFd(fd);
   }
 }
 

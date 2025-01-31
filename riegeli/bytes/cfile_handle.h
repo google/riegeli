@@ -18,7 +18,6 @@
 #include <stdio.h>
 
 #include <cstddef>
-#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -26,11 +25,15 @@
 #include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/c_string_ref.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_traits.h"
+#include "riegeli/bytes/cfile_internal.h"
+#include "riegeli/bytes/path_ref.h"
 
 namespace riegeli {
 
@@ -48,19 +51,18 @@ struct SupportsCFileHandle<
                                FILE*>>::value>> : std::true_type {};
 
 // `CFileSupportsOpen<T>::value` is `true` if `T` supports `Open()` with the
-// signature like in `OwnedCFile`, except that accepting `const char* filename`
-// and `const char* mode` are sufficient.
+// signature like in `OwnedCFile`, but taking `absl::string_view filename` and
+// `const char* mode` is sufficient.
 
 template <typename T, typename Enable = void>
 struct CFileSupportsOpen : std::false_type {};
 
 template <typename T>
 struct CFileSupportsOpen<
-    T, std::enable_if_t<std::is_convertible<decltype(std::declval<T&>().Open(
-                                                std::declval<const char*>(),
-                                                std::declval<const char*>())),
-                                            absl::Status>::value>>
-    : std::true_type {};
+    T, std::enable_if_t<std::is_convertible<
+           decltype(std::declval<T&>().Open(std::declval<absl::string_view>(),
+                                            std::declval<const char*>())),
+           absl::Status>::value>> : std::true_type {};
 
 // Type-erased pointer to a target object like `UnownedCFile` or `OwnedCFile`
 // which stores and possibly owns a `FILE*`.
@@ -78,15 +80,27 @@ struct CFileSupportsOpen<
 //   // target is considered to own the `FILE*`.
 //   bool IsOwning() const;
 //
-//   // Opens a new `FILE*`, like with `fopen()` but returning `absl::Status`.
+//   // Opens a new `FILE*`, like with `fopen()`, but taking
+//   // `absl::string_view filename` and returning `absl::Status`.
 //   //
-//   // Optional. Used by `CFileReader` and `CFileWriter` constructors from the
-//   // filename.
-//   absl::Status Open(const char* filename, const char* mode);
+//   // Optional. Not used by `CFileHandle` itself. Used by `CFileReader` and
+//   // `CFileWriter` constructors from the filename.
+//   absl::Status Open(absl::string_view filename, const char* mode);
 //
-//   // Closes the `FILE*` if `IsOwning()`.
+//   // Returns the filename of the `FILE*`, or "<none>" for
+//   // default-constructed or moved-from target. Unchanged by `Close()`.
 //   //
-//   // Returns `absl::OkStatus()` if `!IsOwning()`.
+//   // If `Open()` was used, this is the filename passed to `Open()`, otherwise
+//   // a filename is inferred from the `FILE*`. This can be a placeholder
+//   // instead of a real filename if the `FILE*` does not refer to a named file
+//   // or inferring the filename is not supported.
+//   //
+//   // Optional. If absent, "<unsupported>" is assumed.
+//   absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+//
+//   // If `IsOwning()`, closes the `FILE*`.
+//   //
+//   // If `!IsOwning()`, does nothing and returns `absl::OkStatus()`.
 //   //
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
@@ -122,9 +136,20 @@ class
   // for closing it and the `FILE*` is present.
   bool IsOwning() const { return methods_->is_owning(target_); }
 
-  // Closes the `FILE*` if `IsOwning()`.
+  // Returns the filename of the `FILE*`, or "<none>" for default-constructed or
+  // moved-from target. Unchanged by `Close()`.
   //
-  // Returns `absl::OkStatus()` if `!IsOwning()`.
+  // If `Open()` was used, this is the filename passed to `Open()`, otherwise a
+  // filename is inferred from the `FILE*`. This can be a placeholder instead of
+  // a real filename if the `FILE*` does not refer to a named file or inferring
+  // the filename is not supported.
+  //
+  // If the target does not support `filename()`, returns "<unsupported>".
+  absl::string_view filename() const { return methods_->filename(target_); }
+
+  // If `IsOwning()`, closes the `FILE*`.
+  //
+  // If `!IsOwning()`, does nothing and returns `absl::OkStatus()`.
   absl::Status Close() { return methods_->close(target_); }
 
   friend bool operator==(CFileHandle a, CFileHandle b) {
@@ -139,6 +164,7 @@ class
   struct Methods {
     FILE* (*get)(TypeErasedRef target);
     bool (*is_owning)(TypeErasedRef target);
+    absl::string_view (*filename)(TypeErasedRef target);
     absl::Status (*close)(TypeErasedRef target);
   };
 
@@ -149,6 +175,13 @@ class
       T, std::enable_if_t<std::is_convertible<
              decltype(std::declval<const T&>().IsOwning()), bool>::value>>
       : std::true_type {};
+
+  template <typename T, typename Enable = void>
+  struct HasFilename : std::false_type {};
+  template <typename T>
+  struct HasFilename<T, std::enable_if_t<std::is_convertible<
+                            decltype(std::declval<const T&>().filename()),
+                            absl::string_view>::value>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasClose : std::false_type {};
@@ -167,13 +200,19 @@ class
     return false;
   }
 
+  static absl::string_view FilenameMethodDefault(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return kDefaultFilename;
+  }
+
   static absl::Status CloseMethodDefault(
       ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
     return absl::OkStatus();
   }
 
   static constexpr Methods kMethodsDefault = {
-      GetMethodDefault, IsOwningMethodDefault, CloseMethodDefault};
+      GetMethodDefault, IsOwningMethodDefault, FilenameMethodDefault,
+      CloseMethodDefault};
 
   template <typename T>
   static FILE* GetMethod(TypeErasedRef target) {
@@ -189,6 +228,16 @@ class
     return HasClose<T>::value && target.Cast<const T&>().get() != nullptr;
   }
 
+  template <typename T, std::enable_if_t<HasFilename<T>::value, int> = 0>
+  static absl::string_view FilenameMethod(TypeErasedRef target) {
+    return target.Cast<const T&>().filename();
+  }
+  template <typename T, std::enable_if_t<!HasFilename<T>::value, int> = 0>
+  static absl::string_view FilenameMethod(
+      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+    return "<unsupported>";
+  }
+
   template <typename T, std::enable_if_t<HasClose<T>::value, int> = 0>
   static absl::Status CloseMethod(TypeErasedRef target) {
     return target.Cast<T&>().Close();
@@ -200,7 +249,7 @@ class
 
   template <typename T>
   static constexpr Methods kMethods = {GetMethod<T>, IsOwningMethod<T>,
-                                       CloseMethod<T>};
+                                       FilenameMethod<T>, CloseMethod<T>};
 
   const Methods* methods_ = &kMethodsDefault;
   TypeErasedRef target_;
@@ -214,6 +263,264 @@ template <typename T>
 constexpr CFileHandle::Methods CFileHandle::kMethods;
 #endif
 
+namespace cfile_internal {
+
+class UnownedCFileDeleter;
+
+// Common parts of `UnownedCFileDeleter` and `OwnedCFileDeleter`.
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        CFileDeleterBase {
+ public:
+  CFileDeleterBase() = default;
+
+  explicit CFileDeleterBase(CompactString filename)
+      : filename_(std::move(filename)) {}
+
+  // Supports creating a `CFileBase` converted from `UnownedCFile`.
+  explicit CFileDeleterBase(const UnownedCFileDeleter& that);
+  explicit CFileDeleterBase(UnownedCFileDeleter&& that);
+
+  // Supports creating a `CFileBase` converted from `UnownedCFile`.
+  void Reset(const UnownedCFileDeleter& that);
+
+  // Supports creating a `CFileBase` converted from `UnownedCFile`, and
+  // resetting `CFileBase` from the same `CFileBase`.
+  void Reset(CFileDeleterBase&& that);
+
+  absl::string_view filename() const { return filename_; }
+
+  CompactString&& ReleaseFilename() { return std::move(filename_); }
+
+  void set_filename(CompactString filename) { filename_ = std::move(filename); }
+  void set_filename(absl::string_view filename) { filename_ = filename; }
+
+  void set_c_filename(absl::string_view filename) {
+    filename_.clear();
+    // Reserve 1 extra char so that `c_str()` does not need reallocation.
+    filename_.reserve(filename.size() + 1);
+    filename_ = filename;
+  }
+
+  const char* c_filename() { return filename_.c_str(); }
+
+ protected:
+  CFileDeleterBase(const CFileDeleterBase& that) = default;
+  CFileDeleterBase& operator=(const CFileDeleterBase& that) = default;
+
+  CFileDeleterBase(CFileDeleterBase&& that) noexcept
+      : filename_(
+            std::exchange(that.filename_, CompactString(kDefaultFilename))) {}
+  CFileDeleterBase& operator=(CFileDeleterBase&& that) noexcept {
+    filename_ = std::exchange(that.filename_, CompactString(kDefaultFilename));
+    return *this;
+  }
+
+ private:
+  CompactString filename_{kDefaultFilename};
+};
+
+class UnownedCFileDeleter : public CFileDeleterBase {
+ public:
+  using CFileDeleterBase::CFileDeleterBase;
+
+  // Supports creating an `UnownedCFile` converted from any `CFileBase`.
+  explicit UnownedCFileDeleter(const CFileDeleterBase& that)
+      : CFileDeleterBase(that) {}
+
+  UnownedCFileDeleter(const UnownedCFileDeleter& that) = default;
+  UnownedCFileDeleter& operator=(const UnownedCFileDeleter& that) = default;
+
+  UnownedCFileDeleter(UnownedCFileDeleter&& that) = default;
+  UnownedCFileDeleter& operator=(UnownedCFileDeleter&& that) = default;
+
+  // Supports creating an `UnownedCFile` converted from any `CFileBase`.
+  void Reset(const CFileDeleterBase& that) {
+    CFileDeleterBase::operator=(that);
+  }
+
+  static void Destroy(ABSL_ATTRIBUTE_UNUSED FILE* file) {}
+};
+
+class OwnedCFileDeleter : public CFileDeleterBase {
+ public:
+  using CFileDeleterBase::CFileDeleterBase;
+
+  OwnedCFileDeleter(OwnedCFileDeleter&& that) = default;
+  OwnedCFileDeleter& operator=(OwnedCFileDeleter&& that) = default;
+
+  static void Destroy(FILE* file) { fclose(file); }
+};
+
+inline CFileDeleterBase::CFileDeleterBase(const UnownedCFileDeleter& that)
+    : filename_(that.filename_) {}
+
+inline CFileDeleterBase::CFileDeleterBase(UnownedCFileDeleter&& that)
+    : filename_(
+          std::exchange(that.filename_, CompactString(kDefaultFilename))) {}
+
+inline void CFileDeleterBase::Reset(const UnownedCFileDeleter& that) {
+  filename_ = that.filename_;
+}
+
+inline void CFileDeleterBase::Reset(CFileDeleterBase&& that) {
+  filename_ = std::exchange(that.filename_, CompactString(kDefaultFilename));
+}
+
+// Common parts of `UnownedCFile` and `OwnedCFile`.
+template <typename Deleter>
+class
+#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
+    ABSL_ATTRIBUTE_TRIVIAL_ABI
+#endif
+        CFileBase {
+ public:
+  // Creates a `CFileBase` which does not store a `FILE*` and stores "<none>"
+  // as the filename.
+  CFileBase() = default;
+  /*implicit*/ CFileBase(std::nullptr_t) {}
+
+  // Creates a `CFileBase` which stores `file` with the filename inferred from
+  // the `FILE*` (or "<none>" if `file == nullptr`).
+  explicit CFileBase(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : file_(file),
+        deleter_(file_ == nullptr ? CompactString(kDefaultFilename)
+                                  : FilenameForCFile(file_)) {}
+
+  // Creates a `CFileBase` which stores `file` with `filename`.
+  explicit CFileBase(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND, PathRef filename)
+      : file_(file), deleter_(CompactString(filename)) {}
+
+  // Creates a `CFileBase` converted from `UnownedCFile`.
+  template <
+      typename DependentDeleter = Deleter,
+      std::enable_if_t<
+          !std::is_same<DependentDeleter, UnownedCFileDeleter>::value, int> = 0>
+  explicit CFileBase(const CFileBase<UnownedCFileDeleter>& that)
+      : file_(that.file_), deleter_(that.deleter_) {}
+  template <
+      typename DependentDeleter = Deleter,
+      std::enable_if_t<
+          !std::is_same<DependentDeleter, UnownedCFileDeleter>::value, int> = 0>
+  explicit CFileBase(CFileBase<UnownedCFileDeleter>&& that)
+      : file_(that.Release()), deleter_(std::move(that.deleter_)) {}
+
+  // Creates an `UnownedCFile` converted from any `CFileBase`.
+  template <
+      typename OtherDeleter,
+      std::enable_if_t<
+          absl::conjunction<std::is_same<Deleter, UnownedCFileDeleter>,
+                            absl::negation<std::is_same<
+                                OtherDeleter, UnownedCFileDeleter>>>::value,
+          int> = 0>
+  /*implicit*/ CFileBase(
+      const CFileBase<OtherDeleter>& that ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : file_(that.file_), deleter_(that.deleter_) {}
+
+  // Makes `*this` equivalent to a newly constructed `CFileBase`.
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::nullptr_t = nullptr) {
+    SetFileKeepFilename();
+    deleter_.set_filename(CompactString(kDefaultFilename));
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file) {
+    SetFileKeepFilename(file);
+    deleter_.set_filename(file == nullptr ? CompactString(kDefaultFilename)
+                                          : FilenameForCFile(file));
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file, PathRef filename) {
+    SetFileKeepFilename(file);
+    deleter_.set_filename(filename);
+  }
+  template <typename OtherDeleter,
+            std::enable_if_t<
+                absl::disjunction<
+                    std::is_same<Deleter, UnownedCFileDeleter>,
+                    std::is_same<OtherDeleter, UnownedCFileDeleter>>::value,
+                int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const CFileBase<OtherDeleter>& that) {
+    SetFileKeepFilename(that.file_);
+    deleter_.Reset(that.deleter_);
+  }
+  template <
+      typename OtherDeleter,
+      std::enable_if_t<
+          absl::disjunction<std::is_same<OtherDeleter, UnownedCFileDeleter>,
+                            std::is_same<OtherDeleter, Deleter>>::value,
+          int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(CFileBase<OtherDeleter>&& that) {
+    SetFileKeepFilename(that.Release());
+    deleter_.Reset(std::move(that.deleter_));
+  }
+
+  // Sets the `FILE*`, keeping `filename()` unchanged.
+  void SetFileKeepFilename(FILE* file = nullptr) {
+    Destroy();
+    file_ = file;
+  }
+
+  // Returns `true` if the `FILE*` is present.
+  bool is_open() const { return file_ != nullptr; }
+
+  // Returns the `FILE*`.
+  FILE* get() const { return file_; }
+
+  // Returns the filename of the `FILE*`, or "<none>" for default-constructed or
+  // moved-from `CFileBase`. Unchanged by `Close()` and `Release()`.
+  //
+  // If `Open()` was used, this is the filename passed to `Open()`, otherwise
+  // a filename is inferred from the `FILE*`. This can be a placeholder instead
+  // of a real filename if the `FILE*` does not refer to a named file or
+  // inferring the filename is not supported.
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return deleter_.filename();
+  }
+
+ protected:
+  CFileBase(const CFileBase& that) = default;
+  CFileBase& operator=(const CFileBase& that) = default;
+
+  CFileBase(CFileBase&& that) noexcept
+      : file_(that.Release()), deleter_(std::move(that.deleter_)) {}
+  CFileBase& operator=(CFileBase&& that) noexcept {
+    FILE* const file = that.Release();
+    Destroy();
+    file_ = file;
+    deleter_ = std::move(that.deleter_);
+    return *this;
+  }
+
+  ~CFileBase() { Destroy(); }
+
+  void ResetCFilename(absl::string_view filename) {
+    SetFileKeepFilename();
+    deleter_.set_c_filename(filename);
+  }
+
+  const char* c_filename() { return deleter_.c_filename(); }
+
+  // Returns the file. The stored `FILE*` is left absent, without modifying
+  // `filename()`.
+  FILE* Release() { return std::exchange(file_, nullptr); }
+
+ private:
+  template <typename OtherDeleter>
+  friend class CFileBase;  // For conversions.
+
+  void Destroy() {
+    if (is_open()) deleter_.Destroy(file_);
+  }
+
+  FILE* file_ = nullptr;
+  Deleter deleter_;
+};
+
+extern template class CFileBase<UnownedCFileDeleter>;
+extern template class CFileBase<OwnedCFileDeleter>;
+
+}  // namespace cfile_internal
+
 // Stores a `FILE*` but does not own it, i.e. is not responsible for closing it.
 //
 // The `FILE*` can be `nullptr` which means absent.
@@ -221,36 +528,38 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        UnownedCFile : public WithEqual<UnownedCFile> {
+        UnownedCFile
+    : public cfile_internal::CFileBase<cfile_internal::UnownedCFileDeleter>,
+      public WithEqual<UnownedCFile> {
  public:
-  // Creates an `UnownedCFile` which does not store a file.
-  UnownedCFile() = default;
-  /*implicit*/ UnownedCFile(std::nullptr_t) {}
+  using CFileBase::CFileBase;
 
-  // Creates an `UnownedCFile` which stores `file`.
-  explicit UnownedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : file_(file) {}
+  // Overridden to make implicit.
+  /*implicit*/ UnownedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : CFileBase(file) {}
+
+  // Creates an `UnownedCFile` which stores `file.get()` with `file.filename()`.
+  explicit UnownedCFile(CFileHandle file)
+      : CFileBase(file.get(), file.filename()) {}
 
   UnownedCFile(const UnownedCFile& that) = default;
   UnownedCFile& operator=(const UnownedCFile& that) = default;
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file = nullptr) {
-    file_ = file;
+  // The moved-from `FILE*` is left absent.
+  UnownedCFile(UnownedCFile&& that) = default;
+  UnownedCFile& operator=(UnownedCFile&& that) = default;
+
+  using CFileBase::Reset;
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(CFileHandle file) {
+    Reset(file.get(), file.filename());
   }
 
-  // Returns `true` if the `FILE*` is present.
-  bool is_open() const { return *this != nullptr; }
-
-  // Returns the `FILE*`.
-  FILE* get() const { return file_; }
-
-  friend bool operator==(UnownedCFile a, UnownedCFile b) {
+  friend bool operator==(const UnownedCFile& a, const UnownedCFile& b) {
     return a.get() == b.get();
   }
-  friend bool operator==(UnownedCFile a, FILE* b) { return a.get() == b; }
-
- private:
-  FILE* file_ = nullptr;
+  friend bool operator==(const UnownedCFile& a, FILE* b) {
+    return a.get() == b;
+  }
 };
 
 // Owns a `FILE*`, i.e. stores it and is responsible for closing it.
@@ -260,37 +569,24 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        OwnedCFile : public WithEqual<OwnedCFile> {
+        OwnedCFile
+    : public cfile_internal::CFileBase<cfile_internal::OwnedCFileDeleter>,
+      public WithEqual<OwnedCFile> {
  public:
-  // Creates an `OwnedCFile` which does not own a file.
-  OwnedCFile() = default;
-  /*implicit*/ OwnedCFile(std::nullptr_t) {}
-
-  // Creates an `OwnedCFile` which owns `file`.
-  explicit OwnedCFile(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND) : file_(file) {}
+  using CFileBase::CFileBase;
 
   // The moved-from `FILE*` is left absent.
   OwnedCFile(OwnedCFile&& that) = default;
   OwnedCFile& operator=(OwnedCFile&& that) = default;
 
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file = nullptr) {
-    file_.reset(file);
-  }
+  // Overridden to apply `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
+  FILE* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return CFileBase::get(); }
 
-  // Returns `true` if the `FILE*` is present.
-  bool is_open() const { return *this != nullptr; }
+  using CFileBase::Release;
 
-  // Returns the `FILE*`.
-  FILE* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return file_.get(); }
-
-  // Releases and returns the `FILE*` without closing it.
-  FILE* Release() { return file_.release(); }
-
-  friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
-
-  // Opens a new `FILE*`, like with `fopen()` but taking `CStringRef filename`,
+  // Opens a new `FILE*`, like with `fopen()`, but taking `PathRef filename`,
   // `CStringRef mode`, and returning `absl::Status`.
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(CStringRef filename,
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(PathRef filename,
                                                  CStringRef mode);
 
   // Closes the `FILE*` if present.
@@ -298,12 +594,7 @@ class
   // Returns `absl::OkStatus()` if absent.
   absl::Status Close();
 
- private:
-  struct CFileDeleter {
-    void operator()(FILE* ptr) const { fclose(ptr); }
-  };
-
-  std::unique_ptr<FILE, CFileDeleter> file_;
+  friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
 };
 
 // Type-erased object like `UnownedCFile` or `OwnedCFile` which stores and

@@ -51,11 +51,19 @@
 namespace riegeli {
 namespace tensorflow {
 
+// Before C++17 if a constexpr static data member is ODR-used, its definition at
+// namespace scope is required. Since C++17 these definitions are deprecated:
+// http://en.cppreference.com/w/cpp/language/static
+#if !__cpp_inline_variables
+constexpr size_t FileWriterBase::Options::kDefaultMaxBufferSize;
+#endif
+
 bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
   absl::string_view filename;
   {
     const absl::Status status = dest->Name(&filename);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
+      filename_ = "<unknown>";
       if (!absl::IsUnimplemented(status)) {
         return FailOperation(status, "WritableFile::Name()");
       }
@@ -132,10 +140,8 @@ bool FileWriterBase::FailOperation(const absl::Status& status,
 }
 
 absl::Status FileWriterBase::AnnotateStatusImpl(absl::Status status) {
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("writing ", filename_));
-  }
-  return Writer::AnnotateStatusImpl(std::move(status));
+  return Writer::AnnotateStatusImpl(
+      Annotate(status, absl::StrCat("writing ", filename_)));
 }
 
 inline bool FileWriterBase::SyncBuffer() {
@@ -316,8 +322,7 @@ bool FileWriterBase::FlushImpl(FlushType flush_type) {
 
 Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
   if (ABSL_PREDICT_FALSE(!FileWriterBase::SupportsReadMode())) {
-    Fail(absl::UnimplementedError(
-        "A non-empty filename required for read mode"));
+    Fail(absl::UnimplementedError("A filename required for read mode"));
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!Flush())) return nullptr;

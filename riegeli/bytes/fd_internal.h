@@ -19,8 +19,7 @@
 #include <fcntl.h>
 #endif
 
-#include <string>
-
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/constexpr.h"
 
 namespace riegeli {
@@ -29,7 +28,7 @@ namespace fd_internal {
 // Infers a filename from fd by reading the symlink target for
 // `absl::StrCat("/proc/self/fd/", fd)` (on Windows returns a
 // `absl::StrCat("<fd ", fd, ">")` placeholder instead).
-void FilenameForFd(int fd, std::string& filename);
+CompactString FilenameForFd(int fd);
 
 #ifndef _WIN32
 #ifndef __APPLE__

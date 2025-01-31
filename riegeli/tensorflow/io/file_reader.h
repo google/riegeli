@@ -39,6 +39,7 @@
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
+#include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/reader.h"
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/file_system.h"
@@ -126,7 +127,7 @@ class FileReaderBase : public Reader {
     return buffer_sizer_.read_all_hint() ||
            FileReaderBase::SupportsRandomAccess();
   }
-  bool SupportsRandomAccess() override { return !filename_.empty(); }
+  bool SupportsRandomAccess() override { return file_system_ != nullptr; }
   bool SupportsNewReader() override {
     return FileReaderBase::SupportsRandomAccess();
   }
@@ -210,12 +211,9 @@ class FileReaderBase : public Reader {
   bool CopyUsingPush(Position length, ::tensorflow::RandomAccessFile* src,
                      Writer& dest);
 
-  std::string filename_;
-  // Invariant:
-  //   if `is_open() && !filename_.empty()` then `env_ != nullptr`
+  std::string filename_{kDefaultFilename};
+  // Invariant: if `is_open()` then `env_ != nullptr`
   ::tensorflow::Env* env_ = nullptr;
-  // Invariant:
-  //   if `is_open() && !filename_.empty()` then `file_system_ != nullptr`
   ::tensorflow::FileSystem* file_system_ = nullptr;
   bool growing_source_ = false;
   ReadBufferSizer buffer_sizer_;
@@ -324,7 +322,7 @@ inline FileReaderBase::FileReaderBase(BufferOptions buffer_options,
 
 inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
     : Reader(static_cast<Reader&&>(that)),
-      filename_(std::exchange(that.filename_, std::string())),
+      filename_(std::exchange(that.filename_, std::string(kDefaultFilename))),
       env_(that.env_),
       file_system_(that.file_system_),
       growing_source_(that.growing_source_),
@@ -334,7 +332,7 @@ inline FileReaderBase::FileReaderBase(FileReaderBase&& that) noexcept
 inline FileReaderBase& FileReaderBase::operator=(
     FileReaderBase&& that) noexcept {
   Reader::operator=(static_cast<Reader&&>(that));
-  filename_ = std::exchange(that.filename_, std::string());
+  filename_ = std::exchange(that.filename_, std::string(kDefaultFilename));
   env_ = that.env_;
   file_system_ = that.file_system_;
   growing_source_ = that.growing_source_;
@@ -345,7 +343,7 @@ inline FileReaderBase& FileReaderBase::operator=(
 
 inline void FileReaderBase::Reset(Closed) {
   Reader::Reset(kClosed);
-  filename_ = std::string();
+  filename_ = std::string(kDefaultFilename);
   env_ = nullptr;
   file_system_ = nullptr;
   growing_source_ = false;
@@ -356,8 +354,9 @@ inline void FileReaderBase::Reset(Closed) {
 inline void FileReaderBase::Reset(BufferOptions buffer_options,
                                   ::tensorflow::Env* env, bool growing_source) {
   Reader::Reset();
+  // `filename_` will be set by `InitializeFilename()`.
   env_ = env != nullptr ? env : ::tensorflow::Env::Default();
-  // `filename_` and `file_system_` will be set by `InitializeFilename()`.
+  file_system_ = nullptr;
   growing_source_ = growing_source;
   buffer_sizer_.Reset(buffer_options);
   buffer_.Clear();

@@ -47,7 +47,6 @@
 
 #include <cerrno>
 #include <limits>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -69,7 +68,6 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/fd_handle.h"
-#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/fd_internal_for_cc.h"
 #include "riegeli/bytes/fd_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -82,7 +80,6 @@ TypeId FdWriterBase::GetTypeId() const { return TypeId::For<FdWriterBase>(); }
 void FdWriterBase::Initialize(int dest, Options&& options) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdWriter: negative file descriptor";
-  fd_internal::FilenameForFd(dest, filename_);
   InitializePos(dest, std::move(options), /*mode_was_passed_to_open=*/false);
 }
 
@@ -289,10 +286,8 @@ bool FdWriterBase::FailWindowsOperation(absl::string_view operation) {
 #endif  // _WIN32
 
 absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("writing ", filename_));
-  }
-  return BufferedWriter::AnnotateStatusImpl(std::move(status));
+  return BufferedWriter::AnnotateStatusImpl(
+      Annotate(status, absl::StrCat("writing ", filename())));
 }
 
 inline absl::Status FdWriterBase::SizeStatus() {
@@ -705,13 +700,13 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  const int dest = DestFd();
   FdReader<UnownedFd>* const reader = associated_reader_.ResetReader(
-      dest, FdReaderBase::Options()
-                .set_independent_pos(has_independent_pos_
-                                         ? absl::make_optional(initial_pos)
-                                         : absl::nullopt)
-                .set_buffer_options(buffer_options()));
+      UnownedFd(DestFdHandle()),
+      FdReaderBase::Options()
+          .set_independent_pos(has_independent_pos_
+                                   ? absl::make_optional(initial_pos)
+                                   : absl::nullopt)
+          .set_buffer_options(buffer_options()));
   if (!has_independent_pos_) reader->Seek(initial_pos);
   read_mode_ = true;
   return reader;

@@ -1113,14 +1113,35 @@ cc_library(
 )
 
 cc_library(
+    name = "path_ref",
+    hdrs = ["path_ref.h"],
+    deps = [
+        "//riegeli/base:compare",
+        "//riegeli/base:initializer",
+        "//riegeli/base:string_ref",
+        "//riegeli/base:type_traits",
+        "@com_google_absl//absl/base:config",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "fd_handle",
     srcs = ["fd_handle.cc"],
     hdrs = ["fd_handle.h"],
+    # fd_handle.cc has #define before #include to influence what the included
+    # files provide.
+    features = ["-use_header_modules"],
     deps = [
+        ":fd_internal",
+        ":path_ref",
         "//riegeli/base:any",
         "//riegeli/base:assert",
-        "//riegeli/base:c_string_ref",
+        "//riegeli/base:compact_string",
         "//riegeli/base:compare",
+        "//riegeli/base:initializer",
         "//riegeli/base:status",
         "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
@@ -1156,6 +1177,7 @@ cc_library(
         ":buffered_reader",
         ":fd_handle",
         ":fd_internal",
+        ":path_ref",
         ":reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -1194,6 +1216,7 @@ cc_library(
         ":chain_reader",
         ":fd_handle",
         ":fd_internal",
+        ":path_ref",
         ":reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -1232,6 +1255,7 @@ cc_library(
         ":fd_handle",
         ":fd_internal",
         ":fd_reader",
+        ":path_ref",
         ":reader",
         ":writer",
         "//riegeli/base:arithmetic",
@@ -1267,6 +1291,7 @@ cc_library(
     features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
     deps = [
+        "//riegeli/base:compact_string",
         "//riegeli/base:constexpr",
         "@com_google_absl//absl/strings",
     ] + select({
@@ -1396,10 +1421,15 @@ cc_library(
     # included files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":cfile_internal",
+        ":path_ref",
         "//riegeli/base:any",
         "//riegeli/base:assert",
         "//riegeli/base:c_string_ref",
+        "//riegeli/base:compact_string",
         "//riegeli/base:compare",
+        "//riegeli/base:initializer",
+        "//riegeli/base:reset",
         "//riegeli/base:status",
         "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
@@ -1432,6 +1462,7 @@ cc_library(
         ":cfile_handle",
         ":cfile_internal",
         ":file_mode_string",
+        ":path_ref",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
@@ -1467,6 +1498,7 @@ cc_library(
         ":cfile_internal",
         ":cfile_reader",
         ":file_mode_string",
+        ":path_ref",
         ":reader",
         ":writer",
         "//riegeli/base:arithmetic",
@@ -1502,6 +1534,7 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         ":fd_internal",
+        "//riegeli/base:compact_string",
         "//riegeli/base:constexpr",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",

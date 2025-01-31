@@ -38,6 +38,7 @@
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/file_mode_string.h"
+#include "riegeli/bytes/path_ref.h"
 
 namespace riegeli {
 
@@ -174,10 +175,17 @@ class CFileReaderBase : public BufferedReader {
   // to `nullptr` by `Close()`, otherwise unchanged.
   virtual FILE* SrcFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
-  // Returns the original name of the file being read from. Unchanged by
-  // `Close()`.
+  // Returns the filename of the `FILE*` being read from, or "<none>" for
+  // closed-constructed or moved-from `CFileReader`. Unchanged by `Close()`.
+  //
+  // If the constructor from filename was used, this is the filename passed to
+  // the constructor, otherwise a filename is inferred from the `FILE*`. This
+  // can be a placeholder instead of a real filename if the `FILE*` does not
+  // refer to a named file or inferring the filename is not supported.
+  //
+  // If `Src` does not support `filename()`, returns "<unsupported>".
   absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return filename_;
+    return SrcCFileHandle().filename();
   }
 
   bool ToleratesReadingAhead() override {
@@ -197,8 +205,6 @@ class CFileReaderBase : public BufferedReader {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(FILE* src, Options&& options);
-  const char* InitializeFilename(
-      Initializer<std::string>::AllowingExplicit filename);
   void InitializePos(FILE* src, Options&& options
 #ifdef _WIN32
                      ,
@@ -216,7 +222,6 @@ class CFileReaderBase : public BufferedReader {
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);
 
-  std::string filename_;
   bool growing_source_ = false;
   bool supports_random_access_ = false;
   absl::Status random_access_status_;
@@ -270,10 +275,13 @@ class CFileReader : public CFileReaderBase {
   // If opening the file fails, `CFileReader` will be failed and closed.
   //
   // This constructor is present only if `Src` supports `Open()`.
-  template <typename DependentSrc = Src,
-            std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
-  explicit CFileReader(Initializer<std::string>::AllowingExplicit filename,
-                       Options options = Options());
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<
+          absl::conjunction<CFileSupportsOpen<DependentSrc>,
+                            std::is_default_constructible<DependentSrc>>::value,
+          int> = 0>
+  explicit CFileReader(PathRef filename, Options options = Options());
 
   CFileReader(CFileReader&& that) = default;
   CFileReader& operator=(CFileReader&& that) = default;
@@ -288,11 +296,13 @@ class CFileReader : public CFileReaderBase {
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* src,
                                           Options options = Options());
-  template <typename DependentSrc = Src,
-            std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      Initializer<std::string>::AllowingExplicit filename,
-      Options options = Options());
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentSrc>,
+                                         SupportsReset<DependentSrc>>::value,
+                       int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being read
   // from. Unchanged by `Close()`.
@@ -307,10 +317,19 @@ class CFileReader : public CFileReaderBase {
     return src_.get().get();
   }
 
+  // An optimized implementation in a derived class, avoiding a virtual call.
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return src_.get().filename();
+  }
+
  protected:
   void Done() override;
 
  private:
+  template <typename DependentSrc = Src,
+            std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
+  void OpenImpl(absl::string_view filename, Options&& options);
+
   // The object providing and possibly owning the `FILE` being read from.
   Dependency<CFileHandle, Src> src_;
 };
@@ -322,10 +341,8 @@ template <typename Src>
 explicit CFileReader(
     Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
     -> CFileReader<std::conditional_t<
-        absl::disjunction<
-            std::is_convertible<Src&&, FILE*>,
-            std::is_convertible<
-                Src&&, Initializer<std::string>::AllowingExplicit>>::value,
+        absl::disjunction<std::is_convertible<Src&&, FILE*>,
+                          std::is_convertible<Src&&, PathRef>>::value,
         OwnedCFile, TargetT<Src>>>;
 #endif
 
@@ -337,7 +354,6 @@ inline CFileReaderBase::CFileReaderBase(BufferOptions buffer_options,
 
 inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
-      filename_(std::exchange(that.filename_, std::string())),
       growing_source_(that.growing_source_),
       supports_random_access_(
           std::exchange(that.supports_random_access_, false)),
@@ -352,7 +368,6 @@ inline CFileReaderBase::CFileReaderBase(CFileReaderBase&& that) noexcept
 inline CFileReaderBase& CFileReaderBase::operator=(
     CFileReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
-  filename_ = std::exchange(that.filename_, std::string());
   growing_source_ = that.growing_source_;
   supports_random_access_ = std::exchange(that.supports_random_access_, false);
   random_access_status_ = std::move(that.random_access_status_);
@@ -364,7 +379,6 @@ inline CFileReaderBase& CFileReaderBase::operator=(
 
 inline void CFileReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
-  filename_ = std::string();
   growing_source_ = false;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
@@ -376,19 +390,12 @@ inline void CFileReaderBase::Reset(Closed) {
 inline void CFileReaderBase::Reset(BufferOptions buffer_options,
                                    bool growing_source) {
   BufferedReader::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   growing_source_ = growing_source;
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
 #ifdef _WIN32
   original_mode_ = absl::nullopt;
 #endif
-}
-
-inline const char* CFileReaderBase::InitializeFilename(
-    Initializer<std::string>::AllowingExplicit filename) {
-  riegeli::Reset(filename_, std::move(filename));
-  return filename_.c_str();
 }
 
 template <typename Src>
@@ -407,25 +414,16 @@ inline CFileReader<Src>::CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     : CFileReader(riegeli::Maker(src), std::move(options)) {}
 
 template <typename Src>
-template <typename DependentSrc,
-          std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int>>
-inline CFileReader<Src>::CFileReader(
-    Initializer<std::string>::AllowingExplicit filename, Options options)
-    : CFileReaderBase(options.buffer_options(), options.growing_source()) {
-  absl::Status status = src_.manager().Open(
-      InitializeFilename(std::move(filename)), options.mode().c_str());
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `CFileReaderBase::Reset()` to preserve `filename()`.
-    BufferedReader::Reset(kClosed);
-    FailWithoutAnnotation(std::move(status));
-    return;
-  }
-  InitializePos(src_.get().get(), std::move(options)
-#ifdef _WIN32
-                                      ,
-                /*mode_was_passed_to_fopen=*/true
-#endif
-  );
+template <
+    typename DependentSrc,
+    std::enable_if_t<
+        absl::conjunction<CFileSupportsOpen<DependentSrc>,
+                          std::is_default_constructible<DependentSrc>>::value,
+        int>>
+inline CFileReader<Src>::CFileReader(PathRef filename, Options options)
+    : CFileReaderBase(options.buffer_options(), options.growing_source()),
+      src_(riegeli::Maker()) {
+  OpenImpl(filename, std::move(options));
 }
 
 template <typename Src>
@@ -450,16 +448,24 @@ inline void CFileReader<Src>::Reset(FILE* src, Options options) {
 }
 
 template <typename Src>
+template <
+    typename DependentSrc,
+    std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentSrc>,
+                                       SupportsReset<DependentSrc>>::value,
+                     int>>
+inline void CFileReader<Src>::Reset(PathRef filename, Options options) {
+  riegeli::Reset(src_.manager());
+  CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
+  OpenImpl(filename, std::move(options));
+}
+
+template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int>>
-inline void CFileReader<Src>::Reset(
-    Initializer<std::string>::AllowingExplicit filename, Options options) {
-  CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
-  absl::Status status = src_.manager().Open(
-      InitializeFilename(std::move(filename)), options.mode().c_str());
+void CFileReader<Src>::OpenImpl(absl::string_view filename, Options&& options) {
+  absl::Status status = src_.manager().Open(filename, options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `CFileReaderBase::Reset()` to preserve `filename()`.
-    BufferedReader::Reset(kClosed);
+    CFileReaderBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));
     return;
   }

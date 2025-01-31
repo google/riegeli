@@ -17,7 +17,7 @@
 
 #include <stdio.h>
 
-#include <string>
+#include "riegeli/base/compact_string.h"
 
 namespace riegeli {
 namespace cfile_internal {
@@ -26,7 +26,7 @@ namespace cfile_internal {
 // symlink target for `absl::StrCat("/proc/self/fd/", fd)` (on Windows returns
 // a `absl::StrCat("<fd ", fd, ">")` placeholder instead), or returning
 // "<unknown>" if there is no corresponding fd.
-void FilenameForCFile(FILE* file, std::string& filename);
+CompactString FilenameForCFile(FILE* file);
 
 }  // namespace cfile_internal
 }  // namespace riegeli

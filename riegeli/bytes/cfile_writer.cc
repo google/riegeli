@@ -40,7 +40,6 @@
 
 #include <cerrno>
 #include <limits>
-#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -55,7 +54,6 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/cfile_handle.h"
-#include "riegeli/bytes/cfile_internal.h"
 #include "riegeli/bytes/cfile_internal_for_cc.h"
 #include "riegeli/bytes/cfile_reader.h"
 #include "riegeli/bytes/file_mode_string.h"
@@ -67,7 +65,6 @@ namespace riegeli {
 void CFileWriterBase::Initialize(FILE* dest, Options&& options) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
-  cfile_internal::FilenameForCFile(dest, filename_);
   InitializePos(dest, std::move(options), /*mode_was_passed_to_fopen=*/false);
 }
 
@@ -231,10 +228,8 @@ bool CFileWriterBase::FailOperation(absl::string_view operation) {
 }
 
 absl::Status CFileWriterBase::AnnotateStatusImpl(absl::Status status) {
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("writing ", filename_));
-  }
-  return BufferedWriter::AnnotateStatusImpl(std::move(status));
+  return BufferedWriter::AnnotateStatusImpl(
+      Annotate(status, absl::StrCat("writing ", filename())));
 }
 
 inline absl::Status CFileWriterBase::SizeStatus() {
@@ -527,7 +522,8 @@ Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
     return nullptr;
   }
   CFileReader<UnownedCFile>* const reader = associated_reader_.ResetReader(
-      dest, CFileReaderBase::Options().set_buffer_options(buffer_options()));
+      UnownedCFile(DestCFileHandle()),
+      CFileReaderBase::Options().set_buffer_options(buffer_options()));
   reader->Seek(initial_pos);
   read_mode_ = true;
   return reader;

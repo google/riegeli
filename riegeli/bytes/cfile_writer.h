@@ -39,6 +39,7 @@
 #include "riegeli/bytes/buffered_writer.h"
 #include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/file_mode_string.h"
+#include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -257,10 +258,17 @@ class CFileWriterBase : public BufferedWriter {
   // to `nullptr` by `Close()`, otherwise unchanged.
   virtual FILE* DestFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
-  // Returns the original name of the file being written to. Unchanged by
-  // `Close()`.
+  // Returns the filename of the `FILE*` being written to, or "<none>" for
+  // closed-constructed or moved-from `CFileWriter`. Unchanged by `Close()`.
+  //
+  // If the constructor from filename was used, this is the filename passed to
+  // the constructor, otherwise a filename is inferred from the `FILE*`. This
+  // can be a placeholder instead of a real filename if the `FILE*` does not
+  // refer to a named file or inferring the filename is not supported.
+  //
+  // If `Dest` does not support `filename()`, returns "<unsupported>".
   absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return filename_;
+    return DestCFileHandle().filename();
   }
 
   bool SupportsRandomAccess() override;
@@ -278,8 +286,6 @@ class CFileWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
   void Initialize(FILE* dest, Options&& options);
-  const std::string& InitializeFilename(
-      Initializer<std::string>::AllowingExplicit filename);
   void InitializePos(FILE* dest, Options&& options,
                      bool mode_was_passed_to_fopen);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
@@ -304,7 +310,6 @@ class CFileWriterBase : public BufferedWriter {
 
   bool WriteMode();
 
-  std::string filename_;
   LazyBoolState supports_random_access_ = LazyBoolState::kUnknown;
   // If `supports_read_mode_ == LazyBoolState::kUnknown`,
   // then at least size is known to be supported
@@ -373,9 +378,11 @@ class CFileWriter : public CFileWriterBase {
   //
   // This constructor is present only if `Dest` supports `Open()`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
-  explicit CFileWriter(Initializer<std::string>::AllowingExplicit filename,
-                       Options options = Options());
+            std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentDest>,
+                                               std::is_default_constructible<
+                                                   DependentDest>>::value,
+                             int> = 0>
+  explicit CFileWriter(PathRef filename, Options options = Options());
 
   CFileWriter(CFileWriter&& that) = default;
   CFileWriter& operator=(CFileWriter&& that) = default;
@@ -390,11 +397,13 @@ class CFileWriter : public CFileWriterBase {
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* dest,
                                           Options options = Options());
-  template <typename DependentDest = Dest,
-            std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      Initializer<std::string>::AllowingExplicit filename,
-      Options options = Options());
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentDest>,
+                                         SupportsReset<DependentDest>>::value,
+                       int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
+                                          Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being written
   // to. Unchanged by `Close()`.
@@ -409,11 +418,20 @@ class CFileWriter : public CFileWriterBase {
     return dest_.get().get();
   }
 
+  // An optimized implementation in a derived class, avoiding a virtual call.
+  absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return dest_.get().filename();
+  }
+
  protected:
   void Done() override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
+  template <typename DependentDest = Dest,
+            std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
+  void OpenImpl(absl::string_view filename, Options&& options);
+
   // The object providing and possibly owning the `FILE` being written to.
   Dependency<CFileHandle, Dest> dest_;
 };
@@ -425,10 +443,8 @@ template <typename Dest>
 explicit CFileWriter(
     Dest&& dest, CFileWriterBase::Options options = CFileWriterBase::Options())
     -> CFileWriter<std::conditional_t<
-        absl::disjunction<
-            std::is_convertible<Dest&&, FILE*>,
-            std::is_convertible<
-                Dest&&, Initializer<std::string>::AllowingExplicit>>::value,
+        absl::disjunction<std::is_convertible<Dest&&, FILE*>,
+                          std::is_convertible<Dest&&, PathRef>>::value,
         OwnedCFile, TargetT<Dest>>>;
 #endif
 
@@ -439,7 +455,6 @@ inline CFileWriterBase::CFileWriterBase(BufferOptions buffer_options)
 
 inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
     : BufferedWriter(static_cast<BufferedWriter&&>(that)),
-      filename_(std::exchange(that.filename_, std::string())),
       supports_random_access_(
           std::exchange(that.supports_random_access_, LazyBoolState::kUnknown)),
       supports_read_mode_(
@@ -456,7 +471,6 @@ inline CFileWriterBase::CFileWriterBase(CFileWriterBase&& that) noexcept
 inline CFileWriterBase& CFileWriterBase::operator=(
     CFileWriterBase&& that) noexcept {
   BufferedWriter::operator=(static_cast<BufferedWriter&&>(that));
-  filename_ = std::exchange(that.filename_, std::string());
   supports_random_access_ =
       std::exchange(that.supports_random_access_, LazyBoolState::kUnknown);
   supports_read_mode_ =
@@ -473,7 +487,6 @@ inline CFileWriterBase& CFileWriterBase::operator=(
 
 inline void CFileWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
-  filename_ = std::string();
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
@@ -487,7 +500,6 @@ inline void CFileWriterBase::Reset(Closed) {
 
 inline void CFileWriterBase::Reset(BufferOptions buffer_options) {
   BufferedWriter::Reset(buffer_options);
-  // `filename_` will be set by `Initialize()` or `InitializeFilename()`.
   supports_random_access_ = LazyBoolState::kUnknown;
   supports_read_mode_ = LazyBoolState::kUnknown;
   random_access_status_ = absl::OkStatus();
@@ -497,12 +509,6 @@ inline void CFileWriterBase::Reset(BufferOptions buffer_options) {
 #endif
   associated_reader_.Reset();
   read_mode_ = false;
-}
-
-inline const std::string& CFileWriterBase::InitializeFilename(
-    Initializer<std::string>::AllowingExplicit filename) {
-  riegeli::Reset(filename_, std::move(filename));
-  return filename_;
 }
 
 template <typename Dest>
@@ -520,21 +526,15 @@ inline CFileWriter<Dest>::CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
     : CFileWriter(riegeli::Maker(dest), std::move(options)) {}
 
 template <typename Dest>
-template <typename DependentDest,
-          std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int>>
-inline CFileWriter<Dest>::CFileWriter(
-    Initializer<std::string>::AllowingExplicit filename, Options options)
-    : CFileWriterBase(options.buffer_options()) {
-  absl::Status status = dest_.manager().Open(
-      InitializeFilename(std::move(filename)), options.mode());
-  if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `CFileWriterBase::Reset()` to preserve `filename()`.
-    BufferedWriter::Reset(kClosed);
-    FailWithoutAnnotation(std::move(status));
-    return;
-  }
-  InitializePos(dest_.get().get(), std::move(options),
-                /*mode_was_passed_to_fopen=*/true);
+template <
+    typename DependentDest,
+    std::enable_if_t<
+        absl::conjunction<CFileSupportsOpen<DependentDest>,
+                          std::is_default_constructible<DependentDest>>::value,
+        int>>
+inline CFileWriter<Dest>::CFileWriter(PathRef filename, Options options)
+    : CFileWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
+  OpenImpl(filename, std::move(options));
 }
 
 template <typename Dest>
@@ -559,16 +559,25 @@ inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
 }
 
 template <typename Dest>
+template <
+    typename DependentDest,
+    std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentDest>,
+                                       SupportsReset<DependentDest>>::value,
+                     int>>
+inline void CFileWriter<Dest>::Reset(PathRef filename, Options options) {
+  riegeli::Reset(dest_.manager());
+  CFileWriterBase::Reset(options.buffer_options());
+  OpenImpl(filename, std::move(options));
+}
+
+template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int>>
-inline void CFileWriter<Dest>::Reset(
-    Initializer<std::string>::AllowingExplicit filename, Options options) {
-  CFileWriterBase::Reset(options.buffer_options());
-  absl::Status status = dest_.manager().Open(
-      InitializeFilename(std::move(filename)), options.mode());
+void CFileWriter<Dest>::OpenImpl(absl::string_view filename,
+                                 Options&& options) {
+  absl::Status status = dest_.manager().Open(filename, options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
-    // Not `CFileWriterBase::Reset()` to preserve `filename()`.
-    BufferedWriter::Reset(kClosed);
+    CFileWriterBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));
     return;
   }

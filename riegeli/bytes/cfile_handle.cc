@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // Make `O_CLOEXEC` available on Darwin.
+#include "riegeli/bytes/path_ref.h"
 #if !defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 700
 #undef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 700
@@ -49,15 +50,22 @@ namespace riegeli {
 constexpr CFileHandle::Methods CFileHandle::kMethodsDefault;
 #endif
 
-absl::Status OwnedCFile::Open(CStringRef filename, CStringRef mode) {
-  Reset();
+namespace cfile_internal {
+
+template class CFileBase<UnownedCFileDeleter>;
+template class CFileBase<OwnedCFileDeleter>;
+
+}  // namespace cfile_internal
+
+absl::Status OwnedCFile::Open(PathRef filename, CStringRef mode) {
 #ifndef _WIN32
+  ResetCFilename(filename);
 #ifndef __APPLE__
-  FILE* const file = fopen(filename.c_str(), mode.c_str());
+  FILE* const file = fopen(c_filename(), mode.c_str());
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "fopen() failed"),
-                    absl::StrCat("opening ", filename.c_str()));
+                    absl::StrCat("opening ", absl::string_view(filename)));
   }
 #else   // __APPLE__
   // Emulate `fopen()` with `open()` + `fdopen()`, adding support for 'e'
@@ -95,25 +103,28 @@ absl::Status OwnedCFile::Open(CStringRef filename, CStringRef mode) {
         break;
     }
   }
-  const int fd = open(filename.c_str(), open_mode, 0666);
+again:
+  const int fd = open(c_filename(), open_mode, 0666);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;
+    if (error_number == EINTR) goto again;
     return Annotate(absl::ErrnoToStatus(error_number, "open() failed"),
-                    absl::StrCat("opening ", filename.c_str()));
+                    absl::StrCat("opening ", absl::string_view(filename)));
   }
   FILE* const file = fdopen(fd, mode.c_str());
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     close(fd);
     return Annotate(absl::ErrnoToStatus(error_number, "fdopen() failed"),
-                    absl::StrCat("opening ", filename.c_str()));
+                    absl::StrCat("opening ", absl::string_view(filename)));
   }
 #endif  // __APPLE__
 #else   // _WIN32
+  Reset(nullptr, filename);
   std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename.c_str(), filename_wide))) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Filename not valid UTF-8: ", filename.c_str()));
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename, filename_wide))) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Filename not valid UTF-8: ", absl::string_view(filename)));
   }
   std::wstring mode_wide;
   if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode.c_str(), mode_wide))) {
@@ -124,10 +135,10 @@ absl::Status OwnedCFile::Open(CStringRef filename, CStringRef mode) {
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "_wfopen() failed"),
-                    absl::StrCat("opening ", filename.c_str()));
+                    absl::StrCat("opening ", absl::string_view(filename)));
   }
 #endif  // _WIN32
-  Reset(file);
+  SetFileKeepFilename(file);
   return absl::OkStatus();
 }
 
@@ -136,7 +147,8 @@ absl::Status OwnedCFile::Close() {
   if (file == nullptr) return absl::OkStatus();
   if (ABSL_PREDICT_FALSE(fclose(file) != 0)) {
     const int error_number = errno;
-    return absl::ErrnoToStatus(error_number, "fclose() failed");
+    return Annotate(absl::ErrnoToStatus(error_number, "fclose() failed"),
+                    absl::StrCat("closing ", filename()));
   }
   return absl::OkStatus();
 }

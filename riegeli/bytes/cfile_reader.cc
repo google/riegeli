@@ -37,7 +37,6 @@
 
 #include <cerrno>
 #include <limits>
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -54,7 +53,6 @@
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
-#include "riegeli/bytes/cfile_internal.h"
 #include "riegeli/bytes/cfile_internal_for_cc.h"
 
 namespace riegeli {
@@ -99,7 +97,6 @@ inline size_t AvailableLength(DependentFILE* src) {
 void CFileReaderBase::Initialize(FILE* src, Options&& options) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
-  cfile_internal::FilenameForCFile(src, filename_);
   InitializePos(src, std::move(options)
 #ifdef _WIN32
                          ,
@@ -293,10 +290,8 @@ bool CFileReaderBase::FailOperation(absl::string_view operation) {
 }
 
 absl::Status CFileReaderBase::AnnotateStatusImpl(absl::Status status) {
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("reading ", filename_));
-  }
-  return BufferedReader::AnnotateStatusImpl(std::move(status));
+  return BufferedReader::AnnotateStatusImpl(
+      Annotate(status, absl::StrCat("reading ", filename())));
 }
 
 bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,

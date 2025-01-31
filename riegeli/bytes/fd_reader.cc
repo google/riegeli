@@ -53,7 +53,6 @@
 #include <cerrno>
 #include <limits>
 #include <memory>
-#include <string>
 #ifndef _WIN32
 #include <type_traits>
 #endif
@@ -79,7 +78,6 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 #include "riegeli/bytes/fd_handle.h"
-#include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/fd_internal_for_cc.h"
 #ifndef _WIN32
 #include "riegeli/bytes/fd_writer.h"
@@ -175,7 +173,6 @@ inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
 void FdReaderBase::Initialize(int src, Options&& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
-  fd_internal::FilenameForFd(src, filename_);
   InitializePos(src, std::move(options)
 #ifdef _WIN32
                          ,
@@ -382,10 +379,8 @@ bool FdReaderBase::FailWindowsOperation(absl::string_view operation) {
 #endif  // _WIN32
 
 absl::Status FdReaderBase::AnnotateStatusImpl(absl::Status status) {
-  if (!filename_.empty()) {
-    status = Annotate(status, absl::StrCat("reading ", filename_));
-  }
-  return BufferedReader::AnnotateStatusImpl(std::move(status));
+  return BufferedReader::AnnotateStatusImpl(
+      Annotate(status, absl::StrCat("reading ", filename())));
 }
 
 #ifndef _WIN32
@@ -649,13 +644,12 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
-  const int src = SrcFd();
   std::unique_ptr<FdReader<UnownedFd>> reader =
       std::make_unique<FdReader<UnownedFd>>(
-          src, FdReaderBase::Options()
-                   .set_independent_pos(initial_pos)
-                   .set_growing_source(growing_source_)
-                   .set_buffer_options(buffer_options()));
+          UnownedFd(SrcFdHandle()), FdReaderBase::Options()
+                                        .set_independent_pos(initial_pos)
+                                        .set_growing_source(growing_source_)
+                                        .set_buffer_options(buffer_options()));
   reader->set_exact_size(exact_size());
   ShareBufferTo(*reader);
   return reader;
