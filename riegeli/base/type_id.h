@@ -15,6 +15,11 @@
 #ifndef RIEGELI_BASE_TYPE_ID_H_
 #define RIEGELI_BASE_TYPE_ID_H_
 
+#include <cstddef>
+#include <functional>
+#include <utility>
+
+#include "absl/base/nullability.h"
 #include "riegeli/base/compare.h"
 
 namespace riegeli {
@@ -23,9 +28,14 @@ namespace riegeli {
 // `A` and `B` are the same type.
 //
 // `TypeId()` is another value not equal to any other.
-class TypeId : public WithEqual<TypeId> {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+        TypeId : public WithCompare<TypeId> {
  public:
   constexpr TypeId() = default;
+  /*implicit*/ constexpr TypeId(std::nullptr_t) noexcept {}
 
   TypeId(const TypeId& that) = default;
   TypeId& operator=(const TypeId& that) = default;
@@ -35,6 +45,16 @@ class TypeId : public WithEqual<TypeId> {
 
   friend constexpr bool operator==(TypeId a, TypeId b) {
     return a.ptr_ == b.ptr_;
+  }
+  friend StrongOrdering RIEGELI_COMPARE(TypeId a, TypeId b) {
+    if (std::less<>()(a.ptr_, b.ptr_)) return StrongOrdering::less;
+    if (std::greater<>()(a.ptr_, b.ptr_)) return StrongOrdering::greater;
+    return StrongOrdering::equal;
+  }
+
+  template <typename HashState>
+  friend HashState AbslHashValue(HashState hash_state, TypeId self) {
+    return HashState::combine(std::move(hash_state), self.ptr_);
   }
 
  private:

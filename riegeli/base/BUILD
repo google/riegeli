@@ -179,7 +179,10 @@ cc_library(
 cc_library(
     name = "type_id",
     hdrs = ["type_id.h"],
-    deps = [":compare"],
+    deps = [
+        ":compare",
+        "@com_google_absl//absl/base:nullability",
+    ],
 )
 
 cc_library(
