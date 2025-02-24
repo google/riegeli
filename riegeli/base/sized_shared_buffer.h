@@ -37,7 +37,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        SizedSharedBuffer {
+    SizedSharedBuffer {
  public:
   // A sentinel value for the `max_length` parameter of
   // `AppendBuffer()`/`PrependBuffer()`.

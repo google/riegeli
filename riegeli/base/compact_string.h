@@ -78,7 +78,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        CompactString : public WithCompare<CompactString> {
+    CompactString : public WithCompare<CompactString> {
  public:
   static constexpr size_t max_size() {
     return std::numeric_limits<size_t>::max() - 2 * sizeof(size_t);

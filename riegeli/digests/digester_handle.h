@@ -130,7 +130,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        DigesterBaseHandle : WithEqual<DigesterBaseHandle> {
+    DigesterBaseHandle : WithEqual<DigesterBaseHandle> {
  public:
   // Creates a `DigesterBaseHandle` which does not refer to a target.
   DigesterBaseHandle() = default;

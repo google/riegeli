@@ -61,9 +61,9 @@ class
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
 #ifdef ABSL_NULLABILITY_COMPATIBLE
-        ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
 #endif
-            SharedPtr : public WithEqual<SharedPtr<T>> {
+    SharedPtr : public WithEqual<SharedPtr<T>> {
  private:
   template <typename SubT>
   struct IsCompatibleProperSubtype

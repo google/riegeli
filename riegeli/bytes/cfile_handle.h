@@ -109,7 +109,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        CFileHandle : public WithEqual<CFileHandle> {
+    CFileHandle : public WithEqual<CFileHandle> {
  public:
   // Creates a `CFileHandle` which does not refer to a target.
   CFileHandle() = default;
@@ -272,7 +272,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        CFileDeleterBase {
+    CFileDeleterBase {
  public:
   CFileDeleterBase() = default;
 
@@ -375,7 +375,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        CFileBase {
+    CFileBase {
  public:
   // Creates a `CFileBase` which does not store a `FILE*` and stores "<none>"
   // as the filename.
@@ -528,7 +528,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        UnownedCFile
+    UnownedCFile
     : public cfile_internal::CFileBase<cfile_internal::UnownedCFileDeleter>,
       public WithEqual<UnownedCFile> {
  public:
@@ -569,7 +569,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        OwnedCFile
+    OwnedCFile
     : public cfile_internal::CFileBase<cfile_internal::OwnedCFileDeleter>,
       public WithEqual<OwnedCFile> {
  public:

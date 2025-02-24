@@ -32,7 +32,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        TypeId : public WithCompare<TypeId> {
+    TypeId : public WithCompare<TypeId> {
  public:
   constexpr TypeId() = default;
   /*implicit*/ constexpr TypeId(std::nullptr_t) noexcept {}

@@ -172,9 +172,8 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        StableDependency<
-            Handle, Manager,
-            std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
+    StableDependency<Handle, Manager,
+                     std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
     : public Dependency<Handle, Manager> {
  public:
   using StableDependency::Dependency::Dependency;

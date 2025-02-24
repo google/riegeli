@@ -146,7 +146,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        FdHandle : public WithEqual<FdHandle> {
+    FdHandle : public WithEqual<FdHandle> {
  public:
   // Creates an `FdHandle` which does not refer to a target.
   FdHandle() = default;
@@ -307,7 +307,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        FdDeleterBase {
+    FdDeleterBase {
  public:
   FdDeleterBase() = default;
 
@@ -419,7 +419,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        FdBase {
+    FdBase {
  public:
   // Creates an `FdBase` which does not store a fd and stores "<none>" as the
   // filename.
@@ -576,8 +576,8 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        UnownedFd : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
-                    public WithEqual<UnownedFd> {
+    UnownedFd : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
+                public WithEqual<UnownedFd> {
  public:
   using FdBase::FdBase;
 
@@ -615,8 +615,8 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        OwnedFd : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
-                  public WithEqual<OwnedFd> {
+    OwnedFd : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
+              public WithEqual<OwnedFd> {
  public:
   using Permissions = fd_internal::Permissions;
 #ifndef _WIN32

@@ -988,9 +988,9 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        Dependency : public dependency_internal::DependencyDerived<
-                         dependency_internal::DependencyDeref<Handle, Manager>,
-                         Handle, Manager> {
+    Dependency : public dependency_internal::DependencyDerived<
+                     dependency_internal::DependencyDeref<Handle, Manager>,
+                     Handle, Manager> {
  public:
   using Dependency::DependencyDerived::DependencyDerived;
 

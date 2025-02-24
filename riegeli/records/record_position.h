@@ -136,7 +136,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        FutureChunkBegin {
+    FutureChunkBegin {
  public:
   struct PadToBlockBoundary {};
   using Action =
@@ -191,7 +191,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        FutureRecordPosition {
+    FutureRecordPosition {
  public:
   constexpr FutureRecordPosition() = default;
 

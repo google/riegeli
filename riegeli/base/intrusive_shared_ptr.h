@@ -97,9 +97,9 @@ class
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
 #ifdef ABSL_NULLABILITY_COMPATIBLE
-        ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
 #endif
-            IntrusiveSharedPtr : public WithEqual<IntrusiveSharedPtr<T>> {
+    IntrusiveSharedPtr : public WithEqual<IntrusiveSharedPtr<T>> {
  public:
   // Creates an empty `IntrusiveSharedPtr`.
   constexpr IntrusiveSharedPtr() = default;

@@ -45,7 +45,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        TypeErasedRef {
+    TypeErasedRef {
  private:
   template <typename T>
   struct IsFunctionRef : std::false_type {};

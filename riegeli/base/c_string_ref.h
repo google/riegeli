@@ -56,7 +56,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        CStringRef : WithEqual<CStringRef> {
+    CStringRef : WithEqual<CStringRef> {
  private:
   template <typename T, typename Enable = void>
   struct HasCStr : std::false_type {};

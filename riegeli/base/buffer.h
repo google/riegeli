@@ -34,7 +34,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        Buffer {
+    Buffer {
  public:
   Buffer() = default;
 

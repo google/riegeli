@@ -56,8 +56,8 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>>,
-                  public ConditionallyTrivialAbi<inline_size == 0> {
+    AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>>,
+              public ConditionallyTrivialAbi<inline_size == 0> {
  public:
   // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyBase`.
@@ -230,7 +230,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
+    Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
  private:
   // Indirection through `InliningImpl` is needed for MSVC for some reason.
   template <typename... InlineManagers>
@@ -425,7 +425,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-        AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
+    AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
  public:
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }

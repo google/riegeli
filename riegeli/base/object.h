@@ -41,7 +41,7 @@ class
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
     ABSL_ATTRIBUTE_TRIVIAL_ABI
 #endif
-        ObjectState {
+    ObjectState {
  public:
   // Creates a closed `ObjectState`.
   explicit ObjectState(Closed) noexcept : status_ptr_(kClosedSuccessfully) {}
