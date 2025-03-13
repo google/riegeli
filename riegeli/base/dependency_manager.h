@@ -54,7 +54,7 @@ namespace riegeli {
 //
 // `DependencyManager` provides what `DependencyBase` provides (constructors,
 // `Reset()`, `manager()`, and `kIsStable`), and also `ptr()`, `IsOwning()`,
-// `kIsOwning`, and optionally `GetIf()`.
+// and `kIsOwning`.
 
 // This template is specialized but does not have a primary definition.
 template <typename Manager, typename ManagerStorage, typename Enable = void>

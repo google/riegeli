@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <new>
@@ -63,6 +62,11 @@ class AnyInitializer {
   AnyInitializer() noexcept : construct_(ConstructMethodEmpty) {}
 
   // An `Any` will hold a `Dependency<Handle, TargetT<Manager>>`.
+  //
+  // If `TargetT<Manager>` is already a compatible `Any` or `AnyRef`, possibly
+  // wrapped in `ClosingPtrType`, or an rvalue reference to it, adopts its
+  // storage instead of keeping an indirection. This causes `GetIf()` to see
+  // through it.
   template <
       typename Manager,
       std::enable_if_t<
@@ -92,9 +96,14 @@ class AnyInitializer {
                                    Storage storage, size_t available_size,
                                    size_t available_align);
 
-  template <typename Manager,
-            std::enable_if_t<
-                !any_internal::IsAny<Handle, TargetT<Manager>>::value, int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<
+          absl::conjunction<
+              absl::negation<any_internal::IsAny<Handle, TargetT<Manager>>>,
+              absl::negation<any_internal::IsAnyClosingPtr<
+                  Handle, TargetT<Manager>>>>::value,
+          int> = 0>
   static void ConstructMethod(TypeErasedRef context,
                               MethodsAndHandle& methods_and_handle,
                               Storage storage, size_t available_size,
@@ -106,6 +115,23 @@ class AnyInitializer {
                               MethodsAndHandle& methods_and_handle,
                               Storage storage, size_t available_size,
                               size_t available_align);
+  template <typename Manager,
+            std::enable_if_t<
+                any_internal::IsAnyClosingPtr<Handle, TargetT<Manager>>::value,
+                int> = 0>
+  static void ConstructMethod(TypeErasedRef context,
+                              MethodsAndHandle& methods_and_handle,
+                              Storage storage, size_t available_size,
+                              size_t available_align);
+
+  template <typename Target,
+            std::enable_if_t<!std::is_reference<Target>::value, int> = 0>
+  static void Adopt(Target&& target, MethodsAndHandle& methods_and_handle,
+                    Storage storage);
+  template <typename Target,
+            std::enable_if_t<std::is_rvalue_reference<Target>::value, int> = 0>
+  static void Adopt(Target&& target, MethodsAndHandle& methods_and_handle,
+                    Storage storage);
 
   // Constructs `methods_and_handle` and `storage` by moving from `*this`.
   void Construct(MethodsAndHandle& methods_and_handle, Storage storage,
@@ -136,7 +162,11 @@ void AnyInitializer<Handle>::ConstructMethodEmpty(
 template <typename Handle>
 template <typename Manager,
           std::enable_if_t<
-              !any_internal::IsAny<Handle, TargetT<Manager>>::value, int>>
+              absl::conjunction<
+                  absl::negation<any_internal::IsAny<Handle, TargetT<Manager>>>,
+                  absl::negation<any_internal::IsAnyClosingPtr<
+                      Handle, TargetT<Manager>>>>::value,
+              int>>
 void AnyInitializer<Handle>::ConstructMethod(
     TypeErasedRef context, MethodsAndHandle& methods_and_handle,
     Storage storage, size_t available_size, size_t available_align) {
@@ -196,7 +226,7 @@ void AnyInitializer<Handle>::ConstructMethod(
     Storage storage, size_t available_size, size_t available_align) {
   using Target = TargetT<Manager>;
   using TargetValue = std::remove_reference_t<Target>;
-  // Materialize `Target` to consider adopting its storage.
+  // Materialize `Target` to adopt its storage.
   [&](Target&& target) {
     // `target.methods_and_handle_.methods->used_size <=
     //      TargetValue::kAvailableSize`, hence if
@@ -210,37 +240,73 @@ void AnyInitializer<Handle>::ConstructMethod(
          target.methods_and_handle_.methods->used_align <= available_align)) {
       // Adopt `target` instead of wrapping it.
       if (TargetValue::kAvailableSize == 0) {
-        // Replace an indirect call to `methods_and_handle_.methods->move()`
-        // with a plain assignment of `methods_and_handle_.handle` and a memory
-        // copy of `repr_`.
+        // Replace an indirect call to `move()` with a plain assignment and a
+        // memory copy.
         //
         // This would safe whenever
         // `target.methods_and_handle_.methods->used_size == 0`, but this is
         // handled specially only if the condition can be determined at compile
         // time.
-        methods_and_handle.methods = std::exchange(
-            target.methods_and_handle_.methods, &NullMethods::kMethods);
-        methods_and_handle.handle =
-            std::exchange(target.methods_and_handle_.handle,
-                          any_internal::SentinelHandle<Handle>());
+        methods_and_handle.methods = target.methods_and_handle_.methods;
+        methods_and_handle.handle = target.methods_and_handle_.handle;
         std::memcpy(storage, &target.repr_, sizeof(target.repr_));
       } else {
-        target.methods_and_handle_.handle =
-            any_internal::SentinelHandle<Handle>();
-        methods_and_handle.methods = std::exchange(
-            target.methods_and_handle_.methods, &NullMethods::kMethods);
-        methods_and_handle.methods->move(storage, &methods_and_handle.handle,
-                                         target.repr_.storage);
+        target.methods_and_handle_.methods->move(target.repr_.storage, storage,
+                                                 &methods_and_handle);
       }
+      target.methods_and_handle_.methods = &NullMethods::kMethods;
+      target.methods_and_handle_.handle =
+          any_internal::SentinelHandle<Handle>();
       return;
     }
-    methods_and_handle.methods =
-        &MethodsFor<Target, /*is_inline=*/false>::kMethods;
-    // `std::move(target)` is correct and `std::forward<Target>(target)` is not
-    // necessary: `Target` is always an `Any`, never an lvalue reference.
-    MethodsFor<Target, /*is_inline=*/false>::Construct(
-        storage, &methods_and_handle.handle, std::move(target));
+    Adopt<Target>(std::forward<Target>(target), methods_and_handle, storage);
   }(Initializer<Target>(context.Cast<Manager>()).Reference());
+}
+
+template <typename Handle>
+template <
+    typename Manager,
+    std::enable_if_t<
+        any_internal::IsAnyClosingPtr<Handle, TargetT<Manager>>::value, int>>
+void AnyInitializer<Handle>::ConstructMethod(
+    TypeErasedRef context, MethodsAndHandle& methods_and_handle,
+    Storage storage, ABSL_ATTRIBUTE_UNUSED size_t available_size,
+    ABSL_ATTRIBUTE_UNUSED size_t available_align) {
+  using Target = TargetT<Manager>;
+  // Materialize `Target` to adopt its storage.
+  const Target target =
+      Initializer<Target>(context.Cast<Manager>()).Construct();
+  if (target == nullptr) {
+    methods_and_handle.methods = &NullMethods::kMethods;
+    new (&methods_and_handle.handle)
+        Handle(any_internal::SentinelHandle<Handle>());
+    return;
+  }
+  // Adopt `*manager` by referring to its representation.
+  target->methods_and_handle_.methods->make_reference(
+      target->repr_.storage, storage, &methods_and_handle);
+}
+
+template <typename Handle>
+template <typename Target,
+          std::enable_if_t<!std::is_reference<Target>::value, int>>
+inline void AnyInitializer<Handle>::Adopt(Target&& target,
+                                          MethodsAndHandle& methods_and_handle,
+                                          Storage storage) {
+  target.methods_and_handle_.methods->move_to_heap(
+      target.repr_.storage, storage, &methods_and_handle);
+  target.methods_and_handle_.methods = &NullMethods::kMethods;
+  target.methods_and_handle_.handle = any_internal::SentinelHandle<Handle>();
+}
+
+template <typename Handle>
+template <typename Target,
+          std::enable_if_t<std::is_rvalue_reference<Target>::value, int>>
+inline void AnyInitializer<Handle>::Adopt(Target&& target,
+                                          MethodsAndHandle& methods_and_handle,
+                                          Storage storage) {
+  target.methods_and_handle_.methods->make_reference(
+      target.repr_.storage, storage, &methods_and_handle);
 }
 
 }  // namespace riegeli

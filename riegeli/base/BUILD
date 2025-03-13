@@ -313,7 +313,6 @@ cc_library(
         ":compare",
         ":initializer",
         ":reset",
-        ":type_id",
         ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
@@ -359,6 +358,7 @@ cc_library(
     deps = [
         ":arithmetic",
         ":assert",
+        ":closing_ptr",
         ":compare",
         ":dependency",
         ":initializer",
@@ -366,7 +366,6 @@ cc_library(
         ":type_erased_ref",
         ":type_id",
         ":type_traits",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",

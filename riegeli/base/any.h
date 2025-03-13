@@ -34,6 +34,7 @@
 #include "riegeli/base/any_internal.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/closing_ptr.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/dependency_base.h"
@@ -82,12 +83,11 @@ class
     return get();
   }
 
-  // `AnyBase<Handle>` can be compared against `nullptr`. A non-empty `AnyBase`
-  // delegates the comparison `Handle` if it supports `operator==` with
-  // `nullptr`, otherwise it returns `false`. An empty `AnyBase` returns `true`.
+  // `AnyBase<Handle>` can be compared against `nullptr`. If `Handle` supports
+  // `operator==` with `nullptr`, then delegates the comparison to `Handle`,
+  // otherwise returns `true` for a non-empty `AnyBase`.
   friend bool operator==(const AnyBase& a, std::nullptr_t) {
-    return a.methods_and_handle_.methods == &NullMethods::kMethods ||
-           a.EqualNullptrInternal();
+    return a.EqualNullptr();
   }
 
   // If `true`, the `AnyBase` owns the dependent object, i.e. closing the host
@@ -99,10 +99,8 @@ class
   // If `true`, `get()` stays unchanged when an `AnyBase` is moved.
   static constexpr bool kIsStable = inline_size == 0;
 
-  // If the `Manager` has exactly this type or a reference to it, returns a
-  // pointer to the `Manager`. If the `Manager` is an `AnyBase` (possibly
-  // wrapped in a reference or `std::unique_ptr`), propagates `GetIf()` to it.
-  // Otherwise returns `nullptr`.
+  // If the stored `Manager` has exactly this type or a reference to it, returns
+  // a pointer to the `Manager`. Otherwise returns `nullptr`.
   template <
       typename Manager,
       std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int> = 0>
@@ -112,9 +110,11 @@ class
       std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int> = 0>
   const Manager* GetIf() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
-  // A variant of `GetIf()` with the expected type passed as a `TypeId`.
-  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  // Returns the `TypeId` corresponding to the stored `Manager` type, stripping
+  // any toplevel reference.
+  //
+  // `GetIf<Manager>() != nullptr` when `type_id() == TypeId::For<Manager>()`.
+  TypeId type_id() const { return methods_and_handle_.methods->type_id; }
 
   // Supports `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const AnyBase* self,
@@ -134,23 +134,46 @@ class
 
   void Reset(std::nullptr_t = nullptr);
 
-  // Initializes the state, avoiding a redundant indirection and adopting them
-  // from `manager` instead if `Manager` is already a compatible `Any` or
-  // `AnyRef`, or an rvalue reference to it.
+  // Initializes the state.
+  //
+  // If `Manager` is already a compatible `Any` or `AnyRef`, possibly wrapped in
+  // `ClosingPtrType`, or an rvalue reference to it, adopts its storage instead
+  // of keeping an indirection. This causes `GetIf()` to see through it.
   void Initialize();
   template <typename Manager,
-            std::enable_if_t<!IsAny<Handle, Manager>::value, int> = 0>
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<IsAny<Handle, Manager>>,
+                    absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
+                int> = 0>
   void Initialize(Manager&& manager);
   template <typename Manager,
             std::enable_if_t<IsAny<Handle, Manager>::value, int> = 0>
   void Initialize(Manager&& manager);
   template <typename Manager,
-            std::enable_if_t<!IsAny<Handle, Manager>::value, int> = 0>
+            std::enable_if_t<IsAnyClosingPtr<Handle, Manager>::value, int> = 0>
+  void Initialize(Manager&& manager);
+  template <typename Manager,
+            std::enable_if_t<
+                absl::conjunction<
+                    absl::negation<IsAny<Handle, Manager>>,
+                    absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
+                int> = 0>
   void Initialize(Initializer<Manager> manager);
   template <typename Manager,
             std::enable_if_t<IsAny<Handle, Manager>::value, int> = 0>
+  void Initialize(Initializer<Manager> manager);
+  template <typename Manager,
+            std::enable_if_t<IsAnyClosingPtr<Handle, Manager>::value, int> = 0>
   void Initialize(Initializer<Manager> manager);
   void InitializeFromAnyInitializer(AnyInitializer<Handle> manager);
+
+  template <typename Manager,
+            std::enable_if_t<!std::is_reference<Manager>::value, int> = 0>
+  void Adopt(Manager&& manager);
+  template <typename Manager,
+            std::enable_if_t<std::is_rvalue_reference<Manager>::value, int> = 0>
+  void Adopt(Manager&& manager);
 
   // Destroys the state, leaving it uninitialized.
   void Destroy();
@@ -190,14 +213,14 @@ class
   template <typename DependentHandle = Handle,
             std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,
                              int> = 0>
-  bool EqualNullptrInternal() const {
+  bool EqualNullptr() const {
     return get() == nullptr;
   }
   template <typename DependentHandle = Handle,
             std::enable_if_t<
                 !IsComparableAgainstNullptr<DependentHandle>::value, int> = 0>
-  bool EqualNullptrInternal() const {
-    return false;
+  bool EqualNullptr() const {
+    return methods_and_handle_.methods == &NullMethods::kMethods;
   }
 
   MethodsAndHandle methods_and_handle_;
@@ -259,6 +282,11 @@ class
   /*implicit*/ Any(std::nullptr_t) { this->Initialize(); }
 
   // Holds a `Dependency<Handle, TargetT<Manager>>`.
+  //
+  // If `TargetT<Manager>` is already a compatible `Any` or `AnyRef`, possibly
+  // wrapped in `ClosingPtrType`, or an rvalue reference to it, adopts its
+  // storage instead of keeping an indirection. This causes `GetIf()` to see
+  // through it.
   template <
       typename Manager,
       std::enable_if_t<
@@ -325,13 +353,6 @@ class DependencyManagerImpl<Any<Handle, inline_size, inline_align>,
       DependencyManagerImpl::DependencyBase::kIsStable ||
       Any<Handle, inline_size, inline_align>::kIsStable;
 
-  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return this->manager().GetIf(type_id);
-  }
-  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return this->manager().GetIf(type_id);
-  }
-
  protected:
   DependencyManagerImpl(DependencyManagerImpl&& that) = default;
   DependencyManagerImpl& operator=(DependencyManagerImpl&& that) = default;
@@ -344,23 +365,20 @@ class DependencyManagerImpl<Any<Handle, inline_size, inline_align>,
 };
 
 // Specialization of
-// `DependencyManagerImpl<std::unique_ptr<Any<Handle>, Deleter>>`:
+// `DependencyManagerImpl<ClosingPtrType<Any<Handle>>>`:
 // a dependency with ownership determined at runtime.
-//
-// It covers `ClosingPtrType<Any<Handle>>`.
 template <typename Handle, size_t inline_size, size_t inline_align,
-          typename Deleter, typename ManagerStorage>
+          typename ManagerStorage>
 class DependencyManagerImpl<
-    std::unique_ptr<Any<Handle, inline_size, inline_align>, Deleter>,
+    std::unique_ptr<Any<Handle, inline_size, inline_align>, NullDeleter>,
     ManagerStorage>
     : public DependencyBase<
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
           std::conditional_t<
-              absl::conjunction<
-                  std::is_empty<Deleter>,
-                  absl::is_trivially_relocatable<std::unique_ptr<
-                      Any<Handle, inline_size, inline_align>, Deleter>>>::value,
-              std::unique_ptr<Any<Handle, inline_size, inline_align>, Deleter>,
+              absl::is_trivially_relocatable<std::unique_ptr<
+                  Any<Handle, inline_size, inline_align>, NullDeleter>>::value,
+              std::unique_ptr<Any<Handle, inline_size, inline_align>,
+                              NullDeleter>,
               ManagerStorage>
 #else
           ManagerStorage
@@ -374,15 +392,6 @@ class DependencyManagerImpl<
   }
 
   static constexpr bool kIsStable = true;
-
-  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->GetIf(type_id);
-  }
-  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->GetIf(type_id);
-  }
 
  protected:
   DependencyManagerImpl(DependencyManagerImpl&& that) = default;
@@ -433,6 +442,10 @@ class
 
   // Holds a `Dependency<Handle, TargetRefT<Manager>&&>` when
   // `TargetRefT<Manager>` is not a reference.
+  //
+  // If `TargetT<Manager>` is already a compatible `Any` or `AnyRef`, possibly
+  // wrapped in `ClosingPtrType`, points to its storage instead of keeping an
+  // indirection. This causes `GetIf()` to see through it.
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<
@@ -448,6 +461,11 @@ class
   // Holds a `DependencyRef<Handle, Manager>` when `TargetRefT<Manager>` is a
   // reference.
   //
+  // If `TargetT<Manager>` is an rvalue reference to an already a compatible
+  // `Any` or `AnyRef`, possibly wrapped in `ClosingPtrType`, points to its
+  // storage instead of keeping an indirection. This causes `GetIf()` to see
+  // through it.
+  //
   // This constructor is separate so that it does not need `storage`.
   template <
       typename Manager,
@@ -461,7 +479,7 @@ class
 
   // Adopts the `Dependency` from `Any<Handle>` with no inline storage.
   //
-  // This constructor is separate so that it does not need storage nor
+  // This constructor is separate so that it does not need temporary storage nor
   // `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
   template <typename Manager,
             std::enable_if_t<std::is_same<TargetT<Manager>, Any<Handle>>::value,
@@ -500,13 +518,6 @@ class DependencyManagerImpl<AnyRef<Handle>, ManagerStorage>
       DependencyManagerImpl::DependencyBase::kIsStable ||
       AnyRef<Handle>::kIsStable;
 
-  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return this->manager().GetIf(type_id);
-  }
-  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return this->manager().GetIf(type_id);
-  }
-
  protected:
   DependencyManagerImpl(DependencyManagerImpl&& that) = default;
   DependencyManagerImpl& operator=(DependencyManagerImpl&& that) = default;
@@ -519,20 +530,17 @@ class DependencyManagerImpl<AnyRef<Handle>, ManagerStorage>
 };
 
 // Specialization of
-// `DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, Deleter>>`:
+// `DependencyManagerImpl<ClosingPtrType<AnyRef<Handle>, Deleter>>`:
 // a dependency with ownership determined at runtime.
-//
-// It covers `ClosingPtrType<AnyRef<Handle>>`.
-template <typename Handle, typename Deleter, typename ManagerStorage>
-class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, Deleter>,
+template <typename Handle, typename ManagerStorage>
+class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, NullDeleter>,
                             ManagerStorage>
     : public DependencyBase<
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
           std::conditional_t<
-              absl::conjunction<std::is_empty<Deleter>,
-                                absl::is_trivially_relocatable<std::unique_ptr<
-                                    AnyRef<Handle>, Deleter>>>::value,
-              std::unique_ptr<AnyRef<Handle>, Deleter>, ManagerStorage>
+              absl::is_trivially_relocatable<
+                  std::unique_ptr<AnyRef<Handle>, NullDeleter>>::value,
+              std::unique_ptr<AnyRef<Handle>, NullDeleter>, ManagerStorage>
 #else
           ManagerStorage
 #endif
@@ -545,15 +553,6 @@ class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, Deleter>,
   }
 
   static constexpr bool kIsStable = true;
-
-  void* GetIf(TypeId type_id) ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->GetIf(type_id);
-  }
-  const void* GetIf(TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    if (this->manager() == nullptr) return nullptr;
-    return this->manager()->GetIf(type_id);
-  }
 
  protected:
   DependencyManagerImpl(DependencyManagerImpl&& that) = default;
@@ -574,20 +573,16 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 inline AnyBase<Handle, inline_size, inline_align>::AnyBase(
     AnyBase&& that) noexcept {
   if (inline_size == 0) {
-    // Replace an indirect call to `methods_and_handle_.methods->move()` with
-    // a plain assignment of `methods_and_handle_.handle` and `repr_`.
-    methods_and_handle_.methods =
-        std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
-    methods_and_handle_.handle = std::exchange(that.methods_and_handle_.handle,
-                                               SentinelHandle<Handle>());
+    // Replace an indirect call to `move()` with plain assignments.
+    methods_and_handle_.methods = that.methods_and_handle_.methods;
+    methods_and_handle_.handle = that.methods_and_handle_.handle;
     repr_ = that.repr_;
   } else {
-    that.methods_and_handle_.handle = SentinelHandle<Handle>();
-    methods_and_handle_.methods =
-        std::exchange(that.methods_and_handle_.methods, &NullMethods::kMethods);
-    methods_and_handle_.methods->move(
-        repr_.storage, &methods_and_handle_.handle, that.repr_.storage);
+    that.methods_and_handle_.methods->move(that.repr_.storage, repr_.storage,
+                                           &methods_and_handle_);
   }
+  that.methods_and_handle_.methods = &NullMethods::kMethods;
+  that.methods_and_handle_.handle = SentinelHandle<Handle>();
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -596,20 +591,16 @@ AnyBase<Handle, inline_size, inline_align>::operator=(AnyBase&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Destroy();
     if (inline_size == 0) {
-      // Replace an indirect call to `methods_and_handle_.methods->move()` with
-      // a plain assignment of `methods_and_handle_.handle` and `repr_`.
-      methods_and_handle_.methods = std::exchange(
-          that.methods_and_handle_.methods, &NullMethods::kMethods);
-      methods_and_handle_.handle = std::exchange(
-          that.methods_and_handle_.handle, SentinelHandle<Handle>());
+      // Replace an indirect call to `move()` with plain assignments.
+      methods_and_handle_.methods = that.methods_and_handle_.methods;
+      methods_and_handle_.handle = that.methods_and_handle_.handle;
       repr_ = that.repr_;
     } else {
-      that.methods_and_handle_.handle = SentinelHandle<Handle>();
-      methods_and_handle_.methods = std::exchange(
-          that.methods_and_handle_.methods, &NullMethods::kMethods);
-      methods_and_handle_.methods->move(
-          repr_.storage, &methods_and_handle_.handle, that.repr_.storage);
+      that.methods_and_handle_.methods->move(that.repr_.storage, repr_.storage,
+                                             &methods_and_handle_);
     }
+    that.methods_and_handle_.methods = &NullMethods::kMethods;
+    that.methods_and_handle_.handle = SentinelHandle<Handle>();
   }
   return *this;
 }
@@ -623,7 +614,11 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize() {
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<!IsAny<Handle, Manager>::value, int>>
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<IsAny<Handle, Manager>>,
+                  absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
+              int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   Initialize<Manager>(Initializer<Manager>(std::forward<Manager>(manager)));
@@ -645,39 +640,53 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
       // Same for alignment.
       (ManagerValue::kAvailableAlign <= kAvailableAlign ||
        manager.methods_and_handle_.methods->used_align <= kAvailableAlign)) {
-    // Adopt `manager` instead of wrapping it.
+    // Adopt `manager` by moving its representation as is.
     if (inline_size == 0 || ManagerValue::kAvailableSize == 0) {
-      // Replace an indirect call to `methods_and_handle_.methods->move()` with
-      // a plain assignment of `methods_and_handle_.handle` and a memory copy of
-      // `repr_`.
+      // Replace an indirect call to `move()` with plain assignments and
+      // a memory copy.
       //
-      // This would be safe whenever
-      // `manager.methods_and_handle_.methods->used_size == 0`, but this is
+      // This would be safe if `ManagerValue::kAvailableSize != 0` while
+      // `that.manager.methods_and_handle_.methods->used_size == 0`, but this is
       // handled specially only if the condition can be determined at compile
       // time.
-      methods_and_handle_.methods = std::exchange(
-          manager.methods_and_handle_.methods, &NullMethods::kMethods);
-      methods_and_handle_.handle = std::exchange(
-          manager.methods_and_handle_.handle, SentinelHandle<Handle>());
+      methods_and_handle_.methods = manager.methods_and_handle_.methods;
+      methods_and_handle_.handle = manager.methods_and_handle_.handle;
       std::memcpy(&repr_, &manager.repr_,
                   UnsignedMin(sizeof(repr_), sizeof(manager.repr_)));
     } else {
-      manager.methods_and_handle_.handle = SentinelHandle<Handle>();
-      methods_and_handle_.methods = std::exchange(
-          manager.methods_and_handle_.methods, &NullMethods::kMethods);
-      methods_and_handle_.methods->move(
-          repr_.storage, &methods_and_handle_.handle, manager.repr_.storage);
+      manager.methods_and_handle_.methods->move(
+          manager.repr_.storage, repr_.storage, &methods_and_handle_);
     }
+    manager.methods_and_handle_.methods = &NullMethods::kMethods;
+    manager.methods_and_handle_.handle = SentinelHandle<Handle>();
     return;
   }
-  methods_and_handle_.methods = &MethodsFor<Manager>::kMethods;
-  MethodsFor<Manager>::Construct(repr_.storage, &methods_and_handle_.handle,
-                                 std::forward<Manager>(manager));
+  // Adopt `manager` by moving its representation to the heap if `Manager` is
+  // a value, or referring to it if `Manager` is a reference.
+  Adopt<Manager>(std::forward<Manager>(manager));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<!IsAny<Handle, Manager>::value, int>>
+          std::enable_if_t<IsAnyClosingPtr<Handle, Manager>::value, int>>
+inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
+    Manager&& manager) {
+  if (manager == nullptr) {
+    Initialize();
+    return;
+  }
+  // Adopt `*manager` by referring to its representation.
+  manager->methods_and_handle_.methods->make_reference(
+      manager->repr_.storage, repr_.storage, &methods_and_handle_);
+}
+
+template <typename Handle, size_t inline_size, size_t inline_align>
+template <typename Manager,
+          std::enable_if_t<
+              absl::conjunction<
+                  absl::negation<IsAny<Handle, Manager>>,
+                  absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
+              int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Initializer<Manager> manager) {
   methods_and_handle_.methods = &MethodsFor<Manager>::kMethods;
@@ -690,8 +699,17 @@ template <typename Manager,
           std::enable_if_t<IsAny<Handle, Manager>::value, int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Initializer<Manager> manager) {
-  // Materialize `Manager` to consider adopting its storage.
+  // Materialize `Manager` to adopt its storage.
   Initialize<Manager>(std::move(manager).Reference());
+}
+
+template <typename Handle, size_t inline_size, size_t inline_align>
+template <typename Manager,
+          std::enable_if_t<IsAnyClosingPtr<Handle, Manager>::value, int>>
+inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
+    Initializer<Manager> manager) {
+  // Materialize `Manager` to adopt its storage.
+  Initialize<Manager>(std::move(manager).Construct());
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -703,16 +721,36 @@ AnyBase<Handle, inline_size, inline_align>::InitializeFromAnyInitializer(
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
+template <typename Manager,
+          std::enable_if_t<!std::is_reference<Manager>::value, int>>
+inline void AnyBase<Handle, inline_size, inline_align>::Adopt(
+    Manager&& manager) {
+  manager.methods_and_handle_.methods->move_to_heap(
+      manager.repr_.storage, repr_.storage, &methods_and_handle_);
+  manager.methods_and_handle_.methods = &NullMethods::kMethods;
+  manager.methods_and_handle_.handle = SentinelHandle<Handle>();
+}
+
+template <typename Handle, size_t inline_size, size_t inline_align>
+template <typename Manager,
+          std::enable_if_t<std::is_rvalue_reference<Manager>::value, int>>
+inline void AnyBase<Handle, inline_size, inline_align>::Adopt(
+    Manager&& manager) {
+  manager.methods_and_handle_.methods->make_reference(
+      manager.repr_.storage, repr_.storage, &methods_and_handle_);
+}
+
+template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyBase<Handle, inline_size, inline_align>::Destroy() {
-  methods_and_handle_.handle.~Handle();
   methods_and_handle_.methods->destroy(repr_.storage);
+  methods_and_handle_.handle.~Handle();
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline void AnyBase<Handle, inline_size, inline_align>::Reset(std::nullptr_t) {
-  methods_and_handle_.handle = SentinelHandle<Handle>();
   methods_and_handle_.methods->destroy(repr_.storage);
   methods_and_handle_.methods = &NullMethods::kMethods;
+  methods_and_handle_.handle = SentinelHandle<Handle>();
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -720,7 +758,9 @@ template <typename Manager,
           std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int>>
 inline Manager* AnyBase<Handle, inline_size, inline_align>::GetIf()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  return static_cast<Manager*>(GetIf(TypeId::For<Manager>()));
+  if (type_id() != TypeId::For<Manager>()) return nullptr;
+  return RIEGELI_ASSUME_NOTNULL(static_cast<Manager*>(const_cast<void*>(
+      methods_and_handle_.methods->get_raw_manager(repr_.storage))));
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -728,19 +768,9 @@ template <typename Manager,
           std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int>>
 inline const Manager* AnyBase<Handle, inline_size, inline_align>::GetIf() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  return static_cast<const Manager*>(GetIf(TypeId::For<Manager>()));
-}
-
-template <typename Handle, size_t inline_size, size_t inline_align>
-inline void* AnyBase<Handle, inline_size, inline_align>::GetIf(TypeId type_id)
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  return methods_and_handle_.methods->mutable_get_if(repr_.storage, type_id);
-}
-
-template <typename Handle, size_t inline_size, size_t inline_align>
-inline const void* AnyBase<Handle, inline_size, inline_align>::GetIf(
-    TypeId type_id) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  return methods_and_handle_.methods->const_get_if(repr_.storage, type_id);
+  if (type_id() != TypeId::For<Manager>()) return nullptr;
+  return RIEGELI_ASSUME_NOTNULL(static_cast<const Manager*>(
+      methods_and_handle_.methods->get_raw_manager(repr_.storage)));
 }
 
 }  // namespace any_internal
