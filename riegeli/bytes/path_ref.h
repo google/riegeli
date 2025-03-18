@@ -39,7 +39,7 @@ namespace riegeli {
 // Filename used for default-constructed or moved-from objects.
 constexpr absl::string_view kDefaultFilename = "<none>";
 
-// `PathRef` stores an `absl::string_view` represeting a file path.
+// `PathRef` stores an `absl::string_view` representing a file path.
 //
 // It is intended for function parameters when the implementation needs
 // an `absl::string_view`, and the caller might have another representation
