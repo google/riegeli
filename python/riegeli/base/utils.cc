@@ -165,7 +165,6 @@ void FreeStaticObjectsImpl() {
   const StaticObject* static_object =
       std::exchange(all_static_objects, nullptr);
   while (static_object != nullptr) {
-    Py_DECREF(static_object->value_);
     static_object->value_ = nullptr;
     static_object = std::exchange(static_object->next_, nullptr);
   }
