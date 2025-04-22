@@ -1180,6 +1180,10 @@ inline void Chain::Prepend(Src&& src, Options options) {
 
 template <typename HashState>
 HashState Chain::HashValue(HashState hash_state) const {
+  // TODO: this code relies on two internal Abseil APIs:
+  // 1. AbslInternalPiecewiseCombiner
+  // 2. WeaklyMixedInteger
+  // Reimplement this in terms of the public Abseil API.
   {
     const absl::optional<absl::string_view> flat = TryFlat();
     if (flat != absl::nullopt) {
@@ -1191,7 +1195,8 @@ HashState Chain::HashValue(HashState hash_state) const {
     hash_state =
         combiner.add_buffer(std::move(hash_state), block.data(), block.size());
   }
-  return HashState::combine(combiner.finalize(std::move(hash_state)), size());
+  return HashState::combine(combiner.finalize(std::move(hash_state)),
+                            absl::hash_internal::WeaklyMixedInteger{size()});
 }
 
 template <typename Sink>
