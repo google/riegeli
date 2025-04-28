@@ -31,7 +31,7 @@ int std_out_fd = 1;
 int std_err_fd = 2;
 
 SizedSharedBuffer& StdInPending() {
-  return Global<SizedSharedBuffer>([] {});
+  return Global([] { return SizedSharedBuffer(); });
 }
 
 }  // namespace

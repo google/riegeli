@@ -17,97 +17,70 @@
 
 #include <new>
 #include <type_traits>
-#include <utility>
 
 #include "absl/meta/type_traits.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
-namespace global_internal {
-
-template <typename Init>
-struct InitResult {
-  using type = decltype(std::declval<Init>()());
-};
-
-template <typename Init>
-using InitResultT = typename InitResult<Init>::type;
-
-template <typename T, typename Init>
-struct IsInitFor : IsConstructibleFromResult<T, InitResultT<Init>> {};
-
-template <typename T, typename Init>
-struct IsInitForOrVoid
-    : absl::disjunction<absl::conjunction<std::is_void<InitResultT<Init>>,
-                                          std::is_default_constructible<T>>,
-                        IsInitFor<T, Init>> {};
-
-}  // namespace global_internal
-
-// `Global<T>()` returns a reference to a default-constructed object of type `T`
-// which must be const-qualified.
+// `Global<T>()` returns a const reference to a default-constructed object of
+// type `T`.
 //
 // All calls with the given `T` type return a reference to the same object.
 //
 // The object is created when `Global` is first called with the given `T` type,
 // and is never destroyed.
-template <
-    typename T,
-    std::enable_if_t<absl::conjunction<std::is_const<T>,
-                                       std::is_default_constructible<T>>::value,
-                     int> = 0>
-T& Global();
+template <typename T,
+          std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
+const T& Global();
 
-// `Global(init)` returns a const reference to an object returned by `init()`.
+// `Global(construct)` returns a reference to an object returned by `construct`,
+// or to the target of its `Initializer`.
 //
-// The object is created when `Global` is first called with the given `Init`
-// type, and is never destroyed.
-//
-// The `Init` type should be a lambda with no captures. This restriction is a
-// safeguard against making the object dependent on local state, which would be
-// misleadingly ignored for subsequent calls. Since distinct lambdas have
-// distinct types, distinct call sites with lambdas return references to
-// distinct objects.
-//
-// The `deduced` template parameter lets `Global<T>()` with an explicit
-// template argument unambiguously call another overload of `Global()`.
-template <
-    int deduced = 0, typename Init,
-    std::enable_if_t<
-        absl::conjunction<
-            std::is_empty<Init>,
-            global_internal::IsInitFor<
-                std::decay_t<global_internal::InitResultT<Init>>, Init>>::value,
-        int> = 0>
-const std::decay_t<global_internal::InitResultT<Init>>& Global(Init init);
-
-// `Global<T>(init)` returns a reference to an object of type `T` initialized by
-// `init()`, which returns `void`, `T`, or a constructor argument for `T`.
-//
-// Returning `void` makes the object default-constructed. Returning `void` or a
-// constructor argument allows to construct immovable objects before C++17 which
-// guarantees copy elision when returning an rvalue.
+// The object is created when `Global` is first called with the given
+// `construct` type, and is never destroyed.
 //
 // If `T` is not const-qualified, this is recommended only when the object is
 // thread-safe, or when it will be accessed only in a thread-safe way despite
-// the non-const type.
+// its non-const type.
 //
-// The object is created when `Global` is first called with the given `T` and
-// `Init` types, and is never destroyed.
-//
-// The `Init` type should be a lambda with no captures. This restriction is a
-// safeguard against making the object dependent on local state, which would be
-// misleadingly ignored for subsequent calls. Since distinct lambdas have
+// The `construct` type should be a lambda with no captures. This restriction is
+// a safeguard against making the object dependent on local state, which would
+// be misleadingly ignored for subsequent calls. Since distinct lambdas have
 // distinct types, distinct call sites with lambdas return references to
 // distinct objects.
-template <
-    typename T, typename Init,
-    std::enable_if_t<
-        absl::conjunction<std::is_empty<Init>,
-                          global_internal::IsInitForOrVoid<T, Init>>::value,
-        int> = 0>
-T& Global(Init init);
+template <typename Construct,
+          std::enable_if_t<absl::conjunction<std::is_empty<Construct>,
+                                             is_invocable<Construct>>::value,
+                           int> = 0>
+TargetT<invoke_result_t<Construct>>& Global(Construct construct);
+
+// `Global(construct, initialize)` returns a reference to an object returned by
+// `construct`, or to the target of its `Initializer`. After construction,
+// `initialize` is called on the reference.
+//
+// The object is created when `Global` is first called with the given
+// `construct` and `initialize` types, and is never destroyed.
+//
+// If `T` is not const-qualified, this is recommended only when the object is
+// thread-safe, or when it will be accessed only in a thread-safe way despite
+// its non-const type.
+//
+// The `construct` and `initialize` types should be lambdas with no captures.
+// This restriction is a safeguard against making the object dependent on local
+// state, which would be misleadingly ignored for subsequent calls. Since
+// distinct lambdas have distinct types, distinct call sites with lambdas return
+// references to distinct objects.
+template <typename Construct, typename Initialize,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_empty<Construct>, std::is_empty<Initialize>,
+                  is_invocable<Initialize,
+                               TargetT<invoke_result_t<Construct>>&>>::value,
+              int> = 0>
+TargetT<invoke_result_t<Construct>>& Global(Construct construct,
+                                            Initialize initialize);
 
 // Implementation details follow.
 
@@ -118,27 +91,29 @@ class NoDestructor {
  public:
   NoDestructor() { new (storage_) T(); }
 
-  template <
-      typename Init,
-      std::enable_if_t<std::is_void<global_internal::InitResultT<Init>>::value,
-                       int> = 0>
-  explicit NoDestructor(Init init) {
-    init();
-    new (storage_) T();
+  template <typename Construct>
+  explicit NoDestructor(Construct construct) {
+#if __cpp_guaranteed_copy_elision
+    new (storage_) T(riegeli::invoke(construct));
+#else
+    Initializer<T>(riegeli::invoke(construct)).ConstructAt(storage_);
+#endif
   }
 
-  template <
-      typename Init,
-      std::enable_if_t<!std::is_void<global_internal::InitResultT<Init>>::value,
-                       int> = 0>
-  explicit NoDestructor(Init init) {
-    new (storage_) T(init());
+  template <typename Construct, typename Initialize>
+  explicit NoDestructor(Construct construct, Initialize initialize) {
+#if __cpp_guaranteed_copy_elision
+    new (storage_) T(riegeli::invoke(construct));
+#else
+    Initializer<T>(riegeli::invoke(construct)).ConstructAt(storage_);
+#endif
+    riegeli::invoke(initialize, object());
   }
 
   NoDestructor(const NoDestructor&) = delete;
   NoDestructor& operator=(const NoDestructor&) = delete;
 
-  T& value() {
+  T& object() {
     return *
 #if __cpp_lib_launder >= 201606
         std::launder
@@ -152,41 +127,35 @@ class NoDestructor {
 
 }  // namespace global_internal
 
-template <
-    typename T,
-    std::enable_if_t<absl::conjunction<std::is_const<T>,
-                                       std::is_default_constructible<T>>::value,
-                     int>>
-inline T& Global() {
-  static global_internal::NoDestructor<T> kStorage;
-  return kStorage.value();
+template <typename T,
+          std::enable_if_t<std::is_default_constructible<T>::value, int>>
+inline const T& Global() {
+  static global_internal::NoDestructor<const T> kStorage;
+  return kStorage.object();
 }
 
-template <
-    int deduced, typename Init,
-    std::enable_if_t<
-        absl::conjunction<
-            std::is_empty<Init>,
-            global_internal::IsInitFor<
-                std::decay_t<global_internal::InitResultT<Init>>, Init>>::value,
-        int>>
-inline const std::decay_t<global_internal::InitResultT<Init>>& Global(
-    Init init) {
-  static global_internal::NoDestructor<
-      const std::decay_t<global_internal::InitResultT<Init>>>
-      kStorage(init);
-  return kStorage.value();
+template <typename Construct,
+          std::enable_if_t<absl::conjunction<std::is_empty<Construct>,
+                                             is_invocable<Construct>>::value,
+                           int>>
+inline TargetT<invoke_result_t<Construct>>& Global(Construct construct) {
+  static global_internal::NoDestructor<TargetT<invoke_result_t<Construct>>>
+      kStorage(construct);
+  return kStorage.object();
 }
 
-template <
-    typename T, typename Init,
-    std::enable_if_t<
-        absl::conjunction<std::is_empty<Init>,
-                          global_internal::IsInitForOrVoid<T, Init>>::value,
-        int>>
-inline T& Global(Init init) {
-  static global_internal::NoDestructor<T> kStorage(init);
-  return kStorage.value();
+template <typename Construct, typename Initialize,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_empty<Construct>, std::is_empty<Initialize>,
+                  is_invocable<Initialize,
+                               TargetT<invoke_result_t<Construct>>&>>::value,
+              int>>
+inline TargetT<invoke_result_t<Construct>>& Global(Construct construct,
+                                                   Initialize initialize) {
+  static global_internal::NoDestructor<TargetT<invoke_result_t<Construct>>>
+      kStorage(construct, initialize);
+  return kStorage.object();
 }
 
 }  // namespace riegeli

@@ -56,7 +56,8 @@ namespace riegeli {
 namespace {
 
 Reader* kEmptyReader() {
-  Reader* const reader = &Global<StringReader<>>([] {});
+  Reader* const reader =
+      &Global([] { return riegeli::OwningMaker<riegeli::StringReader<>>(); });
   RIEGELI_ASSERT_OK(*reader) << "kEmptyReader() has been closed";
   return reader;
 }

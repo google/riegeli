@@ -1179,7 +1179,7 @@ inline absl::Span<const std::string> CsvHeader::names() const
 inline const std::function<std::string(absl::string_view)>&
 CsvHeader::normalizer() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(payload_ == nullptr)) {
-    return Global<const std::function<std::string(absl::string_view)>>();
+    return Global<std::function<std::string(absl::string_view)>>();
   }
   return payload_->normalizer;
 }

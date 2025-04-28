@@ -24,15 +24,6 @@ cc_library(
 )
 
 cc_library(
-    name = "global",
-    hdrs = ["global.h"],
-    deps = [
-        ":type_traits",
-        "@com_google_absl//absl/meta:type_traits",
-    ],
-)
-
-cc_library(
     name = "compare",
     hdrs = ["compare.h"],
     deps = [
@@ -226,6 +217,16 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/utility",
+    ],
+)
+
+cc_library(
+    name = "global",
+    hdrs = ["global.h"],
+    deps = [
+        ":initializer",
+        ":type_traits",
+        "@com_google_absl//absl/meta:type_traits",
     ],
 )
 
@@ -629,6 +630,7 @@ cc_library(
     deps = [
         ":assert",
         ":global",
+        ":initializer",
         ":parallelism",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/synchronization",
@@ -646,6 +648,7 @@ cc_library(
         ":background_cleaning",
         ":compare",
         ":global",
+        ":initializer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
