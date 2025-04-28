@@ -96,21 +96,12 @@ char* WriteVarint64(uint64_t data, char* dest);
 char* WriteVarintSigned32(int32_t data, char* dest);
 char* WriteVarintSigned64(int64_t data, char* dest);
 
+// Encodes a signed varint (zigzag-encoding) as an unsigned value to be written
+// as a plain varint. This corresponds to protobuf types `sint{32,64}`.
+uint32_t EncodeVarintSigned32(int32_t value);
+uint64_t EncodeVarintSigned64(int64_t value);
+
 // Implementation details follow.
-
-namespace varint_internal {
-
-inline uint32_t EncodeSint32(int32_t value) {
-  return (static_cast<uint32_t>(value) << 1) ^
-         static_cast<uint32_t>(value >> 31);
-}
-
-inline uint64_t EncodeSint64(int64_t value) {
-  return (static_cast<uint64_t>(value) << 1) ^
-         static_cast<uint64_t>(value >> 63);
-}
-
-}  // namespace varint_internal
 
 inline bool WriteVarint32(uint32_t data, Writer& dest) {
   if (ABSL_PREDICT_FALSE(!dest.Push(RIEGELI_IS_CONSTANT(data) ||
@@ -151,19 +142,19 @@ inline bool WriteVarint64(uint64_t data, BackwardWriter& dest) {
 }
 
 inline bool WriteVarintSigned32(int32_t data, Writer& dest) {
-  return WriteVarint32(varint_internal::EncodeSint32(data), dest);
+  return WriteVarint32(EncodeVarintSigned32(data), dest);
 }
 
 inline bool WriteVarintSigned64(int64_t data, Writer& dest) {
-  return WriteVarint64(varint_internal::EncodeSint64(data), dest);
+  return WriteVarint64(EncodeVarintSigned64(data), dest);
 }
 
 inline bool WriteVarintSigned32(int32_t data, BackwardWriter& dest) {
-  return WriteVarint32(varint_internal::EncodeSint32(data), dest);
+  return WriteVarint32(EncodeVarintSigned32(data), dest);
 }
 
 inline bool WriteVarintSigned64(int64_t data, BackwardWriter& dest) {
-  return WriteVarint64(varint_internal::EncodeSint64(data), dest);
+  return WriteVarint64(EncodeVarintSigned64(data), dest);
 }
 
 inline size_t LengthVarint32(uint32_t data) {
@@ -181,11 +172,11 @@ inline size_t LengthVarint64(uint64_t data) {
 }
 
 inline size_t LengthVarintSigned32(int32_t data) {
-  return LengthVarint32(varint_internal::EncodeSint32(data));
+  return LengthVarint32(EncodeVarintSigned32(data));
 }
 
 inline size_t LengthVarintSigned64(int64_t data) {
-  return LengthVarint64(varint_internal::EncodeSint64(data));
+  return LengthVarint64(EncodeVarintSigned64(data));
 }
 
 inline char* WriteVarint32(uint32_t data, char* dest) {
@@ -215,11 +206,21 @@ inline char* WriteVarint64(uint64_t data, char* dest) {
 }
 
 inline char* WriteVarintSigned32(int32_t data, char* dest) {
-  return WriteVarint32(varint_internal::EncodeSint32(data), dest);
+  return WriteVarint32(EncodeVarintSigned32(data), dest);
 }
 
 inline char* WriteVarintSigned64(int64_t data, char* dest) {
-  return WriteVarint64(varint_internal::EncodeSint64(data), dest);
+  return WriteVarint64(EncodeVarintSigned64(data), dest);
+}
+
+inline uint32_t EncodeVarintSigned32(int32_t value) {
+  return (static_cast<uint32_t>(value) << 1) ^
+         static_cast<uint32_t>(value >> 31);
+}
+
+inline uint64_t EncodeVarintSigned64(int64_t value) {
+  return (static_cast<uint64_t>(value) << 1) ^
+         static_cast<uint64_t>(value >> 63);
 }
 
 }  // namespace riegeli

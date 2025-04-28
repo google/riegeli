@@ -186,12 +186,12 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
 
 // Implementation details follow.
 
-namespace messages_internal {
+namespace parse_message_internal {
 
 absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
                               ParseOptions options);
 
-}  // namespace messages_internal
+}  // namespace parse_message_internal
 
 template <
     typename Src,
@@ -201,7 +201,7 @@ inline absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =
-      messages_internal::ParseMessageImpl(*src_dep, dest, options);
+      parse_message_internal::ParseMessageImpl(*src_dep, dest, options);
   if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());

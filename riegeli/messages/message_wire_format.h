@@ -26,6 +26,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
@@ -68,7 +69,7 @@ bool WriteFloatWithTag(int field_number, float data, Writer& dest);
 bool WriteDoubleWithTag(int field_number, double data, Writer& dest);
 
 // Write the length of a length-delimited field, prefixed with its tag.
-bool WriteLengthWithTag(int field_number, size_t length, Writer& dest);
+bool WriteLengthWithTag(int field_number, Position length, Writer& dest);
 
 // Write a scalar field, prefixed with its tag.
 bool WriteVarint32WithTag(int field_number, uint32_t data,
@@ -89,11 +90,12 @@ bool WriteFloatWithTag(int field_number, float data, BackwardWriter& dest);
 bool WriteDoubleWithTag(int field_number, double data, BackwardWriter& dest);
 
 // Write the length of a length-delimited field, prefixed with its tag.
-bool WriteLengthWithTag(int field_number, size_t length, BackwardWriter& dest);
+bool WriteLengthWithTag(int field_number, Position length,
+                        BackwardWriter& dest);
 
 // Implementation details follow.
 
-inline constexpr uint32_t MakeTag(int field_number, WireType wire_type) {
+constexpr uint32_t MakeTag(int field_number, WireType wire_type) {
   return (static_cast<uint32_t>(field_number) << 3) |
          static_cast<uint32_t>(wire_type);
 }
@@ -150,14 +152,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarint64WithTag(int field_number,
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned32WithTag(
     int field_number, int32_t data, Writer& dest) {
-  return WriteVarint32WithTag(field_number, varint_internal::EncodeSint32(data),
-                              dest);
+  return WriteVarint32WithTag(field_number, EncodeVarintSigned32(data), dest);
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned64WithTag(
     int field_number, int64_t data, Writer& dest) {
-  return WriteVarint64WithTag(field_number, varint_internal::EncodeSint64(data),
-                              dest);
+  return WriteVarint64WithTag(field_number, EncodeVarintSigned64(data), dest);
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed32WithTag(int field_number,
@@ -212,18 +212,18 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteDoubleWithTag(int field_number,
                              dest);
 }
 
-namespace messages_internal {
+namespace message_wire_format_internal {
 
-ABSL_ATTRIBUTE_COLD bool FailLengthOverflow(Object& dest, size_t length);
+ABSL_ATTRIBUTE_COLD bool FailLengthOverflow(Object& dest, Position length);
 
-}  // namespace messages_internal
+}  // namespace message_wire_format_internal
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLengthWithTag(int field_number,
-                                                            size_t length,
+                                                            Position length,
                                                             Writer& dest) {
   if (ABSL_PREDICT_FALSE(length >
                          uint32_t{std::numeric_limits<int32_t>::max()})) {
-    return messages_internal::FailLengthOverflow(dest, length);
+    return message_wire_format_internal::FailLengthOverflow(dest, length);
   }
   const uint32_t tag = MakeTag(field_number, WireType::kLengthDelimited);
   if (ABSL_PREDICT_FALSE(!dest.Push(
@@ -233,7 +233,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLengthWithTag(int field_number,
                : kMaxLengthVarint32) +
           (RIEGELI_IS_CONSTANT(length) ||
                    (RIEGELI_IS_CONSTANT(length < 0x80) && length < 0x80)
-               ? LengthVarint32(length)
+               ? LengthVarint32(IntCast<uint32_t>(length))
                : kMaxLengthVarint32)))) {
     return false;
   }
@@ -267,14 +267,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarint64WithTag(
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned32WithTag(
     int field_number, int32_t data, BackwardWriter& dest) {
-  return WriteVarint32WithTag(field_number, varint_internal::EncodeSint32(data),
-                              dest);
+  return WriteVarint32WithTag(field_number, EncodeVarintSigned32(data), dest);
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteVarintSigned64WithTag(
     int field_number, int64_t data, BackwardWriter& dest) {
-  return WriteVarint64WithTag(field_number, varint_internal::EncodeSint64(data),
-                              dest);
+  return WriteVarint64WithTag(field_number, EncodeVarintSigned64(data), dest);
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteFixed32WithTag(
@@ -322,10 +320,10 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteDoubleWithTag(
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLengthWithTag(
-    int field_number, size_t length, BackwardWriter& dest) {
+    int field_number, Position length, BackwardWriter& dest) {
   if (ABSL_PREDICT_FALSE(length >
                          uint32_t{std::numeric_limits<int32_t>::max()})) {
-    return messages_internal::FailLengthOverflow(dest, length);
+    return message_wire_format_internal::FailLengthOverflow(dest, length);
   }
   const uint32_t tag = MakeTag(field_number, WireType::kLengthDelimited);
   const size_t header_length =

@@ -14,21 +14,20 @@
 
 #include "riegeli/messages/message_wire_format.h"
 
-#include <stddef.h>
-
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/types.h"
 
 namespace riegeli {
-namespace messages_internal {
+namespace message_wire_format_internal {
 
-bool FailLengthOverflow(Object& dest, size_t length) {
+bool FailLengthOverflow(Object& dest, Position length) {
   return dest.Fail(absl::ResourceExhaustedError(
       absl::StrCat("Failed to write length-delimited field "
                    "because its size must be smaller than 2GiB: ",
                    length)));
 }
 
-}  // namespace messages_internal
+}  // namespace message_wire_format_internal
 }  // namespace riegeli

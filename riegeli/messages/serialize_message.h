@@ -35,6 +35,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -136,6 +137,25 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                               Dest&& dest,
                               SerializeOptions options = SerializeOptions());
 
+// Writes the message in binary format to the given `BackwardWriter`.
+//
+// The `Dest` template parameter specifies the type of the object providing and
+// possibly owning the `BackwardWriter`. `Dest` must support
+// `DependencyRef<BackwardWriter*, Dest>`, e.g. `BackwardWriter&` (not owned),
+// `ChainBackwardWriter<>` (owned), `std::unique_ptr<BackwardWriter>` (owned),
+// `AnyRef<BackwardWriter*>` (maybe owned).
+//
+// Returns status:
+//  * `status.ok()`  - success (`dest` is written to)
+//  * `!status.ok()` - failure (`dest` is unspecified)
+template <
+    typename Dest,
+    std::enable_if_t<TargetRefSupportsDependency<BackwardWriter*, Dest>::value,
+                     int> = 0>
+absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                              Dest&& dest,
+                              SerializeOptions options = SerializeOptions());
+
 // Writes the message length as varint32, then the message in binary format to
 // the given `Writer`.
 //
@@ -203,13 +223,18 @@ inline size_t SerializeOptions::GetByteSize(
   return size;
 }
 
-namespace messages_internal {
+namespace serialize_message_internal {
 
 absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
                                   Writer& dest, SerializeOptions options,
                                   bool set_write_hint);
 
-}  // namespace messages_internal
+absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
+                                  BackwardWriter& dest,
+                                  SerializeOptions options,
+                                  bool set_write_hint);
+
+}  // namespace serialize_message_internal
 
 template <
     typename Dest,
@@ -217,7 +242,23 @@ template <
 inline absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                                      Dest&& dest, SerializeOptions options) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
-  absl::Status status = messages_internal::SerializeMessageImpl(
+  absl::Status status = serialize_message_internal::SerializeMessageImpl(
+      src, *dest_dep, options, dest_dep.IsOwning());
+  if (dest_dep.IsOwning()) {
+    if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
+      status.Update(dest_dep->status());
+    }
+  }
+  return status;
+}
+
+template <typename Dest,
+          std::enable_if_t<
+              TargetRefSupportsDependency<BackwardWriter*, Dest>::value, int>>
+inline absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
+                                     Dest&& dest, SerializeOptions options) {
+  DependencyRef<BackwardWriter*, Dest> dest_dep(std::forward<Dest>(dest));
+  absl::Status status = serialize_message_internal::SerializeMessageImpl(
       src, *dest_dep, options, dest_dep.IsOwning());
   if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {

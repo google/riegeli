@@ -82,7 +82,7 @@ inline absl::Status CheckInitialized(Reader& src,
 
 }  // namespace
 
-namespace messages_internal {
+namespace parse_message_internal {
 
 absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
                               ParseOptions options) {
@@ -121,7 +121,7 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
   return CheckInitialized(src, dest, options);
 }
 
-}  // namespace messages_internal
+}  // namespace parse_message_internal
 
 absl::Status ParseMessageWithLength(Reader& src, size_t length,
                                     google::protobuf::MessageLite& dest,

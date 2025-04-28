@@ -32,7 +32,7 @@
 
 namespace riegeli {
 
-namespace messages_internal {
+namespace text_print_message_internal {
 
 absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
                                   Writer& dest,
@@ -60,7 +60,7 @@ absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
   return absl::OkStatus();
 }
 
-}  // namespace messages_internal
+}  // namespace text_print_message_internal
 
 absl::Status TextPrintMessage(const google::protobuf::Message& src,
                               std::string& dest,

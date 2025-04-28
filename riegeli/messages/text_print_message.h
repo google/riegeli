@@ -128,13 +128,13 @@ absl::Status TextPrintMessage(
 
 // Implementation details follow.
 
-namespace messages_internal {
+namespace text_print_message_internal {
 
 absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
                                   Writer& dest,
                                   const TextPrintOptions& options);
 
-}  // namespace messages_internal
+}  // namespace text_print_message_internal
 
 template <
     typename Dest,
@@ -143,8 +143,8 @@ inline absl::Status TextPrintMessage(const google::protobuf::Message& src,
                                      Dest&& dest,
                                      const TextPrintOptions& options) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
-  absl::Status status =
-      messages_internal::TextPrintMessageImpl(src, *dest_dep, options);
+  absl::Status status = text_print_message_internal::TextPrintMessageImpl(
+      src, *dest_dep, options);
   if (dest_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!dest_dep->Close())) {
       status.Update(dest_dep->status());

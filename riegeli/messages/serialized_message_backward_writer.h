@@ -1,0 +1,495 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef RIEGELI_MESSAGES_SERIALIZED_MESSAGE_BACKWARD_WRITER_H_
+#define RIEGELI_MESSAGES_SERIALIZED_MESSAGE_BACKWARD_WRITER_H_
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+#include "absl/base/attributes.h"
+#include "absl/base/casts.h"
+#include "absl/base/optimization.h"
+#include "absl/status/status.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
+#include "google/protobuf/message_lite.h"
+#include "riegeli/base/assert.h"
+#include "riegeli/base/byte_fill.h"
+#include "riegeli/base/bytes_ref.h"
+#include "riegeli/base/chain.h"
+#include "riegeli/base/external_ref.h"
+#include "riegeli/base/types.h"
+#include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/reader.h"
+#include "riegeli/endian/endian_writing.h"
+#include "riegeli/messages/message_wire_format.h"
+#include "riegeli/messages/serialize_message.h"
+#include "riegeli/varint/varint_writing.h"
+
+namespace riegeli {
+
+// `SerializedMessageBackwardWriter` helps building a serialized message, by
+// specifying contents of particular fields instead of by serializing a message
+// object. Building proceeds back to front, using `BackwardWriter`.
+//
+// `SerializedMessageBackwardWriter` is more efficient than
+// `SerializedMessageWriter` in the case of nested messages, because their
+// contents can be written directly to the original `BackwardWriter`, with the
+// length known after building the contents.
+//
+// Building elements of a repeated field is done in the opposite order than in
+// `SerializedMessageWriter`, and if a non-repeated field is written multiple
+// times then they are overridden or merged in the opposite order. Otherwise the
+// field order does not influence how the message is parsed.
+//
+// Functions working on strings are applicable to any length-delimited field:
+// `string`, `bytes`, submessage, or a packed repeated field.
+class SerializedMessageBackwardWriter {
+ public:
+  // An empty object. It can be associated with a particular message by
+  // `set_dest()` or assignment.
+  //
+  // An empty `SerializedMessageBackwardWriter` is not usable directly.
+  SerializedMessageBackwardWriter() = default;
+
+  // Will write to `*dest`, which is not owned and must outlive usages of this
+  // object.
+  explicit SerializedMessageBackwardWriter(
+      BackwardWriter* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : dest_(dest) {}
+
+  SerializedMessageBackwardWriter(
+      SerializedMessageBackwardWriter&& that) noexcept;
+  SerializedMessageBackwardWriter& operator=(
+      SerializedMessageBackwardWriter&& that) noexcept;
+
+  // Returns the original `BackwardWriter` of the root message.
+  BackwardWriter* dest() const { return dest_; }
+
+  // Changes the `BackwardWriter` of the root message.
+  //
+  // This can be called even during building, even when submessages are open,
+  // but the position must be the same. It particular this must be called when
+  // the original `BackwardWriter` has been moved.
+  void set_dest(BackwardWriter* dest);
+
+  // Returns the `BackwardWriter` of the current message or length-delimited
+  // field being built.
+  //
+  // `writer()` is the same as `*dest()`. Functions are separate for consistency
+  // with `SerializedMessageWriter`.
+  //
+  // This can be used to write parts of the message directly, apart from
+  // `Write*()` functions which write whole fields.
+  //
+  // Building elements of a repeated field and writing parts of a single field
+  // to `writer()` is done in the opposite order than in
+  // `SerializedMessageWriter`.
+  BackwardWriter& writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    RIEGELI_ASSERT_NE(dest_, nullptr)
+        << "Failed precondition of SerializedMessageBackwardWriter::writer(): "
+           "dest() not set";
+    return *dest_;
+  }
+
+  // Writes the field tag and the field value.
+  absl::Status WriteInt32(int field_number, int32_t value);
+  absl::Status WriteInt64(int field_number, int64_t value);
+  absl::Status WriteUInt32(int field_number, uint32_t value);
+  absl::Status WriteUInt64(int field_number, uint64_t value);
+  absl::Status WriteSInt32(int field_number, int32_t value);
+  absl::Status WriteSInt64(int field_number, int64_t value);
+  absl::Status WriteBool(int field_number, bool value);
+  absl::Status WriteFixed32(int field_number, uint32_t value);
+  absl::Status WriteFixed64(int field_number, uint64_t value);
+  absl::Status WriteSFixed32(int field_number, int32_t value);
+  absl::Status WriteSFixed64(int field_number, int64_t value);
+  absl::Status WriteFloat(int field_number, float value);
+  absl::Status WriteDouble(int field_number, double value);
+  absl::Status WriteString(int field_number, BytesRef value);
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  absl::Status WriteString(int field_number, const char* value) {
+    return WriteString(field_number, absl::string_view(value));
+  }
+  absl::Status WriteString(int field_number, ExternalRef value);
+  template <typename Src,
+            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
+  absl::Status WriteString(int field_number, Src&& value);
+  absl::Status WriteString(int field_number, const Chain& value);
+  absl::Status WriteString(int field_number, Chain&& value);
+  absl::Status WriteString(int field_number, const absl::Cord& value);
+  absl::Status WriteString(int field_number, absl::Cord&& value);
+  absl::Status WriteString(int field_number, ByteFill value);
+  absl::Status CopyString(int field_number, Position length, Reader& src);
+  absl::Status WriteSerializedMessage(
+      int field_number, const google::protobuf::MessageLite& message,
+      SerializeOptions options = {});
+
+  // Writes an element of a packed repeated field.
+  //
+  // The field must have been opened with `OpenLengthDelimited()` or
+  // `WriteLengthUnchecked()`.
+  absl::Status WritePackedInt32(int32_t value);
+  absl::Status WritePackedInt64(int64_t value);
+  absl::Status WritePackedUInt32(uint32_t value);
+  absl::Status WritePackedUInt64(uint64_t value);
+  absl::Status WritePackedSInt32(int32_t value);
+  absl::Status WritePackedSInt64(int64_t value);
+  absl::Status WritePackedBool(bool value);
+  absl::Status WritePackedFixed32(uint32_t value);
+  absl::Status WritePackedFixed64(uint64_t value);
+  absl::Status WritePackedSFixed32(int32_t value);
+  absl::Status WritePackedSFixed64(int64_t value);
+  absl::Status WritePackedFloat(float value);
+  absl::Status WritePackedDouble(double value);
+
+  // Begins accumulating contents of a length-delimited field.
+  //
+  // `writer().pos()` is remembered, and field contents written to `writer()`
+  // are written directly to `dest()`.
+  void OpenLengthDelimited();
+
+  // Ends accumulating contents of a length-delimited field, and writes the
+  // field tag and length to the parent message.
+  //
+  // Each `OpenLengthDelimited()` call must be matched with a
+  // `CloseLengthDelimited()` or `CloseOptionalLengthDelimited()` call,
+  // unless the `SerializedMessageBackwardWriter` and its `dest()` are no longer
+  // used.
+  absl::Status CloseLengthDelimited(int field_number);
+
+  // Like `CloseLengthDelimited()`, but does not write the field tag and length
+  // if its contents turn out to be empty.
+  absl::Status CloseOptionalLengthDelimited(int field_number);
+
+  // Writes the field tag and the length of a length-delimited field.
+  //
+  // The value must have been written beforehand to `writer()`, with exactly
+  // `length` bytes, unless the `SerializedMessageBackwardWriter` and its
+  // `dest()` are no longer used. This is unchecked.
+  //
+  // `WriteLengthUnchecked()` is more efficient than `OpenLengthDelimited()`
+  // and `CloseLengthDelimited()`, although the difference is smaller than in
+  // `SerializedMessageWriter`.
+  //
+  // Writing the contents and calling `WriteLengthUnchecked()` is done in the
+  // opposite order than in `SerializedMessageWriter`.
+  absl::Status WriteLengthUnchecked(int field_number, Position length);
+
+  // Copies field contents from `src` positioned between the field tag and field
+  // contents, and Writes the field tag.
+  absl::Status CopyFieldFrom(uint32_t tag, Reader& src);
+
+ private:
+  absl::Status WriteTag(uint32_t tag);
+
+  BackwardWriter* dest_ = nullptr;
+  std::vector<Position> submessages_;
+
+  // Invariant: if `!submessages_.empty()` then `dest_ != nullptr`
+};
+
+// Implementation details follow.
+
+inline SerializedMessageBackwardWriter::SerializedMessageBackwardWriter(
+    SerializedMessageBackwardWriter&& that) noexcept
+    : dest_(that.dest_), submessages_(std::exchange(that.submessages_, {})) {}
+
+inline SerializedMessageBackwardWriter&
+SerializedMessageBackwardWriter::operator=(
+    SerializedMessageBackwardWriter&& that) noexcept {
+  dest_ = that.dest_;
+  submessages_ = std::exchange(that.submessages_, {});
+  return *this;
+}
+
+inline void SerializedMessageBackwardWriter::set_dest(BackwardWriter* dest) {
+  if (!submessages_.empty()) {
+    RIEGELI_ASSERT_NE(dest, nullptr)
+        << "Failed precondition of "
+           "SerializedMessageBackwardWriter::set_dest(): "
+           "null BackwardWriter pointer while writing a submessage";
+    RIEGELI_ASSERT_EQ(dest->pos(), dest_->pos())
+        << "Failed precondition of "
+           "SerializedMessageBackwardWriter::set_dest(): "
+           "pos() changes while writing a submessage";
+  }
+  dest_ = dest;
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteInt32(
+    int field_number, int32_t value) {
+  return WriteUInt64(field_number, static_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteInt64(
+    int field_number, int64_t value) {
+  return WriteUInt64(field_number, static_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteUInt32(
+    int field_number, uint32_t value) {
+  if (ABSL_PREDICT_FALSE(
+          !WriteVarint32WithTag(field_number, value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteUInt64(
+    int field_number, uint64_t value) {
+  if (ABSL_PREDICT_FALSE(
+          !WriteVarint64WithTag(field_number, value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteSInt32(
+    int field_number, int32_t value) {
+  return WriteUInt32(field_number, EncodeVarintSigned32(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteSInt64(
+    int field_number, int64_t value) {
+  return WriteUInt64(field_number, EncodeVarintSigned64(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteBool(int field_number,
+                                                               bool value) {
+  return WriteUInt32(field_number, value ? 1 : 0);
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteFixed32(
+    int field_number, uint32_t value) {
+  if (ABSL_PREDICT_FALSE(!WriteFixed32WithTag(field_number, value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteFixed64(
+    int field_number, uint64_t value) {
+  if (ABSL_PREDICT_FALSE(!WriteFixed64WithTag(field_number, value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteSFixed32(
+    int field_number, int32_t value) {
+  return WriteFixed32(field_number, static_cast<uint32_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteSFixed64(
+    int field_number, int64_t value) {
+  return WriteFixed64(field_number, static_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteFloat(
+    int field_number, float value) {
+  return WriteFixed32(field_number, absl::bit_cast<uint32_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteDouble(
+    int field_number, double value) {
+  return WriteFixed64(field_number, absl::bit_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedInt32(
+    int32_t value) {
+  return WritePackedUInt64(static_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedInt64(
+    int64_t value) {
+  return WritePackedUInt64(static_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedUInt32(
+    uint32_t value) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint32(value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedUInt64(
+    uint64_t value) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint64(value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedSInt32(
+    int32_t value) {
+  return WritePackedUInt32(EncodeVarintSigned32(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedSInt64(
+    int64_t value) {
+  return WritePackedUInt64(EncodeVarintSigned64(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedBool(
+    bool value) {
+  return WritePackedUInt32(value ? 1 : 0);
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedFixed32(
+    uint32_t value) {
+  if (ABSL_PREDICT_FALSE(!WriteLittleEndian32(value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedFixed64(
+    uint64_t value) {
+  if (ABSL_PREDICT_FALSE(!WriteLittleEndian64(value, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedSFixed32(
+    int32_t value) {
+  return WritePackedFixed32(static_cast<uint32_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedSFixed64(
+    int64_t value) {
+  return WritePackedFixed64(static_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedFloat(
+    float value) {
+  return WritePackedFixed32(absl::bit_cast<uint32_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WritePackedDouble(
+    double value) {
+  return WritePackedFixed64(absl::bit_cast<uint64_t>(value));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, BytesRef value) {
+  if (ABSL_PREDICT_FALSE(
+          !writer().Write(value) ||
+          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, ExternalRef value) {
+  const size_t length = value.size();
+  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)) ||
+                         !WriteLengthWithTag(field_number, length, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+template <typename Src,
+          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, Src&& value) {
+  return WriteString(field_number, ExternalRef(std::forward<Src>(value)));
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, const Chain& value) {
+  if (ABSL_PREDICT_FALSE(
+          !writer().Write(value) ||
+          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, Chain&& value) {
+  const size_t length = value.size();
+  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)) ||
+                         !WriteLengthWithTag(field_number, length, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, const absl::Cord& value) {
+  if (ABSL_PREDICT_FALSE(
+          !writer().Write(value) ||
+          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, absl::Cord&& value) {
+  const size_t length = value.size();
+  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)) ||
+                         !WriteLengthWithTag(field_number, length, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, ByteFill value) {
+  if (ABSL_PREDICT_FALSE(
+          !writer().Write(value) ||
+          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
+    int field_number, const google::protobuf::MessageLite& message,
+    SerializeOptions options) {
+  const size_t length = options.GetByteSize(message);
+  {
+    absl::Status status = riegeli::SerializeMessage(message, writer(), options);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(!WriteLengthWithTag(field_number, length, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::WriteLengthUnchecked(
+    int field_number, Position length) {
+  if (ABSL_PREDICT_FALSE(!WriteLengthWithTag(field_number, length, writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace riegeli
+
+#endif  // RIEGELI_MESSAGES_SERIALIZED_MESSAGE_BACKWARD_WRITER_H_

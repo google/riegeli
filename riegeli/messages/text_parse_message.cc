@@ -34,7 +34,7 @@
 
 namespace riegeli {
 
-namespace messages_internal {
+namespace text_parse_message_internal {
 
 void StringErrorCollector::RecordError(
     int line, google::protobuf::io::ColumnNumber column,
@@ -47,15 +47,15 @@ void StringErrorCollector::RecordError(
   }
 }
 
-}  // namespace messages_internal
+}  // namespace text_parse_message_internal
 
 TextParseOptions::TextParseOptions()
-    : error_collector_(
-          std::make_unique<messages_internal::StringErrorCollector>()) {
+    : error_collector_(std::make_unique<
+                       text_parse_message_internal::StringErrorCollector>()) {
   parser_.RecordErrorsTo(error_collector_.get());
 }
 
-namespace messages_internal {
+namespace text_parse_message_internal {
 
 absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
                                   const TextParseOptions& options) {
@@ -72,7 +72,7 @@ absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
   return absl::OkStatus();
 }
 
-}  // namespace messages_internal
+}  // namespace text_parse_message_internal
 
 absl::Status TextParseMessage(BytesRef src, google::protobuf::Message& dest,
                               const TextParseOptions& options) {

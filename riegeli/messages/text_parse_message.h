@@ -37,7 +37,7 @@ namespace riegeli {
 
 class TextParseOptions;
 
-namespace messages_internal {
+namespace text_parse_message_internal {
 
 class StringErrorCollector : public google::protobuf::io::ErrorCollector {
  public:
@@ -53,7 +53,7 @@ class StringErrorCollector : public google::protobuf::io::ErrorCollector {
 absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
                                   const TextParseOptions& options);
 
-}  // namespace messages_internal
+}  // namespace text_parse_message_internal
 
 class TextParseOptions {
  public:
@@ -88,12 +88,13 @@ class TextParseOptions {
 
  private:
   // For `error_collector_`.
-  friend absl::Status messages_internal::TextParseMessageImpl(
+  friend absl::Status text_parse_message_internal::TextParseMessageImpl(
       Reader& src, google::protobuf::Message& dest,
       const TextParseOptions& options);
 
   bool merge_ = false;
-  std::unique_ptr<messages_internal::StringErrorCollector> error_collector_;
+  std::unique_ptr<text_parse_message_internal::StringErrorCollector>
+      error_collector_;
   google::protobuf::TextFormat::Parser parser_;
 };
 
@@ -133,12 +134,12 @@ absl::Status TextParseMessage(
 
 // Implementation details follow.
 
-namespace messages_internal {
+namespace text_parse_message_internal {
 
 absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
                                   const TextParseOptions& options);
 
-}  // namespace messages_internal
+}  // namespace text_parse_message_internal
 
 template <
     typename Src,
@@ -147,8 +148,8 @@ inline absl::Status TextParseMessage(Src&& src, google::protobuf::Message& dest,
                                      const TextParseOptions& options) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
-  absl::Status status =
-      messages_internal::TextParseMessageImpl(*src_dep, dest, options);
+  absl::Status status = text_parse_message_internal::TextParseMessageImpl(
+      *src_dep, dest, options);
   if (src_dep.IsOwning()) {
     if (ABSL_PREDICT_TRUE(status.ok())) src_dep->VerifyEnd();
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());

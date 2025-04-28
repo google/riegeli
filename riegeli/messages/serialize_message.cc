@@ -38,8 +38,10 @@
 #include "riegeli/base/string_utils.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/array_writer.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_writer.h"
+#include "riegeli/bytes/restricted_chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/varint/varint_writing.h"
 
@@ -56,6 +58,12 @@ ABSL_ATTRIBUTE_COLD inline absl::Status FailSizeOverflow(
 
 ABSL_ATTRIBUTE_COLD inline absl::Status FailSizeOverflow(
     const google::protobuf::MessageLite& src, Writer& dest, size_t size) {
+  return dest.AnnotateStatus(FailSizeOverflow(src, size));
+}
+
+ABSL_ATTRIBUTE_COLD inline absl::Status FailSizeOverflow(
+    const google::protobuf::MessageLite& src, BackwardWriter& dest,
+    size_t size) {
   return dest.AnnotateStatus(FailSizeOverflow(src, size));
 }
 
@@ -109,9 +117,48 @@ inline absl::Status SerializeMessageHavingSize(
   return SerializeMessageUsingStream(src, dest, deterministic, size);
 }
 
+inline absl::Status SerializeMessageHavingSize(
+    const google::protobuf::MessageLite& src, BackwardWriter& dest,
+    bool deterministic, size_t size) {
+  if (size <= kMaxBytesToCopy &&
+      deterministic == google::protobuf::io::CodedOutputStream::
+                           IsDefaultSerializationDeterministic()) {
+    // The data are small, so making a flat output is harmless.
+    // `SerializeWithCachedSizesToArray()` is faster than
+    // `SerializeWithCachedSizes()`.
+    if (ABSL_PREDICT_FALSE(!dest.Push(size))) return dest.status();
+    dest.move_cursor(size);
+    char* const cursor =
+        reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
+            reinterpret_cast<uint8_t*>(dest.cursor())));
+    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+        << src.GetTypeName()
+        << " was modified concurrently during serialization";
+    RIEGELI_ASSERT_EQ(PtrDistance(dest.cursor(), cursor), size)
+        << "Byte size calculation and serialization were inconsistent. This "
+           "may indicate a bug in protocol buffers or it may be caused by "
+           "concurrent modification of "
+        << src.GetTypeName();
+    return absl::OkStatus();
+  }
+  RestrictedChainWriter chain_writer;
+  {
+    absl::Status status =
+        SerializeMessageUsingStream(src, chain_writer, deterministic, size);
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return chain_writer.status();
+  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(chain_writer.dest())))) {
+    return dest.status();
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
-namespace messages_internal {
+namespace serialize_message_internal {
 
 absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
                                   Writer& dest, SerializeOptions options,
@@ -129,7 +176,24 @@ absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
   return SerializeMessageHavingSize(src, dest, options.deterministic(), size);
 }
 
-}  // namespace messages_internal
+absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
+                                  BackwardWriter& dest,
+                                  SerializeOptions options,
+                                  bool set_write_hint) {
+  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+      << "Failed to serialize message of type " << src.GetTypeName()
+      << " because it is missing required fields: "
+      << src.InitializationErrorString();
+  const size_t size = options.GetByteSize(src);
+  if (ABSL_PREDICT_FALSE(size >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return FailSizeOverflow(src, dest, size);
+  }
+  if (set_write_hint) dest.SetWriteSizeHint(size);
+  return SerializeMessageHavingSize(src, dest, options.deterministic(), size);
+}
+
+}  // namespace serialize_message_internal
 
 absl::Status SerializeLengthPrefixedMessage(
     const google::protobuf::MessageLite& src, Writer& dest,
