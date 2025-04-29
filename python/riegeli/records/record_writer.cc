@@ -217,10 +217,10 @@ extern "C" {
 
 static void RecordWriterDestructor(PyRecordWriterObject* self) {
   PyObject_GC_UnTrack(self);
-  Py_TRASHCAN_SAFE_BEGIN(self);
+  Py_TRASHCAN_BEGIN(self, RecordWriterDestructor);
   PythonUnlocked([&] { self->record_writer.reset(); });
   Py_TYPE(self)->tp_free(self);
-  Py_TRASHCAN_SAFE_END(self);
+  Py_TRASHCAN_END;
 }
 
 static int RecordWriterTraverse(PyRecordWriterObject* self, visitproc visit,

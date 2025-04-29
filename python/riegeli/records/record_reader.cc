@@ -220,12 +220,12 @@ extern "C" {
 
 static void RecordReaderDestructor(PyRecordReaderObject* self) {
   PyObject_GC_UnTrack(self);
-  Py_TRASHCAN_SAFE_BEGIN(self);
+  Py_TRASHCAN_BEGIN(self, RecordReaderDestructor);
   PythonUnlocked([&] { self->record_reader.reset(); });
   Py_XDECREF(self->recovery);
   self->recovery_exception.reset();
   Py_TYPE(self)->tp_free(self);
-  Py_TRASHCAN_SAFE_END(self);
+  Py_TRASHCAN_END;
 }
 
 static int RecordReaderTraverse(PyRecordReaderObject* self, visitproc visit,
@@ -1383,11 +1383,11 @@ extern "C" {
 
 static void RecordIterDestructor(PyRecordIterObject* self) {
   PyObject_GC_UnTrack(self);
-  Py_TRASHCAN_SAFE_BEGIN(self);
+  Py_TRASHCAN_BEGIN(self, RecordIterDestructor);
   Py_XDECREF(self->record_reader);
   Py_XDECREF(self->args);
   Py_TYPE(self)->tp_free(self);
-  Py_TRASHCAN_SAFE_END(self);
+  Py_TRASHCAN_END;
 }
 
 static int RecordIterTraverse(PyRecordIterObject* self, visitproc visit,
