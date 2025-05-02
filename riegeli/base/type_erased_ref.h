@@ -15,7 +15,6 @@
 #ifndef RIEGELI_BASE_TYPE_ERASED_REF_H_
 #define RIEGELI_BASE_TYPE_ERASED_REF_H_
 
-#include <array>
 #include <cstddef>
 #include <memory>
 #include <type_traits>
@@ -24,8 +23,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
-#include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -45,7 +43,7 @@ class
 #ifdef ABSL_NULLABILITY_COMPATIBLE
     ABSL_NULLABILITY_COMPATIBLE
 #endif
-    TypeErasedRef {
+    TypeErasedRef : public WithEqual<TypeErasedRef> {
  private:
   template <typename T>
   struct IsFunctionRef : std::false_type {};
@@ -66,22 +64,18 @@ class
                                   absl::negation<IsFunctionRef<T>>>::value,
                 int> = 0>
   explicit TypeErasedRef(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : ptr_(const_cast<absl::remove_cvref_t<T>*>(std::addressof(value))) {
-    RIEGELI_ASSERT(repr_ != Repr())
-        << "A non-empty pointer is assumed to have a non-zero representation";
-  }
+      : ptr_(const_cast<absl::remove_cvref_t<T>*>(std::addressof(value))) {}
 
   // Wraps a function reference.
+  //
+  // The implementation relies on the assumption that a function pointer can be
+  // `reinterpret_cast` to `void*` and back.
   template <typename T,
             std::enable_if_t<
                 // `NotSelfCopy` is not needed because `T` is a function
                 // reference, so it is never `TypeErasedRef`.
                 IsFunctionRef<T>::value, int> = 0>
-  explicit TypeErasedRef(T&& value)
-      : function_ptr_(reinterpret_cast<void (*)()>(&value)) {
-    RIEGELI_ASSERT(repr_ != Repr())
-        << "A non-empty pointer is assumed to have a non-zero representation";
-  }
+  explicit TypeErasedRef(T&& value) : ptr_(reinterpret_cast<void*>(&value)) {}
 
   TypeErasedRef(const TypeErasedRef& that) = default;
   TypeErasedRef& operator=(const TypeErasedRef& that) = default;
@@ -96,21 +90,15 @@ class
   // Recovers a function reference.
   template <typename T, std::enable_if_t<IsFunctionRef<T>::value, int> = 0>
   T&& Cast() const {
-    return *reinterpret_cast<std::remove_reference_t<T>*>(function_ptr_);
+    return *reinterpret_cast<std::remove_reference_t<T>*>(ptr_);
   }
 
   friend bool operator==(TypeErasedRef a, std::nullptr_t) {
-    return a.repr_ == Repr();
+    return a.ptr_ == nullptr;
   }
 
  private:
-  using Repr = std::array<char, UnsignedMax(sizeof(void*), sizeof(void (*)()))>;
-
-  union {
-    void* ptr_;
-    void (*function_ptr_)();
-    Repr repr_ = {};
-  };
+  void* ptr_ = nullptr;
 };
 
 }  // namespace riegeli
