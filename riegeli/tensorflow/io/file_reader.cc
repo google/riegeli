@@ -199,8 +199,8 @@ inline bool FileReaderBase::ReadToDest(size_t length,
   const size_t length_to_read =
       UnsignedMin(length, std::numeric_limits<uint64_t>::max() - limit_pos());
   absl::string_view result;
-  const absl::Status status =
-      src->Read(IntCast<uint64_t>(limit_pos()), length_to_read, &result, dest);
+  const absl::Status status = src->Read(IntCast<uint64_t>(limit_pos()), result,
+                                        absl::MakeSpan(dest, length_to_read));
   RIEGELI_ASSERT_LE(result.size(), length_to_read)
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() != dest) std::memcpy(dest, result.data(), result.size());
@@ -240,8 +240,8 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
       flat_buffer.size(), std::numeric_limits<uint64_t>::max() - limit_pos());
   absl::string_view result;
   const absl::Status status =
-      src->Read(IntCast<uint64_t>(limit_pos()), length_to_read, &result,
-                flat_buffer.data());
+      src->Read(IntCast<uint64_t>(limit_pos()), result,
+                absl::MakeSpan(flat_buffer.data(), length_to_read));
   RIEGELI_ASSERT_LE(result.size(), length_to_read)
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() == flat_buffer.data()) {
