@@ -34,6 +34,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -242,6 +243,38 @@ class SerializedMessageReaderBase {
 template <typename Context = void>
 class SerializedMessageReader : public SerializedMessageReaderBase {
  public:
+  // ```
+  // const auto& message_reader = SerializedMessageReader<Context>::Global(
+  //   [](SerializedMessageReader<Context>& message_reader) {
+  //     ...
+  //   });
+  // ```
+  //
+  // Returns a const reference to a `SerializedMessageReader` object, with the
+  // initializer once called on its non-const reference.
+  //
+  // The object is created when `Global()` is first called with the given
+  // initializer type, and is never destroyed.
+  //
+  // The initializer should set the actions. This is the recommended way to
+  // create a `SerializedMessageReader` object with a fixed set of fields
+  // to be read, while `Context` should hold any state specific to the
+  // particular message object, so that the `SerializedMessageReader` object
+  // can be reused.
+  //
+  // The initializer type should be a lambda with no captures. This restriction
+  // is a safeguard against making the object dependent on local state, which
+  // would be misleadingly ignored for subsequent calls. Since distinct lambdas
+  // have distinct types, distinct call sites with lambdas return references to
+  // distinct objects.
+  template <typename Initialize,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::is_empty<Initialize>,
+                    is_invocable<Initialize, SerializedMessageReader&>>::value,
+                int> = 0>
+  static const SerializedMessageReader& Global(Initialize initialize);
+
   SerializedMessageReader() = default;
 
   SerializedMessageReader(const SerializedMessageReader& that) = default;
@@ -459,6 +492,19 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
 };
 
 // Implementation details follow.
+
+template <typename Context>
+template <
+    typename Initialize,
+    std::enable_if_t<
+        absl::conjunction<
+            std::is_empty<Initialize>,
+            is_invocable<Initialize, SerializedMessageReader<Context>&>>::value,
+        int>>
+inline const SerializedMessageReader<Context>&
+SerializedMessageReader<Context>::Global(Initialize initialize) {
+  return riegeli::Global([] { return SerializedMessageReader(); }, initialize);
+}
 
 template <typename Context>
 template <typename Action,

@@ -24,12 +24,14 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/global.h"
 #include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/chain_writer.h"
@@ -102,6 +104,39 @@ class MessageReaderContext<false> {
 template <typename Context = void>
 class SerializedMessageRewriter {
  public:
+  // ```
+  // const auto& message_rewriter = SerializedMessageRewriter<Context>::Global(
+  //   [](SerializedMessageRewriter<Context>& message_rewriter) {
+  //     ...
+  //   });
+  // ```
+  //
+  // Returns a const reference to a `SerializedMessageRewriter` object, with the
+  // initializer once called on its non-const reference.
+  //
+  // The object is created when `Global()` is first called with the given
+  // initializer type, and is never destroyed.
+  //
+  // The initializer should set the actions. This is the recommended way to
+  // create a `SerializedMessageRewriter` object with a fixed set of fields
+  // to be rewritten, while `Context` should hold any state specific to the
+  // particular message object, so that the `SerializedMessageRewriter` object
+  // can be reused.
+  //
+  // The initializer type should be a lambda with no captures. This restriction
+  // is a safeguard against making the object dependent on local state, which
+  // would be misleadingly ignored for subsequent calls. Since distinct lambdas
+  // have distinct types, distinct call sites with lambdas return references to
+  // distinct objects.
+  template <
+      typename Initialize,
+      std::enable_if_t<
+          absl::conjunction<
+              std::is_empty<Initialize>,
+              is_invocable<Initialize, SerializedMessageRewriter&>>::value,
+          int> = 0>
+  static const SerializedMessageRewriter& Global(Initialize initialize);
+
   SerializedMessageRewriter() noexcept;
 
   SerializedMessageRewriter(const SerializedMessageRewriter& that) = default;
@@ -361,6 +396,20 @@ class SerializedMessageRewriter {
 };
 
 // Implementation details follow.
+
+template <typename Context>
+template <
+    typename Initialize,
+    std::enable_if_t<
+        absl::conjunction<std::is_empty<Initialize>,
+                          is_invocable<Initialize, SerializedMessageRewriter<
+                                                       Context>&>>::value,
+        int>>
+inline const SerializedMessageRewriter<Context>&
+SerializedMessageRewriter<Context>::Global(Initialize initialize) {
+  return riegeli::Global([] { return SerializedMessageRewriter(); },
+                         initialize);
+}
 
 template <typename Context>
 SerializedMessageRewriter<Context>::SerializedMessageRewriter() noexcept {
