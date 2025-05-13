@@ -157,10 +157,12 @@ cc_library(
     deps = [
         ":message_wire_format",
         ":serialize_message",
+        "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
+        "//riegeli/base:constexpr",
         "//riegeli/base:external_ref",
         "//riegeli/base:types",
         "//riegeli/bytes:chain_writer",
@@ -187,6 +189,7 @@ cc_library(
     deps = [
         ":message_wire_format",
         ":serialize_message",
+        "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
         "//riegeli/base:bytes_ref",

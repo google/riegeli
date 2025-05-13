@@ -34,6 +34,13 @@
 
 namespace riegeli {
 
+absl::Status SerializedMessageWriter::LengthOverflowError(Position length) {
+  return absl::ResourceExhaustedError(
+      absl::StrCat("Failed to write length-delimited field "
+                   "because its size must be smaller than 2GiB: ",
+                   length));
+}
+
 absl::Status SerializedMessageWriter::CopyString(int field_number,
                                                  Position length, Reader& src) {
   {
@@ -72,10 +79,14 @@ absl::Status SerializedMessageWriter::CloseLengthDelimited(int field_number) {
   ChainWriter<Chain>& submessage = submessages_.back();
   if (ABSL_PREDICT_FALSE(!submessage.Close())) return submessage.status();
   writer_ = submessages_.size() > 1 ? &submessages_.end()[-2] : dest_;
-  if (ABSL_PREDICT_FALSE(!WriteLengthWithTag(field_number,
-                                             submessage.dest().size(),
-                                             *writer_) ||
-                         !writer_->Write(std::move(submessage.dest())))) {
+  {
+    absl::Status status =
+        WriteLengthUnchecked(field_number, submessage.dest().size());
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(!writer_->Write(std::move(submessage.dest())))) {
     return writer_->status();
   }
   submessages_.pop_back();
@@ -95,10 +106,14 @@ absl::Status SerializedMessageWriter::CloseOptionalLengthDelimited(
   if (ABSL_PREDICT_FALSE(!submessage.Close())) return submessage.status();
   writer_ = submessages_.size() > 1 ? &submessages_.end()[-2] : dest_;
   if (!submessage.dest().empty()) {
-    if (ABSL_PREDICT_FALSE(!WriteLengthWithTag(field_number,
-                                               submessage.dest().size(),
-                                               *writer_) ||
-                           !writer_->Write(std::move(submessage.dest())))) {
+    {
+      absl::Status status =
+          WriteLengthUnchecked(field_number, submessage.dest().size());
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
+      }
+    }
+    if (ABSL_PREDICT_FALSE(!writer_->Write(std::move(submessage.dest())))) {
       return writer_->status();
     }
   }

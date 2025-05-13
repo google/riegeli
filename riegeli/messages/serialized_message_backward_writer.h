@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -29,6 +30,7 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/bytes_ref.h"
@@ -197,6 +199,7 @@ class SerializedMessageBackwardWriter {
   absl::Status CopyFieldFrom(uint32_t tag, Reader& src);
 
  private:
+  ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
   absl::Status WriteTag(uint32_t tag);
 
   BackwardWriter* dest_ = nullptr;
@@ -391,22 +394,19 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedDouble(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, BytesRef value) {
-  if (ABSL_PREDICT_FALSE(
-          !writer().Write(value) ||
-          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
   }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, value.size());
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, ExternalRef value) {
   const size_t length = value.size();
-  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)) ||
-                         !WriteLengthWithTag(field_number, length, writer()))) {
+  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
     return writer().status();
   }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, length);
 }
 
 template <typename Src,
@@ -418,52 +418,44 @@ inline absl::Status SerializedMessageBackwardWriter::WriteString(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, const Chain& value) {
-  if (ABSL_PREDICT_FALSE(
-          !writer().Write(value) ||
-          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
   }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, value.size());
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, Chain&& value) {
   const size_t length = value.size();
-  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)) ||
-                         !WriteLengthWithTag(field_number, length, writer()))) {
+  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
     return writer().status();
   }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, length);
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, const absl::Cord& value) {
-  if (ABSL_PREDICT_FALSE(
-          !writer().Write(value) ||
-          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
   }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, value.size());
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, absl::Cord&& value) {
   const size_t length = value.size();
-  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)) ||
-                         !WriteLengthWithTag(field_number, length, writer()))) {
+  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
     return writer().status();
   }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, length);
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, ByteFill value) {
-  if (ABSL_PREDICT_FALSE(
-          !writer().Write(value) ||
-          !WriteLengthWithTag(field_number, value.size(), writer()))) {
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
   }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, value.size());
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
@@ -476,17 +468,24 @@ inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
       return status;
     }
   }
-  if (ABSL_PREDICT_FALSE(!WriteLengthWithTag(field_number, length, writer()))) {
-    return writer().status();
-  }
-  return absl::OkStatus();
+  return WriteLengthUnchecked(field_number, length);
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteLengthUnchecked(
     int field_number, Position length) {
-  if (ABSL_PREDICT_FALSE(!WriteLengthWithTag(field_number, length, writer()))) {
+  if (ABSL_PREDICT_FALSE(length >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return LengthOverflowError(length);
+  }
+  const uint32_t tag = MakeTag(field_number, WireType::kLengthDelimited);
+  const size_t header_length =
+      LengthVarint32(tag) + LengthVarint32(IntCast<uint32_t>(length));
+  if (ABSL_PREDICT_FALSE(!writer().Push(header_length))) {
     return writer().status();
   }
+  writer().move_cursor(header_length);
+  char* const ptr = WriteVarint32(tag, writer().cursor());
+  WriteVarint32(IntCast<uint32_t>(length), ptr);
   return absl::OkStatus();
 }
 
