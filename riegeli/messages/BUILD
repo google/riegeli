@@ -122,35 +122,6 @@ cc_library(
 )
 
 cc_library(
-    name = "serialized_message_reader",
-    srcs = ["serialized_message_reader.cc"],
-    hdrs = ["serialized_message_reader.h"],
-    deps = [
-        ":message_wire_format",
-        ":parse_message",
-        "//riegeli/base:any",
-        "//riegeli/base:assert",
-        "//riegeli/base:chain",
-        "//riegeli/base:global",
-        "//riegeli/base:type_erased_ref",
-        "//riegeli/base:type_traits",
-        "//riegeli/bytes:chain_writer",
-        "//riegeli/bytes:limiting_reader",
-        "//riegeli/bytes:reader",
-        "//riegeli/endian:endian_reading",
-        "//riegeli/varint:varint_reading",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "serialized_message_writer",
     srcs = ["serialized_message_writer.cc"],
     hdrs = ["serialized_message_writer.h"],
@@ -169,14 +140,12 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
         "//riegeli/endian:endian_writing",
-        "//riegeli/varint:varint_reading",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:optional",
         "@com_google_protobuf//:protobuf",
         "@com_google_protobuf//:protobuf_lite",
     ],
@@ -212,9 +181,46 @@ cc_library(
 )
 
 cc_library(
+    name = "serialized_message_reader",
+    srcs = [
+        "serialized_message_internal.h",
+        "serialized_message_reader.cc",
+    ],
+    hdrs = ["serialized_message_reader.h"],
+    deps = [
+        ":message_wire_format",
+        ":parse_message",
+        "//riegeli/base:any",
+        "//riegeli/base:assert",
+        "//riegeli/base:chain",
+        "//riegeli/base:global",
+        "//riegeli/base:type_erased_ref",
+        "//riegeli/base:type_traits",
+        "//riegeli/bytes:chain_writer",
+        "//riegeli/bytes:limiting_reader",
+        "//riegeli/bytes:reader",
+        "//riegeli/endian:endian_reading",
+        "//riegeli/varint:varint_reading",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "serialized_message_rewriter",
+    srcs = [
+        "serialized_message_internal.h",
+        "serialized_message_rewriter.cc",
+    ],
     hdrs = ["serialized_message_rewriter.h"],
     deps = [
+        ":message_wire_format",
         ":parse_message",
         ":serialized_message_reader",
         ":serialized_message_writer",
@@ -227,11 +233,14 @@ cc_library(
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
+        "//riegeli/varint:varint_reading",
+        "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )

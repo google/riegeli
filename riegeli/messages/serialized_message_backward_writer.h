@@ -195,7 +195,7 @@ class SerializedMessageBackwardWriter {
   absl::Status WriteLengthUnchecked(int field_number, Position length);
 
   // Copies field contents from `src` positioned between the field tag and field
-  // contents, and Writes the field tag.
+  // contents, and writes the field tag.
   absl::Status CopyFieldFrom(uint32_t tag, Reader& src);
 
  private:

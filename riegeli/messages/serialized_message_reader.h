@@ -23,7 +23,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
@@ -41,56 +40,10 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/messages/parse_message.h"
+#include "riegeli/messages/serialized_message_internal.h"
 #include "riegeli/varint/varint_reading.h"
 
 namespace riegeli {
-
-namespace serialized_message_reader_internal {
-
-template <typename Enable, typename Context, typename Action, typename... Args>
-struct IsInvocableWithContextImpl : std::false_type {};
-
-template <typename Context, typename Action, typename... Args>
-struct IsInvocableWithContextImpl<
-    std::enable_if_t<!std::is_void<Context>::value>, Context, Action, Args...>
-    : is_invocable_r<absl::Status, Action, Args..., Context&> {};
-
-template <typename Context, typename Action, typename... Args>
-struct IsInvocableWithContext
-    : IsInvocableWithContextImpl<void, Context, Action, Args...> {};
-
-template <typename Action, typename... Args>
-struct IsInvocableWithoutContext
-    : is_invocable_r<absl::Status, Action, Args...> {};
-
-template <typename Context, typename Action, typename... Args>
-struct IsAction
-    : absl::disjunction<IsInvocableWithContext<Context, Action, Args...>,
-                        IsInvocableWithoutContext<Action, Args...>> {};
-
-template <typename Context, typename Action, typename... Args,
-          std::enable_if_t<
-              IsInvocableWithContext<Context, Action, Args...>::value, int> = 0>
-inline absl::Status InvokeAction(TypeErasedRef context, Action&& action,
-                                 Args&&... args) {
-  return riegeli::invoke(std::forward<Action>(action),
-                         std::forward<Args>(args)..., context.Cast<Context&>());
-}
-
-template <
-    typename Context, typename Action, typename... Args,
-    std::enable_if_t<
-        absl::conjunction<
-            absl::negation<IsInvocableWithContext<Context, Action, Args...>>,
-            IsInvocableWithoutContext<Action, Args...>>::value,
-        int> = 0>
-inline absl::Status InvokeAction(ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
-                                 Action&& action, Args&&... args) {
-  return riegeli::invoke(std::forward<Action>(action),
-                         std::forward<Args>(args)...);
-}
-
-}  // namespace serialized_message_reader_internal
 
 // Template parameter independent part of `SerializedMessageReader`.
 class SerializedMessageReaderBase {
@@ -152,7 +105,6 @@ class SerializedMessageReaderBase {
       std::function<absl::Status(size_t length, LimitingReaderBase& src,
                                  TypeErasedRef context)>
           action);
-
   void BeforeMessage(absl::Span<const int> field_path,
                      std::function<absl::Status(TypeErasedRef context)> action);
   void AfterMessage(absl::Span<const int> field_path,
@@ -163,7 +115,6 @@ class SerializedMessageReaderBase {
                    default_action) {
     on_other_ = std::move(default_action);
   }
-
   void BeforeOtherMessage(
       std::function<absl::Status(int field_number, TypeErasedRef context)>
           action) {
@@ -177,12 +128,6 @@ class SerializedMessageReaderBase {
 
   absl::Status Read(AnyRef<Reader*> src, TypeErasedRef context) const;
 
-  static absl::Status SkipField(uint32_t tag, LimitingReaderBase& src,
-                                TypeErasedRef context);
-  static absl::Status NoActionForSubmessage(int field_number,
-                                            TypeErasedRef context);
-  static absl::Status NoActionForRoot(TypeErasedRef context);
-
  private:
   static constexpr uint32_t kNumDefinedWireTypes = 6;
 
@@ -193,6 +138,12 @@ class SerializedMessageReaderBase {
     std::function<absl::Status(TypeErasedRef context)> after_message;
     absl::flat_hash_map<int, Field> children;
   };
+
+  static absl::Status SkipField(uint32_t tag, LimitingReaderBase& src,
+                                TypeErasedRef context);
+  static absl::Status NoActionForSubmessage(int field_number,
+                                            TypeErasedRef context);
+  static absl::Status NoActionForRoot(TypeErasedRef context);
 
   void SetAction(absl::Span<const int> field_path, WireType wire_type,
                  std::function<absl::Status(LimitingReaderBase& src,
@@ -287,7 +238,7 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // Sets the action to be performed when encountering a field identified by
   // `field_path` of field numbers from the root through submessages.
   //
-  // `action` is invoked with `value` being the value read and `Context&`.
+  // `action` is invoked with `value` being the value read.
   //
   // For numeric types, `action` is invoked also for each element of a packed
   // repeated field.
@@ -299,92 +250,92 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   //
   // Precondition: `!field_path.empty()`
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int32_t>::value,
                              int> = 0>
   void OnInt32(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int64_t>::value,
                              int> = 0>
   void OnInt64(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, uint32_t>::value,
                              int> = 0>
   void OnUInt32(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, uint64_t>::value,
                              int> = 0>
   void OnUInt64(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int32_t>::value,
                              int> = 0>
   void OnSInt32(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int64_t>::value,
                              int> = 0>
   void OnSInt64(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, bool>::value,
                              int> = 0>
   void OnBool(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, uint32_t>::value,
                              int> = 0>
   void OnFixed32(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, uint64_t>::value,
                              int> = 0>
   void OnFixed64(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int32_t>::value,
                              int> = 0>
   void OnSFixed32(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int64_t>::value,
                              int> = 0>
   void OnSFixed64(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, float>::value,
                              int> = 0>
   void OnFloat(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, double>::value,
                              int> = 0>
   void OnDouble(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, absl::string_view>::value,
                              int> = 0>
   void OnStringView(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, std::string&&>::value,
                              int> = 0>
   void OnString(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, Chain&&>::value,
                              int> = 0>
   void OnChain(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, absl::Cord&&>::value,
                              int> = 0>
   void OnCord(absl::Span<const int> field_path, Action action);
   template <typename MessageType, typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, MessageType&&>::value,
                              int> = 0>
   void OnParsedMessage(absl::Span<const int> field_path, Action action,
@@ -394,14 +345,13 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // identified by `field_path` of field numbers from the root through
   // submessages.
   //
-  // `action` is invoked with `src` from which the value can be read,
-  // and `Context&`. `src` will contain the field contents (between `src.pos()`
-  // and `src.max_pos()`, with `src.max_length()`). `action` can read any part
-  // of `src`.
+  // `action` is invoked with `src` from which the value can be read. `src` will
+  // contain the field contents (between `src.pos()` and `src.max_pos()`, with
+  // `src.max_length()`). `action` can read any part of `src`.
   //
   // Precondition: `!field_path.empty()`
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, LimitingReaderBase&>::value,
                              int> = 0>
   void OnLengthDelimited(absl::Span<const int> field_path, Action action);
@@ -410,17 +360,17 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // identified by `field_path` of field numbers from the root through
   // submessages.
   //
-  // `action` is invoked with `length`, `src` from which the value will be read,
-  // and `Context&`. The first `length` bytes of `src` will contain the field
-  // contents. `action` must read exactly `length` bytes from `src`, unless it
-  // fails. This is unchecked.
+  // `action` is invoked with `length`, and `src` from which the value will be
+  // read. The first `length` bytes of `src` will contain the field contents.
+  // `action` must read exactly `length` bytes from `src`, unless it fails.
+  // This is unchecked.
   //
   // `OnLengthUnchecked()` is more efficient than `OnLengthDelimited()`.
   //
   // Precondition: `!field_path.empty()`
   template <
       typename Action,
-      std::enable_if_t<serialized_message_reader_internal::IsAction<
+      std::enable_if_t<serialized_message_internal::IsAction<
                            Context, Action, size_t, LimitingReaderBase&>::value,
                        int> = 0>
   void OnLengthUnchecked(absl::Span<const int> field_path, Action action);
@@ -429,27 +379,26 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // identified by `field_path` of field numbers from the root through
   // submessages. An empty `field_path` specified the root message.
   //
-  // `action` is invoked with `Context&`. The field will be processed in any
-  // case.
+  // The field will be processed in any case.
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
-                                 Context, Action>::value,
-                             int> = 0>
+            std::enable_if_t<
+                serialized_message_internal::IsAction<Context, Action>::value,
+                int> = 0>
   void BeforeMessage(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
-                                 Context, Action>::value,
-                             int> = 0>
+            std::enable_if_t<
+                serialized_message_internal::IsAction<Context, Action>::value,
+                int> = 0>
   void AfterMessage(absl::Span<const int> field_path, Action action);
 
   // Sets the action to be performed when there is no specific action registered
   // for this field.
   //
-  // `action` is invoked with the field `tag`, with `src` positioned between
-  // the field tag and field contents, and with `Context&`. It must leave `src`
-  // positioned after field contents.
+  // `action` is invoked with the field `tag`, and `src` positioned between
+  // the field tag and field contents. It must leave `src` positioned after
+  // field contents.
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, uint32_t, Reader&>::value,
                              int> = 0>
   void OnOther(Action action);
@@ -460,14 +409,14 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // fields are registered. It can prepare the context for processing
   // the submessage.
   //
-  // `action` is invoked with the `field_number` and with `Context&`.
+  // `action` is invoked with the `field_number`.
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int>::value,
                              int> = 0>
   void BeforeOtherMessage(Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, int>::value,
                              int> = 0>
   void AfterOtherMessage(Action action);
@@ -475,9 +424,6 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // Reads a serialized message from `src` using configured actions.
   //
   // A reference to `context` is passed to the actions.
-  //
-  // If any registered `action` returns a failed `absl::Status` then `Read()`
-  // is cancelled.
   template <typename DependentContext = Context,
             std::enable_if_t<!std::is_void<DependentContext>::value, int> = 0>
   absl::Status Read(AnyRef<Reader*> src,
@@ -508,7 +454,7 @@ SerializedMessageReader<Context>::Global(Initialize initialize) {
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int32_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnInt32(
@@ -516,14 +462,14 @@ inline void SerializedMessageReader<Context>::OnInt32(
   SerializedMessageReaderBase::OnInt32(
       field_path,
       [action = std::move(action)](int32_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, value);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int64_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnInt64(
@@ -531,14 +477,14 @@ inline void SerializedMessageReader<Context>::OnInt64(
   SerializedMessageReaderBase::OnUInt64(
       field_path,
       [action = std::move(action)](uint64_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, static_cast<int64_t>(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, uint32_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnUInt32(
@@ -546,14 +492,14 @@ inline void SerializedMessageReader<Context>::OnUInt32(
   SerializedMessageReaderBase::OnUInt32(
       field_path,
       [action = std::move(action)](uint32_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, value);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, uint64_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnUInt64(
@@ -561,14 +507,14 @@ inline void SerializedMessageReader<Context>::OnUInt64(
   SerializedMessageReaderBase::OnUInt64(
       field_path,
       [action = std::move(action)](uint64_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, value);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int32_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnSInt32(
@@ -576,14 +522,14 @@ inline void SerializedMessageReader<Context>::OnSInt32(
   SerializedMessageReaderBase::OnUInt32(
       field_path,
       [action = std::move(action)](uint32_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, DecodeVarintSigned32(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int64_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnSInt64(
@@ -591,14 +537,14 @@ inline void SerializedMessageReader<Context>::OnSInt64(
   SerializedMessageReaderBase::OnUInt64(
       field_path,
       [action = std::move(action)](uint64_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, DecodeVarintSigned64(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, bool>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnBool(
@@ -606,14 +552,14 @@ inline void SerializedMessageReader<Context>::OnBool(
   SerializedMessageReaderBase::OnBool(
       field_path,
       [action = std::move(action)](bool value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, value);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, uint32_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnFixed32(
@@ -621,14 +567,14 @@ inline void SerializedMessageReader<Context>::OnFixed32(
   SerializedMessageReaderBase::OnFixed32(
       field_path,
       [action = std::move(action)](uint32_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, value);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, uint64_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnFixed64(
@@ -636,14 +582,14 @@ inline void SerializedMessageReader<Context>::OnFixed64(
   SerializedMessageReaderBase::OnFixed64(
       field_path,
       [action = std::move(action)](uint64_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, value);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int32_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnSFixed32(
@@ -651,14 +597,14 @@ inline void SerializedMessageReader<Context>::OnSFixed32(
   SerializedMessageReaderBase::OnFixed32(
       field_path,
       [action = std::move(action)](uint32_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, static_cast<int32_t>(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int64_t>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnSFixed64(
@@ -666,14 +612,14 @@ inline void SerializedMessageReader<Context>::OnSFixed64(
   SerializedMessageReaderBase::OnFixed64(
       field_path,
       [action = std::move(action)](uint64_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, static_cast<int64_t>(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, float>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnFloat(
@@ -681,14 +627,14 @@ inline void SerializedMessageReader<Context>::OnFloat(
   SerializedMessageReaderBase::OnFixed32(
       field_path,
       [action = std::move(action)](uint32_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, absl::bit_cast<float>(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, double>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnDouble(
@@ -696,14 +642,14 @@ inline void SerializedMessageReader<Context>::OnDouble(
   SerializedMessageReaderBase::OnFixed64(
       field_path,
       [action = std::move(action)](uint64_t value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, absl::bit_cast<double>(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, absl::string_view>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnStringView(
@@ -711,14 +657,14 @@ inline void SerializedMessageReader<Context>::OnStringView(
   SerializedMessageReaderBase::OnStringView(
       field_path, [action = std::move(action)](absl::string_view value,
                                                TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, value);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, std::string&&>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnString(
@@ -726,14 +672,14 @@ inline void SerializedMessageReader<Context>::OnString(
   SerializedMessageReaderBase::OnString(
       field_path,
       [action = std::move(action)](std::string&& value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, std::move(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, Chain&&>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnChain(
@@ -741,14 +687,14 @@ inline void SerializedMessageReader<Context>::OnChain(
   SerializedMessageReaderBase::OnChain(
       field_path,
       [action = std::move(action)](Chain&& value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, std::move(value));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, absl::Cord&&>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnCord(
@@ -756,14 +702,14 @@ inline void SerializedMessageReader<Context>::OnCord(
   SerializedMessageReaderBase::OnCord(
       field_path,
       [action = std::move(action)](absl::Cord&& value, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, std::move(value));
       });
 }
 
 template <typename Context>
 template <typename MessageType, typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, MessageType&&>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnParsedMessage(
@@ -779,14 +725,14 @@ inline void SerializedMessageReader<Context>::OnParsedMessage(
             ABSL_PREDICT_FALSE(!status.ok())) {
           return status;
         }
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, std::move(message));
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, LimitingReaderBase&>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnLengthDelimited(
@@ -794,15 +740,15 @@ inline void SerializedMessageReader<Context>::OnLengthDelimited(
   SerializedMessageReaderBase::OnLengthDelimited(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
                                                TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
-            context, action, src);
+        return serialized_message_internal::InvokeAction<Context>(context,
+                                                                  action, src);
       });
 }
 
 template <typename Context>
 template <
     typename Action,
-    std::enable_if_t<serialized_message_reader_internal::IsAction<
+    std::enable_if_t<serialized_message_internal::IsAction<
                          Context, Action, size_t, LimitingReaderBase&>::value,
                      int>>
 inline void SerializedMessageReader<Context>::OnLengthUnchecked(
@@ -811,76 +757,76 @@ inline void SerializedMessageReader<Context>::OnLengthUnchecked(
       field_path,
       [action = std::move(action)](size_t length, LimitingReaderBase& src,
                                    TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, length, src);
       });
 }
 
 template <typename Context>
-template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
-                               Context, Action>::value,
-                           int>>
+template <
+    typename Action,
+    std::enable_if_t<
+        serialized_message_internal::IsAction<Context, Action>::value, int>>
 inline void SerializedMessageReader<Context>::BeforeMessage(
     absl::Span<const int> field_path, Action action) {
   SerializedMessageReaderBase::BeforeMessage(
       field_path, [action = std::move(action)](TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
-            context, action);
+        return serialized_message_internal::InvokeAction<Context>(context,
+                                                                  action);
       });
 }
 
 template <typename Context>
-template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
-                               Context, Action>::value,
-                           int>>
+template <
+    typename Action,
+    std::enable_if_t<
+        serialized_message_internal::IsAction<Context, Action>::value, int>>
 inline void SerializedMessageReader<Context>::AfterMessage(
     absl::Span<const int> field_path, Action action) {
   SerializedMessageReaderBase::AfterMessage(
       field_path, [action = std::move(action)](TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
-            context, action);
+        return serialized_message_internal::InvokeAction<Context>(context,
+                                                                  action);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, uint32_t, Reader&>::value,
                            int>>
 inline void SerializedMessageReader<Context>::OnOther(Action action) {
   SerializedMessageReaderBase::OnOther(
       [action = std::move(action)](uint32_t tag, LimitingReaderBase& src,
                                    TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, tag, src);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int>::value,
                            int>>
 inline void SerializedMessageReader<Context>::BeforeOtherMessage(
     Action action) {
   SerializedMessageReaderBase::BeforeOtherMessage(
       [action = std::move(action)](int field_number, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, field_number);
       });
 }
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, int>::value,
                            int>>
 inline void SerializedMessageReader<Context>::AfterOtherMessage(Action action) {
   SerializedMessageReaderBase::AfterOtherMessage(
       [action = std::move(action)](int field_number, TypeErasedRef context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context, action, field_number);
       });
 }

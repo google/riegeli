@@ -49,6 +49,61 @@ namespace riegeli {
 constexpr uint32_t SerializedMessageReaderBase::kNumDefinedWireTypes;
 #endif
 
+absl::Status SerializedMessageReaderBase::SkipField(
+    uint32_t tag, LimitingReaderBase& src,
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
+  switch (GetTagWireType(tag)) {
+    case WireType::kVarint: {
+      uint64_t value;
+      if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
+        return src.StatusOrAnnotate(
+            absl::InvalidArgumentError("Could not read a varint field"));
+      }
+      return absl::OkStatus();
+    }
+    case WireType::kFixed32:
+      if (ABSL_PREDICT_FALSE(!src.Skip(sizeof(uint32_t)))) {
+        return src.StatusOrAnnotate(
+            absl::InvalidArgumentError("Could not read a fixed32 field"));
+      }
+      return absl::OkStatus();
+    case WireType::kFixed64:
+      if (ABSL_PREDICT_FALSE(!src.Skip(sizeof(uint64_t)))) {
+        return src.StatusOrAnnotate(
+            absl::InvalidArgumentError("Could not read a fixed64 field"));
+      }
+      return absl::OkStatus();
+    case WireType::kLengthDelimited: {
+      uint32_t length;
+      if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
+        return src.StatusOrAnnotate(absl::InvalidArgumentError(
+            "Could not read a length-delimited field length"));
+      }
+      if (ABSL_PREDICT_FALSE(!src.Skip(length))) {
+        return src.StatusOrAnnotate(absl::InvalidArgumentError(
+            "Could not read a length-delimited field"));
+      }
+      return absl::OkStatus();
+    }
+    case WireType::kStartGroup:
+    case WireType::kEndGroup:
+      return absl::OkStatus();
+  }
+  return src.StatusOrAnnotate(absl::InvalidArgumentError(
+      absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
+}
+
+absl::Status SerializedMessageReaderBase::NoActionForSubmessage(
+    ABSL_ATTRIBUTE_UNUSED int field_number,
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
+  return absl::OkStatus();
+}
+
+absl::Status SerializedMessageReaderBase::NoActionForRoot(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
+  return absl::OkStatus();
+}
+
 void SerializedMessageReaderBase::OnInt32(
     absl::Span<const int> field_path,
     std::function<absl::Status(int32_t value, TypeErasedRef context)> action) {
@@ -492,61 +547,6 @@ absl::Status SerializedMessageReaderBase::ReadMessage(
     absl::Status status = on_other_(tag, src, context);
     if (ABSL_PREDICT_FALSE(!status.ok())) return status;
   }
-  return absl::OkStatus();
-}
-
-absl::Status SerializedMessageReaderBase::SkipField(
-    uint32_t tag, LimitingReaderBase& src,
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
-  switch (GetTagWireType(tag)) {
-    case WireType::kVarint: {
-      uint64_t value;
-      if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
-        return src.StatusOrAnnotate(
-            absl::InvalidArgumentError("Could not read a varint field"));
-      }
-      return absl::OkStatus();
-    }
-    case WireType::kFixed32:
-      if (ABSL_PREDICT_FALSE(!src.Skip(sizeof(uint32_t)))) {
-        return src.StatusOrAnnotate(
-            absl::InvalidArgumentError("Could not read a fixed32 field"));
-      }
-      return absl::OkStatus();
-    case WireType::kFixed64:
-      if (ABSL_PREDICT_FALSE(!src.Skip(sizeof(uint64_t)))) {
-        return src.StatusOrAnnotate(
-            absl::InvalidArgumentError("Could not read a fixed64 field"));
-      }
-      return absl::OkStatus();
-    case WireType::kLengthDelimited: {
-      uint32_t length;
-      if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
-        return src.StatusOrAnnotate(absl::InvalidArgumentError(
-            "Could not read a length-delimited field length"));
-      }
-      if (ABSL_PREDICT_FALSE(!src.Skip(length))) {
-        return src.StatusOrAnnotate(absl::InvalidArgumentError(
-            "Could not read a length-delimited field"));
-      }
-      return absl::OkStatus();
-    }
-    case WireType::kStartGroup:
-    case WireType::kEndGroup:
-      return absl::OkStatus();
-  }
-  return src.StatusOrAnnotate(absl::InvalidArgumentError(
-      absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
-}
-
-absl::Status SerializedMessageReaderBase::NoActionForSubmessage(
-    ABSL_ATTRIBUTE_UNUSED int field_number,
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
-  return absl::OkStatus();
-}
-
-absl::Status SerializedMessageReaderBase::NoActionForRoot(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
   return absl::OkStatus();
 }
 

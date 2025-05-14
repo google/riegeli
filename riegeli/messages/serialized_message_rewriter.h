@@ -39,6 +39,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/messages/parse_message.h"
+#include "riegeli/messages/serialized_message_internal.h"
 #include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_writer.h"  // IWYU pragma: export
 
@@ -46,7 +47,7 @@ namespace riegeli {
 
 namespace serialized_message_rewriter_internal {
 
-template <bool has_context>
+template <bool has_message_rewriter_context>
 class MessageReaderContext;
 
 template <>
@@ -80,6 +81,8 @@ class MessageReaderContext<false> {
  private:
   SerializedMessageWriter message_writer_;
 };
+
+absl::Status CopyField(uint32_t tag, Reader& src, Writer& dest);
 
 }  // namespace serialized_message_rewriter_internal
 
@@ -150,8 +153,8 @@ class SerializedMessageRewriter {
   // Sets the action to be performed when encountering a field identified by
   // `field_path` of field numbers from the root through submessages.
   //
-  // `action` is invoked with `value` being the value read, with `dest`
-  // positioned between fields, and with `Context&`.
+  // `action` is invoked with `value` being the value read, and `dest`
+  // positioned between fields.
   //
   // The field will not be implicitly copied. `action` can write replacement
   // fields to `dest`, or do nothing to remove the field.
@@ -167,108 +170,108 @@ class SerializedMessageRewriter {
   // Precondition: `!field_path.empty()`
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, int32_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnInt32(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, int64_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnInt64(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, uint32_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnUInt32(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, uint64_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnUInt64(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, int32_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnSInt32(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, int64_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnSInt64(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, bool, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnBool(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, uint32_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnFixed32(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, uint64_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnFixed64(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, int32_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnSFixed32(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, int64_t, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnSFixed64(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, float, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnFloat(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, double, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnDouble(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, absl::string_view,
                                  SerializedMessageWriter&>::value,
                              int> = 0>
   void OnStringView(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, std::string&&,
                                  SerializedMessageWriter&>::value,
                              int> = 0>
   void OnString(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<
-                serialized_message_reader_internal::IsAction<
+                serialized_message_internal::IsAction<
                     Context, Action, Chain&&, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnChain(absl::Span<const int> field_path, Action action);
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, absl::Cord&&,
                                  SerializedMessageWriter&>::value,
                              int> = 0>
   void OnCord(absl::Span<const int> field_path, Action action);
   template <typename MessageType, typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, MessageType&&,
                                  SerializedMessageWriter&>::value,
                              int> = 0>
@@ -279,17 +282,17 @@ class SerializedMessageRewriter {
   // identified by `field_path` of field numbers from the root through
   // submessages.
   //
-  // `action` is invoked with `src` from which the value will be read,
-  // `dest` positioned between fields, and `Context&`. `src` will contain
-  // the field contents (between `src.pos()` and `src.max_pos()`, with
-  // `src.max_length()`). `action` can read any part of `src`.
+  // `action` is invoked with `src` from which the value will be read, and
+  // `dest` positioned between fields. `src` will contain the field contents
+  // (between `src.pos()` and `src.max_pos()`, with `src.max_length()`).
+  // `action` can read any part of `src`.
   //
   // The field will not be implicitly copied. `action` can write replacement
   // fields to `dest`, or do nothing to remove the field.
   //
   // Precondition: `!field_path.empty()`
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, LimitingReaderBase&,
                                  SerializedMessageWriter&>::value,
                              int> = 0>
@@ -300,11 +303,10 @@ class SerializedMessageRewriter {
   // submessages.
   //
   // `action` is invoked with `length`, `src` from which the value will be read,
-  // `dest` positioned between fields, and `Context&`. The first `length` bytes
-  // of `src` will contain the field contents. `src` can be shorter only if
-  // the original source is truncated, in which case parsing will fail anyway.
-  // `action` must read exactly `length` bytes from `src`, unless it fails.
-  // This is unchecked.
+  // and `dest` positioned between fields. The first `length` bytes of `src`
+  // will contain the field contents. `src` can be shorter only if the original
+  // source is truncated, in which case parsing will fail anyway. `action` must
+  // read exactly `length` bytes from `src`, unless it fails. This is unchecked.
   //
   // The field will not be implicitly copied. `action` can write replacement
   // fields to `dest`, or do nothing to remove the field.
@@ -313,7 +315,7 @@ class SerializedMessageRewriter {
   //
   // Precondition: `!field_path.empty()`
   template <typename Action,
-            std::enable_if_t<serialized_message_reader_internal::IsAction<
+            std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, size_t, LimitingReaderBase&,
                                  SerializedMessageWriter&>::value,
                              int> = 0>
@@ -337,13 +339,13 @@ class SerializedMessageRewriter {
   // the submessage.
   template <
       typename Action,
-      std::enable_if_t<serialized_message_reader_internal::IsAction<
+      std::enable_if_t<serialized_message_internal::IsAction<
                            Context, Action, SerializedMessageWriter&>::value,
                        int> = 0>
   void BeforeMessage(absl::Span<const int> field_path, Action action);
   template <
       typename Action,
-      std::enable_if_t<serialized_message_reader_internal::IsAction<
+      std::enable_if_t<serialized_message_internal::IsAction<
                            Context, Action, SerializedMessageWriter&>::value,
                        int> = 0>
   void AfterMessage(absl::Span<const int> field_path, Action action);
@@ -357,13 +359,13 @@ class SerializedMessageRewriter {
   // with another `SerializedMessageWriter`.
   template <
       typename Action,
-      std::enable_if_t<serialized_message_reader_internal::IsAction<
+      std::enable_if_t<serialized_message_internal::IsAction<
                            Context, Action, SerializedMessageWriter&>::value,
                        int> = 0>
   void ReplaceBeforeMessage(absl::Span<const int> field_path, Action action);
   template <
       typename Action,
-      std::enable_if_t<serialized_message_reader_internal::IsAction<
+      std::enable_if_t<serialized_message_internal::IsAction<
                            Context, Action, SerializedMessageWriter&>::value,
                        int> = 0>
   void ReplaceAfterMessage(absl::Span<const int> field_path, Action action);
@@ -372,9 +374,6 @@ class SerializedMessageRewriter {
   // actions.
   //
   // A reference to `context` is passed to the actions.
-  //
-  // If any registered `action` returns a failed `absl::Status` then `Rewrite()`
-  // is cancelled.
   template <typename DependentContext = Context,
             std::enable_if_t<!std::is_void<DependentContext>::value, int> = 0>
   absl::Status Rewrite(AnyRef<Reader*> src, AnyRef<Writer*> dest,
@@ -415,7 +414,8 @@ template <typename Context>
 SerializedMessageRewriter<Context>::SerializedMessageRewriter() noexcept {
   message_reader_.OnOther(
       [](uint32_t tag, Reader& src, MessageReaderContext& context) {
-        return context.message_writer().CopyFieldFrom(tag, src);
+        return serialized_message_rewriter_internal::CopyField(
+            tag, src, context.message_writer().writer());
       });
   message_reader_.BeforeOtherMessage([](ABSL_ATTRIBUTE_UNUSED int field_number,
                                         MessageReaderContext& context) {
@@ -431,7 +431,7 @@ SerializedMessageRewriter<Context>::SerializedMessageRewriter() noexcept {
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, int32_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnInt32(
@@ -439,7 +439,7 @@ inline void SerializedMessageRewriter<Context>::OnInt32(
   message_reader_.OnInt32(
       field_path, [action = std::move(action)](int32_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -448,7 +448,7 @@ inline void SerializedMessageRewriter<Context>::OnInt32(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, int64_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnInt64(
@@ -456,7 +456,7 @@ inline void SerializedMessageRewriter<Context>::OnInt64(
   message_reader_.OnInt64(
       field_path, [action = std::move(action)](int64_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -465,7 +465,7 @@ inline void SerializedMessageRewriter<Context>::OnInt64(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, uint32_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnUInt32(
@@ -473,7 +473,7 @@ inline void SerializedMessageRewriter<Context>::OnUInt32(
   message_reader_.OnUInt32(
       field_path, [action = std::move(action)](uint32_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -482,7 +482,7 @@ inline void SerializedMessageRewriter<Context>::OnUInt32(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, uint64_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnUInt64(
@@ -490,7 +490,7 @@ inline void SerializedMessageRewriter<Context>::OnUInt64(
   message_reader_.OnUInt64(
       field_path, [action = std::move(action)](uint64_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -499,7 +499,7 @@ inline void SerializedMessageRewriter<Context>::OnUInt64(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, int32_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnSInt32(
@@ -507,7 +507,7 @@ inline void SerializedMessageRewriter<Context>::OnSInt32(
   message_reader_.OnSInt32(
       field_path, [action = std::move(action)](int32_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -516,7 +516,7 @@ inline void SerializedMessageRewriter<Context>::OnSInt32(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, int64_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnSInt64(
@@ -524,7 +524,7 @@ inline void SerializedMessageRewriter<Context>::OnSInt64(
   message_reader_.OnSInt64(
       field_path, [action = std::move(action)](int64_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -533,7 +533,7 @@ inline void SerializedMessageRewriter<Context>::OnSInt64(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, bool, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnBool(
@@ -541,7 +541,7 @@ inline void SerializedMessageRewriter<Context>::OnBool(
   message_reader_.OnBool(
       field_path,
       [action = std::move(action)](bool value, MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -550,7 +550,7 @@ inline void SerializedMessageRewriter<Context>::OnBool(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, uint32_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnFixed32(
@@ -558,7 +558,7 @@ inline void SerializedMessageRewriter<Context>::OnFixed32(
   message_reader_.OnFixed32(
       field_path, [action = std::move(action)](uint32_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -567,7 +567,7 @@ inline void SerializedMessageRewriter<Context>::OnFixed32(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, uint64_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnFixed64(
@@ -575,7 +575,7 @@ inline void SerializedMessageRewriter<Context>::OnFixed64(
   message_reader_.OnFixed64(
       field_path, [action = std::move(action)](uint64_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -584,7 +584,7 @@ inline void SerializedMessageRewriter<Context>::OnFixed64(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, int32_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnSFixed32(
@@ -592,7 +592,7 @@ inline void SerializedMessageRewriter<Context>::OnSFixed32(
   message_reader_.OnSFixed32(
       field_path, [action = std::move(action)](int32_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -601,7 +601,7 @@ inline void SerializedMessageRewriter<Context>::OnSFixed32(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, int64_t, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnSFixed64(
@@ -609,7 +609,7 @@ inline void SerializedMessageRewriter<Context>::OnSFixed64(
   message_reader_.OnSFixed64(
       field_path, [action = std::move(action)](int64_t value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -618,7 +618,7 @@ inline void SerializedMessageRewriter<Context>::OnSFixed64(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, float, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnFloat(
@@ -626,7 +626,7 @@ inline void SerializedMessageRewriter<Context>::OnFloat(
   message_reader_.OnFloat(
       field_path,
       [action = std::move(action)](float value, MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -635,7 +635,7 @@ inline void SerializedMessageRewriter<Context>::OnFloat(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, double, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnDouble(
@@ -643,7 +643,7 @@ inline void SerializedMessageRewriter<Context>::OnDouble(
   message_reader_.OnDouble(
       field_path, [action = std::move(action)](double value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -651,7 +651,7 @@ inline void SerializedMessageRewriter<Context>::OnDouble(
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, absl::string_view,
                                SerializedMessageWriter&>::value,
                            int>>
@@ -660,7 +660,7 @@ inline void SerializedMessageRewriter<Context>::OnStringView(
   message_reader_.OnStringView(
       field_path, [action = std::move(action)](absl::string_view value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, value,
             context.message_writer());
       });
@@ -668,7 +668,7 @@ inline void SerializedMessageRewriter<Context>::OnStringView(
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, std::string&&,
                                SerializedMessageWriter&>::value,
                            int>>
@@ -677,7 +677,7 @@ inline void SerializedMessageRewriter<Context>::OnString(
   message_reader_.OnString(
       field_path, [action = std::move(action)](std::string&& value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, std::move(value),
             context.message_writer());
       });
@@ -686,7 +686,7 @@ inline void SerializedMessageRewriter<Context>::OnString(
 template <typename Context>
 template <typename Action,
           std::enable_if_t<
-              serialized_message_reader_internal::IsAction<
+              serialized_message_internal::IsAction<
                   Context, Action, Chain&&, SerializedMessageWriter&>::value,
               int>>
 inline void SerializedMessageRewriter<Context>::OnChain(
@@ -694,7 +694,7 @@ inline void SerializedMessageRewriter<Context>::OnChain(
   message_reader_.OnChain(
       field_path, [action = std::move(action)](Chain&& value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, std::move(value),
             context.message_writer());
       });
@@ -702,7 +702,7 @@ inline void SerializedMessageRewriter<Context>::OnChain(
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, absl::Cord&&,
                                SerializedMessageWriter&>::value,
                            int>>
@@ -711,7 +711,7 @@ inline void SerializedMessageRewriter<Context>::OnCord(
   message_reader_.OnCord(
       field_path, [action = std::move(action)](absl::Cord&& value,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, std::move(value),
             context.message_writer());
       });
@@ -719,7 +719,7 @@ inline void SerializedMessageRewriter<Context>::OnCord(
 
 template <typename Context>
 template <typename MessageType, typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, MessageType&&,
                                SerializedMessageWriter&>::value,
                            int>>
@@ -736,7 +736,7 @@ inline void SerializedMessageRewriter<Context>::OnParsedMessage(
             ABSL_PREDICT_FALSE(!status.ok())) {
           return status;
         }
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, std::move(message),
             context.message_writer());
       });
@@ -744,7 +744,7 @@ inline void SerializedMessageRewriter<Context>::OnParsedMessage(
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, LimitingReaderBase&,
                                SerializedMessageWriter&>::value,
                            int>>
@@ -753,7 +753,7 @@ inline void SerializedMessageRewriter<Context>::OnLengthDelimited(
   message_reader_.OnLengthDelimited(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
                                                MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, src,
             context.message_writer());
       });
@@ -761,7 +761,7 @@ inline void SerializedMessageRewriter<Context>::OnLengthDelimited(
 
 template <typename Context>
 template <typename Action,
-          std::enable_if_t<serialized_message_reader_internal::IsAction<
+          std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, size_t, LimitingReaderBase&,
                                SerializedMessageWriter&>::value,
                            int>>
@@ -771,7 +771,7 @@ inline void SerializedMessageRewriter<Context>::OnLengthUnchecked(
       field_path,
       [action = std::move(action)](size_t length, LimitingReaderBase& src,
                                    MessageReaderContext& context) {
-        return serialized_message_reader_internal::InvokeAction<Context>(
+        return serialized_message_internal::InvokeAction<Context>(
             context.message_rewriter_context(), action, length, src,
             context.message_writer());
       });
@@ -780,7 +780,7 @@ inline void SerializedMessageRewriter<Context>::OnLengthUnchecked(
 template <typename Context>
 template <
     typename Action,
-    std::enable_if_t<serialized_message_reader_internal::IsAction<
+    std::enable_if_t<serialized_message_internal::IsAction<
                          Context, Action, SerializedMessageWriter&>::value,
                      int>>
 inline void SerializedMessageRewriter<Context>::BeforeMessage(
@@ -792,7 +792,7 @@ inline void SerializedMessageRewriter<Context>::BeforeMessage(
         field_path,
         [action = std::move(action)](MessageReaderContext& context) {
           context.message_writer().OpenLengthDelimited();
-          return serialized_message_reader_internal::InvokeAction<Context>(
+          return serialized_message_internal::InvokeAction<Context>(
               context.message_rewriter_context(), action,
               context.message_writer());
         });
@@ -802,7 +802,7 @@ inline void SerializedMessageRewriter<Context>::BeforeMessage(
 template <typename Context>
 template <
     typename Action,
-    std::enable_if_t<serialized_message_reader_internal::IsAction<
+    std::enable_if_t<serialized_message_internal::IsAction<
                          Context, Action, SerializedMessageWriter&>::value,
                      int>>
 inline void SerializedMessageRewriter<Context>::AfterMessage(
@@ -815,7 +815,7 @@ inline void SerializedMessageRewriter<Context>::AfterMessage(
         field_path, [action = std::move(action),
                      field_number](MessageReaderContext& context) {
           if (absl::Status status =
-                  serialized_message_reader_internal::InvokeAction<Context>(
+                  serialized_message_internal::InvokeAction<Context>(
                       context.message_rewriter_context(), action,
                       context.message_writer());
               ABSL_PREDICT_FALSE(!status.ok())) {
@@ -829,14 +829,14 @@ inline void SerializedMessageRewriter<Context>::AfterMessage(
 template <typename Context>
 template <
     typename Action,
-    std::enable_if_t<serialized_message_reader_internal::IsAction<
+    std::enable_if_t<serialized_message_internal::IsAction<
                          Context, Action, SerializedMessageWriter&>::value,
                      int>>
 inline void SerializedMessageRewriter<Context>::ReplaceBeforeMessage(
     absl::Span<const int> field_path, Action action) {
   message_reader_.BeforeMessage(field_path, [action = std::move(action)](
                                                 MessageReaderContext& context) {
-    return serialized_message_reader_internal::InvokeAction<Context>(
+    return serialized_message_internal::InvokeAction<Context>(
         context.message_rewriter_context(), action, context.message_writer());
   });
 }
@@ -844,14 +844,14 @@ inline void SerializedMessageRewriter<Context>::ReplaceBeforeMessage(
 template <typename Context>
 template <
     typename Action,
-    std::enable_if_t<serialized_message_reader_internal::IsAction<
+    std::enable_if_t<serialized_message_internal::IsAction<
                          Context, Action, SerializedMessageWriter&>::value,
                      int>>
 inline void SerializedMessageRewriter<Context>::ReplaceAfterMessage(
     absl::Span<const int> field_path, Action action) {
   message_reader_.AfterMessage(field_path, [action = std::move(action)](
                                                MessageReaderContext& context) {
-    return serialized_message_reader_internal::InvokeAction<Context>(
+    return serialized_message_internal::InvokeAction<Context>(
         context.message_rewriter_context(), action, context.message_writer());
   });
 }

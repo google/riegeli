@@ -189,10 +189,6 @@ class SerializedMessageWriter {
   // `NewLengthDelimited()`, and `CloseLengthDelimited()`.
   absl::Status WriteLengthUnchecked(int field_number, Position length);
 
-  // Writes the field tag, and copies field contents from `src` positioned
-  // between the field tag and field contents.
-  absl::Status CopyFieldFrom(uint32_t tag, Reader& src);
-
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
 
