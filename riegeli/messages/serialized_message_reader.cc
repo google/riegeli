@@ -49,6 +49,28 @@ namespace riegeli {
 constexpr uint32_t SerializedMessageReaderBase::kNumDefinedWireTypes;
 #endif
 
+absl::Status SerializedMessageReaderBase::ReadVarintError(Reader& src) {
+  return src.StatusOrAnnotate(
+      absl::InvalidArgumentError("Could not read a varint field"));
+}
+
+absl::Status SerializedMessageReaderBase::ReadPackedVarintError(Reader& src) {
+  return src.StatusOrAnnotate(absl::InvalidArgumentError(
+      "Could not read a varint element of a packed repeated field"));
+}
+
+absl::Status SerializedMessageReaderBase::DecodeEnumError(Reader& src,
+                                                          uint64_t repr) {
+  return src.StatusOrAnnotate(
+      absl::InvalidArgumentError(absl::StrCat("enum field overflow: ", repr)));
+}
+
+absl::Status SerializedMessageReaderBase::ReadLengthDelimitedError(
+    Reader& src) {
+  return src.StatusOrAnnotate(
+      absl::InvalidArgumentError("Could not read a length-delimited field"));
+}
+
 absl::Status SerializedMessageReaderBase::SkipField(
     uint32_t tag, LimitingReaderBase& src,
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
@@ -111,8 +133,7 @@ void SerializedMessageReaderBase::OnInt32(
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t repr;
               if (ABSL_PREDICT_FALSE(!ReadVarint64(src, repr))) {
-                return src.StatusOrAnnotate(absl::InvalidArgumentError(
-                    "Could not read a varint field"));
+                return ReadVarintError(src);
               }
               const int32_t value = static_cast<int32_t>(repr);
               if (ABSL_PREDICT_FALSE(static_cast<uint64_t>(value) != repr)) {
@@ -137,8 +158,7 @@ void SerializedMessageReaderBase::OnInt32(
           }
         }
         if (ABSL_PREDICT_FALSE(src.pos() < src.max_pos())) {
-          return src.StatusOrAnnotate(absl::InvalidArgumentError(
-              "Could not read a varint element of a packed repeated field"));
+          return ReadPackedVarintError(src);
         }
         return absl::OkStatus();
       });
@@ -151,8 +171,7 @@ void SerializedMessageReaderBase::OnUInt32(
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t repr;
               if (ABSL_PREDICT_FALSE(!ReadVarint64(src, repr))) {
-                return src.StatusOrAnnotate(absl::InvalidArgumentError(
-                    "Could not read a varint field"));
+                return ReadVarintError(src);
               }
               const uint32_t value = static_cast<uint32_t>(repr);
               if (ABSL_PREDICT_FALSE(static_cast<uint64_t>(value) != repr)) {
@@ -177,8 +196,7 @@ void SerializedMessageReaderBase::OnUInt32(
           }
         }
         if (ABSL_PREDICT_FALSE(src.pos() < src.max_pos())) {
-          return src.StatusOrAnnotate(absl::InvalidArgumentError(
-              "Could not read a varint element of a packed repeated field"));
+          return ReadPackedVarintError(src);
         }
         return absl::OkStatus();
       });
@@ -191,27 +209,25 @@ void SerializedMessageReaderBase::OnUInt64(
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t value;
               if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
-                return src.StatusOrAnnotate(absl::InvalidArgumentError(
-                    "Could not read a varint field"));
+                return ReadVarintError(src);
               }
               return action(value, context);
             });
-  OnLengthDelimited(
-      field_path, [action = std::move(action)](LimitingReaderBase& src,
-                                               TypeErasedRef context) {
-        uint64_t value;
-        while (ReadVarint64(src, value)) {
-          if (absl::Status status = action(value, context);
-              ABSL_PREDICT_FALSE(!status.ok())) {
-            return status;
-          }
-        }
-        if (ABSL_PREDICT_FALSE(src.pos() < src.max_pos())) {
-          return src.StatusOrAnnotate(absl::InvalidArgumentError(
-              "Could not read a varint element of a packed repeated field"));
-        }
-        return absl::OkStatus();
-      });
+  OnLengthDelimited(field_path,
+                    [action = std::move(action)](LimitingReaderBase& src,
+                                                 TypeErasedRef context) {
+                      uint64_t value;
+                      while (ReadVarint64(src, value)) {
+                        if (absl::Status status = action(value, context);
+                            ABSL_PREDICT_FALSE(!status.ok())) {
+                          return status;
+                        }
+                      }
+                      if (ABSL_PREDICT_FALSE(src.pos() < src.max_pos())) {
+                        return ReadPackedVarintError(src);
+                      }
+                      return absl::OkStatus();
+                    });
 }
 
 void SerializedMessageReaderBase::OnBool(
@@ -221,8 +237,7 @@ void SerializedMessageReaderBase::OnBool(
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t repr;
               if (ABSL_PREDICT_FALSE(!ReadVarint64(src, repr))) {
-                return src.StatusOrAnnotate(absl::InvalidArgumentError(
-                    "Could not read a varint field"));
+                return ReadVarintError(src);
               }
               if (ABSL_PREDICT_FALSE(repr > 1)) {
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
@@ -245,8 +260,7 @@ void SerializedMessageReaderBase::OnBool(
           }
         }
         if (ABSL_PREDICT_FALSE(src.pos() < src.max_pos())) {
-          return src.StatusOrAnnotate(absl::InvalidArgumentError(
-              "Could not read a varint element of a packed repeated field"));
+          return ReadPackedVarintError(src);
         }
         return absl::OkStatus();
       });
@@ -321,8 +335,7 @@ void SerializedMessageReaderBase::OnStringView(
                                     TypeErasedRef context) {
     absl::string_view value;
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return src.StatusOrAnnotate(absl::InvalidArgumentError(
-          "Could not read a length-delimited field"));
+      return ReadLengthDelimitedError(src);
     }
     return action(value, context);
   });
@@ -337,8 +350,7 @@ void SerializedMessageReaderBase::OnString(
                                     TypeErasedRef context) {
     std::string value;
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return src.StatusOrAnnotate(absl::InvalidArgumentError(
-          "Could not read a length-delimited field"));
+      return ReadLengthDelimitedError(src);
     }
     return action(std::move(value), context);
   });
@@ -352,8 +364,7 @@ void SerializedMessageReaderBase::OnChain(
                                     TypeErasedRef context) {
     Chain value;
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return src.StatusOrAnnotate(absl::InvalidArgumentError(
-          "Could not read a length-delimited field"));
+      return ReadLengthDelimitedError(src);
     }
     return action(std::move(value), context);
   });
@@ -368,8 +379,7 @@ void SerializedMessageReaderBase::OnCord(
                                     TypeErasedRef context) {
     absl::Cord value;
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return src.StatusOrAnnotate(absl::InvalidArgumentError(
-          "Could not read a length-delimited field"));
+      return ReadLengthDelimitedError(src);
     }
     return action(std::move(value), context);
   });
@@ -427,7 +437,25 @@ void SerializedMessageReaderBase::AfterMessage(
   }
 }
 
-inline void SerializedMessageReaderBase::SetAction(
+void SerializedMessageReaderBase::BeforeGroup(
+    absl::Span<const int> field_path,
+    std::function<absl::Status(TypeErasedRef context)> action) {
+  SetAction(field_path, WireType::kStartGroup,
+            [action = std::move(action)](
+                ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src,
+                TypeErasedRef context) { return action(context); });
+}
+
+void SerializedMessageReaderBase::AfterGroup(
+    absl::Span<const int> field_path,
+    std::function<absl::Status(TypeErasedRef context)> action) {
+  SetAction(field_path, WireType::kEndGroup,
+            [action = std::move(action)](
+                ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src,
+                TypeErasedRef context) { return action(context); });
+}
+
+void SerializedMessageReaderBase::SetAction(
     absl::Span<const int> field_path, WireType wire_type,
     std::function<absl::Status(LimitingReaderBase& src, TypeErasedRef context)>
         action) {

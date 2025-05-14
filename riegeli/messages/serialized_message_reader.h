@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
@@ -81,6 +82,10 @@ class SerializedMessageReaderBase {
       absl::Span<const int> field_path,
       std::function<absl::Status(uint64_t value, TypeErasedRef context)>
           action);
+  template <typename EnumType>
+  void OnEnum(absl::Span<const int> field_path,
+              std::function<absl::Status(EnumType value, TypeErasedRef context)>
+                  action);
   void OnStringView(absl::Span<const int> field_path,
                     std::function<absl::Status(absl::string_view value,
                                                TypeErasedRef context)>
@@ -109,6 +114,10 @@ class SerializedMessageReaderBase {
                      std::function<absl::Status(TypeErasedRef context)> action);
   void AfterMessage(absl::Span<const int> field_path,
                     std::function<absl::Status(TypeErasedRef context)> action);
+  void BeforeGroup(absl::Span<const int> field_path,
+                   std::function<absl::Status(TypeErasedRef context)> action);
+  void AfterGroup(absl::Span<const int> field_path,
+                  std::function<absl::Status(TypeErasedRef context)> action);
 
   void OnOther(std::function<absl::Status(uint32_t tag, LimitingReaderBase& src,
                                           TypeErasedRef context)>
@@ -138,6 +147,19 @@ class SerializedMessageReaderBase {
     std::function<absl::Status(TypeErasedRef context)> after_message;
     absl::flat_hash_map<int, Field> children;
   };
+
+  template <typename EnumType,
+            std::enable_if_t<std::is_enum<EnumType>::value, int> = 0>
+  static EnumType CastToEnum(uint64_t repr);
+  template <typename EnumType,
+            std::enable_if_t<!std::is_enum<EnumType>::value, int> = 0>
+  static EnumType CastToEnum(uint64_t repr);
+
+  ABSL_ATTRIBUTE_COLD static absl::Status ReadVarintError(Reader& src);
+  ABSL_ATTRIBUTE_COLD static absl::Status ReadPackedVarintError(Reader& src);
+  ABSL_ATTRIBUTE_COLD static absl::Status DecodeEnumError(Reader& src,
+                                                          uint64_t repr);
+  ABSL_ATTRIBUTE_COLD static absl::Status ReadLengthDelimitedError(Reader& src);
 
   static absl::Status SkipField(uint32_t tag, LimitingReaderBase& src,
                                 TypeErasedRef context);
@@ -314,6 +336,14 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
                                  Context, Action, double>::value,
                              int> = 0>
   void OnDouble(absl::Span<const int> field_path, Action action);
+  template <typename EnumType, typename Action,
+            std::enable_if_t<
+                absl::conjunction<absl::disjunction<std::is_enum<EnumType>,
+                                                    std::is_integral<EnumType>>,
+                                  serialized_message_internal::IsAction<
+                                      Context, Action, EnumType>>::value,
+                int> = 0>
+  void OnEnum(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, absl::string_view>::value,
@@ -391,6 +421,22 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
                 int> = 0>
   void AfterMessage(absl::Span<const int> field_path, Action action);
 
+  // Sets the action to be performed when encountering a group delimiter
+  // identified by `field_path` of field numbers from the root through
+  // submessages.
+  //
+  // The group will be processed in any case.
+  template <typename Action,
+            std::enable_if_t<
+                serialized_message_internal::IsAction<Context, Action>::value,
+                int> = 0>
+  void BeforeGroup(absl::Span<const int> field_path, Action action);
+  template <typename Action,
+            std::enable_if_t<
+                serialized_message_internal::IsAction<Context, Action>::value,
+                int> = 0>
+  void AfterGroup(absl::Span<const int> field_path, Action action);
+
   // Sets the action to be performed when there is no specific action registered
   // for this field.
   //
@@ -438,6 +484,58 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
 };
 
 // Implementation details follow.
+
+template <typename EnumType,
+          std::enable_if_t<std::is_enum<EnumType>::value, int>>
+inline EnumType SerializedMessageReaderBase::CastToEnum(uint64_t repr) {
+  // Casting an out of range value to an enum has undefined behavior.
+  // Casting such a value to an integral type wraps around.
+  return static_cast<EnumType>(
+      static_cast<std::underlying_type_t<EnumType>>(repr));
+}
+
+template <typename EnumType,
+          std::enable_if_t<!std::is_enum<EnumType>::value, int>>
+inline EnumType SerializedMessageReaderBase::CastToEnum(uint64_t repr) {
+  return static_cast<EnumType>(repr);
+}
+
+template <typename EnumType>
+void SerializedMessageReaderBase::OnEnum(
+    absl::Span<const int> field_path,
+    std::function<absl::Status(EnumType value, TypeErasedRef context)> action) {
+  SetAction(field_path, WireType::kVarint,
+            [action](LimitingReaderBase& src, TypeErasedRef context) {
+              uint64_t repr;
+              if (ABSL_PREDICT_FALSE(!ReadVarint64(src, repr))) {
+                return ReadVarintError(src);
+              }
+              const EnumType value = CastToEnum<EnumType>(repr);
+              if (ABSL_PREDICT_FALSE(static_cast<uint64_t>(value) != repr)) {
+                return DecodeEnumError(src, repr);
+              }
+              return action(value, context);
+            });
+  OnLengthDelimited(
+      field_path, [action = std::move(action)](LimitingReaderBase& src,
+                                               TypeErasedRef context) {
+        uint64_t repr;
+        while (ReadVarint64(src, repr)) {
+          const EnumType value = CastToEnum<EnumType>(repr);
+          if (ABSL_PREDICT_FALSE(static_cast<uint64_t>(value) != repr)) {
+            return DecodeEnumError(src, repr);
+          }
+          if (absl::Status status = action(value, context);
+              ABSL_PREDICT_FALSE(!status.ok())) {
+            return status;
+          }
+        }
+        if (ABSL_PREDICT_FALSE(src.pos() < src.max_pos())) {
+          return ReadPackedVarintError(src);
+        }
+        return absl::OkStatus();
+      });
+}
 
 template <typename Context>
 template <
@@ -648,6 +746,24 @@ inline void SerializedMessageReader<Context>::OnDouble(
 }
 
 template <typename Context>
+template <typename EnumType, typename Action,
+          std::enable_if_t<
+              absl::conjunction<absl::disjunction<std::is_enum<EnumType>,
+                                                  std::is_integral<EnumType>>,
+                                serialized_message_internal::IsAction<
+                                    Context, Action, EnumType>>::value,
+              int>>
+inline void SerializedMessageReader<Context>::OnEnum(
+    absl::Span<const int> field_path, Action action) {
+  SerializedMessageReaderBase::OnEnum<EnumType>(
+      field_path,
+      [action = std::move(action)](EnumType value, TypeErasedRef context) {
+        return serialized_message_internal::InvokeAction<Context>(
+            context, action, value);
+      });
+}
+
+template <typename Context>
 template <typename Action,
           std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, absl::string_view>::value,
@@ -784,6 +900,34 @@ template <
 inline void SerializedMessageReader<Context>::AfterMessage(
     absl::Span<const int> field_path, Action action) {
   SerializedMessageReaderBase::AfterMessage(
+      field_path, [action = std::move(action)](TypeErasedRef context) {
+        return serialized_message_internal::InvokeAction<Context>(context,
+                                                                  action);
+      });
+}
+
+template <typename Context>
+template <
+    typename Action,
+    std::enable_if_t<
+        serialized_message_internal::IsAction<Context, Action>::value, int>>
+inline void SerializedMessageReader<Context>::BeforeGroup(
+    absl::Span<const int> field_path, Action action) {
+  SerializedMessageReaderBase::BeforeGroup(
+      field_path, [action = std::move(action)](TypeErasedRef context) {
+        return serialized_message_internal::InvokeAction<Context>(context,
+                                                                  action);
+      });
+}
+
+template <typename Context>
+template <
+    typename Action,
+    std::enable_if_t<
+        serialized_message_internal::IsAction<Context, Action>::value, int>>
+inline void SerializedMessageReader<Context>::AfterGroup(
+    absl::Span<const int> field_path, Action action) {
+  SerializedMessageReaderBase::AfterGroup(
       field_path, [action = std::move(action)](TypeErasedRef context) {
         return serialized_message_internal::InvokeAction<Context>(context,
                                                                   action);

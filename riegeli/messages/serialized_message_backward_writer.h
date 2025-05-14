@@ -26,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
+#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -124,6 +125,12 @@ class SerializedMessageBackwardWriter {
   absl::Status WriteSFixed64(int field_number, int64_t value);
   absl::Status WriteFloat(int field_number, float value);
   absl::Status WriteDouble(int field_number, double value);
+  template <
+      typename EnumType,
+      std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
+                                         std::is_integral<EnumType>>::value,
+                       int> = 0>
+  absl::Status WriteEnum(int field_number, EnumType value);
   absl::Status WriteString(int field_number, BytesRef value);
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   absl::Status WriteString(int field_number, const char* value) {
@@ -160,6 +167,12 @@ class SerializedMessageBackwardWriter {
   absl::Status WritePackedSFixed64(int64_t value);
   absl::Status WritePackedFloat(float value);
   absl::Status WritePackedDouble(double value);
+  template <
+      typename EnumType,
+      std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
+                                         std::is_integral<EnumType>>::value,
+                       int> = 0>
+  absl::Status WritePackedEnum(EnumType value);
 
   // Begins accumulating contents of a length-delimited field.
   //
@@ -193,6 +206,13 @@ class SerializedMessageBackwardWriter {
   // Writing the contents and calling `WriteLengthUnchecked()` is done in the
   // opposite order than in `SerializedMessageWriter`.
   absl::Status WriteLengthUnchecked(int field_number, Position length);
+
+  // Writes a group delimiter.
+  //
+  // Each `OpenGroup()` must be matched with a `CloseGroup()` call, unless the
+  // `SerializedMessageBackwardWriter` and its `dest()` are no longer used.
+  absl::Status OpenGroup(int field_number);
+  absl::Status CloseGroup(int field_number);
 
   // Copies field contents from `src` positioned between the field tag and field
   // contents, and writes the field tag.
@@ -315,6 +335,15 @@ inline absl::Status SerializedMessageBackwardWriter::WriteDouble(
   return WriteFixed64(field_number, absl::bit_cast<uint64_t>(value));
 }
 
+template <typename EnumType,
+          std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
+                                             std::is_integral<EnumType>>::value,
+                           int>>
+inline absl::Status SerializedMessageBackwardWriter::WriteEnum(int field_number,
+                                                               EnumType value) {
+  return WriteUInt64(field_number, static_cast<uint64_t>(value));
+}
+
 inline absl::Status SerializedMessageBackwardWriter::WritePackedInt32(
     int32_t value) {
   return WritePackedUInt64(static_cast<uint64_t>(value));
@@ -390,6 +419,15 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedFloat(
 inline absl::Status SerializedMessageBackwardWriter::WritePackedDouble(
     double value) {
   return WritePackedFixed64(absl::bit_cast<uint64_t>(value));
+}
+
+template <typename EnumType,
+          std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
+                                             std::is_integral<EnumType>>::value,
+                           int>>
+inline absl::Status SerializedMessageBackwardWriter::WritePackedEnum(
+    EnumType value) {
+  return WritePackedUInt64(static_cast<uint64_t>(value));
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
@@ -486,6 +524,24 @@ inline absl::Status SerializedMessageBackwardWriter::WriteLengthUnchecked(
   writer().move_cursor(header_length);
   char* const ptr = WriteVarint32(tag, writer().cursor());
   WriteVarint32(IntCast<uint32_t>(length), ptr);
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::OpenGroup(
+    int field_number) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint32(
+          MakeTag(field_number, WireType::kEndGroup), writer()))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SerializedMessageBackwardWriter::CloseGroup(
+    int field_number) {
+  if (ABSL_PREDICT_FALSE(!WriteVarint32(
+          MakeTag(field_number, WireType::kStartGroup), writer()))) {
+    return writer().status();
+  }
   return absl::OkStatus();
 }
 

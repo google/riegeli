@@ -30,6 +30,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/any.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/type_erased_ref.h"
@@ -246,6 +247,15 @@ class SerializedMessageRewriter {
                     Context, Action, double, SerializedMessageWriter&>::value,
                 int> = 0>
   void OnDouble(absl::Span<const int> field_path, Action action);
+  template <typename EnumType, typename Action,
+            std::enable_if_t<
+                absl::conjunction<absl::disjunction<std::is_enum<EnumType>,
+                                                    std::is_integral<EnumType>>,
+                                  serialized_message_internal::IsAction<
+                                      Context, Action, EnumType,
+                                      SerializedMessageWriter&>>::value,
+                int> = 0>
+  void OnEnum(absl::Span<const int> field_path, Action action);
   template <typename Action,
             std::enable_if_t<serialized_message_internal::IsAction<
                                  Context, Action, absl::string_view,
@@ -369,6 +379,55 @@ class SerializedMessageRewriter {
                            Context, Action, SerializedMessageWriter&>::value,
                        int> = 0>
   void ReplaceAfterMessage(absl::Span<const int> field_path, Action action);
+
+  // Sets the action to be performed when encountering a group delimiter
+  // identified by `field_path` of field numbers from the root through
+  // submessages.
+  //
+  // The action is performed in addition to the base action which writes the
+  // same group delimiter to `dest`:
+  //
+  //  * For `BeforeGroup()`: `dest.OpenGroup(field_number)`
+  //    with `field_number` being the last element of `field_path`.
+  //  * For `AfterMessage()`: `dest.CloseGroup(field_number)`
+  //    with `field_number` being the last element of `field_path`.
+  //
+  // `action` is invoked with `dest` positioned before/after the contents of
+  // the group.
+  //
+  // Precondition: `!field_path.empty()`
+  template <
+      typename Action,
+      std::enable_if_t<serialized_message_internal::IsAction<
+                           Context, Action, SerializedMessageWriter&>::value,
+                       int> = 0>
+  void BeforeGroup(absl::Span<const int> field_path, Action action);
+  template <
+      typename Action,
+      std::enable_if_t<serialized_message_internal::IsAction<
+                           Context, Action, SerializedMessageWriter&>::value,
+                       int> = 0>
+  void AfterGroup(absl::Span<const int> field_path, Action action);
+
+  // Like `BeforeGroup()` and `AfterGroup()`, but the base actions are not
+  // performed. This means that the same group delimiters will not be implicitly
+  // written to `dest`.
+  //
+  // Group contents are processed normally. Hence `dest` must be set up to write
+  // group contents to the right place, possibly by temporarily exchanging
+  // `dest` with another `SerializedMessageWriter`.
+  template <
+      typename Action,
+      std::enable_if_t<serialized_message_internal::IsAction<
+                           Context, Action, SerializedMessageWriter&>::value,
+                       int> = 0>
+  void ReplaceBeforeGroup(absl::Span<const int> field_path, Action action);
+  template <
+      typename Action,
+      std::enable_if_t<serialized_message_internal::IsAction<
+                           Context, Action, SerializedMessageWriter&>::value,
+                       int> = 0>
+  void ReplaceAfterGroup(absl::Span<const int> field_path, Action action);
 
   // Rewrites a serialized message from `src` to `dest` using configured
   // actions.
@@ -650,6 +709,26 @@ inline void SerializedMessageRewriter<Context>::OnDouble(
 }
 
 template <typename Context>
+template <typename EnumType, typename Action,
+          std::enable_if_t<
+              absl::conjunction<absl::disjunction<std::is_enum<EnumType>,
+                                                  std::is_integral<EnumType>>,
+                                serialized_message_internal::IsAction<
+                                    Context, Action, EnumType,
+                                    SerializedMessageWriter&>>::value,
+              int>>
+inline void SerializedMessageRewriter<Context>::OnEnum(
+    absl::Span<const int> field_path, Action action) {
+  message_reader_.template OnEnum<EnumType>(
+      field_path, [action = std::move(action)](EnumType value,
+                                               MessageReaderContext& context) {
+        return serialized_message_internal::InvokeAction<Context>(
+            context.message_rewriter_context(), action, value,
+            context.message_writer());
+      });
+}
+
+template <typename Context>
 template <typename Action,
           std::enable_if_t<serialized_message_internal::IsAction<
                                Context, Action, absl::string_view,
@@ -851,6 +930,88 @@ inline void SerializedMessageRewriter<Context>::ReplaceAfterMessage(
     absl::Span<const int> field_path, Action action) {
   message_reader_.AfterMessage(field_path, [action = std::move(action)](
                                                MessageReaderContext& context) {
+    return serialized_message_internal::InvokeAction<Context>(
+        context.message_rewriter_context(), action, context.message_writer());
+  });
+}
+
+template <typename Context>
+template <
+    typename Action,
+    std::enable_if_t<serialized_message_internal::IsAction<
+                         Context, Action, SerializedMessageWriter&>::value,
+                     int>>
+inline void SerializedMessageRewriter<Context>::BeforeGroup(
+    absl::Span<const int> field_path, Action action) {
+  RIEGELI_ASSERT(!field_path.empty())
+      << "Failed precondition of SerializedMessageRewriter::BeforeGroup(): "
+         "empty field path";
+  const int field_number = field_path.back();
+  message_reader_.BeforeGroup(field_path, [action = std::move(action),
+                                           field_number](
+                                              MessageReaderContext& context) {
+    {
+      absl::Status status = context.message_writer().OpenGroup(field_number);
+      if (ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
+      }
+    }
+    return serialized_message_internal::InvokeAction<Context>(
+        context.message_rewriter_context(), action, context.message_writer());
+  });
+}
+
+template <typename Context>
+template <
+    typename Action,
+    std::enable_if_t<serialized_message_internal::IsAction<
+                         Context, Action, SerializedMessageWriter&>::value,
+                     int>>
+inline void SerializedMessageRewriter<Context>::AfterGroup(
+    absl::Span<const int> field_path, Action action) {
+  RIEGELI_ASSERT(!field_path.empty())
+      << "Failed precondition of SerializedMessageRewriter::AfterGroup(): "
+         "empty field path";
+  const int field_number = field_path.back();
+  message_reader_.AfterGroup(
+      field_path, [action = std::move(action),
+                   field_number](MessageReaderContext& context) {
+        if (absl::Status status =
+                serialized_message_internal::InvokeAction<Context>(
+                    context.message_rewriter_context(), action,
+                    context.message_writer());
+            ABSL_PREDICT_FALSE(!status.ok())) {
+          return status;
+        }
+        return context.message_writer().CloseGroup(field_number);
+      });
+}
+
+template <typename Context>
+template <
+    typename Action,
+    std::enable_if_t<serialized_message_internal::IsAction<
+                         Context, Action, SerializedMessageWriter&>::value,
+                     int>>
+inline void SerializedMessageRewriter<Context>::ReplaceBeforeGroup(
+    absl::Span<const int> field_path, Action action) {
+  message_reader_.BeforeGroup(field_path, [action = std::move(action)](
+                                              MessageReaderContext& context) {
+    return serialized_message_internal::InvokeAction<Context>(
+        context.message_rewriter_context(), action, context.message_writer());
+  });
+}
+
+template <typename Context>
+template <
+    typename Action,
+    std::enable_if_t<serialized_message_internal::IsAction<
+                         Context, Action, SerializedMessageWriter&>::value,
+                     int>>
+inline void SerializedMessageRewriter<Context>::ReplaceAfterGroup(
+    absl::Span<const int> field_path, Action action) {
+  message_reader_.AfterGroup(field_path, [action = std::move(action)](
+                                             MessageReaderContext& context) {
     return serialized_message_internal::InvokeAction<Context>(
         context.message_rewriter_context(), action, context.message_writer());
   });
