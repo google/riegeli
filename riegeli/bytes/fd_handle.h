@@ -15,7 +15,6 @@
 #ifndef RIEGELI_BYTES_FD_HANDLE_H_
 #define RIEGELI_BYTES_FD_HANDLE_H_
 
-#include "riegeli/base/type_traits.h"
 #ifdef _WIN32
 #include <sys/stat.h>
 #else
@@ -41,6 +40,7 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/type_erased_ref.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/fd_internal.h"
 #include "riegeli/bytes/path_ref.h"
 
@@ -519,6 +519,11 @@ class
     return deleter_.filename();
   }
 
+  // Returns `filename()` as a NUL-terminated string.
+  const char* c_filename() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return deleter_.c_filename();
+  }
+
  protected:
   FdBase(const FdBase& that) = default;
   FdBase& operator=(const FdBase& that) = default;
@@ -544,8 +549,6 @@ class
     SetFdKeepFilename();
     deleter_.set_c_filename(filename);
   }
-
-  const char* c_filename() { return deleter_.c_filename(); }
 
   // Returns the fd. The stored fd is left absent, without modifying
   // `filename()`.

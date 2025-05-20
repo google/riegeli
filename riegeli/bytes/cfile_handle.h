@@ -477,6 +477,11 @@ class
     return deleter_.filename();
   }
 
+  // Returns `filename()` as a NUL-terminated string.
+  const char* c_filename() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return deleter_.c_filename();
+  }
+
  protected:
   CFileBase(const CFileBase& that) = default;
   CFileBase& operator=(const CFileBase& that) = default;
@@ -497,8 +502,6 @@ class
     SetFileKeepFilename();
     deleter_.set_c_filename(filename);
   }
-
-  const char* c_filename() { return deleter_.c_filename(); }
 
   // Returns the file. The stored `FILE*` is left absent, without modifying
   // `filename()`.
