@@ -28,6 +28,10 @@
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
+
+class LimitingReaderBase;
+class SerializedMessageWriter;
+
 namespace serialized_message_internal {
 
 template <typename Enable, typename Context, typename Action, typename... Args>
@@ -69,7 +73,109 @@ inline absl::Status InvokeAction(ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
                          std::forward<Args>(args)...);
 }
 
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithSrc
+    : IsAction<Context, Action, Args..., LimitingReaderBase&> {};
+
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithoutSrc : IsAction<Context, Action, Args...> {};
+
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithOptionalSrc
+    : absl::disjunction<IsActionWithSrc<Context, Action, Args...>,
+                        IsActionWithoutSrc<Context, Action, Args...>> {};
+
+template <
+    typename Context, typename Action, typename... Args,
+    std::enable_if_t<IsActionWithSrc<Context, Action, Args...>::value, int> = 0>
+inline absl::Status InvokeActionWithSrc(LimitingReaderBase& src,
+                                        TypeErasedRef context, Action&& action,
+                                        Args&&... args) {
+  return InvokeAction<Context>(context, std::forward<Action>(action),
+                               std::forward<Args>(args)..., src);
+}
+
+template <typename Context, typename Action, typename... Args,
+          std::enable_if_t<IsActionWithoutSrc<Context, Action, Args...>::value,
+                           int> = 0>
+inline absl::Status InvokeActionWithSrc(
+    ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src, TypeErasedRef context,
+    Action&& action, Args&&... args) {
+  return InvokeAction<Context>(context, std::forward<Action>(action),
+                               std::forward<Args>(args)...);
+}
+
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithDest
+    : IsAction<Context, Action, Args..., SerializedMessageWriter&> {};
+
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithoutDest : IsAction<Context, Action, Args...> {};
+
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithOptionalDest
+    : absl::disjunction<IsActionWithDest<Context, Action, Args...>,
+                        IsActionWithoutDest<Context, Action, Args...>> {};
+
+template <typename Context, typename Action, typename... Args,
+          std::enable_if_t<IsActionWithDest<Context, Action, Args...>::value,
+                           int> = 0>
+inline absl::Status InvokeActionWithDest(SerializedMessageWriter& dest,
+                                         TypeErasedRef context, Action&& action,
+                                         Args&&... args) {
+  return InvokeAction<Context>(context, std::forward<Action>(action),
+                               std::forward<Args>(args)..., dest);
+}
+
+template <typename Context, typename Action, typename... Args,
+          std::enable_if_t<IsActionWithoutDest<Context, Action, Args...>::value,
+                           int> = 0>
+inline absl::Status InvokeActionWithDest(
+    ABSL_ATTRIBUTE_UNUSED SerializedMessageWriter& dest, TypeErasedRef context,
+    Action&& action, Args&&... args) {
+  return InvokeAction<Context>(context, std::forward<Action>(action),
+                               std::forward<Args>(args)...);
+}
+
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithRequiredSrcAndOptionalDest
+    : IsActionWithOptionalDest<Context, Action, Args..., LimitingReaderBase&> {
+};
+
+template <typename Context, typename Action, typename... Args>
+struct IsActionWithOptionalSrcAndDest
+    : absl::disjunction<
+          IsActionWithRequiredSrcAndOptionalDest<Context, Action, Args...>,
+          IsActionWithOptionalDest<Context, Action, Args...>> {};
+
+template <typename Context, typename Action, typename... Args,
+          std::enable_if_t<IsActionWithRequiredSrcAndOptionalDest<
+                               Context, Action, Args...>::value,
+                           int> = 0>
+inline absl::Status InvokeActionWithSrcAndDest(LimitingReaderBase& src,
+                                               SerializedMessageWriter& dest,
+                                               TypeErasedRef context,
+                                               Action&& action,
+                                               Args&&... args) {
+  return InvokeActionWithDest<Context>(dest, context,
+                                       std::forward<Action>(action),
+                                       std::forward<Args>(args)..., src);
+}
+
+template <
+    typename Context, typename Action, typename... Args,
+    std::enable_if_t<IsActionWithOptionalDest<Context, Action, Args...>::value,
+                     int> = 0>
+inline absl::Status InvokeActionWithSrcAndDest(
+    ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src,
+    SerializedMessageWriter& dest, TypeErasedRef context, Action&& action,
+    Args&&... args) {
+  return InvokeActionWithDest<Context>(
+      dest, context, std::forward<Action>(action), std::forward<Args>(args)...);
+}
+
 }  // namespace serialized_message_internal
+
 }  // namespace riegeli
 
 #endif  // RIEGELI_MESSAGES_SERIALIZED_MESSAGE_INTERNAL_

@@ -117,18 +117,22 @@ absl::Status SerializedMessageReaderBase::SkipField(
 
 absl::Status SerializedMessageReaderBase::NoActionForSubmessage(
     ABSL_ATTRIBUTE_UNUSED int field_number,
+    ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src,
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
   return absl::OkStatus();
 }
 
 absl::Status SerializedMessageReaderBase::NoActionForRoot(
+    ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src,
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
   return absl::OkStatus();
 }
 
 void SerializedMessageReaderBase::OnInt32(
     absl::Span<const int> field_path,
-    std::function<absl::Status(int32_t value, TypeErasedRef context)> action) {
+    std::function<absl::Status(int32_t value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kVarint,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t repr;
@@ -140,7 +144,7 @@ void SerializedMessageReaderBase::OnInt32(
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     absl::StrCat("int32 field overflow: ", repr)));
               }
-              return action(value, context);
+              return action(value, src, context);
             });
   OnLengthDelimited(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
@@ -152,7 +156,7 @@ void SerializedMessageReaderBase::OnInt32(
             return src.StatusOrAnnotate(absl::InvalidArgumentError(
                 absl::StrCat("int32 field overflow: ", repr)));
           }
-          if (absl::Status status = action(value, context);
+          if (absl::Status status = action(value, src, context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
           }
@@ -166,7 +170,9 @@ void SerializedMessageReaderBase::OnInt32(
 
 void SerializedMessageReaderBase::OnUInt32(
     absl::Span<const int> field_path,
-    std::function<absl::Status(uint32_t value, TypeErasedRef context)> action) {
+    std::function<absl::Status(uint32_t value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kVarint,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t repr;
@@ -178,7 +184,7 @@ void SerializedMessageReaderBase::OnUInt32(
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     absl::StrCat("uint32 field overflow: ", repr)));
               }
-              return action(value, context);
+              return action(value, src, context);
             });
   OnLengthDelimited(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
@@ -190,7 +196,7 @@ void SerializedMessageReaderBase::OnUInt32(
             return src.StatusOrAnnotate(absl::InvalidArgumentError(
                 absl::StrCat("uint32 field overflow: ", repr)));
           }
-          if (absl::Status status = action(value, context);
+          if (absl::Status status = action(value, src, context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
           }
@@ -204,21 +210,23 @@ void SerializedMessageReaderBase::OnUInt32(
 
 void SerializedMessageReaderBase::OnUInt64(
     absl::Span<const int> field_path,
-    std::function<absl::Status(uint64_t value, TypeErasedRef context)> action) {
+    std::function<absl::Status(uint64_t value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kVarint,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t value;
               if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
                 return ReadVarintError(src);
               }
-              return action(value, context);
+              return action(value, src, context);
             });
   OnLengthDelimited(field_path,
                     [action = std::move(action)](LimitingReaderBase& src,
                                                  TypeErasedRef context) {
                       uint64_t value;
                       while (ReadVarint64(src, value)) {
-                        if (absl::Status status = action(value, context);
+                        if (absl::Status status = action(value, src, context);
                             ABSL_PREDICT_FALSE(!status.ok())) {
                           return status;
                         }
@@ -232,7 +240,9 @@ void SerializedMessageReaderBase::OnUInt64(
 
 void SerializedMessageReaderBase::OnBool(
     absl::Span<const int> field_path,
-    std::function<absl::Status(bool value, TypeErasedRef context)> action) {
+    std::function<absl::Status(bool value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kVarint,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t repr;
@@ -243,7 +253,7 @@ void SerializedMessageReaderBase::OnBool(
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     absl::StrCat("Invalid bool value: ", repr)));
               }
-              return action(repr != 0, context);
+              return action(repr != 0, src, context);
             });
   OnLengthDelimited(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
@@ -254,7 +264,7 @@ void SerializedMessageReaderBase::OnBool(
             return src.StatusOrAnnotate(absl::InvalidArgumentError(
                 absl::StrCat("Invalid bool value: ", repr)));
           }
-          if (absl::Status status = action(repr != 0, context);
+          if (absl::Status status = action(repr != 0, src, context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
           }
@@ -268,7 +278,9 @@ void SerializedMessageReaderBase::OnBool(
 
 void SerializedMessageReaderBase::OnFixed32(
     absl::Span<const int> field_path,
-    std::function<absl::Status(uint32_t value, TypeErasedRef context)> action) {
+    std::function<absl::Status(uint32_t value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kFixed32,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint32_t value;
@@ -276,14 +288,14 @@ void SerializedMessageReaderBase::OnFixed32(
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     "Could not read a fixed32 field"));
               }
-              return action(value, context);
+              return action(value, src, context);
             });
   OnLengthDelimited(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
                                                TypeErasedRef context) {
         uint32_t value;
         while (ReadLittleEndian32(src, value)) {
-          if (absl::Status status = action(value, context);
+          if (absl::Status status = action(value, src, context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
           }
@@ -298,7 +310,9 @@ void SerializedMessageReaderBase::OnFixed32(
 
 void SerializedMessageReaderBase::OnFixed64(
     absl::Span<const int> field_path,
-    std::function<absl::Status(uint64_t value, TypeErasedRef context)> action) {
+    std::function<absl::Status(uint64_t value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kFixed64,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t value;
@@ -306,14 +320,14 @@ void SerializedMessageReaderBase::OnFixed64(
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     "Could not read a fixed64 field"));
               }
-              return action(value, context);
+              return action(value, src, context);
             });
   OnLengthDelimited(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
                                                TypeErasedRef context) {
         uint64_t value;
         while (ReadLittleEndian64(src, value)) {
-          if (absl::Status status = action(value, context);
+          if (absl::Status status = action(value, src, context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
           }
@@ -328,7 +342,8 @@ void SerializedMessageReaderBase::OnFixed64(
 
 void SerializedMessageReaderBase::OnStringView(
     absl::Span<const int> field_path,
-    std::function<absl::Status(absl::string_view value, TypeErasedRef context)>
+    std::function<absl::Status(absl::string_view value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
         action) {
   OnLengthUnchecked(field_path, [action = std::move(action)](
                                     size_t length, LimitingReaderBase& src,
@@ -337,13 +352,14 @@ void SerializedMessageReaderBase::OnStringView(
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
       return ReadLengthDelimitedError(src);
     }
-    return action(value, context);
+    return action(value, src, context);
   });
 }
 
 void SerializedMessageReaderBase::OnString(
     absl::Span<const int> field_path,
-    std::function<absl::Status(std::string&& value, TypeErasedRef context)>
+    std::function<absl::Status(std::string&& value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
         action) {
   OnLengthUnchecked(field_path, [action = std::move(action)](
                                     size_t length, LimitingReaderBase& src,
@@ -352,13 +368,15 @@ void SerializedMessageReaderBase::OnString(
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
       return ReadLengthDelimitedError(src);
     }
-    return action(std::move(value), context);
+    return action(std::move(value), src, context);
   });
 }
 
 void SerializedMessageReaderBase::OnChain(
     absl::Span<const int> field_path,
-    std::function<absl::Status(Chain&& value, TypeErasedRef context)> action) {
+    std::function<absl::Status(Chain&& value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
+        action) {
   OnLengthUnchecked(field_path, [action = std::move(action)](
                                     size_t length, LimitingReaderBase& src,
                                     TypeErasedRef context) {
@@ -366,13 +384,14 @@ void SerializedMessageReaderBase::OnChain(
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
       return ReadLengthDelimitedError(src);
     }
-    return action(std::move(value), context);
+    return action(std::move(value), src, context);
   });
 }
 
 void SerializedMessageReaderBase::OnCord(
     absl::Span<const int> field_path,
-    std::function<absl::Status(absl::Cord&& value, TypeErasedRef context)>
+    std::function<absl::Status(absl::Cord&& value, LimitingReaderBase& src,
+                               TypeErasedRef context)>
         action) {
   OnLengthUnchecked(field_path, [action = std::move(action)](
                                     size_t length, LimitingReaderBase& src,
@@ -381,7 +400,7 @@ void SerializedMessageReaderBase::OnCord(
     if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
       return ReadLengthDelimitedError(src);
     }
-    return action(std::move(value), context);
+    return action(std::move(value), src, context);
   });
 }
 
@@ -419,7 +438,8 @@ void SerializedMessageReaderBase::OnLengthUnchecked(
 
 void SerializedMessageReaderBase::BeforeMessage(
     absl::Span<const int> field_path,
-    std::function<absl::Status(TypeErasedRef context)> action) {
+    std::function<absl::Status(LimitingReaderBase& src, TypeErasedRef context)>
+        action) {
   if (field_path.empty()) {
     before_root_ = std::move(action);
   } else {
@@ -429,7 +449,8 @@ void SerializedMessageReaderBase::BeforeMessage(
 
 void SerializedMessageReaderBase::AfterMessage(
     absl::Span<const int> field_path,
-    std::function<absl::Status(TypeErasedRef context)> action) {
+    std::function<absl::Status(LimitingReaderBase& src, TypeErasedRef context)>
+        action) {
   if (field_path.empty()) {
     after_root_ = std::move(action);
   } else {
@@ -439,20 +460,22 @@ void SerializedMessageReaderBase::AfterMessage(
 
 void SerializedMessageReaderBase::BeforeGroup(
     absl::Span<const int> field_path,
-    std::function<absl::Status(TypeErasedRef context)> action) {
+    std::function<absl::Status(LimitingReaderBase& src, TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kStartGroup,
             [action = std::move(action)](
                 ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src,
-                TypeErasedRef context) { return action(context); });
+                TypeErasedRef context) { return action(src, context); });
 }
 
 void SerializedMessageReaderBase::AfterGroup(
     absl::Span<const int> field_path,
-    std::function<absl::Status(TypeErasedRef context)> action) {
+    std::function<absl::Status(LimitingReaderBase& src, TypeErasedRef context)>
+        action) {
   SetAction(field_path, WireType::kEndGroup,
             [action = std::move(action)](
                 ABSL_ATTRIBUTE_UNUSED LimitingReaderBase& src,
-                TypeErasedRef context) { return action(context); });
+                TypeErasedRef context) { return action(src, context); });
 }
 
 void SerializedMessageReaderBase::SetAction(
@@ -496,7 +519,7 @@ absl::Status SerializedMessageReaderBase::Read(AnyRef<Reader*> src,
 inline absl::Status SerializedMessageReaderBase::ReadRootMessage(
     LimitingReaderBase& src, TypeErasedRef context) const {
   {
-    absl::Status status = before_root_(context);
+    absl::Status status = before_root_(src, context);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return status;
     }
@@ -508,7 +531,7 @@ inline absl::Status SerializedMessageReaderBase::ReadRootMessage(
     }
   }
   {
-    absl::Status status = after_root_(context);
+    absl::Status status = after_root_(src, context);
     if (ABSL_PREDICT_FALSE(!status.ok())) {
       return status;
     }
@@ -551,8 +574,9 @@ absl::Status SerializedMessageReaderBase::ReadMessage(
               &src, ScopedLimiter::Options().set_exact_length(size_t{length}));
           if (absl::Status status =
                   iter->second.before_message != nullptr
-                      ? iter->second.before_message(context)
-                      : before_other_message_(GetTagFieldNumber(tag), context);
+                      ? iter->second.before_message(src, context)
+                      : before_other_message_(GetTagFieldNumber(tag), src,
+                                              context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
           }
@@ -563,8 +587,9 @@ absl::Status SerializedMessageReaderBase::ReadMessage(
           }
           if (absl::Status status =
                   iter->second.after_message != nullptr
-                      ? iter->second.after_message(context)
-                      : after_other_message_(GetTagFieldNumber(tag), context);
+                      ? iter->second.after_message(src, context)
+                      : after_other_message_(GetTagFieldNumber(tag), src,
+                                             context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
           }

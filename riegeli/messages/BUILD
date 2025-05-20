@@ -232,6 +232,7 @@ cc_library(
         "//riegeli/base:global",
         "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
+        "//riegeli/base:types",
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
