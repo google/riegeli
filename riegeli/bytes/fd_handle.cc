@@ -64,31 +64,30 @@ template class FdBase<OwnedFdDeleter>;
 
 }  // namespace fd_internal
 
-absl::Status OwnedFd::Open(PathRef filename, int mode,
+absl::Status OwnedFd::Open(CompactString filename, int mode,
                            Permissions permissions) {
+  Reset(-1, std::move(filename));
 #ifndef _WIN32
-  ResetCFilename(filename);
 again:
   const int fd = open(c_filename(), mode, permissions);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;
     if (error_number == EINTR) goto again;
     return Annotate(absl::ErrnoToStatus(error_number, "open() failed"),
-                    absl::StrCat("opening ", absl::string_view(filename)));
+                    absl::StrCat("opening ", this->filename()));
   }
 #else   // _WIN32
-  Reset(-1, filename);
   std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename, filename_wide))) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "Filename not valid UTF-8: ", absl::string_view(filename)));
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(this->filename(), filename_wide))) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Filename not valid UTF-8: ", this->filename()));
   }
   int fd;
   if (ABSL_PREDICT_FALSE(_wsopen_s(&fd, filename_wide.c_str(), mode, _SH_DENYNO,
                                    permissions) != 0)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "_wsopen_s() failed"),
-                    absl::StrCat("opening ", absl::string_view(filename)));
+                    absl::StrCat("opening ", this->filename()));
   }
 #endif  // _WIN32
   SetFdKeepFilename(fd);
@@ -107,12 +106,12 @@ absl::Status OwnedFd::OpenAt(UnownedFd dir_fd, PathRef filename, int mode,
   CompactString full_filename;
   const size_t relative_filename_pos =
       dir_filename.size() + (needs_slash ? 1 : 0);
-  // Reserve 1 extra char so that `c_str()` does not need reallocation.
+  // Reserve one extra char so that `c_str()` does not need reallocation.
   full_filename.reserve(relative_filename_pos + filename.size() + 1);
   full_filename = dir_filename;
   if (needs_slash) *full_filename.append(1) = '/';
   full_filename.append(filename);
-  ResetFilename(std::move(full_filename));
+  Reset(-1, std::move(full_filename));
 
 again:
   const int fd = openat(dir_fd.get(), c_filename() + relative_filename_pos,

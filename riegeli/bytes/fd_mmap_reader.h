@@ -29,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -333,7 +334,7 @@ class FdMMapReader : public FdMMapReaderBase {
 
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
-  void OpenImpl(absl::string_view filename, Options&& options);
+  void OpenImpl(CompactString filename, Options&& options);
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
   void OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
@@ -416,7 +417,7 @@ template <
         int>>
 inline FdMMapReader<Src>::FdMMapReader(PathRef filename, Options options)
     : src_(riegeli::Maker()) {
-  OpenImpl(filename, std::move(options));
+  OpenImpl(CompactString::ForCStr(filename), std::move(options));
 }
 
 template <typename Src>
@@ -460,9 +461,11 @@ template <
                                        SupportsReset<DependentSrc>>::value,
                      int>>
 inline void FdMMapReader<Src>::Reset(PathRef filename, Options options) {
+  CompactString filename_copy =
+      CompactString::ForCStr(filename);  // In case it gets invalidated.
   riegeli::Reset(src_.manager());
   FdMMapReaderBase::Reset();
-  OpenImpl(filename, std::move(options));
+  OpenImpl(std::move(filename_copy), std::move(options));
 }
 
 template <typename Src>
@@ -473,17 +476,17 @@ template <
                      int>>
 inline void FdMMapReader<Src>::Reset(UnownedFd dir_fd, PathRef filename,
                                      Options options) {
+  CompactString filename_copy(filename);  // In case it gets invalidated.
   riegeli::Reset(src_.manager());
   FdMMapReaderBase::Reset();
-  OpenAtImpl(dir_fd, filename, std::move(options));
+  OpenAtImpl(dir_fd, filename_copy, std::move(options));
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
-void FdMMapReader<Src>::OpenImpl(absl::string_view filename,
-                                 Options&& options) {
-  absl::Status status = src_.manager().Open(filename, options.mode(),
+void FdMMapReader<Src>::OpenImpl(CompactString filename, Options&& options) {
+  absl::Status status = src_.manager().Open(std::move(filename), options.mode(),
                                             OwnedFd::kDefaultPermissions);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     FdMMapReaderBase::Reset(kClosed);

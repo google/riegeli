@@ -29,6 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -430,7 +431,7 @@ class CFileWriter : public CFileWriterBase {
  private:
   template <typename DependentDest = Dest,
             std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
-  void OpenImpl(absl::string_view filename, Options&& options);
+  void OpenImpl(CompactString filename, Options&& options);
 
   // The object providing and possibly owning the `FILE` being written to.
   Dependency<CFileHandle, Dest> dest_;
@@ -534,7 +535,7 @@ template <
         int>>
 inline CFileWriter<Dest>::CFileWriter(PathRef filename, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
-  OpenImpl(filename, std::move(options));
+  OpenImpl(CompactString::ForCStr(filename), std::move(options));
 }
 
 template <typename Dest>
@@ -565,17 +566,19 @@ template <
                                        SupportsReset<DependentDest>>::value,
                      int>>
 inline void CFileWriter<Dest>::Reset(PathRef filename, Options options) {
+  CompactString filename_copy =
+      CompactString::ForCStr(filename);  // In case it gets invalidated.
   riegeli::Reset(dest_.manager());
   CFileWriterBase::Reset(options.buffer_options());
-  OpenImpl(filename, std::move(options));
+  OpenImpl(std::move(filename_copy), std::move(options));
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int>>
-void CFileWriter<Dest>::OpenImpl(absl::string_view filename,
-                                 Options&& options) {
-  absl::Status status = dest_.manager().Open(filename, options.mode());
+void CFileWriter<Dest>::OpenImpl(CompactString filename, Options&& options) {
+  absl::Status status =
+      dest_.manager().Open(std::move(filename), options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     CFileWriterBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));

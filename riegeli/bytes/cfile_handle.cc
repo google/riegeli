@@ -29,14 +29,15 @@
 #ifdef _WIN32
 #include <string>
 #endif
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/c_string_ref.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/status.h"
-#include "riegeli/bytes/path_ref.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
 #endif
@@ -57,15 +58,15 @@ template class CFileBase<OwnedCFileDeleter>;
 
 }  // namespace cfile_internal
 
-absl::Status OwnedCFile::Open(PathRef filename, CStringRef mode) {
+absl::Status OwnedCFile::Open(CompactString filename, CStringRef mode) {
+  Reset(nullptr, std::move(filename));
 #ifndef _WIN32
-  ResetCFilename(filename);
 #ifndef __APPLE__
   FILE* const file = fopen(c_filename(), mode.c_str());
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "fopen() failed"),
-                    absl::StrCat("opening ", absl::string_view(filename)));
+                    absl::StrCat("opening ", this->filename()));
   }
 #else   // __APPLE__
   // Emulate `fopen()` with `open()` + `fdopen()`, adding support for 'e'
@@ -109,22 +110,21 @@ again:
     const int error_number = errno;
     if (error_number == EINTR) goto again;
     return Annotate(absl::ErrnoToStatus(error_number, "open() failed"),
-                    absl::StrCat("opening ", absl::string_view(filename)));
+                    absl::StrCat("opening ", this->filename()));
   }
   FILE* const file = fdopen(fd, mode.c_str());
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     close(fd);
     return Annotate(absl::ErrnoToStatus(error_number, "fdopen() failed"),
-                    absl::StrCat("opening ", absl::string_view(filename)));
+                    absl::StrCat("opening ", this->filename()));
   }
 #endif  // __APPLE__
 #else   // _WIN32
-  Reset(nullptr, filename);
   std::wstring filename_wide;
-  if (ABSL_PREDICT_FALSE(!Utf8ToWide(filename, filename_wide))) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "Filename not valid UTF-8: ", absl::string_view(filename)));
+  if (ABSL_PREDICT_FALSE(!Utf8ToWide(this->filename(), filename_wide))) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Filename not valid UTF-8: ", this->filename()));
   }
   std::wstring mode_wide;
   if (ABSL_PREDICT_FALSE(!Utf8ToWide(mode.c_str(), mode_wide))) {
@@ -135,7 +135,7 @@ again:
   if (ABSL_PREDICT_FALSE(file == nullptr)) {
     const int error_number = errno;
     return Annotate(absl::ErrnoToStatus(error_number, "_wfopen() failed"),
-                    absl::StrCat("opening ", absl::string_view(filename)));
+                    absl::StrCat("opening ", this->filename()));
   }
 #endif  // _WIN32
   SetFileKeepFilename(file);

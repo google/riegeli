@@ -31,6 +31,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/byte_fill.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -600,7 +601,7 @@ class FdWriter : public FdWriterBase {
  private:
   template <typename DependentDest = Dest,
             std::enable_if_t<FdSupportsOpen<DependentDest>::value, int> = 0>
-  void OpenImpl(absl::string_view filename, Options&& options);
+  void OpenImpl(CompactString filename, Options&& options);
   template <typename DependentDest = Dest,
             std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int> = 0>
   void OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
@@ -714,7 +715,7 @@ template <
         int>>
 inline FdWriter<Dest>::FdWriter(PathRef filename, Options options)
     : FdWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
-  OpenImpl(filename, std::move(options));
+  OpenImpl(CompactString::ForCStr(filename), std::move(options));
 }
 
 template <typename Dest>
@@ -758,9 +759,11 @@ template <
                                        SupportsReset<DependentDest>>::value,
                      int>>
 inline void FdWriter<Dest>::Reset(PathRef filename, Options options) {
+  CompactString filename_copy =
+      CompactString::ForCStr(filename);  // In case it gets invalidated.
   riegeli::Reset(dest_.manager());
   FdWriterBase::Reset(options.buffer_options());
-  OpenImpl(filename, std::move(options));
+  OpenImpl(std::move(filename_copy), std::move(options));
 }
 
 template <typename Dest>
@@ -771,17 +774,18 @@ template <
                      int>>
 inline void FdWriter<Dest>::Reset(UnownedFd dir_fd, PathRef filename,
                                   Options options) {
+  CompactString filename_copy(filename);  // In case it gets invalidated.
   riegeli::Reset(dest_.manager());
   FdWriterBase::Reset(options.buffer_options());
-  OpenAtImpl(dir_fd, filename, std::move(options));
+  OpenAtImpl(dir_fd, filename_copy, std::move(options));
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<FdSupportsOpen<DependentDest>::value, int>>
-void FdWriter<Dest>::OpenImpl(absl::string_view filename, Options&& options) {
-  absl::Status status =
-      dest_.manager().Open(filename, options.mode(), options.permissions());
+void FdWriter<Dest>::OpenImpl(CompactString filename, Options&& options) {
+  absl::Status status = dest_.manager().Open(
+      std::move(filename), options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     FdWriterBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));

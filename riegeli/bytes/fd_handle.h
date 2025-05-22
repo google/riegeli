@@ -330,14 +330,6 @@ class
   CompactString&& ReleaseFilename() { return std::move(filename_); }
 
   void set_filename(CompactString filename) { filename_ = std::move(filename); }
-  void set_filename(absl::string_view filename) { filename_ = filename; }
-
-  void set_c_filename(absl::string_view filename) {
-    filename_.clear();
-    // Reserve 1 extra char so that `c_str()` does not need reallocation.
-    filename_.reserve(filename.size() + 1);
-    filename_ = filename;
-  }
 
   const char* c_filename() { return filename_.c_str(); }
 
@@ -435,7 +427,9 @@ class
 
   // Creates an `FdBase` which stores `fd` with `filename`.
   explicit FdBase(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND, PathRef filename)
-      : fd_(fd), deleter_(CompactString(filename)) {}
+      : FdBase(fd, CompactString::ForCStr(filename)) {}
+  explicit FdBase(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND, CompactString filename)
+      : fd_(fd), deleter_(std::move(filename)) {}
 
   // Creates a `FdBase` converted from `UnownedFd`.
   template <
@@ -473,8 +467,11 @@ class
                                  : FilenameForFd(fd));
   }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd, PathRef filename) {
+    Reset(fd, CompactString::ForCStr(filename));
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd, CompactString filename) {
     SetFdKeepFilename(fd);
-    deleter_.set_filename(filename);
+    deleter_.set_filename(std::move(filename));
   }
   template <
       typename OtherDeleter,
@@ -539,16 +536,6 @@ class
   }
 
   ~FdBase() { Destroy(); }
-
-  void ResetFilename(CompactString filename) {
-    SetFdKeepFilename();
-    deleter_.set_filename(std::move(filename));
-  }
-
-  void ResetCFilename(absl::string_view filename) {
-    SetFdKeepFilename();
-    deleter_.set_c_filename(filename);
-  }
 
   // Returns the fd. The stored fd is left absent, without modifying
   // `filename()`.
@@ -643,6 +630,11 @@ class
   // returning `absl::Status`.
   ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
       PathRef filename, int mode,
+      Permissions permissions = kDefaultPermissions) {
+    return Open(CompactString::ForCStr(filename), mode, permissions);
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
+      CompactString filename, int mode,
       Permissions permissions = kDefaultPermissions);
 
 #ifndef _WIN32

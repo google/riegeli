@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -328,7 +329,7 @@ class CFileReader : public CFileReaderBase {
  private:
   template <typename DependentSrc = Src,
             std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
-  void OpenImpl(absl::string_view filename, Options&& options);
+  void OpenImpl(CompactString filename, Options&& options);
 
   // The object providing and possibly owning the `FILE` being read from.
   Dependency<CFileHandle, Src> src_;
@@ -423,7 +424,7 @@ template <
 inline CFileReader<Src>::CFileReader(PathRef filename, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(riegeli::Maker()) {
-  OpenImpl(filename, std::move(options));
+  OpenImpl(CompactString::ForCStr(filename), std::move(options));
 }
 
 template <typename Src>
@@ -454,16 +455,19 @@ template <
                                        SupportsReset<DependentSrc>>::value,
                      int>>
 inline void CFileReader<Src>::Reset(PathRef filename, Options options) {
+  CompactString filename_copy =
+      CompactString::ForCStr(filename);  // In case it gets invalidated.
   riegeli::Reset(src_.manager());
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
-  OpenImpl(filename, std::move(options));
+  OpenImpl(std::move(filename_copy), std::move(options));
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int>>
-void CFileReader<Src>::OpenImpl(absl::string_view filename, Options&& options) {
-  absl::Status status = src_.manager().Open(filename, options.mode());
+void CFileReader<Src>::OpenImpl(CompactString filename, Options&& options) {
+  absl::Status status =
+      src_.manager().Open(std::move(filename), options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     CFileReaderBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));

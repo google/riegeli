@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -426,7 +427,7 @@ class FdReader : public FdReaderBase {
  private:
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
-  void OpenImpl(absl::string_view filename, Options&& options);
+  void OpenImpl(CompactString filename, Options&& options);
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
   void OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
@@ -531,7 +532,7 @@ template <
 inline FdReader<Src>::FdReader(PathRef filename, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(riegeli::Maker()) {
-  OpenImpl(filename, std::move(options));
+  OpenImpl(CompactString::ForCStr(filename), std::move(options));
 }
 
 template <typename Src>
@@ -576,9 +577,11 @@ template <
                                        SupportsReset<DependentSrc>>::value,
                      int>>
 inline void FdReader<Src>::Reset(PathRef filename, Options options) {
+  CompactString filename_copy =
+      CompactString::ForCStr(filename);  // In case it gets invalidated.
   riegeli::Reset(src_.manager());
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
-  OpenImpl(filename, std::move(options));
+  OpenImpl(std::move(filename_copy), std::move(options));
 }
 
 template <typename Src>
@@ -589,16 +592,17 @@ template <
                      int>>
 inline void FdReader<Src>::Reset(UnownedFd dir_fd, PathRef filename,
                                  Options options) {
+  CompactString filename_copy(filename);  // In case it gets invalidated.
   riegeli::Reset(src_.manager());
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
-  OpenAtImpl(dir_fd, filename, std::move(options));
+  OpenAtImpl(dir_fd, filename_copy, std::move(options));
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
-void FdReader<Src>::OpenImpl(absl::string_view filename, Options&& options) {
-  absl::Status status = src_.manager().Open(filename, options.mode(),
+void FdReader<Src>::OpenImpl(CompactString filename, Options&& options) {
+  absl::Status status = src_.manager().Open(std::move(filename), options.mode(),
                                             OwnedFd::kDefaultPermissions);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     FdReaderBase::Reset(kClosed);

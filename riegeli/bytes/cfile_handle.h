@@ -295,14 +295,6 @@ class
   CompactString&& ReleaseFilename() { return std::move(filename_); }
 
   void set_filename(CompactString filename) { filename_ = std::move(filename); }
-  void set_filename(absl::string_view filename) { filename_ = filename; }
-
-  void set_c_filename(absl::string_view filename) {
-    filename_.clear();
-    // Reserve 1 extra char so that `c_str()` does not need reallocation.
-    filename_.reserve(filename.size() + 1);
-    filename_ = filename;
-  }
 
   const char* c_filename() { return filename_.c_str(); }
 
@@ -391,7 +383,11 @@ class
 
   // Creates a `CFileBase` which stores `file` with `filename`.
   explicit CFileBase(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND, PathRef filename)
-      : file_(file), deleter_(CompactString(filename)) {}
+      : CFileBase(file, CompactString::ForCStr(filename)) {}
+  // Creates a `CFileBase` which stores `file` with `filename`.
+  explicit CFileBase(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                     CompactString filename)
+      : file_(file), deleter_(std::move(filename)) {}
 
   // Creates a `CFileBase` converted from `UnownedCFile`.
   template <
@@ -430,8 +426,11 @@ class
                                           : FilenameForCFile(file));
   }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file, PathRef filename) {
+    Reset(file, CompactString::ForCStr(filename));
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file, CompactString filename) {
     SetFileKeepFilename(file);
-    deleter_.set_filename(filename);
+    deleter_.set_filename(std::move(filename));
   }
   template <typename OtherDeleter,
             std::enable_if_t<
@@ -497,11 +496,6 @@ class
   }
 
   ~CFileBase() { Destroy(); }
-
-  void ResetCFilename(absl::string_view filename) {
-    SetFileKeepFilename();
-    deleter_.set_c_filename(filename);
-  }
 
   // Returns the file. The stored `FILE*` is left absent, without modifying
   // `filename()`.
@@ -590,6 +584,10 @@ class
   // Opens a new `FILE*`, like with `fopen()`, but taking `PathRef filename`,
   // `CStringRef mode`, and returning `absl::Status`.
   ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(PathRef filename,
+                                                 CStringRef mode) {
+    return Open(CompactString::ForCStr(filename), mode);
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(CompactString filename,
                                                  CStringRef mode);
 
   // Closes the `FILE*` if present.

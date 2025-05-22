@@ -93,6 +93,12 @@ class
   // Creates a `CompactString` which holds a copy of `src`.
   explicit CompactString(BytesRef src) : repr_(MakeRepr(src)) {}
 
+  // Creates a `CompactString` which holds a copy of `src`. Reserves one extra
+  // char so that `c_str()` does not need reallocation.
+  static CompactString ForCStr(BytesRef src) {
+    return CompactString(FromReprTag(), MakeRepr(src, src.size() + 1));
+  }
+
   CompactString(const CompactString& that);
   CompactString& operator=(const CompactString& that);
 
@@ -228,7 +234,7 @@ class
     // transferred and thus might no longer be valid. Hence reading `raw` again
     // is most likely a bug.
     MarkPoisoned(reinterpret_cast<const char*>(&raw), sizeof(uintptr_t));
-    return CompactString(MoveFromRawMarker(), raw_copy);
+    return CompactString(FromReprTag(), raw_copy);
   }
 
   // Views contents of a `CompactString` from the representation returned by
@@ -349,11 +355,11 @@ class
   }
 
  private:
-  struct MoveFromRawMarker {
-    explicit MoveFromRawMarker() = default;
+  struct FromReprTag {
+    explicit FromReprTag() = default;
   };
 
-  explicit CompactString(MoveFromRawMarker, uintptr_t raw) : repr_(raw) {}
+  explicit CompactString(FromReprTag, uintptr_t raw) : repr_(raw) {}
 
   static constexpr size_t kTagBits = 3;
   static constexpr uintptr_t kTagMask = (1u << kTagBits) - 1;
