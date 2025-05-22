@@ -83,7 +83,7 @@ class WrappingDigester {
   template <typename... Args,
             std::enable_if_t<
                 absl::conjunction<
-                    NotSelfCopy<WrappingDigester, TargetT<Args>...>,
+                    NotSameRef<WrappingDigester, TargetT<Args>...>,
                     std::is_constructible<BaseDigester, Args&&...>>::value,
                 int> = 0>
   explicit WrappingDigester(Args&&... args)
@@ -98,7 +98,7 @@ class WrappingDigester {
   template <typename... Args,
             std::enable_if_t<
                 absl::conjunction<
-                    NotSelfCopy<WrappingDigester, TargetT<Args>...>,
+                    NotSameRef<WrappingDigester, TargetT<Args>...>,
                     std::is_constructible<BaseDigester, Args&&...>>::value,
                 int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {

@@ -49,7 +49,7 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   template <
       typename SrcFunction, typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<NotSelfCopy<InvokerBase, SrcFunction, SrcArgs...>,
+          absl::conjunction<NotSameRef<InvokerBase, SrcFunction, SrcArgs...>,
                             is_invocable<Function&&, Args&&...>,
                             std::is_convertible<SrcFunction&&, Function>,
                             std::is_convertible<SrcArgs&&, Args>...>::value,

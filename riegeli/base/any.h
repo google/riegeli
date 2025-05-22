@@ -290,14 +290,14 @@ class
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<NotSelfCopy<Any, TargetT<Manager>>,
+          absl::conjunction<NotSameRef<Any, TargetT<Manager>>,
                             TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   /*implicit*/ Any(Manager&& manager);
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<NotSelfCopy<Any, TargetT<Manager>>,
+          absl::conjunction<NotSameRef<Any, TargetT<Manager>>,
                             TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   Any& operator=(Manager&& manager);
@@ -316,12 +316,12 @@ class
                 std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
   Any& operator=(Manager manager);
 
-  // Assignment operator which materializes `Any` from its `Initializer`.
+  // Assignment operator which materializes `Any` from its `Initializer`
+  // except from the `Any` itself, which is handled below.
   template <typename Manager,
-            std::enable_if_t<
-                absl::conjunction<NotSelfCopy<Any, Manager>,
-                                  std::is_same<TargetT<Manager>, Any>>::value,
-                int> = 0>
+            std::enable_if_t<absl::conjunction<SameRef<Any, TargetT<Manager>>,
+                                               NotSameRef<Any, Manager>>::value,
+                             int> = 0>
   Any& operator=(Manager&& manager) {
     riegeli::Reset(*this, std::forward<Manager>(manager));
     return *this;
@@ -449,8 +449,8 @@ class
   template <typename Manager,
             std::enable_if_t<
                 absl::conjunction<
-                    NotSelfCopy<AnyRef, TargetT<Manager>>,
-                    NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+                    NotSameRef<AnyRef, TargetT<Manager>>,
+                    NotSameRef<Any<Handle>, TargetT<Manager>>,
                     absl::negation<std::is_reference<TargetRefT<Manager>>>,
                     SupportsDependency<Handle, TargetRefT<Manager>&&>>::value,
                 int> = 0>
@@ -470,8 +470,8 @@ class
   template <
       typename Manager,
       std::enable_if_t<absl::conjunction<
-                           NotSelfCopy<AnyRef, TargetT<Manager>>,
-                           NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+                           NotSameRef<AnyRef, TargetT<Manager>>,
+                           NotSameRef<Any<Handle>, TargetT<Manager>>,
                            std::is_reference<TargetRefT<Manager>>,
                            TargetRefSupportsDependency<Handle, Manager>>::value,
                        int> = 0>
@@ -779,8 +779,8 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
     std::enable_if_t<
-        absl::conjunction<NotSelfCopy<Any<Handle, inline_size, inline_align>,
-                                      TargetT<Manager>>,
+        absl::conjunction<NotSameRef<Any<Handle, inline_size, inline_align>,
+                                     TargetT<Manager>>,
                           TargetSupportsDependency<Handle, Manager>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>::Any(Manager&& manager) {
@@ -791,8 +791,8 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
     std::enable_if_t<
-        absl::conjunction<NotSelfCopy<Any<Handle, inline_size, inline_align>,
-                                      TargetT<Manager>>,
+        absl::conjunction<NotSameRef<Any<Handle, inline_size, inline_align>,
+                                     TargetT<Manager>>,
                           TargetSupportsDependency<Handle, Manager>>::value,
         int>>
 inline Any<Handle, inline_size, inline_align>&
@@ -825,8 +825,8 @@ template <typename Handle>
 template <typename Manager,
           std::enable_if_t<
               absl::conjunction<
-                  NotSelfCopy<AnyRef<Handle>, TargetT<Manager>>,
-                  NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+                  NotSameRef<AnyRef<Handle>, TargetT<Manager>>,
+                  NotSameRef<Any<Handle>, TargetT<Manager>>,
                   absl::negation<std::is_reference<TargetRefT<Manager>>>,
                   SupportsDependency<Handle, TargetRefT<Manager>&&>>::value,
               int>>
@@ -842,8 +842,8 @@ template <typename Handle>
 template <
     typename Manager,
     std::enable_if_t<
-        absl::conjunction<NotSelfCopy<AnyRef<Handle>, TargetT<Manager>>,
-                          NotSelfCopy<Any<Handle>, TargetT<Manager>>,
+        absl::conjunction<NotSameRef<AnyRef<Handle>, TargetT<Manager>>,
+                          NotSameRef<Any<Handle>, TargetT<Manager>>,
                           std::is_reference<TargetRefT<Manager>>,
                           TargetRefSupportsDependency<Handle, Manager>>::value,
         int>>

@@ -53,7 +53,7 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<BytesRef, T>,
+                absl::conjunction<NotSameRef<BytesRef, T>,
                                   std::is_convertible<T&&, StringRef>>::value,
                 int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -69,10 +69,9 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   template <typename T,
             std::enable_if_t<
                 absl::conjunction<
-                    NotSelfCopy<BytesRef, T>,
+                    NotSameRef<BytesRef, T>,
                     absl::negation<std::is_convertible<T&&, StringRef>>,
-                    absl::negation<
-                        std::is_same<std::decay_t<T>, absl::Span<const char>>>,
+                    NotSameRef<absl::Span<const char>, T>,
                     std::is_convertible<T&&, absl::Span<const char>>>::value,
                 int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -90,7 +89,7 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
 
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<BytesRef, T>,
+                absl::conjunction<NotSameRef<BytesRef, T>,
                                   std::is_convertible<T&&, StringRef>>::value,
                 int> = 0>
   friend bool operator==(BytesRef a, T&& b) {
@@ -98,7 +97,7 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<BytesRef, T>,
+                absl::conjunction<NotSameRef<BytesRef, T>,
                                   std::is_convertible<T&&, StringRef>>::value,
                 int> = 0>
   friend riegeli::StrongOrdering RIEGELI_COMPARE(BytesRef a, T&& b) {

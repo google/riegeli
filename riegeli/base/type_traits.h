@@ -198,25 +198,27 @@ struct IsConstructibleFromResult
           std::is_constructible<T, Result>> {
 };
 
-// `NotSelfCopy<Self, Args...>::value` is `true` unless a constructor or
-// assignment of `Self` from a reference to `Args...` would conflict with the
-// copy or move constructor or assignment.
+// `SameRef<Self, Args...>::value` is `true` if a constructor or assignment of
+// `Self` from a reference to `Args...` would conflict with the copy or move
+// constructor or assignment.
+//
+// This means a single argument which is reference to `Self` or a class derived
+// from `Self`, ignoring `const`.
+
+template <typename Self, typename... Args>
+struct SameRef : std::false_type {};
+
+template <typename Self, typename Arg>
+struct SameRef<Self, Arg> : std::is_convertible<std::decay_t<Arg>*, Self*> {};
+
+// `NotSameRef` is the negation of `SameRef`.
 //
 // This should be included in constraints of a templated constructor or
 // assignment where such a conflict is possible. This makes argument types
-// compatible with copying or moving interpreted as the copy or move, instead of
-// passing them to the templated constructor or assignment.
-//
-// Compatible arguments means a single argument which is reference to `Self`
-// or a class derived from `Self`.
-
+// compatible with copying or moving interpreted as the copy or move,
+// instead of passing them to the templated constructor or assignment.
 template <typename Self, typename... Args>
-struct NotSelfCopy : std::true_type {};
-
-template <typename Self, typename Arg>
-struct NotSelfCopy<Self, Arg>
-    : absl::negation<
-          std::is_convertible<std::remove_reference_t<Arg>*, const Self*>> {};
+struct NotSameRef : absl::negation<SameRef<Self, Args...>> {};
 
 namespace type_traits_internal {
 

@@ -827,7 +827,7 @@ class Chain::Block {
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<NotSelfCopy<Block, TargetT<T>>,
+          absl::conjunction<NotSameRef<Block, TargetT<T>>,
                             std::is_convertible<TargetT<T>, BytesRef>>::value,
           int> = 0>
   explicit Block(T&& object);

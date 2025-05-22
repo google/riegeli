@@ -154,7 +154,7 @@ class
 
   // Creates an `FdHandle` which refers to `target`.
   template <typename T,
-            std::enable_if_t<absl::conjunction<NotSelfCopy<FdHandle, T&>,
+            std::enable_if_t<absl::conjunction<NotSameRef<FdHandle, T&>,
                                                SupportsFdHandle<T>>::value,
                              int> = 0>
   /*implicit*/ FdHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)

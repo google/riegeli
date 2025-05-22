@@ -60,7 +60,7 @@ class
   // Wraps `std::forward<T>(value)`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<TypeErasedRef, T>,
+                absl::conjunction<NotSameRef<TypeErasedRef, T>,
                                   absl::negation<IsFunctionRef<T>>>::value,
                 int> = 0>
   explicit TypeErasedRef(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -72,7 +72,7 @@ class
   // `reinterpret_cast` to `void*` and back.
   template <typename T,
             std::enable_if_t<
-                // `NotSelfCopy` is not needed because `T` is a function
+                // `NotSameRef` is not needed because `T` is a function
                 // reference, so it is never `TypeErasedRef`.
                 IsFunctionRef<T>::value, int> = 0>
   explicit TypeErasedRef(T&& value) : ptr_(reinterpret_cast<void*>(&value)) {}

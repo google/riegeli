@@ -139,7 +139,7 @@ class
   // Creates a `DigesterBaseHandle` which refers to `target`.
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<NotSelfCopy<DigesterBaseHandle, T&>,
+      std::enable_if_t<absl::conjunction<NotSameRef<DigesterBaseHandle, T&>,
                                          SupportsDigesterBaseHandle<T>>::value,
                        int> = 0>
   /*implicit*/ DigesterBaseHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -542,7 +542,7 @@ class DigesterHandle : public DigesterBaseHandle {
   // Creates a `DigesterHandle` which refers to `target`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<DigesterHandle, T&>,
+                absl::conjunction<NotSameRef<DigesterHandle, T&>,
                                   SupportsDigesterHandle<T, DigestType>>::value,
                 int> = 0>
   /*implicit*/ DigesterHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)

@@ -117,7 +117,7 @@ class
 
   // Creates a `CFileHandle` which refers to `target`.
   template <typename T,
-            std::enable_if_t<absl::conjunction<NotSelfCopy<CFileHandle, T&>,
+            std::enable_if_t<absl::conjunction<NotSameRef<CFileHandle, T&>,
                                                SupportsCFileHandle<T>>::value,
                              int> = 0>
   /*implicit*/ CFileHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)

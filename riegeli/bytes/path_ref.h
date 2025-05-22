@@ -66,7 +66,7 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<PathRef, T>,
+                absl::conjunction<NotSameRef<PathRef, T>,
                                   std::is_convertible<T&&, StringRef>>::value,
                 int> = 0>
   /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -120,7 +120,7 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
 
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<PathRef, T>,
+                absl::conjunction<NotSameRef<PathRef, T>,
                                   std::is_convertible<T&&, StringRef>>::value,
                 int> = 0>
   friend bool operator==(PathRef a, T&& b) {
@@ -128,7 +128,7 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<PathRef, T>,
+                absl::conjunction<NotSameRef<PathRef, T>,
                                   std::is_convertible<T&&, StringRef>>::value,
                 int> = 0>
   friend riegeli::StrongOrdering RIEGELI_COMPARE(PathRef a, T&& b) {

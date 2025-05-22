@@ -70,7 +70,7 @@ class AnyInitializer {
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<NotSelfCopy<AnyInitializer, TargetT<Manager>>,
+          absl::conjunction<NotSameRef<AnyInitializer, TargetT<Manager>>,
                             TargetSupportsDependency<Handle, Manager>>::value,
           int> = 0>
   /*implicit*/ AnyInitializer(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND)

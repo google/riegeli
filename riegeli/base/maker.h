@@ -54,7 +54,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   template <
       typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<NotSelfCopy<MakerType, SrcArgs...>,
+          absl::conjunction<NotSameRef<MakerType, SrcArgs...>,
                             std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>
   /*implicit*/ MakerType(SrcArgs&&... args)
@@ -293,7 +293,7 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   template <
       typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<NotSelfCopy<MakerTypeFor, SrcArgs...>,
+          absl::conjunction<NotSameRef<MakerTypeFor, SrcArgs...>,
                             std::is_constructible<T, Args&&...>,
                             std::is_convertible<SrcArgs&&, Args>...>::value,
           int> = 0>

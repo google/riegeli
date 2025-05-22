@@ -848,7 +848,7 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
 template <
     typename T,
     std::enable_if_t<
-        absl::conjunction<NotSelfCopy<Chain::Block, TargetT<T>>,
+        absl::conjunction<NotSameRef<Chain::Block, TargetT<T>>,
                           std::is_convertible<TargetT<T>, BytesRef>>::value,
         int>>
 inline Chain::Block::Block(T&& object)

@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iosfwd>
 #include <limits>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -272,7 +273,7 @@ class
 
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<CompactString, T>,
+                absl::conjunction<NotSameRef<CompactString, T>,
                                   std::is_convertible<T&&, BytesRef>>::value,
                 int> = 0>
   friend bool operator==(const CompactString& a, T&& b) {
@@ -280,7 +281,7 @@ class
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSelfCopy<CompactString, T>,
+                absl::conjunction<NotSameRef<CompactString, T>,
                                   std::is_convertible<T&&, BytesRef>>::value,
                 int> = 0>
   friend StrongOrdering RIEGELI_COMPARE(const CompactString& a, T&& b) {

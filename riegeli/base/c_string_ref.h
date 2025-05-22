@@ -77,29 +77,25 @@ class
       : c_str_(str) {}
 
   // Stores `str` converted to `const char*`.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              NotSelfCopy<CStringRef, T>,
-              absl::negation<std::is_same<std::decay_t<T>, std::nullptr_t>>,
-              absl::negation<std::is_same<std::decay_t<T>, const char*>>,
-              std::is_convertible<T&&, const char*>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<NotSameRef<CStringRef, T>,
+                                  NotSameRef<std::nullptr_t, T>,
+                                  NotSameRef<const char*, T>,
+                                  std::is_convertible<T&&, const char*>>::value,
+                int> = 0>
   /*implicit*/ CStringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : c_str_(std::forward<T>(str)) {}
 
   // Stores `str.c_str()`. This applies e.g. to `std::string` and
   // mutable `CompactString`.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              NotSelfCopy<CStringRef, T>,
-              absl::negation<std::is_same<std::decay_t<T>, std::nullptr_t>>,
-              absl::negation<std::is_convertible<T&&, const char*>>,
-              HasCStr<T&&>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<
+                    NotSameRef<CStringRef, T>, NotSameRef<std::nullptr_t, T>,
+                    absl::negation<std::is_convertible<T&&, const char*>>,
+                    HasCStr<T&&>>::value,
+                int> = 0>
   /*implicit*/ CStringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : c_str_(std::forward<T>(str).c_str()) {}
 
@@ -108,16 +104,14 @@ class
   //
   // The string is stored in a storage object passed as a default argument to
   // this constructor.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              NotSelfCopy<CStringRef, T>,
-              absl::negation<std::is_same<std::decay_t<T>, std::nullptr_t>>,
-              absl::negation<std::is_convertible<T&&, const char*>>,
-              absl::negation<HasCStr<T&&>>,
-              std::is_convertible<T&&, StringRef>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<
+                    NotSameRef<CStringRef, T>, NotSameRef<std::nullptr_t, T>,
+                    absl::negation<std::is_convertible<T&&, const char*>>,
+                    absl::negation<HasCStr<T&&>>,
+                    std::is_convertible<T&&, StringRef>>::value,
+                int> = 0>
   /*implicit*/ CStringRef(T&& str, TemporaryStorage<std::string>&& storage
                                        ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
       : CStringRef(std::move(storage).emplace(

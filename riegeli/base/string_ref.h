@@ -66,17 +66,15 @@ class StringRef : public WithCompare<StringRef> {
 #endif
 
   // Stores `str` converted to `absl::string_view`.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              NotSelfCopy<StringRef, T>,
-              absl::negation<std::is_same<std::decay_t<T>, absl::string_view>>,
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<
+                    NotSameRef<StringRef, T>, NotSameRef<absl::string_view, T>,
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
-              absl::negation<std::is_same<std::decay_t<T>, std::string_view>>,
+                    NotSameRef<std::string_view, T>,
 #endif
-              std::is_convertible<T&&, absl::string_view>>::value,
-          int> = 0>
+                    std::is_convertible<T&&, absl::string_view>>::value,
+                int> = 0>
   /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : str_(std::forward<T>(str)) {
   }
@@ -84,15 +82,14 @@ class StringRef : public WithCompare<StringRef> {
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
   // Stores `str` converted to `std::string_view` and then to
   // `absl::string_view`.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              NotSelfCopy<StringRef, T>,
-              absl::negation<std::is_convertible<T&&, absl::string_view>>,
-              absl::negation<std::is_same<std::decay_t<T>, std::string_view>>,
-              std::is_convertible<T&&, std::string_view>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                absl::conjunction<
+                    NotSameRef<StringRef, T>,
+                    absl::negation<std::is_convertible<T&&, absl::string_view>>,
+                    NotSameRef<std::string_view, T>,
+                    std::is_convertible<T&&, std::string_view>>::value,
+                int> = 0>
   /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : StringRef(std::string_view(std::forward<T>(str))) {}
 #endif
@@ -125,7 +122,7 @@ class StringRef : public WithCompare<StringRef> {
       typename T,
       std::enable_if_t<
           absl::conjunction<
-              NotSelfCopy<StringRef, T>,
+              NotSameRef<StringRef, T>,
               absl::disjunction<std::is_convertible<T&&, absl::string_view>
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
                                 ,
@@ -140,7 +137,7 @@ class StringRef : public WithCompare<StringRef> {
       typename T,
       std::enable_if_t<
           absl::conjunction<
-              NotSelfCopy<StringRef, T>,
+              NotSameRef<StringRef, T>,
               absl::disjunction<std::is_convertible<T&&, absl::string_view>
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
                                 ,
