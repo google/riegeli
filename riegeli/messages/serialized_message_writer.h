@@ -255,19 +255,41 @@ inline absl::Status SerializedMessageWriter::WriteInt64(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteUInt32(int field_number,
                                                          uint32_t value) {
-  if (ABSL_PREDICT_FALSE(
-          !WriteVarint32WithTag(field_number, value, writer()))) {
+  const uint32_t tag = MakeTag(field_number, WireType::kVarint);
+  if (ABSL_PREDICT_FALSE(!writer().Push(
+          (RIEGELI_IS_CONSTANT(tag) ||
+                   (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+               ? LengthVarint32(tag)
+               : kMaxLengthVarint32) +
+          (RIEGELI_IS_CONSTANT(value) ||
+                   (RIEGELI_IS_CONSTANT(value < 0x80) && value < 0x80)
+               ? LengthVarint32(value)
+               : kMaxLengthVarint32)))) {
     return writer().status();
   }
+  char* ptr = WriteVarint32(tag, writer().cursor());
+  ptr = WriteVarint32(value, ptr);
+  writer().set_cursor(ptr);
   return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageWriter::WriteUInt64(int field_number,
                                                          uint64_t value) {
-  if (ABSL_PREDICT_FALSE(
-          !WriteVarint64WithTag(field_number, value, writer()))) {
+  const uint32_t tag = MakeTag(field_number, WireType::kVarint);
+  if (ABSL_PREDICT_FALSE(!writer().Push(
+          (RIEGELI_IS_CONSTANT(tag) ||
+                   (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+               ? LengthVarint32(tag)
+               : kMaxLengthVarint32) +
+          (RIEGELI_IS_CONSTANT(value) ||
+                   (RIEGELI_IS_CONSTANT(value < 0x80) && value < 0x80)
+               ? LengthVarint64(value)
+               : kMaxLengthVarint64)))) {
     return writer().status();
   }
+  char* ptr = WriteVarint32(tag, writer().cursor());
+  ptr = WriteVarint64(value, ptr);
+  writer().set_cursor(ptr);
   return absl::OkStatus();
 }
 
@@ -288,17 +310,37 @@ inline absl::Status SerializedMessageWriter::WriteBool(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteFixed32(int field_number,
                                                           uint32_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteFixed32WithTag(field_number, value, writer()))) {
+  const uint32_t tag = MakeTag(field_number, WireType::kFixed32);
+  if (ABSL_PREDICT_FALSE(!writer().Push(
+          (RIEGELI_IS_CONSTANT(tag) ||
+                   (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+               ? LengthVarint32(tag)
+               : kMaxLengthVarint32) +
+          sizeof(uint32_t)))) {
     return writer().status();
   }
+  char* ptr = WriteVarint32(tag, writer().cursor());
+  WriteLittleEndian32(value, ptr);
+  ptr += sizeof(uint32_t);
+  writer().set_cursor(ptr);
   return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageWriter::WriteFixed64(int field_number,
                                                           uint64_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteFixed64WithTag(field_number, value, writer()))) {
+  const uint32_t tag = MakeTag(field_number, WireType::kFixed64);
+  if (ABSL_PREDICT_FALSE(!writer().Push(
+          (RIEGELI_IS_CONSTANT(tag) ||
+                   (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+               ? LengthVarint32(tag)
+               : kMaxLengthVarint32) +
+          sizeof(uint64_t)))) {
     return writer().status();
   }
+  char* ptr = WriteVarint32(tag, writer().cursor());
+  WriteLittleEndian64(value, ptr);
+  ptr += sizeof(uint64_t);
+  writer().set_cursor(ptr);
   return absl::OkStatus();
 }
 

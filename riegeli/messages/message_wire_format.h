@@ -53,43 +53,75 @@ enum class WireType : uint32_t {
 
 // Composes/decomposes a field tag.
 constexpr uint32_t MakeTag(int field_number, WireType wire_type);
-WireType GetTagWireType(uint32_t tag);
-int GetTagFieldNumber(uint32_t tag);
+constexpr WireType GetTagWireType(uint32_t tag);
+constexpr int GetTagFieldNumber(uint32_t tag);
 
 // Write a scalar field, prefixed with its tag.
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteUInt32() instead.")
 bool WriteVarint32WithTag(int field_number, uint32_t data, Writer& dest);
+ABSL_DEPRECATED(
+    "Use SerializedMessageWriter::WriteUInt64(), WriteInt64(), or "
+    "WriteInt32() instead.")
 bool WriteVarint64WithTag(int field_number, uint64_t data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteSInt32() instead.")
 bool WriteVarintSigned32WithTag(int field_number, int32_t data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteSInt64() instead.")
 bool WriteVarintSigned64WithTag(int field_number, int64_t data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteFixed32() instead.")
 bool WriteFixed32WithTag(int field_number, uint32_t data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteFixed64() instead.")
 bool WriteFixed64WithTag(int field_number, uint64_t data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteSFixed32() instead.")
 bool WriteFixedSigned32WithTag(int field_number, int32_t data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteSFixed64() instead.")
 bool WriteFixedSigned64WithTag(int field_number, int64_t data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteFloat() instead.")
 bool WriteFloatWithTag(int field_number, float data, Writer& dest);
+ABSL_DEPRECATED("Use SerializedMessageWriter::WriteDouble() instead.")
 bool WriteDoubleWithTag(int field_number, double data, Writer& dest);
 
 // Write the length of a length-delimited field, prefixed with its tag.
+ABSL_DEPRECATED(
+    "Use SerializedMessageWriter::WriteString(), CopyString(), "
+    "WriteSerializedMessage(), {Open,Close}LengthDelimited(), or "
+    "WriteLengthUnchecked() instead.")
 bool WriteLengthWithTag(int field_number, Position length, Writer& dest);
 
 // Write a scalar field, prefixed with its tag.
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteUInt32() instead.")
 bool WriteVarint32WithTag(int field_number, uint32_t data,
                           BackwardWriter& dest);
+ABSL_DEPRECATED(
+    "Use SerializedMessageBackwardWriter::WriteUInt64(), WriteInt64(), or "
+    "WriteInt32() instead.")
 bool WriteVarint64WithTag(int field_number, uint64_t data,
                           BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteSInt32() instead.")
 bool WriteVarintSigned32WithTag(int field_number, int32_t data,
                                 BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteSInt64() instead.")
 bool WriteVarintSigned64WithTag(int field_number, int64_t data,
                                 BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteFixed32() instead.")
 bool WriteFixed32WithTag(int field_number, uint32_t data, BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteFixed64() instead.")
 bool WriteFixed64WithTag(int field_number, uint64_t data, BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteSFixed32() instead.")
 bool WriteFixedSigned32WithTag(int field_number, int32_t data,
                                BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteSFixed64() instead.")
 bool WriteFixedSigned64WithTag(int field_number, int64_t data,
                                BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteFloat() instead.")
 bool WriteFloatWithTag(int field_number, float data, BackwardWriter& dest);
+ABSL_DEPRECATED("Use SerializedMessageBackwardWriter::WriteDouble() instead.")
 bool WriteDoubleWithTag(int field_number, double data, BackwardWriter& dest);
 
 // Write the length of a length-delimited field, prefixed with its tag.
+ABSL_DEPRECATED(
+    "Use SerializedMessageBackwardWriter::WriteString(), CopyString(), "
+    "WriteSerializedMessage(), {Open,Close}LengthDelimited(), or "
+    "WriteLengthUnchecked() instead.")
 bool WriteLengthWithTag(int field_number, Position length,
                         BackwardWriter& dest);
 
@@ -100,11 +132,11 @@ constexpr uint32_t MakeTag(int field_number, WireType wire_type) {
          static_cast<uint32_t>(wire_type);
 }
 
-inline WireType GetTagWireType(uint32_t tag) {
+constexpr WireType GetTagWireType(uint32_t tag) {
   return static_cast<WireType>(tag & 7);
 }
 
-inline int GetTagFieldNumber(uint32_t tag) {
+constexpr int GetTagFieldNumber(uint32_t tag) {
   return static_cast<int>(tag >> 3);
 }
 

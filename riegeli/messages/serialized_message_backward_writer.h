@@ -268,19 +268,23 @@ inline absl::Status SerializedMessageBackwardWriter::WriteInt64(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteUInt32(
     int field_number, uint32_t value) {
-  if (ABSL_PREDICT_FALSE(
-          !WriteVarint32WithTag(field_number, value, writer()))) {
-    return writer().status();
-  }
+  const uint32_t tag = MakeTag(field_number, WireType::kVarint);
+  const size_t length = LengthVarint32(tag) + LengthVarint32(value);
+  if (ABSL_PREDICT_FALSE(!writer().Push(length))) return writer().status();
+  writer().move_cursor(length);
+  char* const ptr = WriteVarint32(tag, writer().cursor());
+  WriteVarint32(value, ptr);
   return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteUInt64(
     int field_number, uint64_t value) {
-  if (ABSL_PREDICT_FALSE(
-          !WriteVarint64WithTag(field_number, value, writer()))) {
-    return writer().status();
-  }
+  const uint32_t tag = MakeTag(field_number, WireType::kVarint);
+  const size_t length = LengthVarint32(tag) + LengthVarint64(value);
+  if (ABSL_PREDICT_FALSE(!writer().Push(length))) return writer().status();
+  writer().move_cursor(length);
+  char* const ptr = WriteVarint32(tag, writer().cursor());
+  WriteVarint64(value, ptr);
   return absl::OkStatus();
 }
 
@@ -301,17 +305,23 @@ inline absl::Status SerializedMessageBackwardWriter::WriteBool(int field_number,
 
 inline absl::Status SerializedMessageBackwardWriter::WriteFixed32(
     int field_number, uint32_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteFixed32WithTag(field_number, value, writer()))) {
-    return writer().status();
-  }
+  const uint32_t tag = MakeTag(field_number, WireType::kFixed32);
+  const size_t length = LengthVarint32(tag) + sizeof(uint32_t);
+  if (ABSL_PREDICT_FALSE(!writer().Push(length))) return writer().status();
+  writer().move_cursor(length);
+  char* const ptr = WriteVarint32(tag, writer().cursor());
+  WriteLittleEndian32(value, ptr);
   return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteFixed64(
     int field_number, uint64_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteFixed64WithTag(field_number, value, writer()))) {
-    return writer().status();
-  }
+  const uint32_t tag = MakeTag(field_number, WireType::kFixed64);
+  const size_t length = LengthVarint32(tag) + sizeof(uint64_t);
+  if (ABSL_PREDICT_FALSE(!writer().Push(length))) return writer().status();
+  writer().move_cursor(length);
+  char* const ptr = WriteVarint32(tag, writer().cursor());
+  WriteLittleEndian64(value, ptr);
   return absl::OkStatus();
 }
 

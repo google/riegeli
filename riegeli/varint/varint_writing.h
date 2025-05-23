@@ -65,15 +65,15 @@ bool WriteVarintSigned64(int64_t data, BackwardWriter& dest);
 // are possible.
 //
 // The result is at most `kMaxLengthVarint{32,64}`.
-size_t LengthVarint32(uint32_t data);
-size_t LengthVarint64(uint64_t data);
+constexpr size_t LengthVarint32(uint32_t data);
+constexpr size_t LengthVarint64(uint64_t data);
 
 // Returns the length needed to write a given value as a signed varint
 // (zigzag-encoded). This corresponds to protobuf types `sint{32,64}`.
 //
 // The result is at most `kMaxLengthVarint{32,64}`.
-size_t LengthVarintSigned32(int32_t data);
-size_t LengthVarintSigned64(int64_t data);
+constexpr size_t LengthVarintSigned32(int32_t data);
+constexpr size_t LengthVarintSigned64(int64_t data);
 
 // Writes a varint to an array. This corresponds to protobuf types
 // `{int,uint}{32,64}` (with a cast needed in the case of `int{32,64}`).
@@ -98,8 +98,8 @@ char* WriteVarintSigned64(int64_t data, char* dest);
 
 // Encodes a signed varint (zigzag-encoding) as an unsigned value to be written
 // as a plain varint. This corresponds to protobuf types `sint{32,64}`.
-uint32_t EncodeVarintSigned32(int32_t value);
-uint64_t EncodeVarintSigned64(int64_t value);
+constexpr uint32_t EncodeVarintSigned32(int32_t value);
+constexpr uint64_t EncodeVarintSigned64(int64_t value);
 
 // Implementation details follow.
 
@@ -157,25 +157,25 @@ inline bool WriteVarintSigned64(int64_t data, BackwardWriter& dest) {
   return WriteVarint64(EncodeVarintSigned64(data), dest);
 }
 
-inline size_t LengthVarint32(uint32_t data) {
+constexpr size_t LengthVarint32(uint32_t data) {
   const size_t width = IntCast<size_t>(absl::bit_width(data | 1));
   // This is the same as `(width + 6) / 7` for `width` in [1..32],
   // but performs division by a power of 2.
   return (width * 9 + 64) / 64;
 }
 
-inline size_t LengthVarint64(uint64_t data) {
+constexpr size_t LengthVarint64(uint64_t data) {
   const size_t width = IntCast<size_t>(absl::bit_width(data | 1));
   // This is the same as `(width + 6) / 7` for `width` in [1..64],
   // but performs division by a power of 2.
   return (width * 9 + 64) / 64;
 }
 
-inline size_t LengthVarintSigned32(int32_t data) {
+constexpr size_t LengthVarintSigned32(int32_t data) {
   return LengthVarint32(EncodeVarintSigned32(data));
 }
 
-inline size_t LengthVarintSigned64(int64_t data) {
+constexpr size_t LengthVarintSigned64(int64_t data) {
   return LengthVarint64(EncodeVarintSigned64(data));
 }
 
@@ -213,12 +213,12 @@ inline char* WriteVarintSigned64(int64_t data, char* dest) {
   return WriteVarint64(EncodeVarintSigned64(data), dest);
 }
 
-inline uint32_t EncodeVarintSigned32(int32_t value) {
+constexpr uint32_t EncodeVarintSigned32(int32_t value) {
   return (static_cast<uint32_t>(value) << 1) ^
          static_cast<uint32_t>(value >> 31);
 }
 
-inline uint64_t EncodeVarintSigned64(int64_t value) {
+constexpr uint64_t EncodeVarintSigned64(int64_t value) {
   return (static_cast<uint64_t>(value) << 1) ^
          static_cast<uint64_t>(value >> 63);
 }

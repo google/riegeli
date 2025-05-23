@@ -143,8 +143,8 @@ absl::optional<size_t> CopyVarint64(const char* src, const char* limit,
 
 // Decodes a signed varint (zigzag-decoding) from an unsigned value read as a
 // plain varint. This corresponds to protobuf types `sint{32,64}`.
-int32_t DecodeVarintSigned32(uint32_t repr);
-int64_t DecodeVarintSigned64(uint64_t repr);
+constexpr int32_t DecodeVarintSigned32(uint32_t repr);
+constexpr int64_t DecodeVarintSigned64(uint64_t repr);
 
 // Implementation details follow.
 
@@ -395,11 +395,11 @@ inline absl::optional<size_t> CopyVarint64(const char* src, const char* limit,
   return PtrDistance(start, src);
 }
 
-inline int32_t DecodeVarintSigned32(uint32_t repr) {
+constexpr int32_t DecodeVarintSigned32(uint32_t repr) {
   return static_cast<int32_t>((repr >> 1) ^ (~(repr & 1) + 1));
 }
 
-inline int64_t DecodeVarintSigned64(uint64_t repr) {
+constexpr int64_t DecodeVarintSigned64(uint64_t repr) {
   return static_cast<int64_t>((repr >> 1) ^ (~(repr & 1) + 1));
 }
 
