@@ -32,6 +32,7 @@
 #include "riegeli/base/dependency_base.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/memory_estimator.h"
+#include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_id.h"
 
 namespace riegeli {
@@ -49,9 +50,10 @@ namespace any_internal {
 //  * Held by pointer: `storage` holds `Dependency<Handle, Manager>*`
 template <typename Handle, size_t inline_size, size_t inline_align>
 struct Repr {
-  alignas(UnsignedMax(
-      alignof(void*),
-      inline_align)) char storage[UnsignedMax(sizeof(void*), inline_size)];
+  // clang-format off
+  alignas(UnsignedMax(alignof(void*), inline_align))
+      char storage[UnsignedMax(sizeof(void*), inline_size)];
+  // clang-format on
 };
 
 // By convention, a parameter of type `Storage` points to
@@ -183,10 +185,11 @@ struct Methods {
   size_t used_align;
   TypeId type_id;
   bool (*is_owning)(const Storage self);
-  // Returns a raw pointer to the `Manager` stored in `self`, cast from the type
-  // corresponding to `type_id`. Used only if `type_id != nullptr`. Never
-  // returns `nullptr`.
-  const void* (*get_raw_manager)(const Storage self);
+  // Returns the `Manager&` stored in `self`, with the `Manager` type
+  // corresponding to `type_id`. Used only if `type_id != nullptr`.
+  // If `self` is const then `Manager` should be const, otherwise `Manager`
+  // can be non-const.
+  TypeErasedRef (*get_raw_manager)(const Storage self);
   void (*register_subobjects)(const Storage self,
                               MemoryEstimator& memory_estimator);
 };
@@ -302,8 +305,8 @@ struct MethodsForReference {
     new (&dest_methods_and_handle->handle) Handle(dep_ptr(dest)->get());
   }
   static bool IsOwning(const Storage self) { return dep_ptr(self)->IsOwning(); }
-  static const void* GetRawManager(const Storage self) {
-    return &dep_ptr(self)->manager();
+  static TypeErasedRef GetRawManager(const Storage self) {
+    return TypeErasedRef(dep_ptr(self)->manager());
   }
   static void RegisterSubobjects(
       ABSL_ATTRIBUTE_UNUSED const Storage self,
@@ -364,8 +367,8 @@ struct MethodsFor<Handle, Manager, false> {
     new (&dest_methods_and_handle->handle) Handle(dep_ptr(dest)->get());
   }
   static bool IsOwning(const Storage self) { return dep_ptr(self)->IsOwning(); }
-  static const void* GetRawManager(const Storage self) {
-    return &dep_ptr(self)->manager();
+  static TypeErasedRef GetRawManager(const Storage self) {
+    return TypeErasedRef(dep_ptr(self)->manager());
   }
   static void RegisterSubobjects(const Storage self,
                                  MemoryEstimator& memory_estimator) {
@@ -452,8 +455,8 @@ struct MethodsFor<Handle, Manager, true> {
     new (&dest_methods_and_handle->handle) Handle(dep_ptr(dest)->get());
   }
   static bool IsOwning(const Storage self) { return dep(self).IsOwning(); }
-  static const void* GetRawManager(const Storage self) {
-    return &dep(self).manager();
+  static TypeErasedRef GetRawManager(const Storage self) {
+    return TypeErasedRef(dep(self).manager());
   }
   static void RegisterSubobjects(const Storage self,
                                  MemoryEstimator& memory_estimator) {

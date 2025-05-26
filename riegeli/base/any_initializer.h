@@ -91,9 +91,9 @@ class AnyInitializer {
   template <typename Manager, bool is_inline>
   using MethodsFor = any_internal::MethodsFor<Handle, Manager, is_inline>;
 
-  static void ConstructMethodEmpty(TypeErasedRef context,
-                                   MethodsAndHandle& methods_and_handle,
-                                   Storage storage, size_t available_size,
+  static void ConstructMethodEmpty(TypeErasedRef context, Storage dest,
+                                   MethodsAndHandle* dest_methods_and_handle,
+                                   size_t available_size,
                                    size_t available_align);
 
   template <
@@ -104,44 +104,41 @@ class AnyInitializer {
               absl::negation<any_internal::IsAnyClosingPtr<
                   Handle, TargetT<Manager>>>>::value,
           int> = 0>
-  static void ConstructMethod(TypeErasedRef context,
-                              MethodsAndHandle& methods_and_handle,
-                              Storage storage, size_t available_size,
-                              size_t available_align);
+  static void ConstructMethod(TypeErasedRef context, Storage dest,
+                              MethodsAndHandle* dest_methods_and_handle,
+                              size_t available_size, size_t available_align);
   template <typename Manager,
             std::enable_if_t<
                 any_internal::IsAny<Handle, TargetT<Manager>>::value, int> = 0>
-  static void ConstructMethod(TypeErasedRef context,
-                              MethodsAndHandle& methods_and_handle,
-                              Storage storage, size_t available_size,
-                              size_t available_align);
+  static void ConstructMethod(TypeErasedRef context, Storage dest,
+                              MethodsAndHandle* dest_methods_and_handle,
+                              size_t available_size, size_t available_align);
   template <typename Manager,
             std::enable_if_t<
                 any_internal::IsAnyClosingPtr<Handle, TargetT<Manager>>::value,
                 int> = 0>
-  static void ConstructMethod(TypeErasedRef context,
-                              MethodsAndHandle& methods_and_handle,
-                              Storage storage, size_t available_size,
-                              size_t available_align);
+  static void ConstructMethod(TypeErasedRef context, Storage dest,
+                              MethodsAndHandle* dest_methods_and_handle,
+                              size_t available_size, size_t available_align);
 
   template <typename Target,
             std::enable_if_t<!std::is_reference<Target>::value, int> = 0>
-  static void Adopt(Target&& target, MethodsAndHandle& methods_and_handle,
-                    Storage storage);
+  static void Adopt(Target&& target, Storage dest,
+                    MethodsAndHandle* dest_methods_and_handle);
   template <typename Target,
             std::enable_if_t<std::is_rvalue_reference<Target>::value, int> = 0>
-  static void Adopt(Target&& target, MethodsAndHandle& methods_and_handle,
-                    Storage storage);
+  static void Adopt(Target&& target, Storage dest,
+                    MethodsAndHandle* dest_methods_and_handle);
 
-  // Constructs `methods_and_handle` and `storage` by moving from `*this`.
-  void Construct(MethodsAndHandle& methods_and_handle, Storage storage,
+  // Constructs `dest` with `*dest_methods_and_handle` by moving from `*this`.
+  void Construct(Storage dest, MethodsAndHandle* dest_methods_and_handle,
                  size_t available_size, size_t available_align) && {
-    construct_(context_, methods_and_handle, storage, available_size,
+    construct_(context_, dest, dest_methods_and_handle, available_size,
                available_align);
   }
 
-  void (*construct_)(TypeErasedRef context,
-                     MethodsAndHandle& methods_and_handle, Storage storage,
+  void (*construct_)(TypeErasedRef context, Storage dest,
+                     MethodsAndHandle* dest_methods_and_handle,
                      size_t available_size, size_t available_align);
   TypeErasedRef context_;
 };
@@ -151,11 +148,12 @@ class AnyInitializer {
 template <typename Handle>
 void AnyInitializer<Handle>::ConstructMethodEmpty(
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
-    MethodsAndHandle& methods_and_handle, ABSL_ATTRIBUTE_UNUSED Storage storage,
+    ABSL_ATTRIBUTE_UNUSED Storage dest,
+    MethodsAndHandle* dest_methods_and_handle,
     ABSL_ATTRIBUTE_UNUSED size_t available_size,
     ABSL_ATTRIBUTE_UNUSED size_t available_align) {
-  methods_and_handle.methods = &NullMethods::kMethods;
-  new (&methods_and_handle.handle)
+  dest_methods_and_handle->methods = &NullMethods::kMethods;
+  new (&dest_methods_and_handle->handle)
       Handle(any_internal::SentinelHandle<Handle>());
 }
 
@@ -168,22 +166,22 @@ template <typename Manager,
                       Handle, TargetT<Manager>>>>::value,
               int>>
 void AnyInitializer<Handle>::ConstructMethod(
-    TypeErasedRef context, MethodsAndHandle& methods_and_handle,
-    Storage storage, size_t available_size, size_t available_align) {
+    TypeErasedRef context, Storage dest,
+    MethodsAndHandle* dest_methods_and_handle, size_t available_size,
+    size_t available_align) {
   using Target = TargetT<Manager>;
   // This is equivalent to calling `MethodsFor<Target, true>::Construct()`
   // or `MethodsFor<Target, false>::Construct()`. Separate allocation of
   // `Dependency<Handle, Target>` from its construction, so that the code for
   // construction can be shared between the two cases, reducing the code size.
-  const any_internal::Methods<Handle>* methods_ptr;
   Dependency<Handle, Target>* dep_ptr;
+  const any_internal::Methods<Handle>* methods_ptr;
   bool constructed = false;
   if (any_internal::ReprIsInline<Handle, Target>(available_size,
                                                  available_align)) {
+    dep_ptr = reinterpret_cast<Dependency<Handle, Target>*>(dest);
     methods_ptr = &MethodsFor<Target, true>::kMethods;
-    dep_ptr = reinterpret_cast<Dependency<Handle, Target>*>(storage);
   } else {
-    methods_ptr = &MethodsFor<Target, false>::kMethods;
 #if __cpp_aligned_new
     if (alignof(Dependency<Handle, Target>) >
         __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
@@ -208,13 +206,14 @@ void AnyInitializer<Handle>::ConstructMethod(
       dep_ptr = static_cast<Dependency<Handle, Target>*>(operator new(
           sizeof(Dependency<Handle, Target>)));
     }
-    new (storage) Dependency<Handle, Target>*(dep_ptr);
+    new (dest) Dependency<Handle, Target>*(dep_ptr);
+    methods_ptr = &MethodsFor<Target, false>::kMethods;
   }
-  methods_and_handle.methods = methods_ptr;
   if (!constructed) {
     new (dep_ptr) Dependency<Handle, Target>(context.Cast<Manager>());
   }
-  new (&methods_and_handle.handle) Handle(dep_ptr->get());
+  dest_methods_and_handle->methods = methods_ptr;
+  new (&dest_methods_and_handle->handle) Handle(dep_ptr->get());
 }
 
 template <typename Handle>
@@ -222,8 +221,9 @@ template <
     typename Manager,
     std::enable_if_t<any_internal::IsAny<Handle, TargetT<Manager>>::value, int>>
 void AnyInitializer<Handle>::ConstructMethod(
-    TypeErasedRef context, MethodsAndHandle& methods_and_handle,
-    Storage storage, size_t available_size, size_t available_align) {
+    TypeErasedRef context, Storage dest,
+    MethodsAndHandle* dest_methods_and_handle, size_t available_size,
+    size_t available_align) {
   using Target = TargetT<Manager>;
   using TargetValue = std::remove_reference_t<Target>;
   // Materialize `Target` to adopt its storage.
@@ -247,19 +247,19 @@ void AnyInitializer<Handle>::ConstructMethod(
         // `target.methods_and_handle_.methods->used_size == 0`, but this is
         // handled specially only if the condition can be determined at compile
         // time.
-        methods_and_handle.methods = target.methods_and_handle_.methods;
-        methods_and_handle.handle = target.methods_and_handle_.handle;
-        std::memcpy(storage, &target.repr_, sizeof(target.repr_));
+        std::memcpy(dest, &target.repr_, sizeof(target.repr_));
+        dest_methods_and_handle->methods = target.methods_and_handle_.methods;
+        dest_methods_and_handle->handle = target.methods_and_handle_.handle;
       } else {
-        target.methods_and_handle_.methods->move(target.repr_.storage, storage,
-                                                 &methods_and_handle);
+        target.methods_and_handle_.methods->move(target.repr_.storage, dest,
+                                                 dest_methods_and_handle);
       }
       target.methods_and_handle_.methods = &NullMethods::kMethods;
       target.methods_and_handle_.handle =
           any_internal::SentinelHandle<Handle>();
       return;
     }
-    Adopt<Target>(std::forward<Target>(target), methods_and_handle, storage);
+    Adopt<Target>(std::forward<Target>(target), dest, dest_methods_and_handle);
   }(Initializer<Target>(context.Cast<Manager>()).Reference());
 }
 
@@ -269,32 +269,32 @@ template <
     std::enable_if_t<
         any_internal::IsAnyClosingPtr<Handle, TargetT<Manager>>::value, int>>
 void AnyInitializer<Handle>::ConstructMethod(
-    TypeErasedRef context, MethodsAndHandle& methods_and_handle,
-    Storage storage, ABSL_ATTRIBUTE_UNUSED size_t available_size,
+    TypeErasedRef context, Storage dest,
+    MethodsAndHandle* dest_methods_and_handle,
+    ABSL_ATTRIBUTE_UNUSED size_t available_size,
     ABSL_ATTRIBUTE_UNUSED size_t available_align) {
   using Target = TargetT<Manager>;
   // Materialize `Target` to adopt its storage.
   const Target target =
       Initializer<Target>(context.Cast<Manager>()).Construct();
   if (target == nullptr) {
-    methods_and_handle.methods = &NullMethods::kMethods;
-    new (&methods_and_handle.handle)
+    dest_methods_and_handle->methods = &NullMethods::kMethods;
+    new (&dest_methods_and_handle->handle)
         Handle(any_internal::SentinelHandle<Handle>());
     return;
   }
   // Adopt `*manager` by referring to its representation.
   target->methods_and_handle_.methods->make_reference(
-      target->repr_.storage, storage, &methods_and_handle);
+      target->repr_.storage, dest, dest_methods_and_handle);
 }
 
 template <typename Handle>
 template <typename Target,
           std::enable_if_t<!std::is_reference<Target>::value, int>>
-inline void AnyInitializer<Handle>::Adopt(Target&& target,
-                                          MethodsAndHandle& methods_and_handle,
-                                          Storage storage) {
-  target.methods_and_handle_.methods->move_to_heap(
-      target.repr_.storage, storage, &methods_and_handle);
+inline void AnyInitializer<Handle>::Adopt(
+    Target&& target, Storage dest, MethodsAndHandle* dest_methods_and_handle) {
+  target.methods_and_handle_.methods->move_to_heap(target.repr_.storage, dest,
+                                                   dest_methods_and_handle);
   target.methods_and_handle_.methods = &NullMethods::kMethods;
   target.methods_and_handle_.handle = any_internal::SentinelHandle<Handle>();
 }
@@ -302,11 +302,10 @@ inline void AnyInitializer<Handle>::Adopt(Target&& target,
 template <typename Handle>
 template <typename Target,
           std::enable_if_t<std::is_rvalue_reference<Target>::value, int>>
-inline void AnyInitializer<Handle>::Adopt(Target&& target,
-                                          MethodsAndHandle& methods_and_handle,
-                                          Storage storage) {
-  target.methods_and_handle_.methods->make_reference(
-      target.repr_.storage, storage, &methods_and_handle);
+inline void AnyInitializer<Handle>::Adopt(
+    Target&& target, Storage dest, MethodsAndHandle* dest_methods_and_handle) {
+  target.methods_and_handle_.methods->make_reference(target.repr_.storage, dest,
+                                                     dest_methods_and_handle);
 }
 
 }  // namespace riegeli

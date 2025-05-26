@@ -649,10 +649,10 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
       // `that.manager.methods_and_handle_.methods->used_size == 0`, but this is
       // handled specially only if the condition can be determined at compile
       // time.
-      methods_and_handle_.methods = manager.methods_and_handle_.methods;
-      methods_and_handle_.handle = manager.methods_and_handle_.handle;
       std::memcpy(&repr_, &manager.repr_,
                   UnsignedMin(sizeof(repr_), sizeof(manager.repr_)));
+      methods_and_handle_.methods = manager.methods_and_handle_.methods;
+      methods_and_handle_.handle = manager.methods_and_handle_.handle;
     } else {
       manager.methods_and_handle_.methods->move(
           manager.repr_.storage, repr_.storage, &methods_and_handle_);
@@ -716,7 +716,7 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 inline void
 AnyBase<Handle, inline_size, inline_align>::InitializeFromAnyInitializer(
     AnyInitializer<Handle> manager) {
-  std::move(manager).Construct(methods_and_handle_, repr_.storage,
+  std::move(manager).Construct(repr_.storage, &methods_and_handle_,
                                kAvailableSize, kAvailableAlign);
 }
 
@@ -759,8 +759,8 @@ template <typename Manager,
 inline Manager* AnyBase<Handle, inline_size, inline_align>::GetIf()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (type_id() != TypeId::For<Manager>()) return nullptr;
-  return RIEGELI_ASSUME_NOTNULL(static_cast<Manager*>(const_cast<void*>(
-      methods_and_handle_.methods->get_raw_manager(repr_.storage))));
+  return &methods_and_handle_.methods->get_raw_manager(repr_.storage)
+              .template Cast<Manager&>();
 }
 
 template <typename Handle, size_t inline_size, size_t inline_align>
@@ -769,8 +769,8 @@ template <typename Manager,
 inline const Manager* AnyBase<Handle, inline_size, inline_align>::GetIf() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (type_id() != TypeId::For<Manager>()) return nullptr;
-  return RIEGELI_ASSUME_NOTNULL(static_cast<const Manager*>(
-      methods_and_handle_.methods->get_raw_manager(repr_.storage)));
+  return &methods_and_handle_.methods->get_raw_manager(repr_.storage)
+              .template Cast<const Manager&>();
 }
 
 }  // namespace any_internal
