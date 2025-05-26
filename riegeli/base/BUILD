@@ -595,6 +595,22 @@ cc_library(
 )
 
 cc_library(
+    name = "optional_compact_string",
+    hdrs = ["optional_compact_string.h"],
+    deps = [
+        ":assert",
+        ":bytes_ref",
+        ":compact_string",
+        ":compare",
+        ":type_traits",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "binary_search",
     hdrs = ["binary_search.h"],
     deps = [

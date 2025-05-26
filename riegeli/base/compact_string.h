@@ -85,6 +85,7 @@ class
     return std::numeric_limits<size_t>::max() - 2 * sizeof(size_t);
   }
 
+  // Creates an empty `CompactString`.
   CompactString() = default;
 
   // Creates a `CompactString` with the given size and uninitialized data.
@@ -92,6 +93,7 @@ class
 
   // Creates a `CompactString` which holds a copy of `src`.
   explicit CompactString(BytesRef src) : repr_(MakeRepr(src)) {}
+  CompactString& operator=(BytesRef src);
 
   // Creates a `CompactString` which holds a copy of `src`. Reserves one extra
   // char so that `c_str()` does not need reallocation.
@@ -110,10 +112,9 @@ class
     return *this;
   }
 
-  CompactString& operator=(BytesRef src);
-
   ~CompactString() { DeleteRepr(repr_); }
 
+  // Views the value as an `absl::string_view`.
   /*implicit*/ operator absl::string_view() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   bool empty() const { return size() == 0; }
@@ -206,7 +207,7 @@ class
   // `CompactString::MoveFromRaw()` to recover the `CompactString` and free its
   // memory.
   //
-  // The returned `uintptr_t` is always even.
+  // The returned `uintptr_t` is always even and never zero.
   uintptr_t RawMove() && { return std::exchange(repr_, kInlineTag); }
 
   // Returns a pointer to the representation of the `CompactString` as
@@ -214,7 +215,7 @@ class
   //
   // Ownership is not transferred and the `CompactString` is unchanged.
   //
-  // The returned `uintptr_t` is always even.
+  // The returned `uintptr_t` is always even and never zero.
   const uintptr_t* RawView() const { return &repr_; }
 
   // Recovers a `CompactString` from the representation returned by
@@ -226,6 +227,9 @@ class
   // Calling `MoveFromRaw()` and dropping its result frees the memory of the
   // `CompactString`.
   static CompactString MoveFromRaw(const uintptr_t& raw) {
+    RIEGELI_ASSERT_NE(raw, 0u)
+        << "Failed precondition of CompactString::MoveFromRaw(): "
+           "representation is zero";
     RIEGELI_ASSERT_EQ(raw & 1, 0u)
         << "Failed precondition of CompactString::MoveFromRaw(): "
            "representation is not even";
@@ -243,6 +247,9 @@ class
   // Ownership is not transferred and `*raw` is unchanged.
   static absl::string_view ViewFromRaw(
       const uintptr_t* raw ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+    RIEGELI_ASSERT_NE(*raw, 0u)
+        << "Failed precondition of CompactString::ViewFromRaw(): "
+           "representation is zero";
     RIEGELI_ASSERT_EQ(*raw & 1, 0u)
         << "Failed precondition of CompactString::ViewFromRaw(): "
            "representation is not even";
@@ -259,6 +266,9 @@ class
   //
   // Equivalent to `RawMove(CompactString(ViewFromRaw(&raw)))`.
   static uintptr_t CopyRaw(uintptr_t raw) {
+    RIEGELI_ASSERT_NE(raw, 0u)
+        << "Failed precondition of CompactString::CopyRaw(): "
+           "representation is zero";
     RIEGELI_ASSERT_EQ(raw & 1, 0u)
         << "Failed precondition of CompactString::CopyRaw(): "
            "representation is not even";
@@ -267,6 +277,8 @@ class
     return MakeRepr(absl::string_view(allocated_data(raw),
                                       allocated_size_for_tag(tag, raw)));
   }
+
+  static const char* CStrFromRaw(uintptr_t* raw);
 
   friend bool operator==(const CompactString& a, const CompactString& b) {
     return a.repr_ == b.repr_ || absl::string_view(a) == absl::string_view(b);
@@ -473,7 +485,7 @@ class
     return allocated_capacity_for_tag(tag, repr_);
   }
 
-  static size_t allocated_capacity_for_tag(uintptr_t tag, uint64_t repr) {
+  static size_t allocated_capacity_for_tag(uintptr_t tag, uintptr_t repr) {
     if (tag == 2) return allocated_capacity<uint8_t>(repr);
     if (tag == 4) return allocated_capacity<uint16_t>(repr);
     if (tag == 0) return allocated_capacity<size_t>(repr);
@@ -486,7 +498,7 @@ class
   }
 
   template <typename T>
-  static size_t allocated_capacity(uint64_t repr) {
+  static size_t allocated_capacity(uintptr_t repr) {
     const uintptr_t tag = repr & kTagMask;
     RIEGELI_ASSERT_EQ(tag == 0 ? 2 * sizeof(size_t) : tag, 2 * sizeof(T))
         << "Failed precondition of CompactString::allocated_capacity(): "
@@ -608,6 +620,20 @@ inline void CompactString::DeleteRepr(uintptr_t repr) {
        allocated_capacity_for_tag(tag, repr) + offset);
 }
 
+inline CompactString& CompactString::operator=(BytesRef src) {
+  if (ABSL_PREDICT_TRUE(src.size() <= capacity())) {
+    set_size(src.size());
+    // `std::memmove(_, nullptr, 0)` is undefined.
+    if (ABSL_PREDICT_TRUE(!src.empty())) {
+      // Use `std::memmove()` to support assigning from a substring of `*this`.
+      std::memmove(data(), src.data(), src.size());
+    }
+  } else {
+    AssignSlow(src);
+  }
+  return *this;
+}
+
 inline CompactString::CompactString(const CompactString& that) {
   const uintptr_t that_tag = that.repr_ & kTagMask;
   if (that_tag == kInlineTag) {
@@ -642,20 +668,6 @@ inline CompactString& CompactString::operator=(const CompactString& that) {
     }
   } else {
     AssignSlow(that);
-  }
-  return *this;
-}
-
-inline CompactString& CompactString::operator=(BytesRef src) {
-  if (ABSL_PREDICT_TRUE(src.size() <= capacity())) {
-    set_size(src.size());
-    // `std::memmove(_, nullptr, 0)` is undefined.
-    if (ABSL_PREDICT_TRUE(!src.empty())) {
-      // Use `std::memmove()` to support assigning from a substring of `*this`.
-      std::memmove(data(), src.data(), src.size());
-    }
-  } else {
-    AssignSlow(src);
   }
   return *this;
 }
@@ -849,6 +861,38 @@ inline const char* CompactString::c_str() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   // string already has its final value.
   if (ABSL_PREDICT_FALSE(used_size == capacity())) ReserveOneMoreByteSlow();
   char* const ptr = data();
+  ptr[used_size] = '\0';
+  return ptr;
+}
+
+inline const char* CompactString::CStrFromRaw(uintptr_t* raw) {
+  RIEGELI_ASSERT_NE(*raw, 0u)
+      << "Failed precondition of CompactString::CStrFromRaw(): "
+         "representation is zero";
+  RIEGELI_ASSERT_EQ(*raw & 1, 0u)
+      << "Failed precondition of CompactString::CStrFromRaw(): "
+         "representation is not even";
+  uintptr_t tag = *raw & kTagMask;
+  char* ptr;
+  size_t used_size;
+  size_t capacity;
+  if (tag == kInlineTag) {
+    ptr = inline_data(raw);
+    used_size = inline_size(*raw);
+    capacity = kInlineCapacity;
+  } else {
+    ptr = allocated_data(*raw);
+    used_size = allocated_size_for_tag(tag, *raw);
+    capacity = allocated_capacity_for_tag(tag, *raw);
+  }
+  if (ABSL_PREDICT_FALSE(used_size == capacity)) {
+    CompactString str = CompactString::MoveFromRaw(*raw);
+    str.ReserveOneMoreByteSlow();
+    *raw = std::move(str).RawMove();
+    tag = *raw & kTagMask;
+    ptr = allocated_data(*raw);
+    used_size = allocated_size_for_tag(tag, *raw);
+  }
   ptr[used_size] = '\0';
   return ptr;
 }
