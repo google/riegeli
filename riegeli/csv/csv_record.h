@@ -50,8 +50,7 @@
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
-namespace riegeli {
-namespace csv_internal {
+namespace riegeli::csv_internal {
 
 // A pair-like type which supports C++20 `std::common_reference` with similar
 // enough pairs. This is needed for `CsvRecord::{,const_}iterator` to satisfy
@@ -97,8 +96,7 @@ inline std::vector<std::string> ToStringVector(Values&& values) {
                                   MaybeMakeMoveIterator<Values>(end(values)));
 }
 
-}  // namespace csv_internal
-}  // namespace riegeli
+}  // namespace riegeli::csv_internal
 
 #if __cplusplus >= 202002L
 
@@ -505,7 +503,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
 // It should be used as the type of a variable with static storage duration.
 //
 // By relying on CTAD the template argument can be deduced from constructor
-// arguments. This requires C++17.
+// arguments.
 template <size_t num_fields>
 class CsvHeaderConstant {
  public:
@@ -513,13 +511,12 @@ class CsvHeaderConstant {
   //
   // The number of `fields` must be `num_fields`, and all `fields` must have
   // static storage duration.
-  template <
-      typename... Fields,
-      std::enable_if_t<
-          absl::conjunction<
-              std::integral_constant<bool, sizeof...(Fields) == num_fields>,
-              std::is_convertible<Fields&&, absl::string_view>...>::value,
-          int> = 0>
+  template <typename... Fields,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::bool_constant<sizeof...(Fields) == num_fields>,
+                    std::is_convertible<Fields&&, absl::string_view>...>::value,
+                int> = 0>
   /*implicit*/ constexpr CsvHeaderConstant(
       Fields&&... fields ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : fields_{std::forward<Fields>(fields)...} {}
@@ -531,13 +528,12 @@ class CsvHeaderConstant {
   //
   // Field names are matched by passing them through `normalizer` first.
   // `nullptr` is the same as the identity function.
-  template <
-      typename... Fields,
-      std::enable_if_t<
-          absl::conjunction<
-              std::integral_constant<bool, sizeof...(Fields) == num_fields>,
-              std::is_convertible<Fields&&, absl::string_view>...>::value,
-          int> = 0>
+  template <typename... Fields,
+            std::enable_if_t<
+                absl::conjunction<
+                    std::bool_constant<sizeof...(Fields) == num_fields>,
+                    std::is_convertible<Fields&&, absl::string_view>...>::value,
+                int> = 0>
   explicit constexpr CsvHeaderConstant(
       std::string (*normalizer)(absl::string_view),
       Fields&&... fields ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -597,8 +593,6 @@ class CsvHeaderConstant {
   alignas(CsvHeader) mutable char header_[sizeof(CsvHeader)] = {};
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename... Fields,
           std::enable_if_t<absl::conjunction<std::is_convertible<
                                Fields&&, absl::string_view>...>::value,
@@ -619,7 +613,6 @@ template <size_t base_num_fields, typename... Fields,
 explicit CsvHeaderConstant(
     const CsvHeaderConstant<base_num_fields>& base_header, Fields&&... fields)
     -> CsvHeaderConstant<base_num_fields + sizeof...(Fields)>;
-#endif
 
 // A row of a CSV file, with fields accessed by name.
 //
@@ -1161,11 +1154,8 @@ inline void CsvHeader::Add(Initializer<std::string>::AllowingExplicit name,
 template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
 inline absl::Status CsvHeader::TryAdd(
     Initializer<std::string>::AllowingExplicit name, Names&&... names) {
-  {
-    absl::Status status = TryAdd(std::move(name));
-    if (!status.ok()) {
-      return status;
-    }
+  if (absl::Status status = TryAdd(std::move(name)); !status.ok()) {
+    return status;
   }
   return TryAdd(std::forward<Names>(names)...);
 }
@@ -1210,11 +1200,7 @@ inline const CsvHeader* CsvHeaderConstant<num_fields>::get() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   absl::call_once(once_,
                   [&] { new (header_) CsvHeader(normalizer_, fields_); });
-  return
-#if __cpp_lib_launder >= 201606
-      std::launder
-#endif
-      (reinterpret_cast<const CsvHeader*>(header_));
+  return std::launder(reinterpret_cast<const CsvHeader*>(header_));
 }
 
 template <typename FieldIterator>

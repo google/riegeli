@@ -45,8 +45,7 @@
 #endif
 #include "riegeli/base/compact_string.h"
 
-namespace riegeli {
-namespace fd_internal {
+namespace riegeli::fd_internal {
 
 CompactString FilenameForFd(int fd) {
 #ifndef _WIN32
@@ -67,5 +66,4 @@ CompactString FilenameForFd(int fd) {
 extern const int kCloseOnExec = O_CLOEXEC;
 #endif  // __APPLE__
 
-}  // namespace fd_internal
-}  // namespace riegeli
+}  // namespace riegeli::fd_internal

@@ -43,8 +43,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/types.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 Exception& Exception::operator=(const Exception& that) noexcept {
   PythonLock lock;
@@ -402,5 +401,4 @@ absl::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object) {
   return riegeli::Compare(long_value, 0);
 }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python

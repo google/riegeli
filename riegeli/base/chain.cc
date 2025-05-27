@@ -50,18 +50,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t Chain::kAnyLength;
-constexpr size_t Chain::kMaxShortDataSize;
-constexpr size_t Chain::kAllocationCost;
-constexpr size_t Chain::RawBlock::kMaxCapacity;
-constexpr Chain::BlockPtrPtr Chain::BlockIterator::kBeginShortData;
-constexpr Chain::BlockPtrPtr Chain::BlockIterator::kEndShortData;
-#endif
-
 namespace {
 
 // Stores an `absl::Cord` which must be flat, i.e.
@@ -106,11 +94,9 @@ inline FlatCordBlock::FlatCordBlock(Initializer<absl::Cord> src)
 }
 
 inline FlatCordBlock::operator absl::string_view() const {
-  {
-    const absl::optional<absl::string_view> flat = src_.TryFlat();
-    if (flat != absl::nullopt) {
-      return *flat;
-    }
+  if (const absl::optional<absl::string_view> flat = src_.TryFlat();
+      flat != absl::nullopt) {
+    return *flat;
   }
   RIEGELI_ASSUME_UNREACHABLE()
       << "Failed invariant of FlatCordBlock: Cord is not flat";
@@ -507,17 +493,15 @@ inline void Chain::Initialize(absl::Cord&& src) {
 
 template <typename CordRef>
 inline void Chain::InitializeFromCord(CordRef&& src) {
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      if (flat->size() <= kMaxBytesToCopyToEmpty) {
-        Initialize(*flat);
-      } else {
-        Initialize(
-            Block(riegeli::Maker<FlatCordBlock>(std::forward<CordRef>(src))));
-      }
-      return;
+  if (const absl::optional<absl::string_view> flat = src.TryFlat();
+      flat != absl::nullopt) {
+    if (flat->size() <= kMaxBytesToCopyToEmpty) {
+      Initialize(*flat);
+    } else {
+      Initialize(
+          Block(riegeli::Maker<FlatCordBlock>(std::forward<CordRef>(src))));
     }
+    return;
   }
   AppendCordSlow(std::forward<CordRef>(src),
                  Options().set_size_hint(src.size()));
@@ -1588,17 +1572,15 @@ void Chain::Append(absl::Cord&& src, Options options) {
 
 template <typename CordRef>
 void Chain::AppendCord(CordRef&& src, Options options) {
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      if (flat->size() <= MaxBytesToCopy(options)) {
-        Append(*flat, options);
-      } else {
-        Append(Block(riegeli::Maker<FlatCordBlock>(std::forward<CordRef>(src))),
-               options);
-      }
-      return;
+  if (const absl::optional<absl::string_view> flat = src.TryFlat();
+      flat != absl::nullopt) {
+    if (flat->size() <= MaxBytesToCopy(options)) {
+      Append(*flat, options);
+    } else {
+      Append(Block(riegeli::Maker<FlatCordBlock>(std::forward<CordRef>(src))),
+             options);
     }
+    return;
   }
   AppendCordSlow(std::forward<CordRef>(src), options);
 }
@@ -1871,12 +1853,10 @@ void Chain::Prepend(absl::Cord&& src, Options options) {
 template <typename CordRef>
 inline void Chain::PrependCord(CordRef&& src, Options options) {
   if (src.size() <= MaxBytesToCopy(options)) {
-    {
-      const absl::optional<absl::string_view> flat = src.TryFlat();
-      if (flat != absl::nullopt) {
-        Prepend(*flat, options);
-        return;
-      }
+    if (const absl::optional<absl::string_view> flat = src.TryFlat();
+        flat != absl::nullopt) {
+      Prepend(*flat, options);
+      return;
     }
   }
   Prepend(Chain(std::forward<CordRef>(src)), options);
@@ -2039,12 +2019,10 @@ StrongOrdering Chain::Compare(const Chain& a, const Chain& b) {
     }
     const size_t length =
         UnsignedMin(a_iter->size() - this_pos, b_iter->size() - that_pos);
-    {
-      const int ordering = std::memcmp(a_iter->data() + this_pos,
-                                       b_iter->data() + that_pos, length);
-      if (ordering != 0) {
-        return AsStrongOrdering(ordering);
-      }
+    if (const int ordering = std::memcmp(a_iter->data() + this_pos,
+                                         b_iter->data() + that_pos, length);
+        ordering != 0) {
+      return AsStrongOrdering(ordering);
     }
     this_pos += length;
     if (this_pos == a_iter->size()) {
@@ -2078,12 +2056,10 @@ StrongOrdering Chain::Compare(const Chain& a, absl::string_view b) {
     }
     const size_t length =
         UnsignedMin(a_iter->size() - this_pos, b.size() - that_pos);
-    {
-      const int ordering =
-          std::memcmp(a_iter->data() + this_pos, b.data() + that_pos, length);
-      if (ordering != 0) {
-        return AsStrongOrdering(ordering);
-      }
+    if (const int ordering =
+            std::memcmp(a_iter->data() + this_pos, b.data() + that_pos, length);
+        ordering != 0) {
+      return AsStrongOrdering(ordering);
     }
     this_pos += length;
     if (this_pos == a_iter->size()) {

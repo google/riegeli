@@ -49,7 +49,7 @@ struct DigestConverterFunction {
 
 template <typename From, typename To>
 struct DigestConverterFunction<From, To,
-                               std::enable_if_t<std::is_void<From>::value>> {
+                               std::enable_if_t<std::is_void_v<From>>> {
   using type = To (*)();
 };
 
@@ -75,8 +75,8 @@ class WrappingDigester {
   // Default-constructs the `BaseDigester`.
   template <
       typename DependentBaseDigester = BaseDigester,
-      std::enable_if_t<
-          std::is_default_constructible<DependentBaseDigester>::value, int> = 0>
+      std::enable_if_t<std::is_default_constructible_v<DependentBaseDigester>,
+                       int> = 0>
   WrappingDigester() : base_(riegeli::Maker()) {}
 
   // Forwards constructor arguments to the `BaseDigester`.
@@ -115,30 +115,30 @@ class WrappingDigester {
   bool Write(ByteFill src) { return base_.get().Write(src); }
   bool Close() { return !base_.IsOwning() || base_.get().Close(); }
 
-  template <typename DependentBaseDigester = BaseDigester,
-            std::enable_if_t<
-                absl::conjunction<
-                    std::integral_constant<bool, digest_converter == nullptr>,
-                    HasDigestConverter<DigestOf<DependentBaseDigester>,
-                                       DigestType>>::value,
-                int> = 0>
+  template <
+      typename DependentBaseDigester = BaseDigester,
+      std::enable_if_t<
+          absl::conjunction<std::bool_constant<digest_converter == nullptr>,
+                            HasDigestConverter<DigestOf<DependentBaseDigester>,
+                                               DigestType>>::value,
+          int> = 0>
   DigestType Digest() {
     return base_.get().template Digest<DigestType>();
   }
-  template <typename DependentBaseDigester = BaseDigester,
-            std::enable_if_t<
-                absl::conjunction<
-                    std::integral_constant<bool, digest_converter != nullptr>,
-                    absl::negation<
-                        std::is_void<DigestOf<DependentBaseDigester>>>>::value,
-                int> = 0>
+  template <
+      typename DependentBaseDigester = BaseDigester,
+      std::enable_if_t<
+          absl::conjunction<std::bool_constant<digest_converter != nullptr>,
+                            absl::negation<std::is_void<
+                                DigestOf<DependentBaseDigester>>>>::value,
+          int> = 0>
   DigestType Digest() {
     return digest_converter(base_.get().Digest());
   }
   template <typename DependentBaseDigester = BaseDigester,
             std::enable_if_t<
                 absl::conjunction<
-                    std::integral_constant<bool, digest_converter != nullptr>,
+                    std::bool_constant<digest_converter != nullptr>,
                     std::is_void<DigestOf<DependentBaseDigester>>>::value,
                 int> = 0>
   DigestType Digest() {

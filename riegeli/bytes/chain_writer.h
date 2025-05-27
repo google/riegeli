@@ -236,7 +236,7 @@ class ChainWriterBase : public Writer {
 // `TargetT` of the type of the first constructor argument, except that CTAD
 // is deleted if the first constructor argument is a `Chain&` or `const Chain&`
 // (to avoid writing to an unintentionally separate copy of an existing object).
-// This requires C++17.
+//
 //
 // The `Chain` must not be accessed until the `ChainWriter` is closed or no
 // longer used, except that it is allowed to read the `Chain` immediately after
@@ -252,9 +252,8 @@ class ChainWriter : public ChainWriterBase {
 
   // Will append to an owned `Chain` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Chain`.
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same_v<DependentDest, Chain>, int> = 0>
   explicit ChainWriter(Options options = Options());
 
   ChainWriter(ChainWriter&& that) = default;
@@ -265,9 +264,8 @@ class ChainWriter : public ChainWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same_v<DependentDest, Chain>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `Chain` being written
@@ -290,8 +288,6 @@ class ChainWriter : public ChainWriterBase {
   MovingDependency<Chain*, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit ChainWriter(Closed) -> ChainWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ChainWriter(
@@ -303,7 +299,6 @@ explicit ChainWriter(
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit ChainWriter(ChainWriterBase::Options options =
                          ChainWriterBase::Options()) -> ChainWriter<Chain>;
-#endif
 
 // Implementation details follow.
 
@@ -395,7 +390,7 @@ inline ChainWriter<Dest>::ChainWriter(Initializer<Dest> dest, Options options)
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
+          std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline ChainWriter<Dest>::ChainWriter(Options options)
     : ChainWriter(riegeli::Maker(), std::move(options)) {}
 
@@ -414,7 +409,7 @@ inline void ChainWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
+          std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline void ChainWriter<Dest>::Reset(Options options) {
   Reset(riegeli::Maker(), std::move(options));
 }

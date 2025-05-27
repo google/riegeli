@@ -26,38 +26,34 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/buffering.h"
-#include "riegeli/base/constexpr.h"
 
-namespace riegeli {
-namespace cord_internal {
+namespace riegeli::cord_internal {
 
 // `absl::cord_internal::kFlatOverhead`. Does not have to be accurate.
-RIEGELI_INLINE_CONSTEXPR(size_t, kFlatOverhead,
-                         sizeof(size_t) + sizeof(uint32_t) + sizeof(uint8_t));
+inline constexpr size_t kFlatOverhead =
+    sizeof(size_t) + sizeof(uint32_t) + sizeof(uint8_t);
 
 // The `block_size` parameter for `absl::CordBuffer::CreateWithCustomLimit()`.
-RIEGELI_INLINE_CONSTEXPR(size_t, kCordBufferBlockSize,
-                         UnsignedMin(kDefaultMaxBlockSize,
-                                     absl::CordBuffer::kCustomLimit));
+inline constexpr size_t kCordBufferBlockSize =
+    UnsignedMin(kDefaultMaxBlockSize, absl::CordBuffer::kCustomLimit);
 
 // Maximum usable size supported by `absl::CordBuffer`.
-RIEGELI_INLINE_CONSTEXPR(
-    size_t, kCordBufferMaxSize,
-    absl::CordBuffer::MaximumPayload(kCordBufferBlockSize));
+inline constexpr size_t kCordBufferMaxSize =
+    absl::CordBuffer::MaximumPayload(kCordBufferBlockSize);
 
 // When deciding whether to copy an array of bytes or share memory to an
 // `absl::Cord`, prefer copying up to this length when creating a new
 // `absl::Cord`.
 //
 // This is `absl::cord_internal::kMaxInline`. Does not have to be accurate.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopyToEmptyCord, 15);
+inline constexpr size_t kMaxBytesToCopyToEmptyCord = 15;
 
 // When deciding whether to copy an array of bytes or share memory to an
 // `absl::Cord`, prefer copying up to this length when appending to a non-empty
 // `absl::Cord`.
 //
 // This is `absl::cord_internal::kMaxBytesToCopy`. Does not have to be accurate.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopyToNonEmptyCord, 511);
+inline constexpr size_t kMaxBytesToCopyToNonEmptyCord = 511;
 
 // When deciding whether to copy an array of bytes or share memory to an
 // `absl::Cord`, prefer copying up to this length when appending to `dest`.
@@ -109,7 +105,6 @@ inline size_t CordBufferSizeForCapacity(size_t capacity) {
   return capacity - kFlatOverhead;
 }
 
-}  // namespace cord_internal
-}  // namespace riegeli
+}  // namespace riegeli::cord_internal
 
 #endif  // RIEGELI_BASE_CORD_UTILS_H_

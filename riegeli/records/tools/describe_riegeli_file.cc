@@ -67,8 +67,7 @@ ABSL_FLAG(bool, show_record_sizes, false,
 ABSL_FLAG(bool, show_records, false,
           "If true, show contents of records in each chunk.");
 
-namespace riegeli {
-namespace tools {
+namespace riegeli::tools {
 namespace {
 
 absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
@@ -192,12 +191,11 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
       if (ABSL_PREDICT_FALSE(!records_decompressor.ok())) {
         return records_decompressor.status();
       }
-      {
-        absl::Status status = ReadRecords(records_decompressor.reader(), limits,
-                                          *simple_chunk.mutable_records());
-        if (!status.ok()) {
-          return status;
-        }
+      if (absl::Status status =
+              ReadRecords(records_decompressor.reader(), limits,
+                          *simple_chunk.mutable_records());
+          !status.ok()) {
+        return status;
       }
       if (ABSL_PREDICT_FALSE(!records_decompressor.VerifyEndAndClose())) {
         return records_decompressor.status();
@@ -260,12 +258,10 @@ absl::Status DescribeTransposedChunk(
 
     if (show_records) {
       ChainReader<> records_reader(&dest);
-      {
-        absl::Status status = ReadRecords(records_reader, limits,
-                                          *transposed_chunk.mutable_records());
-        if (!status.ok()) {
-          return status;
-        }
+      if (absl::Status status = ReadRecords(
+              records_reader, limits, *transposed_chunk.mutable_records());
+          !status.ok()) {
+        return status;
       }
       if (ABSL_PREDICT_FALSE(!records_reader.VerifyEndAndClose())) {
         return records_reader.status();
@@ -353,8 +349,7 @@ const char kUsage[] =
     "Shows summary of Riegeli/records file contents.\n";
 
 }  // namespace
-}  // namespace tools
-}  // namespace riegeli
+}  // namespace riegeli::tools
 
 int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(riegeli::tools::kUsage);

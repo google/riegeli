@@ -25,8 +25,7 @@
 #include "absl/numeric/int128.h"
 #include "riegeli/base/arithmetic.h"
 
-namespace riegeli {
-namespace write_int_internal {
+namespace riegeli::write_int_internal {
 
 template <typename T, typename Target, typename Enable = void>
 struct FitsIn;
@@ -37,8 +36,8 @@ struct FitsIn<
     std::enable_if_t<absl::disjunction<
         absl::conjunction<IsUnsignedInt<T>, IsUnsignedInt<Target>>,
         absl::conjunction<IsSignedInt<T>, IsSignedInt<Target>>>::value>>
-    : std::integral_constant<bool, (std::numeric_limits<T>::max() <=
-                                    std::numeric_limits<Target>::max())> {};
+    : std::bool_constant<(std::numeric_limits<T>::max() <=
+                          std::numeric_limits<Target>::max())> {};
 
 // `WriteDec()` with no width parameter writes no leading zeros, except for 0
 // itself.
@@ -211,7 +210,6 @@ inline char* WriteDecSignedBackward(T src, char* dest) {
   return WriteDecBackward(IntCast<absl::int128>(src), dest);
 }
 
-}  // namespace write_int_internal
-}  // namespace riegeli
+}  // namespace riegeli::write_int_internal
 
 #endif  // RIEGELI_BYTES_WRITE_INT_INTERNAL_H_

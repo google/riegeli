@@ -76,17 +76,17 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
 
   // For `std::filesystem::path` with `value_type = char`, stores a reference to
   // `path.native()`.
-  template <typename DependentPath = std::filesystem::path,
-            std::enable_if_t<
-                std::is_same<typename DependentPath::value_type, char>::value,
-                int> = 0>
+  template <
+      typename DependentPath = std::filesystem::path,
+      std::enable_if_t<std::is_same_v<typename DependentPath::value_type, char>,
+                       int> = 0>
   /*implicit*/ PathRef(
       const std::filesystem::path& path ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : StringRef(static_cast<const DependentPath&>(path).native()) {}
-  template <typename DependentPath = std::filesystem::path,
-            std::enable_if_t<
-                std::is_same<typename DependentPath::value_type, char>::value,
-                int> = 0>
+  template <
+      typename DependentPath = std::filesystem::path,
+      std::enable_if_t<std::is_same_v<typename DependentPath::value_type, char>,
+                       int> = 0>
   /*implicit*/ PathRef(
       const std::filesystem::path& path ABSL_ATTRIBUTE_LIFETIME_BOUND,
       ABSL_ATTRIBUTE_UNUSED TemporaryStorage<std::string>&& storage)
@@ -97,10 +97,10 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   //
   // The string is stored in a storage object passed as a default argument to
   // this constructor.
-  template <typename DependentPath = std::filesystem::path,
-            std::enable_if_t<
-                !std::is_same<typename DependentPath::value_type, char>::value,
-                int> = 0>
+  template <
+      typename DependentPath = std::filesystem::path,
+      std::enable_if_t<
+          !std::is_same_v<typename DependentPath::value_type, char>, int> = 0>
   /*implicit*/ PathRef(const std::filesystem::path& path,
                        TemporaryStorage<std::string>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND = {})

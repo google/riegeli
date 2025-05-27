@@ -40,16 +40,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t ByteFill::ZeroBlock::kSize;
-constexpr size_t ByteFill::SmallBlock::kSize;
-constexpr int ByteFill::Blocks::kBlockSizeBitsBias;
-constexpr Position ByteFill::Blocks::kMaxSizeForSingleBlock;
-#endif
-
 inline const char* ByteFill::ZeroBlock::Data() {
   return Global([] { return new char[kSize](); });
 }

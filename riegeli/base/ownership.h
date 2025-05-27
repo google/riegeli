@@ -17,8 +17,6 @@
 
 #include <type_traits>
 
-#include "riegeli/base/constexpr.h"
-
 namespace riegeli {
 
 // `PassOwnership` and `ShareOwnership` type tags specify how ownership of a
@@ -32,10 +30,10 @@ namespace riegeli {
 //    count is increased if the new owner also gets a reference.
 
 struct PassOwnership {};
-RIEGELI_INLINE_CONSTEXPR(PassOwnership, kPassOwnership, PassOwnership());
+inline constexpr PassOwnership kPassOwnership = {};
 
 struct ShareOwnership {};
-RIEGELI_INLINE_CONSTEXPR(ShareOwnership, kShareOwnership, ShareOwnership());
+inline constexpr ShareOwnership kShareOwnership = {};
 
 // `IsOwnership<T>::value` is `true` if `T` is `PassOwnership` or
 // `ShareOwnership`.

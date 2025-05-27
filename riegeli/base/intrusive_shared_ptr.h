@@ -40,17 +40,17 @@ struct HasHasUniqueOwner : std::false_type {};
 
 template <typename T>
 struct HasHasUniqueOwner<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(std::declval<const T&>().HasUniqueOwner()), bool>::value>>
+    T, std::enable_if_t<std::is_convertible_v<
+           decltype(std::declval<const T&>().HasUniqueOwner()), bool>>>
     : std::true_type {};
 
 template <typename T, typename Enable = void>
 struct HasGetCount : std::false_type {};
 
 template <typename T>
-struct HasGetCount<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(std::declval<const T&>().GetCount()), size_t>::value>>
+struct HasGetCount<T,
+                   std::enable_if_t<std::is_convertible_v<
+                       decltype(std::declval<const T&>().GetCount()), size_t>>>
     : std::true_type {};
 
 }  // namespace intrusive_shared_ptr_internal
@@ -130,21 +130,20 @@ class
   //
   // The object is constructed with `new`, which means that `T::Unref()` should
   // delete the object with `delete this`.
-  template <
-      typename SubInitializer,
-      std::enable_if_t<std::is_convertible<TargetT<SubInitializer>*, T*>::value,
-                       int> = 0>
+  template <typename SubInitializer,
+            std::enable_if_t<
+                std::is_convertible_v<TargetT<SubInitializer>*, T*>, int> = 0>
   explicit IntrusiveSharedPtr(SubInitializer&& value)
       : ptr_(Initializer<TargetT<SubInitializer>>(
             std::forward<SubInitializer>(value))) {}
 
   // Converts from an `IntrusiveSharedPtr` with a compatible type.
   template <typename SubT,
-            std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<SubT*, T*>, int> = 0>
   /*implicit*/ IntrusiveSharedPtr(const IntrusiveSharedPtr<SubT>& that) noexcept
       : ptr_(Ref(that.ptr_.get())) {}
   template <typename SubT,
-            std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<SubT*, T*>, int> = 0>
   IntrusiveSharedPtr& operator=(const IntrusiveSharedPtr<SubT>& that) noexcept {
     ptr_.reset(Ref(that.ptr_.get()));
     return *this;
@@ -154,11 +153,11 @@ class
   //
   // The source `IntrusiveSharedPtr` is left empty.
   template <typename SubT,
-            std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<SubT*, T*>, int> = 0>
   /*implicit*/ IntrusiveSharedPtr(IntrusiveSharedPtr<SubT>&& that) noexcept
       : ptr_(std::move(that).ptr_) {}
   template <typename SubT,
-            std::enable_if_t<std::is_convertible<SubT*, T*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<SubT*, T*>, int> = 0>
   IntrusiveSharedPtr& operator=(IntrusiveSharedPtr<SubT>&& that) noexcept {
     ptr_.reset(std::move(that).ptr_);
     return *this;
@@ -206,10 +205,9 @@ class
   //
   // The object is constructed with `new`, which means that `T::Unref()` should
   // delete the object with `delete this`.
-  template <
-      typename SubInitializer,
-      std::enable_if_t<std::is_convertible<TargetT<SubInitializer>*, T*>::value,
-                       int> = 0>
+  template <typename SubInitializer,
+            std::enable_if_t<
+                std::is_convertible_v<TargetT<SubInitializer>*, T*>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(SubInitializer&& value) {
     ptr_ = Initializer<TargetT<SubInitializer>>(
         std::forward<SubInitializer>(value));
@@ -348,15 +346,13 @@ class
   std::unique_ptr<T, Unrefer> ptr_;
 };
 
-#if __cpp_deduction_guides
 template <typename T>
 explicit IntrusiveSharedPtr(T* ptr, PassOwnership = kPassOwnership)
     -> IntrusiveSharedPtr<T>;
 template <typename T>
 explicit IntrusiveSharedPtr(T* ptr, ShareOwnership) -> IntrusiveSharedPtr<T>;
-template <typename T, std::enable_if_t<!std::is_pointer<T>::value, int> = 0>
+template <typename T, std::enable_if_t<!std::is_pointer_v<T>, int> = 0>
 explicit IntrusiveSharedPtr(T&& value) -> IntrusiveSharedPtr<TargetT<T>>;
-#endif
 
 }  // namespace riegeli
 

@@ -273,11 +273,7 @@ class InvokerType
     void* const ptr = initializer_internal::Allocate<std::decay_t<Result<>>>();
     std::move(*this).ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<Result<>>>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<Result<>>*>(ptr)));
+        std::launder(static_cast<std::decay_t<Result<>>*>(ptr)));
   }
   template <int default_deleter = 0, typename DependentFunction = Function,
             std::enable_if_t<IsConstructibleFromResult<
@@ -290,11 +286,7 @@ class InvokerType
         initializer_internal::Allocate<std::decay_t<ConstResult<>>>();
     ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<ConstResult<>>>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<ConstResult<>>*>(ptr)));
+        std::launder(static_cast<std::decay_t<ConstResult<>>*>(ptr)));
   }
 
   template <typename Deleter, typename DependentFunction = Function,
@@ -307,11 +299,7 @@ class InvokerType
     void* const ptr = initializer_internal::Allocate<std::decay_t<Result<>>>();
     std::move(*this).ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<Result<>>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<Result<>>*>(ptr)));
+        std::launder(static_cast<std::decay_t<Result<>>*>(ptr)));
   }
   template <typename Deleter, typename DependentFunction = Function,
             std::enable_if_t<IsConstructibleFromResult<
@@ -324,11 +312,7 @@ class InvokerType
         initializer_internal::Allocate<std::decay_t<ConstResult<>>>();
     ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<ConstResult<>>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<ConstResult<>>*>(ptr)));
+        std::launder(static_cast<std::decay_t<ConstResult<>>*>(ptr)));
   }
 
   template <typename Deleter, typename DependentFunction = Function,
@@ -341,11 +325,7 @@ class InvokerType
     void* const ptr = initializer_internal::Allocate<std::decay_t<Result<>>>();
     std::move(*this).ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<Result<>>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<Result<>>*>(ptr)),
+        std::launder(static_cast<std::decay_t<Result<>>*>(ptr)),
         std::forward<Deleter>(deleter));
   }
   template <typename Deleter, typename DependentFunction = Function,
@@ -359,11 +339,7 @@ class InvokerType
         initializer_internal::Allocate<std::decay_t<ConstResult<>>>();
     ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<ConstResult<>>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<ConstResult<>>*>(ptr)),
+        std::launder(static_cast<std::decay_t<ConstResult<>>*>(ptr)),
         std::forward<Deleter>(deleter));
   }
 
@@ -387,12 +363,9 @@ class InvokerType
   }
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename Function, typename... Args>
 explicit InvokerType(Function&&, Args&&...)
     -> InvokerType<std::decay_t<Function>, std::decay_t<Args>...>;
-#endif
 
 // `InvokerTargetRef<T>::type` and `InvokerTargetRefT<T>` deduce the appropriate
 // target type of a possibly const-qualified `InvokerType<Function, Args...>`

@@ -43,8 +43,7 @@
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/skipped_region.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 namespace {
 
@@ -1531,5 +1530,4 @@ PyObject* InitModule() {
 
 PyMODINIT_FUNC PyInit_record_reader() { return InitModule(); }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python

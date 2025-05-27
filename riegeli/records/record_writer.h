@@ -640,7 +640,7 @@ class RecordWriterBase : public Object {
 // `std::unique_ptr<ChunkWriter>` (owned), `Any<ChunkWriter*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The byte `Writer` or `ChunkWriter` must not be accessed until the
 // `RecordWriter` is closed or (when parallelism in options is 0) no longer
@@ -686,14 +686,11 @@ class RecordWriter : public RecordWriterBase {
   StableDependency<ChunkWriter*, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit RecordWriter(Closed) -> RecordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit RecordWriter(Dest&& dest, RecordWriterBase::Options options =
                                        RecordWriterBase::Options())
     -> RecordWriter<TargetT<Dest>>;
-#endif
 
 // Implementation details follow.
 

@@ -61,12 +61,10 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record,
   }
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(size);
-  {
-    absl::Status status =
-        SerializeMessage(record, records_writer_, serialize_options);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return Fail(std::move(status));
-    }
+  if (absl::Status status =
+          SerializeMessage(record, records_writer_, serialize_options);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return Fail(std::move(status));
   }
   limits_.push_back(IntCast<size_t>(records_writer_.pos()));
   return true;

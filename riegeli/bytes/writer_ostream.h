@@ -175,7 +175,7 @@ class WriterOStreamBase : public std::iostream {
 // `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The `Writer` must not be accessed until the `WriterOStream` is closed or no
 // longer used, except that it is allowed to read the destination of the
@@ -195,14 +195,14 @@ class WriterOStream : public WriterOStreamBase {
   // derives from `std::ios` which has these operations deleted.
   WriterOStream(WriterOStream&& that) noexcept
 #if __cpp_concepts
-    requires std::is_move_constructible<Dependency<Writer*, Dest>>::value
+    requires std::is_move_constructible_v<Dependency<Writer*, Dest>>
 #endif
       : WriterOStreamBase(static_cast<WriterOStreamBase&&>(that)),
         dest_(std::move(that.dest_), *this, that) {
   }
   WriterOStream& operator=(WriterOStream&& that) noexcept
 #if __cpp_concepts
-    requires(std::is_move_assignable<Dependency<Writer*, Dest>>::value)
+    requires(std::is_move_assignable_v<Dependency<Writer*, Dest>>)
 #endif
   {
     WriterOStreamBase::operator=(static_cast<WriterOStreamBase&&>(that));
@@ -238,14 +238,11 @@ class WriterOStream : public WriterOStreamBase {
   MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit WriterOStream(Closed) -> WriterOStream<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WriterOStream(Dest&& dest, WriterOStreamBase::Options options =
                                         WriterOStreamBase::Options())
     -> WriterOStream<TargetT<Dest>>;
-#endif
 
 // Implementation details follow.
 

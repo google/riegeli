@@ -155,7 +155,7 @@ class BrotliReaderBase : public PullableReader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The compressed `Reader` must not be accessed until the `BrotliReader` is
 // closed or no longer used.
@@ -197,14 +197,11 @@ class BrotliReader : public BrotliReaderBase {
   Dependency<Reader*, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit BrotliReader(Closed) -> BrotliReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit BrotliReader(
     Src&& src, BrotliReaderBase::Options options = BrotliReaderBase::Options())
     -> BrotliReader<TargetT<Src>>;
-#endif
 
 // Implementation details follow.
 

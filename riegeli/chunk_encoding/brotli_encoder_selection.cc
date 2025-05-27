@@ -28,8 +28,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 ABSL_ATTRIBUTE_WEAK std::unique_ptr<Writer> NewBrotliWriter(
     Chain* compressed, const CompressorOptions& compressor_options,
@@ -58,5 +57,4 @@ std::unique_ptr<Writer> NewCBrotliWriter(
           .set_window_log(compressor_options.brotli_window_log()));
 }
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal

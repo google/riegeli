@@ -20,10 +20,8 @@
 #endif
 
 #include "riegeli/base/compact_string.h"
-#include "riegeli/base/constexpr.h"
 
-namespace riegeli {
-namespace fd_internal {
+namespace riegeli::fd_internal {
 
 // Infers a filename from fd by reading the symlink target for
 // `absl::StrCat("/proc/self/fd/", fd)` (on Windows returns a
@@ -32,17 +30,16 @@ CompactString FilenameForFd(int fd);
 
 #ifndef _WIN32
 #ifndef __APPLE__
-RIEGELI_INLINE_CONSTEXPR(int, kCloseOnExec, O_CLOEXEC);
+inline constexpr int kCloseOnExec = O_CLOEXEC;
 #else   // __APPLE__
 // On Darwin `O_CLOEXEC` is available conditionally, so `kCloseOnExec` is
 // defined out of line.
 extern const int kCloseOnExec;
 #endif  // __APPLE__
 #else   // _WIN32
-RIEGELI_INLINE_CONSTEXPR(int, kCloseOnExec, _O_NOINHERIT);
+inline constexpr int kCloseOnExec = _O_NOINHERIT;
 #endif  // _WIN32
 
-}  // namespace fd_internal
-}  // namespace riegeli
+}  // namespace riegeli::fd_internal
 
 #endif  // RIEGELI_BYTES_FD_INTERNAL_H_

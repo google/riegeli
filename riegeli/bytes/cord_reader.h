@@ -120,7 +120,7 @@ class CordReaderBase : public PullableReader {
 // `Any<const absl::Cord*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The `absl::Cord` must not be changed until the `CordReader` is closed or no
 // longer used.
@@ -158,12 +158,9 @@ class CordReader : public CordReaderBase {
   MovingDependency<const absl::Cord*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit CordReader(Closed) -> CordReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit CordReader(Src&& src) -> CordReader<TargetT<Src>>;
-#endif
 
 // Implementation details follow.
 

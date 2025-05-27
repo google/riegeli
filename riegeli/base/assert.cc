@@ -20,8 +20,7 @@
 
 #include "absl/log/absl_log.h"
 
-namespace riegeli {
-namespace assert_internal {
+namespace riegeli::assert_internal {
 
 CheckResult::CheckResult(const char* function, const char* prefix)
     : header_(new std::ostringstream()) {
@@ -52,5 +51,4 @@ CheckResult CheckImpossibleResult(const char* function) {
   return CheckResult(function, "Impossible");
 }
 
-}  // namespace assert_internal
-}  // namespace riegeli
+}  // namespace riegeli::assert_internal

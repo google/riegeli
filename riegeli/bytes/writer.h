@@ -69,9 +69,9 @@ class WriterAbslStringifySink {
   Writer* dest() const { return dest_; }
 
   void Append(size_t length, char fill);
-  template <typename Src,
-            std::enable_if_t<std::is_convertible<Src, absl::string_view>::value,
-                             int> = 0>
+  template <
+      typename Src,
+      std::enable_if_t<std::is_convertible_v<Src, absl::string_view>, int> = 0>
   void Append(Src&& src);
   friend void AbslFormatFlush(WriterAbslStringifySink* dest,
                               absl::string_view src) {
@@ -144,10 +144,9 @@ template <typename T, typename Enable = void>
 struct HasStringifiedSize : std::false_type {};
 template <typename T>
 struct HasStringifiedSize<
-    T, std::enable_if_t<std::is_convertible<decltype(riegeli::StringifiedSize(
-                                                std::declval<const T&>())),
-                                            Position>::value>>
-    : std::true_type {};
+    T, std::enable_if_t<std::is_convertible_v<decltype(riegeli::StringifiedSize(
+                                                  std::declval<const T&>())),
+                                              Position>>> : std::true_type {};
 
 // Abstract class `Writer` writes sequences of bytes to a destination. The
 // nature of the destination depends on the particular class derived from
@@ -329,12 +328,11 @@ class Writer : public Object {
   // Return values:
   //  * `true`  - success
   //  * `false` - failure (`!ok()`)
-  template <
-      typename... Srcs,
-      std::enable_if_t<
-          absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
-                            IsStringifiable<Srcs>...>::value,
-          int> = 0>
+  template <typename... Srcs,
+            std::enable_if_t<
+                absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
+                                  IsStringifiable<Srcs>...>::value,
+                int> = 0>
   bool Write(Srcs&&... srcs);
 
   // Writes stringified elements of the tuple to the buffer and/or the
@@ -694,9 +692,8 @@ inline void WriterAbslStringifySink::Append(size_t length, char fill) {
   dest_->Write(ByteFill(length, fill));
 }
 
-template <
-    typename Src,
-    std::enable_if_t<std::is_convertible<Src, absl::string_view>::value, int>>
+template <typename Src,
+          std::enable_if_t<std::is_convertible_v<Src, absl::string_view>, int>>
 inline void WriterAbslStringifySink::Append(Src&& src) {
   dest_->Write(std::forward<Src>(src));
 }
@@ -969,10 +966,9 @@ inline bool Writer::Write(Src&& src) {
 
 template <
     typename... Srcs,
-    std::enable_if_t<
-        absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
-                          IsStringifiable<Srcs>...>::value,
-        int>>
+    std::enable_if_t<absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
+                                       IsStringifiable<Srcs>...>::value,
+                     int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
 #if __cpp_fold_expressions
   return (Write(std::forward<Srcs>(srcs)) && ...);

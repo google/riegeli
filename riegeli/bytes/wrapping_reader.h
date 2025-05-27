@@ -106,7 +106,7 @@ class WrappingReaderBase : public Reader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The original `Reader` must not be accessed until the `WrappingReader` is
 // closed or no longer used.
@@ -150,12 +150,9 @@ class WrappingReader : public WrappingReaderBase {
   MovingDependency<Reader*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit WrappingReader(Closed) -> WrappingReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit WrappingReader(Src&& src) -> WrappingReader<TargetT<Src>>;
-#endif
 
 // Implementation details follow.
 

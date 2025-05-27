@@ -43,25 +43,16 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t SnappyWriterBase::kBlockSize;
-#endif
-
 void SnappyWriterBase::Done() {
   if (ABSL_PREDICT_TRUE(ok())) SyncBuffer();
   Writer::Done();
   if (ABSL_PREDICT_TRUE(ok())) {
     Writer& dest = *DestWriter();
-    {
-      absl::Status status = SnappyCompress(
-          ChainReader<>(&uncompressed_), dest,
-          SnappyCompressOptions().set_compression_level(compression_level_));
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        FailWithoutAnnotation(std::move(status));
-      }
+    if (absl::Status status = SnappyCompress(
+            ChainReader<>(&uncompressed_), dest,
+            SnappyCompressOptions().set_compression_level(compression_level_));
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      FailWithoutAnnotation(std::move(status));
     }
   }
   uncompressed_ = Chain();

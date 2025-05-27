@@ -42,8 +42,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 PythonReader::PythonReader(PyObject* src, Options options)
     : BufferedReader(options.buffer_options()), owns_src_(options.owns_src()) {
@@ -360,5 +359,4 @@ absl::optional<Position> PythonReader::SizeImpl() {
   return *size;
 }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python

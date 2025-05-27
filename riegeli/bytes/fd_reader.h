@@ -324,7 +324,7 @@ class FdReaderBase : public BufferedReader {
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as `TargetT`
-// of the type of the first constructor argument. This requires C++17.
+// of the type of the first constructor argument.
 //
 // Warning: if random access is not supported and the fd is not owned, it will
 // have an unpredictable amount of extra data consumed because of buffering.
@@ -342,9 +342,9 @@ class FdReader : public FdReaderBase {
   explicit FdReader(Initializer<Src> src, Options options = Options());
 
   // Will read from `src`.
-  template <typename DependentSrc = Src,
-            std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
-                             int> = 0>
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int> = 0>
   explicit FdReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
                     Options options = Options());
 
@@ -384,9 +384,9 @@ class FdReader : public FdReaderBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
-  template <typename DependentSrc = Src,
-            std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
-                             int> = 0>
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
   template <
       typename DependentSrc = Src,
@@ -437,8 +437,6 @@ class FdReader : public FdReaderBase {
   Dependency<FdHandle, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit FdReader(Closed) -> FdReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FdReader(Src&& src,
@@ -450,7 +448,6 @@ explicit FdReader(Src&& src,
 explicit FdReader(UnownedFd dir_fd, PathRef filename,
                   FdReaderBase::Options options = FdReaderBase::Options())
     -> FdReader<OwnedFd>;
-#endif
 
 // Implementation details follow.
 
@@ -515,9 +512,8 @@ inline FdReader<Src>::FdReader(Initializer<Src> src, Options options)
 }
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int>>
 inline FdReader<Src>::FdReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                Options options)
     : FdReader(riegeli::Maker(src), std::move(options)) {}
@@ -563,9 +559,8 @@ inline void FdReader<Src>::Reset(Initializer<Src> src, Options options) {
 }
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int>>
 inline void FdReader<Src>::Reset(int src, Options options) {
   Reset(riegeli::Maker(src), std::move(options));
 }
@@ -642,11 +637,9 @@ template <typename Src>
 void FdReader<Src>::Done() {
   FdReaderBase::Done();
   if (src_.IsOwning()) {
-    {
-      absl::Status status = src_.get().Close();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        Fail(std::move(status));
-      }
+    if (absl::Status status = src_.get().Close();
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      Fail(std::move(status));
     }
   }
 }

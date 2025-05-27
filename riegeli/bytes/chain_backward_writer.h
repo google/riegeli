@@ -177,7 +177,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
 // `TargetT` of the type of the first constructor argument, except that CTAD
 // is deleted if the first constructor argument is a `Chain&` or `const Chain&`
 // (to avoid writing to an unintentionally separate copy of an existing object).
-// This requires C++17.
+//
 //
 // The `Chain` must not be accessed until the `ChainBackwardWriter` is closed or
 // no longer used.
@@ -194,9 +194,8 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
 
   // Will append to an owned `Chain` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Chain`.
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same_v<DependentDest, Chain>, int> = 0>
   explicit ChainBackwardWriter(Options options = Options());
 
   ChainBackwardWriter(ChainBackwardWriter&& that) = default;
@@ -207,9 +206,8 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
-  template <
-      typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, Chain>::value, int> = 0>
+  template <typename DependentDest = Dest,
+            std::enable_if_t<std::is_same_v<DependentDest, Chain>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `Chain` being written
@@ -232,8 +230,6 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   MovingDependency<Chain*, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit ChainBackwardWriter(Closed) -> ChainBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ChainBackwardWriter(Dest&& dest,
@@ -247,7 +243,6 @@ explicit ChainBackwardWriter(Dest&& dest,
 explicit ChainBackwardWriter(ChainBackwardWriterBase::Options options =
                                  ChainBackwardWriterBase::Options())
     -> ChainBackwardWriter<Chain>;
-#endif
 
 // Implementation details follow.
 
@@ -330,7 +325,7 @@ inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Initializer<Dest> dest,
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
+          std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Options options)
     : ChainBackwardWriter(riegeli::Maker(), std::move(options)) {}
 
@@ -350,7 +345,7 @@ inline void ChainBackwardWriter<Dest>::Reset(Initializer<Dest> dest,
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, Chain>::value, int>>
+          std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline void ChainBackwardWriter<Dest>::Reset(Options options) {
   Reset(riegeli::Maker(), std::move(options));
 }

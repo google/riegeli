@@ -247,7 +247,7 @@ class CFileReaderBase : public BufferedReader {
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
 // the first constructor argument is a filename or a `FILE*`, otherwise as
-// `TargetT` of the type of the first constructor argument. This requires C++17.
+// `TargetT` of the type of the first constructor argument.
 //
 // Warning: if random access is not supported and the `FILE` is not owned, it
 // will have an unpredictable amount of extra data consumed because of
@@ -265,9 +265,9 @@ class CFileReader : public CFileReaderBase {
   explicit CFileReader(Initializer<Src> src, Options options = Options());
 
   // Will read from `src`.
-  template <typename DependentSrc = Src,
-            std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value,
-                             int> = 0>
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int> = 0>
   explicit CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
                        Options options = Options());
 
@@ -292,9 +292,9 @@ class CFileReader : public CFileReaderBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
-  template <typename DependentSrc = Src,
-            std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value,
-                             int> = 0>
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* src,
                                           Options options = Options());
   template <
@@ -335,8 +335,6 @@ class CFileReader : public CFileReaderBase {
   Dependency<CFileHandle, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit CFileReader(Closed) -> CFileReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit CFileReader(
@@ -345,7 +343,6 @@ explicit CFileReader(
         absl::disjunction<std::is_convertible<Src&&, FILE*>,
                           std::is_convertible<Src&&, PathRef>>::value,
         OwnedCFile, TargetT<Src>>>;
-#endif
 
 // Implementation details follow.
 
@@ -407,9 +404,8 @@ inline CFileReader<Src>::CFileReader(Initializer<Src> src, Options options)
 }
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value, int>>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int>>
 inline CFileReader<Src>::CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                      Options options)
     : CFileReader(riegeli::Maker(src), std::move(options)) {}
@@ -441,9 +437,8 @@ inline void CFileReader<Src>::Reset(Initializer<Src> src, Options options) {
 }
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<std::is_constructible<DependentSrc, FILE*>::value, int>>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int>>
 inline void CFileReader<Src>::Reset(FILE* src, Options options) {
   Reset(riegeli::Maker(src), std::move(options));
 }
@@ -485,11 +480,9 @@ template <typename Src>
 void CFileReader<Src>::Done() {
   CFileReaderBase::Done();
   if (src_.IsOwning()) {
-    {
-      absl::Status status = src_.get().Close();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        Fail(std::move(status));
-      }
+    if (absl::Status status = src_.get().Close();
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      Fail(std::move(status));
     }
   }
 }

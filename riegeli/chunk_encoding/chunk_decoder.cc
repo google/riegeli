@@ -194,15 +194,12 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
   const size_t limit = limits_[IntCast<size_t>(index_)];
   RIEGELI_ASSERT_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  {
-    absl::Status status =
-        ParseMessageWithLength(values_reader_, limit - start, record);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      RIEGELI_EVAL_ASSERT(values_reader_.Seek(limit))
-          << values_reader_.status();
-      recoverable_ = true;
-      return Fail(std::move(status));
-    }
+  if (absl::Status status =
+          ParseMessageWithLength(values_reader_, limit - start, record);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    RIEGELI_EVAL_ASSERT(values_reader_.Seek(limit)) << values_reader_.status();
+    recoverable_ = true;
+    return Fail(std::move(status));
   }
   ++index_;
   return true;

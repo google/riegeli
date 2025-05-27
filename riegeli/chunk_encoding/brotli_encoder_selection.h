@@ -22,8 +22,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 // Creates a `Writer` which compresses data with Brotli and writes them to
 // `compressed`.
@@ -42,7 +41,6 @@ std::unique_ptr<Writer> NewBrotliWriter(
 std::unique_ptr<Writer> NewCBrotliWriter(
     Chain* compressed, const CompressorOptions& compressor_options);
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal
 
 #endif  // RIEGELI_CHUNK_ENCODING_BROTLI_ENCODER_SELECTION_H_

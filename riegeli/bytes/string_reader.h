@@ -80,7 +80,7 @@ class StringReaderBase : public Reader {
 // constructor argument is an lvalue reference to a type convertible to
 // `absl::string_view` (to avoid unintended string copying) or to `const char*`
 // (to compute `std::strlen()` early), otherwise as `TargetT` of the type of the
-// first constructor argument. This requires C++17.
+// first constructor argument.
 //
 // It might be better to use `ChainReader<Chain>` instead of
 // `StringReader<std::string>` to allow sharing the data (`Chain` blocks are
@@ -100,15 +100,15 @@ class StringReader : public StringReaderBase {
   // Will read from an empty `absl::string_view`. This constructor is present
   // only if `Src` is `absl::string_view`.
   template <typename DependentSrc = Src,
-            std::enable_if_t<
-                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>,
+                             int> = 0>
   StringReader();
 
   // Will read from `absl::string_view(src, size)`. This constructor is present
   // only if `Src` is `absl::string_view`.
   template <typename DependentSrc = Src,
-            std::enable_if_t<
-                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>,
+                             int> = 0>
   explicit StringReader(const char* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
                         size_t size);
 
@@ -120,12 +120,12 @@ class StringReader : public StringReaderBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src);
   template <typename DependentSrc = Src,
-            std::enable_if_t<
-                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   template <typename DependentSrc = Src,
-            std::enable_if_t<
-                std::is_same<DependentSrc, absl::string_view>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const char* src, size_t size);
 
   // Returns the object providing and possibly owning the `std::string` or array
@@ -147,8 +147,6 @@ class StringReader : public StringReaderBase {
   MovingDependency<absl::string_view, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
@@ -159,7 +157,6 @@ explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
     absl::string_view, TargetT<Src>>>;
 StringReader() -> StringReader<>;
 explicit StringReader(const char* src, size_t size) -> StringReader<>;
-#endif
 
 // Implementation details follow.
 
@@ -214,13 +211,13 @@ inline StringReader<Src>::StringReader(Initializer<Src> src)
 template <typename Src>
 template <
     typename DependentSrc,
-    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>, int>>
 inline StringReader<Src>::StringReader() : StringReader(absl::string_view()) {}
 
 template <typename Src>
 template <
     typename DependentSrc,
-    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>, int>>
 inline StringReader<Src>::StringReader(
     const char* src ABSL_ATTRIBUTE_LIFETIME_BOUND, size_t size)
     : StringReader(absl::string_view(src, size)) {}
@@ -241,7 +238,7 @@ inline void StringReader<Src>::Reset(Initializer<Src> src) {
 template <typename Src>
 template <
     typename DependentSrc,
-    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>, int>>
 inline void StringReader<Src>::Reset() {
   Reset(absl::string_view());
 }
@@ -249,7 +246,7 @@ inline void StringReader<Src>::Reset() {
 template <typename Src>
 template <
     typename DependentSrc,
-    std::enable_if_t<std::is_same<DependentSrc, absl::string_view>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>, int>>
 inline void StringReader<Src>::Reset(const char* src, size_t size) {
   Reset(absl::string_view(src, size));
 }

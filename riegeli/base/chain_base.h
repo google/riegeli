@@ -726,9 +726,8 @@ class Chain::RawBlock {
   static constexpr size_t kExternalObjectOffset();
 
 #if RIEGELI_DEBUG
-  template <
-      typename T,
-      std::enable_if_t<std::is_convertible<const T&, BytesRef>::value, int> = 0>
+  template <typename T, std::enable_if_t<
+                            std::is_convertible_v<const T&, BytesRef>, int> = 0>
   static void AssertSubstr(const T& object, absl::string_view substr) {
     if (!substr.empty()) {
       const BytesRef whole = object;
@@ -741,9 +740,9 @@ class Chain::RawBlock {
              "substring not contained in whole data";
     }
   }
-  template <typename T,
-            std::enable_if_t<!std::is_convertible<const T&, BytesRef>::value,
-                             int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<!std::is_convertible_v<const T&, BytesRef>, int> = 0>
 #else
   template <typename T>
 #endif

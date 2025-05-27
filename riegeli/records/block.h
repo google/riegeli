@@ -21,15 +21,13 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
 #include "riegeli/endian/endian_reading.h"
 #include "riegeli/endian/endian_writing.h"
 
-namespace riegeli {
-namespace records_internal {
+namespace riegeli::records_internal {
 
 class BlockHeader {
  public:
@@ -76,10 +74,9 @@ class BlockHeader {
   char bytes_[3 * sizeof(uint64_t)];
 };
 
-RIEGELI_INLINE_CONSTEXPR(Position, kBlockSize, Position{1} << 16);
+inline constexpr Position kBlockSize = Position{1} << 16;
 
-RIEGELI_INLINE_CONSTEXPR(Position, kUsableBlockSize,
-                         kBlockSize - BlockHeader::size());
+inline constexpr Position kUsableBlockSize = kBlockSize - BlockHeader::size();
 
 // Whether `pos` is a block boundary (immediately before a block header).
 inline bool IsBlockBoundary(Position pos) { return pos % kBlockSize == 0; }
@@ -142,7 +139,6 @@ inline Position ChunkEnd(const ChunkHeader& header, Position chunk_begin) {
       RoundUpToPossibleChunkBoundary(chunk_begin + header.num_records()));
 }
 
-}  // namespace records_internal
-}  // namespace riegeli
+}  // namespace riegeli::records_internal
 
 #endif  // RIEGELI_RECORDS_BLOCK_H_

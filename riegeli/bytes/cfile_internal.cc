@@ -20,8 +20,7 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/bytes/fd_internal.h"
 
-namespace riegeli {
-namespace cfile_internal {
+namespace riegeli::cfile_internal {
 
 CompactString FilenameForCFile(FILE* file) {
   const int fd = fileno(file);
@@ -32,5 +31,4 @@ CompactString FilenameForCFile(FILE* file) {
   }
 }
 
-}  // namespace cfile_internal
-}  // namespace riegeli
+}  // namespace riegeli::cfile_internal

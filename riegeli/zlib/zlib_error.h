@@ -19,14 +19,12 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 
-namespace riegeli {
-namespace zlib_internal {
+namespace riegeli::zlib_internal {
 
 ABSL_ATTRIBUTE_COLD absl::Status ZlibErrorToStatus(absl::string_view operation,
                                                    int zlib_code,
                                                    const char* details);
 
-}  // namespace zlib_internal
-}  // namespace riegeli
+}  // namespace riegeli::zlib_internal
 
 #endif  // RIEGELI_ZLIB_ZLIB_ERROR_H_

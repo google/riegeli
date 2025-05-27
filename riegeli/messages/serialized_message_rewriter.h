@@ -474,21 +474,21 @@ class SerializedMessageRewriter {
   //
   // A reference to `context` is passed to the actions.
   template <typename DependentContext = Context,
-            std::enable_if_t<!std::is_void<DependentContext>::value, int> = 0>
+            std::enable_if_t<!std::is_void_v<DependentContext>, int> = 0>
   absl::Status Rewrite(AnyRef<Reader*> src, AnyRef<Writer*> dest,
                        type_identity_t<DependentContext&> context) const;
   template <typename DependentContext = Context,
-            std::enable_if_t<!std::is_void<DependentContext>::value, int> = 0>
+            std::enable_if_t<!std::is_void_v<DependentContext>, int> = 0>
   absl::Status Rewrite(AnyRef<Reader*> src, AnyRef<Writer*> dest,
                        type_identity_t<DependentContext&&> context) const;
   template <typename DependentContext = Context,
-            std::enable_if_t<std::is_void<DependentContext>::value, int> = 0>
+            std::enable_if_t<std::is_void_v<DependentContext>, int> = 0>
   absl::Status Rewrite(AnyRef<Reader*> src, AnyRef<Writer*> dest) const;
 
  private:
   using MessageReaderContext =
       serialized_message_rewriter_internal::MessageReaderContext<
-          !std::is_void<Context>::value>;
+          !std::is_void_v<Context>>;
 
   SerializedMessageReader<MessageReaderContext> message_reader_;
 };
@@ -519,11 +519,9 @@ SerializedMessageRewriter<Context>::SerializedMessageRewriter() noexcept {
   message_reader_.BeforeOtherMessage([](ABSL_ATTRIBUTE_UNUSED int field_number,
                                         LimitingReaderBase& src,
                                         MessageReaderContext& context) {
-    {
-      absl::Status status = context.CommitUnchanged(src);
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
+    if (absl::Status status = context.CommitUnchanged(src);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
     }
     context.message_writer().OpenLengthDelimited();
     return absl::OkStatus();
@@ -531,11 +529,9 @@ SerializedMessageRewriter<Context>::SerializedMessageRewriter() noexcept {
   message_reader_.AfterOtherMessage([](int field_number,
                                        LimitingReaderBase& src,
                                        MessageReaderContext& context) {
-    {
-      absl::Status status = context.CommitUnchanged(src);
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
+    if (absl::Status status = context.CommitUnchanged(src);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
     }
     return context.message_writer().CloseLengthDelimited(field_number);
   });
@@ -684,11 +680,9 @@ inline void SerializedMessageRewriter<Context>::OnBool(
   message_reader_.OnBool(field_path, [action = std::move(action)](
                                          bool value, LimitingReaderBase& src,
                                          MessageReaderContext& context) {
-    {
-      absl::Status status = context.CommitUnchanged(src);
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
+    if (absl::Status status = context.CommitUnchanged(src);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
     }
     return serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
         src, context.message_writer(), context.message_rewriter_context(),
@@ -795,11 +789,9 @@ inline void SerializedMessageRewriter<Context>::OnFloat(
   message_reader_.OnFloat(field_path, [action = std::move(action)](
                                           float value, LimitingReaderBase& src,
                                           MessageReaderContext& context) {
-    {
-      absl::Status status = context.CommitUnchanged(src);
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
+    if (absl::Status status = context.CommitUnchanged(src);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
     }
     return serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
         src, context.message_writer(), context.message_rewriter_context(),
@@ -1031,11 +1023,9 @@ inline void SerializedMessageRewriter<Context>::BeforeMessage(
                                                   LimitingReaderBase& src,
                                                   MessageReaderContext&
                                                       context) {
-      {
-        absl::Status status = context.CommitUnchanged(src);
-        if (ABSL_PREDICT_FALSE(!status.ok())) {
-          return status;
-        }
+      if (absl::Status status = context.CommitUnchanged(src);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
       }
       context.message_writer().OpenLengthDelimited();
       return serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
@@ -1062,20 +1052,16 @@ inline void SerializedMessageRewriter<Context>::AfterMessage(
                                                  LimitingReaderBase& src,
                                                  MessageReaderContext&
                                                      context) {
-      {
-        absl::Status status = context.CommitUnchanged(src);
-        if (ABSL_PREDICT_FALSE(!status.ok())) {
-          return status;
-        }
+      if (absl::Status status = context.CommitUnchanged(src);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
       }
-      {
-        absl::Status status =
-            serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
-                src, context.message_writer(),
-                context.message_rewriter_context(), action);
-        if (ABSL_PREDICT_FALSE(!status.ok())) {
-          return status;
-        }
+      if (absl::Status status =
+              serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
+                  src, context.message_writer(),
+                  context.message_rewriter_context(), action);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
       }
       return context.message_writer().CloseLengthDelimited(field_number);
     });
@@ -1166,26 +1152,23 @@ inline void SerializedMessageRewriter<Context>::AfterGroup(
       << "Failed precondition of SerializedMessageRewriter::AfterGroup(): "
          "empty field path";
   const int field_number = field_path.back();
-  message_reader_.AfterGroup(
-      field_path, [action = std::move(action), field_number](
-                      LimitingReaderBase& src, MessageReaderContext& context) {
-        {
-          absl::Status status = context.CommitUnchanged(src);
-          if (ABSL_PREDICT_FALSE(!status.ok())) {
-            return status;
-          }
-        }
-        {
-          absl::Status status =
-              serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
-                  src, context.message_writer(),
-                  context.message_rewriter_context(), action);
-          if (ABSL_PREDICT_FALSE(!status.ok())) {
-            return status;
-          }
-        }
-        return context.message_writer().CloseGroup(field_number);
-      });
+  message_reader_.AfterGroup(field_path, [action = std::move(action),
+                                          field_number](
+                                             LimitingReaderBase& src,
+                                             MessageReaderContext& context) {
+    if (absl::Status status = context.CommitUnchanged(src);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    if (absl::Status status =
+            serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
+                src, context.message_writer(),
+                context.message_rewriter_context(), action);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    return context.message_writer().CloseGroup(field_number);
+  });
 }
 
 template <typename Context>
@@ -1232,7 +1215,7 @@ inline void SerializedMessageRewriter<Context>::ReplaceAfterGroup(
 
 template <typename Context>
 template <typename DependentContext,
-          std::enable_if_t<!std::is_void<DependentContext>::value, int>>
+          std::enable_if_t<!std::is_void_v<DependentContext>, int>>
 inline absl::Status SerializedMessageRewriter<Context>::Rewrite(
     AnyRef<Reader*> src, AnyRef<Writer*> dest,
     type_identity_t<DependentContext&> context) const {
@@ -1248,7 +1231,7 @@ inline absl::Status SerializedMessageRewriter<Context>::Rewrite(
 
 template <typename Context>
 template <typename DependentContext,
-          std::enable_if_t<!std::is_void<DependentContext>::value, int>>
+          std::enable_if_t<!std::is_void_v<DependentContext>, int>>
 inline absl::Status SerializedMessageRewriter<Context>::Rewrite(
     AnyRef<Reader*> src, AnyRef<Writer*> dest,
     type_identity_t<DependentContext&&> context) const {
@@ -1257,7 +1240,7 @@ inline absl::Status SerializedMessageRewriter<Context>::Rewrite(
 
 template <typename Context>
 template <typename DependentContext,
-          std::enable_if_t<std::is_void<DependentContext>::value, int>>
+          std::enable_if_t<std::is_void_v<DependentContext>, int>>
 inline absl::Status SerializedMessageRewriter<Context>::Rewrite(
     AnyRef<Reader*> src, AnyRef<Writer*> dest) const {
   Reader& src_ref = *src;  // Not invalidated by `std::move(src)`.

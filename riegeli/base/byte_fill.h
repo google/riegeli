@@ -562,11 +562,9 @@ inline ByteFill::Blocks::Blocks(Blocks&& that) noexcept
       last_block_size_(that.last_block_size_),
       data_(that.data_),
       block_(std::move(that.block_)) {
-  {
-    SmallBlock* const small_block = absl::get_if<SmallBlock>(&block_);
-    if (small_block != nullptr) {
-      data_ = small_block->data();
-    }
+  if (SmallBlock* const small_block = absl::get_if<SmallBlock>(&block_);
+      small_block != nullptr) {
+    data_ = small_block->data();
   }
 }
 

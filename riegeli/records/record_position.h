@@ -86,12 +86,10 @@ class RecordPosition : public WithCompare<RecordPosition> {
   }
   friend StrongOrdering RIEGELI_COMPARE(const RecordPosition& a,
                                         const RecordPosition& b) {
-    {
-      const StrongOrdering ordering =
-          riegeli::Compare(a.chunk_begin(), b.chunk_begin());
-      if (ordering != 0) {
-        return ordering;
-      }
+    if (const StrongOrdering ordering =
+            riegeli::Compare(a.chunk_begin(), b.chunk_begin());
+        ordering != 0) {
+      return ordering;
     }
     return riegeli::Compare(a.record_index(), b.record_index());
   }

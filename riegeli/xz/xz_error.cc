@@ -22,8 +22,7 @@
 #include "lzma.h"
 #include "riegeli/base/assert.h"
 
-namespace riegeli {
-namespace xz_internal {
+namespace riegeli::xz_internal {
 
 absl::Status XzErrorToStatus(absl::string_view operation,
                              lzma_ret liblzma_code) {
@@ -91,5 +90,4 @@ absl::Status XzErrorToStatus(absl::string_view operation,
   return absl::Status(code, message);
 }
 
-}  // namespace xz_internal
-}  // namespace riegeli
+}  // namespace riegeli::xz_internal

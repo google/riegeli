@@ -42,13 +42,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr uint32_t SerializedMessageReaderBase::kNumDefinedWireTypes;
-#endif
-
 absl::Status SerializedMessageReaderBase::ReadVarintError(Reader& src) {
   return src.StatusOrAnnotate(
       absl::InvalidArgumentError("Could not read a varint field"));
@@ -518,23 +511,17 @@ absl::Status SerializedMessageReaderBase::Read(AnyRef<Reader*> src,
 
 inline absl::Status SerializedMessageReaderBase::ReadRootMessage(
     LimitingReaderBase& src, TypeErasedRef context) const {
-  {
-    absl::Status status = before_root_(src, context);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = before_root_(src, context);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
-  {
-    absl::Status status = ReadMessage(src, root_, context);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = ReadMessage(src, root_, context);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
-  {
-    absl::Status status = after_root_(src, context);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = after_root_(src, context);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   return absl::OkStatus();
 }
@@ -550,51 +537,49 @@ absl::Status SerializedMessageReaderBase::ReadMessage(
       return src.AnnotateStatus(absl::InvalidArgumentError(
           absl::StrCat("Invalid wire type: ", wire_type)));
     }
-    {
-      const auto iter = fields.find(GetTagFieldNumber(tag));
-      if (iter != fields.end()) {
-        const std::function<absl::Status(LimitingReaderBase & src,
-                                         TypeErasedRef context)>& action =
-            iter->second.actions[static_cast<uint32_t>(wire_type)];
-        if (action != nullptr) {
-          absl::Status status = action(src, context);
-          if (ABSL_PREDICT_FALSE(!status.ok())) return status;
-          continue;
+    if (const auto iter = fields.find(GetTagFieldNumber(tag));
+        iter != fields.end()) {
+      const std::function<absl::Status(LimitingReaderBase & src,
+                                       TypeErasedRef context)>& action =
+          iter->second.actions[static_cast<uint32_t>(wire_type)];
+      if (action != nullptr) {
+        absl::Status status = action(src, context);
+        if (ABSL_PREDICT_FALSE(!status.ok())) return status;
+        continue;
+      }
+      if (wire_type == WireType::kLengthDelimited &&
+          (iter->second.before_message != nullptr ||
+           iter->second.after_message != nullptr ||
+           !iter->second.children.empty())) {
+        uint32_t length;
+        if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
+          return src.StatusOrAnnotate(absl::InvalidArgumentError(
+              "Could not read a length-delimited field length"));
         }
-        if (wire_type == WireType::kLengthDelimited &&
-            (iter->second.before_message != nullptr ||
-             iter->second.after_message != nullptr ||
-             !iter->second.children.empty())) {
-          uint32_t length;
-          if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
-            return src.StatusOrAnnotate(absl::InvalidArgumentError(
-                "Could not read a length-delimited field length"));
-          }
-          ScopedLimiter scoped_limiter(
-              &src, ScopedLimiter::Options().set_exact_length(size_t{length}));
-          if (absl::Status status =
-                  iter->second.before_message != nullptr
-                      ? iter->second.before_message(src, context)
-                      : before_other_message_(GetTagFieldNumber(tag), src,
-                                              context);
-              ABSL_PREDICT_FALSE(!status.ok())) {
-            return status;
-          }
-          if (absl::Status status =
-                  ReadMessage(src, iter->second.children, context);
-              ABSL_PREDICT_FALSE(!status.ok())) {
-            return status;
-          }
-          if (absl::Status status =
-                  iter->second.after_message != nullptr
-                      ? iter->second.after_message(src, context)
-                      : after_other_message_(GetTagFieldNumber(tag), src,
-                                             context);
-              ABSL_PREDICT_FALSE(!status.ok())) {
-            return status;
-          }
-          continue;
+        ScopedLimiter scoped_limiter(
+            &src, ScopedLimiter::Options().set_exact_length(size_t{length}));
+        if (absl::Status status =
+                iter->second.before_message != nullptr
+                    ? iter->second.before_message(src, context)
+                    : before_other_message_(GetTagFieldNumber(tag), src,
+                                            context);
+            ABSL_PREDICT_FALSE(!status.ok())) {
+          return status;
         }
+        if (absl::Status status =
+                ReadMessage(src, iter->second.children, context);
+            ABSL_PREDICT_FALSE(!status.ok())) {
+          return status;
+        }
+        if (absl::Status status =
+                iter->second.after_message != nullptr
+                    ? iter->second.after_message(src, context)
+                    : after_other_message_(GetTagFieldNumber(tag), src,
+                                           context);
+            ABSL_PREDICT_FALSE(!status.ok())) {
+          return status;
+        }
+        continue;
       }
     }
     absl::Status status = on_other_(tag, src, context);

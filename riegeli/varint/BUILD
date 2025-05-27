@@ -14,7 +14,6 @@ cc_library(
     hdrs = ["varint_reading.h"],
     deps = [
         "//riegeli/base:arithmetic",
-        "//riegeli/base:constexpr",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",

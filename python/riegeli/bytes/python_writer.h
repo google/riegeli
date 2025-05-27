@@ -34,8 +34,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 // A `Writer` which writes to a Python binary I/O stream.
 //
@@ -168,7 +167,6 @@ inline int PythonWriter::Traverse(visitproc visit, void* arg) {
   return exception_.Traverse(visit, arg);
 }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python
 
 #endif  // PYTHON_RIEGELI_BYTES_PYTHON_WRITER_H_

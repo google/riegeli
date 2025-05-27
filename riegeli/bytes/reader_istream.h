@@ -153,7 +153,7 @@ class ReaderIStreamBase : public std::istream {
 // `std::unique_ptr<Reader>` (owned), `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The `Reader` must not be accessed until the `ReaderIStream` is closed or no
 // longer used.
@@ -170,14 +170,14 @@ class ReaderIStream : public ReaderIStreamBase {
   // derives from `std::ios` which has these operations deleted.
   ReaderIStream(ReaderIStream&& that) noexcept
 #if __cpp_concepts
-    requires std::is_move_constructible<Dependency<Reader*, Src>>::value
+    requires std::is_move_constructible_v<Dependency<Reader*, Src>>
 #endif
       : ReaderIStreamBase(static_cast<ReaderIStreamBase&&>(that)),
         src_(std::move(that.src_), *this, that) {
   }
   ReaderIStream& operator=(ReaderIStream&& that) noexcept
 #if __cpp_concepts
-    requires(std::is_move_assignable<Dependency<Reader*, Src>>::value)
+    requires(std::is_move_assignable_v<Dependency<Reader*, Src>>)
 #endif
   {
     ReaderIStreamBase::operator=(static_cast<ReaderIStreamBase&&>(that));
@@ -213,14 +213,11 @@ class ReaderIStream : public ReaderIStreamBase {
   MovingDependency<Reader*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit ReaderIStream(Closed) -> ReaderIStream<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ReaderIStream(Src&& src, ReaderIStreamBase::Options options =
                                       ReaderIStreamBase::Options())
     -> ReaderIStream<TargetT<Src>>;
-#endif
 
 // Implementation details follow.
 

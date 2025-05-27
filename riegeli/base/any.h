@@ -169,10 +169,10 @@ class
   void InitializeFromAnyInitializer(AnyInitializer<Handle> manager);
 
   template <typename Manager,
-            std::enable_if_t<!std::is_reference<Manager>::value, int> = 0>
+            std::enable_if_t<!std::is_reference_v<Manager>, int> = 0>
   void Adopt(Manager&& manager);
   template <typename Manager,
-            std::enable_if_t<std::is_rvalue_reference<Manager>::value, int> = 0>
+            std::enable_if_t<std::is_rvalue_reference_v<Manager>, int> = 0>
   void Adopt(Manager&& manager);
 
   // Destroys the state, leaving it uninitialized.
@@ -226,15 +226,6 @@ class
   MethodsAndHandle methods_and_handle_;
   Repr repr_;
 };
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Handle, size_t inline_size, size_t inline_align>
-constexpr size_t AnyBase<Handle, inline_size, inline_align>::kAvailableSize;
-constexpr size_t AnyBase<Handle, inline_size, inline_align>::kAvailableAlign;
-#endif
 
 }  // namespace any_internal
 
@@ -308,12 +299,12 @@ class
   // constructor triggering implicit conversions of other parameter types to
   // `AnyInitializer`, which causes template instantiation cycles.
   template <typename Manager,
-            std::enable_if_t<
-                std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<Manager, AnyInitializer<Handle>>,
+                             int> = 0>
   /*implicit*/ Any(Manager manager);
   template <typename Manager,
-            std::enable_if_t<
-                std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<Manager, AnyInitializer<Handle>>,
+                             int> = 0>
   Any& operator=(Manager manager);
 
   // Assignment operator which materializes `Any` from its `Initializer`
@@ -481,9 +472,9 @@ class
   //
   // This constructor is separate so that it does not need temporary storage nor
   // `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
-  template <typename Manager,
-            std::enable_if_t<std::is_same<TargetT<Manager>, Any<Handle>>::value,
-                             int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<std::is_same_v<TargetT<Manager>, Any<Handle>>, int> = 0>
   /*implicit*/ AnyRef(Manager&& manager);
 
   // Holds the `Dependency` specified when the `AnyInitializer` was constructed.
@@ -496,8 +487,8 @@ class
   // constructor triggering implicit conversions of other parameter types to
   // `AnyInitializer`, which causes template instantiation cycles.
   template <typename Manager,
-            std::enable_if_t<
-                std::is_same<Manager, AnyInitializer<Handle>>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<Manager, AnyInitializer<Handle>>,
+                             int> = 0>
   /*implicit*/ AnyRef(Manager manager);
 
   AnyRef(AnyRef&& that) = default;
@@ -722,7 +713,7 @@ AnyBase<Handle, inline_size, inline_align>::InitializeFromAnyInitializer(
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<!std::is_reference<Manager>::value, int>>
+          std::enable_if_t<!std::is_reference_v<Manager>, int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Adopt(
     Manager&& manager) {
   manager.methods_and_handle_.methods->move_to_heap(
@@ -733,7 +724,7 @@ inline void AnyBase<Handle, inline_size, inline_align>::Adopt(
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<std::is_rvalue_reference<Manager>::value, int>>
+          std::enable_if_t<std::is_rvalue_reference_v<Manager>, int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Adopt(
     Manager&& manager) {
   manager.methods_and_handle_.methods->make_reference(
@@ -805,7 +796,7 @@ Any<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
-    std::enable_if_t<std::is_same<Manager, AnyInitializer<Handle>>::value, int>>
+    std::enable_if_t<std::is_same_v<Manager, AnyInitializer<Handle>>, int>>
 inline Any<Handle, inline_size, inline_align>::Any(Manager manager) {
   this->InitializeFromAnyInitializer(std::move(manager));
 }
@@ -813,7 +804,7 @@ inline Any<Handle, inline_size, inline_align>::Any(Manager manager) {
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
-    std::enable_if_t<std::is_same<Manager, AnyInitializer<Handle>>::value, int>>
+    std::enable_if_t<std::is_same_v<Manager, AnyInitializer<Handle>>, int>>
 inline Any<Handle, inline_size, inline_align>&
 Any<Handle, inline_size, inline_align>::operator=(Manager manager) {
   this->Destroy();
@@ -853,9 +844,8 @@ inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND) {
 }
 
 template <typename Handle>
-template <
-    typename Manager,
-    std::enable_if_t<std::is_same<TargetT<Manager>, Any<Handle>>::value, int>>
+template <typename Manager,
+          std::enable_if_t<std::is_same_v<TargetT<Manager>, Any<Handle>>, int>>
 inline AnyRef<Handle>::AnyRef(Manager&& manager) {
   this->template Initialize<TargetT<Manager>>(std::forward<Manager>(manager));
 }
@@ -863,7 +853,7 @@ inline AnyRef<Handle>::AnyRef(Manager&& manager) {
 template <typename Handle>
 template <
     typename Manager,
-    std::enable_if_t<std::is_same<Manager, AnyInitializer<Handle>>::value, int>>
+    std::enable_if_t<std::is_same_v<Manager, AnyInitializer<Handle>>, int>>
 inline AnyRef<Handle>::AnyRef(Manager manager) {
   this->InitializeFromAnyInitializer(std::move(manager));
 }

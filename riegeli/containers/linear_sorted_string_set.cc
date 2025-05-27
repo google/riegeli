@@ -103,15 +103,13 @@ size_t LinearSortedStringSet::size() const {
   const char* const limit = ptr + encoded_view.size();
   while (ptr != limit) {
     uint64_t tagged_length;
-    {
-      const absl::optional<const char*> next =
-          ReadVarint64(ptr, limit, tagged_length);
-      if (next == absl::nullopt) {
-        RIEGELI_ASSUME_UNREACHABLE()
-            << "Malformed LinearSortedStringSet encoding (tagged_length)";
-      } else {
-        ptr = *next;
-      }
+    if (const absl::optional<const char*> next =
+            ReadVarint64(ptr, limit, tagged_length);
+        next == absl::nullopt) {
+      RIEGELI_ASSUME_UNREACHABLE()
+          << "Malformed LinearSortedStringSet encoding (tagged_length)";
+    } else {
+      ptr = *next;
     }
     const uint64_t unshared_length = tagged_length >> 1;
     uint64_t shared_length;
@@ -120,15 +118,13 @@ size_t LinearSortedStringSet::size() const {
       shared_length = 0;
     } else {
       // `shared_length > 0` and is stored.
-      {
-        const absl::optional<const char*> next =
-            ReadVarint64(ptr, limit, shared_length);
-        if (next == absl::nullopt) {
-          RIEGELI_ASSUME_UNREACHABLE()
-              << "Malformed LinearSortedStringSet encoding (shared_length)";
-        } else {
-          ptr = *next;
-        }
+      if (const absl::optional<const char*> next =
+              ReadVarint64(ptr, limit, shared_length);
+          next == absl::nullopt) {
+        RIEGELI_ASSUME_UNREACHABLE()
+            << "Malformed LinearSortedStringSet encoding (shared_length)";
+      } else {
+        ptr = *next;
       }
       // Compare `<` instead of `<=`, before `++shared_length`.
       RIEGELI_ASSERT_LT(shared_length, current_length)
@@ -260,11 +256,9 @@ StrongOrdering LinearSortedStringSet::Compare(const LinearSortedStringSet& a,
   Iterator b_iter = b.cbegin();
   while (a_iter != a.cend()) {
     if (b_iter == b.cend()) return StrongOrdering::greater;
-    {
-      const StrongOrdering ordering = riegeli::Compare(*a_iter, *b_iter);
-      if (ordering != 0) {
-        return ordering;
-      }
+    if (const StrongOrdering ordering = riegeli::Compare(*a_iter, *b_iter);
+        ordering != 0) {
+      return ordering;
     }
     ++a_iter;
     ++b_iter;
@@ -314,15 +308,13 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
   const char* const limit = ptr + encoded_view.size();
   while (ptr != limit) {
     uint64_t tagged_length;
-    {
-      const absl::optional<const char*> next =
-          ReadVarint64(ptr, limit, tagged_length);
-      if (next == absl::nullopt) {
-        return src.AnnotateStatus(absl::InvalidArgumentError(
-            "Malformed LinearSortedStringSet encoding (tagged_length)"));
-      } else {
-        ptr = *next;
-      }
+    if (const absl::optional<const char*> next =
+            ReadVarint64(ptr, limit, tagged_length);
+        next == absl::nullopt) {
+      return src.AnnotateStatus(absl::InvalidArgumentError(
+          "Malformed LinearSortedStringSet encoding (tagged_length)"));
+    } else {
+      ptr = *next;
     }
     const uint64_t unshared_length = tagged_length >> 1;
     if ((tagged_length & 1) == 0) {
@@ -347,15 +339,13 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
     } else {
       // `shared_length > 0` and is stored.
       uint64_t shared_length;
-      {
-        const absl::optional<const char*> next =
-            ReadVarint64(ptr, limit, shared_length);
-        if (next == absl::nullopt) {
-          return src.AnnotateStatus(absl::InvalidArgumentError(
-              "Malformed LinearSortedStringSet encoding (shared_length)"));
-        } else {
-          ptr = *next;
-        }
+      if (const absl::optional<const char*> next =
+              ReadVarint64(ptr, limit, shared_length);
+          next == absl::nullopt) {
+        return src.AnnotateStatus(absl::InvalidArgumentError(
+            "Malformed LinearSortedStringSet encoding (shared_length)"));
+      } else {
+        ptr = *next;
       }
       // Compare `>=` instead of `>`, before `++shared_length`.
       if (ABSL_PREDICT_FALSE(shared_length >= current_length)) {
@@ -430,15 +420,13 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   }
   const char* ptr = cursor_;
   uint64_t tagged_length;
-  {
-    const absl::optional<const char*> next =
-        ReadVarint64(ptr, limit_, tagged_length);
-    if (next == absl::nullopt) {
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Malformed LinearSortedStringSet encoding (tagged_length)";
-    } else {
-      ptr = *next;
-    }
+  if (const absl::optional<const char*> next =
+          ReadVarint64(ptr, limit_, tagged_length);
+      next == absl::nullopt) {
+    RIEGELI_ASSUME_UNREACHABLE()
+        << "Malformed LinearSortedStringSet encoding (tagged_length)";
+  } else {
+    ptr = *next;
   }
   const uint64_t unshared_length = tagged_length >> 1;
   if ((tagged_length & 1) == 0) {
@@ -453,15 +441,13 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   }
   // `shared_length > 0` and is stored.
   uint64_t shared_length;
-  {
-    const absl::optional<const char*> next =
-        ReadVarint64(ptr, limit_, shared_length);
-    if (next == absl::nullopt) {
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Malformed LinearSortedStringSet encoding (shared_length)";
-    } else {
-      ptr = *next;
-    }
+  if (const absl::optional<const char*> next =
+          ReadVarint64(ptr, limit_, shared_length);
+      next == absl::nullopt) {
+    RIEGELI_ASSUME_UNREACHABLE()
+        << "Malformed LinearSortedStringSet encoding (shared_length)";
+  } else {
+    ptr = *next;
   }
   // Compare `<` instead of `<=`, before `++shared_length`.
   RIEGELI_ASSERT_LT(shared_length, length_if_unshared_ > 0
@@ -507,15 +493,13 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   }
   const char* ptr = cursor_;
   uint64_t tagged_length;
-  {
-    const absl::optional<const char*> next =
-        ReadVarint64(ptr, limit_, tagged_length);
-    if (next == absl::nullopt) {
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Malformed LinearSortedStringSet encoding (tagged_length)";
-    } else {
-      ptr = *next;
-    }
+  if (const absl::optional<const char*> next =
+          ReadVarint64(ptr, limit_, tagged_length);
+      next == absl::nullopt) {
+    RIEGELI_ASSUME_UNREACHABLE()
+        << "Malformed LinearSortedStringSet encoding (tagged_length)";
+  } else {
+    ptr = *next;
   }
   const uint64_t unshared_length = tagged_length >> 1;
   if ((tagged_length & 1) == 0) {
@@ -530,15 +514,13 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   }
   // `shared_length > 0` and is stored.
   uint64_t shared_length;
-  {
-    const absl::optional<const char*> next =
-        ReadVarint64(ptr, limit_, shared_length);
-    if (next == absl::nullopt) {
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Malformed LinearSortedStringSet encoding (shared_length)";
-    } else {
-      ptr = *next;
-    }
+  if (const absl::optional<const char*> next =
+          ReadVarint64(ptr, limit_, shared_length);
+      next == absl::nullopt) {
+    RIEGELI_ASSUME_UNREACHABLE()
+        << "Malformed LinearSortedStringSet encoding (shared_length)";
+  } else {
+    ptr = *next;
   }
   // Compare `<` instead of `<=`, before `++shared_length`.
   RIEGELI_ASSERT_LT(shared_length, prefix_.size() + suffix_length_)
@@ -619,7 +601,7 @@ bool LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
 }
 
 template <typename Element,
-          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+          std::enable_if_t<std::is_same_v<Element, std::string>, int>>
 bool LinearSortedStringSet::Builder::InsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
@@ -647,7 +629,7 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
 }
 
 template <typename Element,
-          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+          std::enable_if_t<std::is_same_v<Element, std::string>, int>>
 absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
     Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not

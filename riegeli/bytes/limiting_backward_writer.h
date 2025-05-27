@@ -221,7 +221,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 // `Any<BackwardWriter*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The original `BackwardWriter` must not be accessed until the
 // `LimitingBackwardWriter` is closed or no longer used, except that it is
@@ -270,8 +270,6 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
   MovingDependency<BackwardWriter*, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit LimitingBackwardWriter(Closed)
     -> LimitingBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
@@ -279,7 +277,6 @@ explicit LimitingBackwardWriter(Dest&& dest,
                                 LimitingBackwardWriterBase::Options options =
                                     LimitingBackwardWriterBase::Options())
     -> LimitingBackwardWriter<TargetT<Dest>>;
-#endif
 
 // Implementation details follow.
 

@@ -443,9 +443,8 @@ class ChunkedSortedStringSet::Builder {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   bool InsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  template <typename Element,
+            std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
   bool InsertNext(Element&& element);
 
   // Inserts an element. Elements out of order are skipped.
@@ -460,9 +459,8 @@ class ChunkedSortedStringSet::Builder {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   absl::StatusOr<bool> TryInsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  template <typename Element,
+            std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
   absl::StatusOr<bool> TryInsertNext(Element&& element);
 
   // Returns `true` if the set is empty.
@@ -523,9 +521,8 @@ class ChunkedSortedStringSet::NextInsertIterator {
       builder_->InsertNext(element);
       return *this;
     }
-    template <
-        typename Element,
-        std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+    template <typename Element,
+              std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
     reference& operator=(Element&& element) {
       // `std::move(element)` is correct and `std::forward<Element>(element)` is
       // not necessary: `Element` is always `std::string`, never an lvalue
@@ -577,9 +574,9 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
   using std::end;
   auto end_iter = end(src);
   using SrcIterator = decltype(iter);
-  if (std::is_convertible<
+  if (std::is_convertible_v<
           typename std::iterator_traits<SrcIterator>::iterator_category,
-          std::random_access_iterator_tag>::value) {
+          std::random_access_iterator_tag>) {
     options.set_size_hint(std::distance(iter, end_iter));
   }
   ChunkedSortedStringSet::Builder builder(std::move(options));
@@ -598,9 +595,9 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
   using std::end;
   auto end_iter = end(src);
   using SrcIterator = decltype(iter);
-  if (std::is_convertible<
+  if (std::is_convertible_v<
           typename std::iterator_traits<SrcIterator>::iterator_category,
-          std::random_access_iterator_tag>::value) {
+          std::random_access_iterator_tag>) {
     options.set_size_hint(std::distance(iter, end_iter));
   }
   std::vector<SrcIterator> iterators;

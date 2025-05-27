@@ -24,8 +24,7 @@
 #include "highwayhash/instruction_sets.h"
 #include "riegeli/base/chain.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 namespace {
 
@@ -46,11 +45,9 @@ uint64_t Hash(absl::string_view data) {
 }
 
 uint64_t Hash(const Chain& data) {
-  {
-    const absl::optional<absl::string_view> flat = data.TryFlat();
-    if (flat != absl::nullopt) {
-      return Hash(*flat);
-    }
+  if (const absl::optional<absl::string_view> flat = data.TryFlat();
+      flat != absl::nullopt) {
+    return Hash(*flat);
   }
   absl::InlinedVector<highwayhash::StringView, 16> fragments;
   fragments.reserve(data.blocks().size());
@@ -64,5 +61,4 @@ uint64_t Hash(const Chain& data) {
   return result;
 }
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal

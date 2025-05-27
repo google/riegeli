@@ -27,13 +27,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr DigesterBaseHandle::Methods DigesterBaseHandle::kMethodsDefault;
-#endif
-
 void DigesterBaseHandle::FailedDigestMethodDefault() {
   RIEGELI_CHECK_UNREACHABLE()
       << "DigesterHandle::Digest() called on a default-constructed "
@@ -58,11 +51,9 @@ void DigesterBaseHandle::WriteChainFallback(
 bool DigesterBaseHandle::WriteCordFallback(
     TypeErasedRef target, const absl::Cord& src,
     bool (*write)(TypeErasedRef target, absl::string_view src)) {
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      return write(target, *flat);
-    }
+  if (const absl::optional<absl::string_view> flat = src.TryFlat();
+      flat != absl::nullopt) {
+    return write(target, *flat);
   }
   for (const absl::string_view fragment : src.Chunks()) {
     if (ABSL_PREDICT_FALSE(!write(target, fragment))) return false;
@@ -73,12 +64,10 @@ bool DigesterBaseHandle::WriteCordFallback(
 void DigesterBaseHandle::WriteCordFallback(
     TypeErasedRef target, const absl::Cord& src,
     void (*write)(TypeErasedRef target, absl::string_view src)) {
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      write(target, *flat);
-      return;
-    }
+  if (const absl::optional<absl::string_view> flat = src.TryFlat();
+      flat != absl::nullopt) {
+    write(target, *flat);
+    return;
   }
   for (const absl::string_view fragment : src.Chunks()) write(target, fragment);
 }

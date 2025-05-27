@@ -40,17 +40,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr int XzWriterBase::Options::kMinCompressionLevel;
-constexpr int XzWriterBase::Options::kMaxCompressionLevel;
-constexpr int XzWriterBase::Options::kDefaultCompressionLevel;
-constexpr XzWriterBase::Container XzWriterBase::Options::kDefaultContainer;
-constexpr XzWriterBase::Check XzWriterBase::Options::kDefaultCheck;
-#endif
-
 static_assert(static_cast<int>(XzWriterBase::Container::kXz) ==
                   static_cast<int>(XzReaderBase::Container::kXz),
               "Mismatched Container enums");

@@ -494,57 +494,55 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
       << "Failed precondition of BufferedReader::CopyInternal()";
 #if !RIEGELI_DISABLE_COPY_FILE_RANGE
   if (HaveCopyFileRange<int>::value) {
-    {
-      FdWriterBase* const fd_writer = dest.GetIf<FdWriterBase>();
-      if (fd_writer != nullptr) {
-        const int src = SrcFd();
-        for (;;) {
-          if (ABSL_PREDICT_FALSE(!fd_writer->Flush(FlushType::kFromObject))) {
-            return false;
-          }
-          const int dest_fd = fd_writer->DestFd();
-          fd_internal::Offset src_offset = limit_pos();
-          fd_internal::Offset dest_offset = fd_writer->start_pos();
-          if (ABSL_PREDICT_FALSE(
-                  limit_pos() >=
-                  Position{std::numeric_limits<fd_internal::Offset>::max()})) {
-            return FailOverflow();
-          }
-          const size_t length_to_copy = UnsignedMin(
-              length,
-              Position{std::numeric_limits<fd_internal::Offset>::max()} -
-                  limit_pos(),
-              absl::bit_floor(size_t{std::numeric_limits<ssize_t>::max()}));
-          if (ABSL_PREDICT_FALSE(
-                  length_to_copy >
-                  Position{std::numeric_limits<fd_internal::Offset>::max()} -
-                      fd_writer->start_pos())) {
-            return fd_writer->FailOverflow();
-          }
-        again:
-          const ssize_t length_copied = CopyFileRange(
-              src, has_independent_pos_ ? &src_offset : nullptr, dest_fd,
-              fd_writer->has_independent_pos_ ? &dest_offset : nullptr,
-              length_to_copy, 0);
-          if (ABSL_PREDICT_FALSE(length_copied < 0)) {
-            if (errno == EINTR) goto again;
-            // File descriptors might not support `copy_file_range()` for a
-            // variety of reasons, e.g. append mode, not regular files,
-            // unsupported filesystem, or cross filesystem copy. Fall back to
-            // `read()` and `write()`.
-            break;
-          }
-          if (ABSL_PREDICT_FALSE(length_copied == 0)) {
-            if (!growing_source_) set_exact_size(limit_pos());
-            return false;
-          }
-          RIEGELI_ASSERT_LE(IntCast<size_t>(length_copied), length_to_copy)
-              << "copy_file_range() copied more than requested";
-          move_limit_pos(IntCast<size_t>(length_copied));
-          fd_writer->move_start_pos(IntCast<size_t>(length_copied));
-          length -= IntCast<size_t>(length_copied);
-          if (length == 0) return true;
+    if (FdWriterBase* const fd_writer = dest.GetIf<FdWriterBase>();
+        fd_writer != nullptr) {
+      const int src = SrcFd();
+      for (;;) {
+        if (ABSL_PREDICT_FALSE(!fd_writer->Flush(FlushType::kFromObject))) {
+          return false;
         }
+        const int dest_fd = fd_writer->DestFd();
+        fd_internal::Offset src_offset = limit_pos();
+        fd_internal::Offset dest_offset = fd_writer->start_pos();
+        if (ABSL_PREDICT_FALSE(
+                limit_pos() >=
+                Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+          return FailOverflow();
+        }
+        const size_t length_to_copy = UnsignedMin(
+            length,
+            Position{std::numeric_limits<fd_internal::Offset>::max()} -
+                limit_pos(),
+            absl::bit_floor(size_t{std::numeric_limits<ssize_t>::max()}));
+        if (ABSL_PREDICT_FALSE(
+                length_to_copy >
+                Position{std::numeric_limits<fd_internal::Offset>::max()} -
+                    fd_writer->start_pos())) {
+          return fd_writer->FailOverflow();
+        }
+      again:
+        const ssize_t length_copied = CopyFileRange(
+            src, has_independent_pos_ ? &src_offset : nullptr, dest_fd,
+            fd_writer->has_independent_pos_ ? &dest_offset : nullptr,
+            length_to_copy, 0);
+        if (ABSL_PREDICT_FALSE(length_copied < 0)) {
+          if (errno == EINTR) goto again;
+          // File descriptors might not support `copy_file_range()` for a
+          // variety of reasons, e.g. append mode, not regular files,
+          // unsupported filesystem, or cross filesystem copy. Fall back to
+          // `read()` and `write()`.
+          break;
+        }
+        if (ABSL_PREDICT_FALSE(length_copied == 0)) {
+          if (!growing_source_) set_exact_size(limit_pos());
+          return false;
+        }
+        RIEGELI_ASSERT_LE(IntCast<size_t>(length_copied), length_to_copy)
+            << "copy_file_range() copied more than requested";
+        move_limit_pos(IntCast<size_t>(length_copied));
+        fd_writer->move_start_pos(IntCast<size_t>(length_copied));
+        length -= IntCast<size_t>(length_copied);
+        if (length == 0) return true;
       }
     }
   }

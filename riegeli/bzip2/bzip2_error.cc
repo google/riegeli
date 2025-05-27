@@ -22,8 +22,7 @@
 #include "bzlib.h"
 #include "riegeli/base/assert.h"
 
-namespace riegeli {
-namespace bzip2_internal {
+namespace riegeli::bzip2_internal {
 
 absl::Status Bzip2ErrorToStatus(absl::string_view operation, int bzlib_code) {
   absl::StatusCode code;
@@ -91,5 +90,4 @@ absl::Status Bzip2ErrorToStatus(absl::string_view operation, int bzlib_code) {
   return absl::Status(code, message);
 }
 
-}  // namespace bzip2_internal
-}  // namespace riegeli
+}  // namespace riegeli::bzip2_internal

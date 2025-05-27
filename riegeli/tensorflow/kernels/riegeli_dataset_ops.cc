@@ -46,8 +46,7 @@
 #include "tensorflow/core/platform/tstring.h"
 #include "util/task/status_macros.h"
 
-namespace riegeli {
-namespace tensorflow {
+namespace riegeli::tensorflow {
 namespace {
 
 class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
@@ -289,5 +288,4 @@ REGISTER_KERNEL_BUILDER(Name("RiegeliDataset").Device(::tensorflow::DEVICE_CPU),
                         RiegeliDatasetOp);
 
 }  // namespace
-}  // namespace tensorflow
-}  // namespace riegeli
+}  // namespace riegeli::tensorflow

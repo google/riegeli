@@ -354,9 +354,8 @@ class ExternalRef {
   }
 
 #if RIEGELI_DEBUG
-  template <
-      typename T,
-      std::enable_if_t<std::is_convertible<const T&, BytesRef>::value, int> = 0>
+  template <typename T, std::enable_if_t<
+                            std::is_convertible_v<const T&, BytesRef>, int> = 0>
   static void AssertSubstr(const T& object, absl::string_view substr) {
     if (!substr.empty()) {
       const BytesRef whole = object;
@@ -369,9 +368,9 @@ class ExternalRef {
              "substring not contained in whole data";
     }
   }
-  template <typename T,
-            std::enable_if_t<!std::is_convertible<const T&, BytesRef>::value,
-                             int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<!std::is_convertible_v<const T&, BytesRef>, int> = 0>
 #else
   template <typename T>
 #endif
@@ -479,21 +478,21 @@ class ExternalRef {
 
   template <typename T>
   struct HasRiegeliToChainBlockWhole<
-      T, std::enable_if_t<std::is_convertible<
+      T, std::enable_if_t<std::is_convertible_v<
              decltype(RiegeliToChainBlock(
                  std::declval<external_ref_internal::PointerTypeT<T>>())),
-             Chain::Block>::value>> : std::true_type {};
+             Chain::Block>>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasRiegeliToChainBlockSubstr : std::false_type {};
 
   template <typename T>
   struct HasRiegeliToChainBlockSubstr<
-      T, std::enable_if_t<std::is_convertible<
+      T, std::enable_if_t<std::is_convertible_v<
              decltype(RiegeliToChainBlock(
                  std::declval<external_ref_internal::PointerTypeT<T>>(),
                  std::declval<absl::string_view>())),
-             Chain::Block>::value>> : std::true_type {};
+             Chain::Block>>> : std::true_type {};
 
   template <typename T>
   struct HasToChainBlockWhole
@@ -549,9 +548,9 @@ class ExternalRef {
     ConverterToChainBlockWhole& operator=(const ConverterToChainBlockWhole&) =
         delete;
 
-    template <typename SubT,
-              std::enable_if_t<
-                  std::is_convertible<const SubT&, BytesRef>::value, int> = 0>
+    template <
+        typename SubT,
+        std::enable_if_t<std::is_convertible_v<const SubT&, BytesRef>, int> = 0>
     void operator()(SubT&& subobject) && {
       // The constructor processes the subobject.
       const absl::string_view data = BytesRef(subobject);
@@ -812,21 +811,21 @@ class ExternalRef {
 
   template <typename T>
   struct HasRiegeliToCordWhole<
-      T, std::enable_if_t<std::is_convertible<
+      T, std::enable_if_t<std::is_convertible_v<
              decltype(RiegeliToCord(
                  std::declval<external_ref_internal::PointerTypeT<T>>())),
-             absl::Cord>::value>> : std::true_type {};
+             absl::Cord>>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasRiegeliToCordSubstr : std::false_type {};
 
   template <typename T>
   struct HasRiegeliToCordSubstr<
-      T, std::enable_if_t<std::is_convertible<
+      T, std::enable_if_t<std::is_convertible_v<
              decltype(RiegeliToCord(
                  std::declval<external_ref_internal::PointerTypeT<T>>(),
                  std::declval<absl::string_view>())),
-             absl::Cord>::value>> : std::true_type {};
+             absl::Cord>>> : std::true_type {};
 
   template <typename T>
   struct HasToCordWhole
@@ -878,9 +877,9 @@ class ExternalRef {
     ConverterToCordWhole(const ConverterToCordWhole&) = delete;
     ConverterToCordWhole& operator=(const ConverterToCordWhole&) = delete;
 
-    template <typename SubT,
-              std::enable_if_t<
-                  std::is_convertible<const SubT&, BytesRef>::value, int> = 0>
+    template <
+        typename SubT,
+        std::enable_if_t<std::is_convertible_v<const SubT&, BytesRef>, int> = 0>
     void operator()(SubT&& subobject) && {
       // The constructor processes the subobject.
       const absl::string_view data = BytesRef(subobject);
@@ -1167,31 +1166,31 @@ class ExternalRef {
 
   template <typename T>
   struct HasRiegeliToExternalDataWhole<
-      T, std::enable_if_t<std::is_convertible<
+      T, std::enable_if_t<std::is_convertible_v<
              decltype(RiegeliToExternalData(
                  std::declval<external_ref_internal::PointerTypeT<T>>())),
-             ExternalData>::value>> : std::true_type {};
+             ExternalData>>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasRiegeliToExternalDataSubstr : std::false_type {};
 
   template <typename T>
   struct HasRiegeliToExternalDataSubstr<
-      T, std::enable_if_t<std::is_convertible<
+      T, std::enable_if_t<std::is_convertible_v<
              decltype(RiegeliToExternalData(
                  std::declval<external_ref_internal::PointerTypeT<T>>(),
                  std::declval<absl::string_view>())),
-             ExternalData>::value>> : std::true_type {};
+             ExternalData>>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasRiegeliToExternalStorage : std::false_type {};
 
   template <typename T>
   struct HasRiegeliToExternalStorage<
-      T, std::enable_if_t<std::is_convertible<
+      T, std::enable_if_t<std::is_convertible_v<
              decltype(RiegeliToExternalStorage(
                  std::declval<external_ref_internal::PointerTypeT<T>>())),
-             ExternalStorage>::value>> : std::true_type {};
+             ExternalStorage>>> : std::true_type {};
 
   template <typename T>
   struct HasToExternalDataSubstr
@@ -1263,9 +1262,9 @@ class ExternalRef {
     ConverterToExternalDataWhole& operator=(
         const ConverterToExternalDataWhole&) = delete;
 
-    template <typename SubT,
-              std::enable_if_t<
-                  std::is_convertible<const SubT&, BytesRef>::value, int> = 0>
+    template <
+        typename SubT,
+        std::enable_if_t<std::is_convertible_v<const SubT&, BytesRef>, int> = 0>
     void operator()(SubT&& subobject) && {
       // The constructor processes the subobject.
       const absl::string_view data = BytesRef(subobject);
@@ -1861,8 +1860,8 @@ class ExternalRef {
   // `RiegeliSupportsExternalRefWhole()` is not needed. The caller is
   // responsible for using an appropriate type of the external object.
   template <typename Arg,
-            std::enable_if_t<
-                std::is_convertible<TargetRefT<Arg>, BytesRef>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<TargetRefT<Arg>, BytesRef>,
+                             int> = 0>
   static ExternalRef From(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                           StorageWhole<TargetRefT<Arg>>&& storage
                               ABSL_ATTRIBUTE_LIFETIME_BOUND = {}) {

@@ -86,28 +86,24 @@ struct SearchGuide {
   SearchGuide(SearchGuide&& that) = default;
   SearchGuide& operator=(SearchGuide&& that) = default;
 
-  template <
-      typename OtherPos,
-      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  template <typename OtherPos,
+            std::enable_if_t<std::is_convertible_v<OtherPos, Pos>, int> = 0>
   /*implicit*/ SearchGuide(const SearchGuide<OtherPos>& that)
       : ordering(that.ordering), next(that.next) {}
-  template <
-      typename OtherPos,
-      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  template <typename OtherPos,
+            std::enable_if_t<std::is_convertible_v<OtherPos, Pos>, int> = 0>
   SearchGuide& operator=(const SearchGuide<OtherPos>& that) {
     ordering = that.ordering;
     next = that.next;
     return *this;
   }
 
-  template <
-      typename OtherPos,
-      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  template <typename OtherPos,
+            std::enable_if_t<std::is_convertible_v<OtherPos, Pos>, int> = 0>
   /*implicit*/ SearchGuide(SearchGuide<OtherPos>&& that)
       : ordering(that.ordering), next(std::move(that.next)) {}
-  template <
-      typename OtherPos,
-      std::enable_if_t<std::is_convertible<OtherPos, Pos>::value, int> = 0>
+  template <typename OtherPos,
+            std::enable_if_t<std::is_convertible_v<OtherPos, Pos>, int> = 0>
   SearchGuide& operator=(SearchGuide<OtherPos>&& that) {
     ordering = that.ordering;
     next = std::move(that.next);
@@ -118,12 +114,9 @@ struct SearchGuide {
   Pos next;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename Pos, typename Ordering>
 explicit SearchGuide(Ordering ordering, Pos next)
     -> SearchGuide<std::decay_t<Pos>>;
-#endif
 
 namespace binary_search_internal {
 

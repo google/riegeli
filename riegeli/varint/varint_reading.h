@@ -21,7 +21,6 @@
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/constexpr.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/varint/varint_internal.h"  // IWYU pragma: export
 
@@ -240,7 +239,7 @@ inline bool ReadCanonicalVarint64(Reader& src, uint64_t& dest) {
 
 namespace varint_internal {
 
-RIEGELI_INLINE_CONSTEXPR(size_t, kReadVarintSlowThreshold, 3 * 7);
+inline constexpr size_t kReadVarintSlowThreshold = 3 * 7;
 
 absl::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
                                              uint32_t acc, uint32_t& dest);

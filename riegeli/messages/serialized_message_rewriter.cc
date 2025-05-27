@@ -29,8 +29,7 @@
 #include "riegeli/varint/varint_reading.h"
 #include "riegeli/varint/varint_writing.h"
 
-namespace riegeli {
-namespace serialized_message_rewriter_internal {
+namespace riegeli::serialized_message_rewriter_internal {
 
 absl::Status MessageReaderContextBase::ExtendUnchanged(Reader& src) {
   RIEGELI_ASSERT(supports_random_access())
@@ -166,5 +165,4 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
       absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
 }
 
-}  // namespace serialized_message_rewriter_internal
-}  // namespace riegeli
+}  // namespace riegeli::serialized_message_rewriter_internal

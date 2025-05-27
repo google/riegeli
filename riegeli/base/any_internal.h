@@ -112,7 +112,7 @@ constexpr size_t UsedSize() {
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
       absl::is_trivially_relocatable<Dependency<Handle, Manager>>::value
 #else
-      std::is_trivially_copyable<Dependency<Handle, Manager>>::value
+      std::is_trivially_copyable_v<Dependency<Handle, Manager>>
 #endif
   ) {
     return 0;
@@ -134,7 +134,7 @@ constexpr size_t UsedAlign() {
 
 template <typename Handle, typename Manager>
 constexpr bool ReprIsInline(size_t available_size, size_t available_align) {
-  return std::is_move_constructible<Dependency<Handle, Manager>>::value &&
+  return std::is_move_constructible_v<Dependency<Handle, Manager>> &&
          UsedSize<Handle, Manager>() <= available_size &&
          UsedAlign<Handle, Manager>() <= available_align;
 }
@@ -278,23 +278,12 @@ struct NullMethods {
       0,       nullptr, IsOwning, nullptr, RegisterSubobjects};
 };
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Handle>
-constexpr Methods<Handle> NullMethods<Handle>::kMethods;
-#endif
-
 template <typename Handle, typename Manager>
 struct MethodsForReference {
  private:
   static Dependency<Handle, Manager>* dep_ptr(const Storage self) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
+    return *std::launder(
+        reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
   }
 
   static void Destroy(ABSL_ATTRIBUTE_UNUSED Storage self) {}
@@ -326,14 +315,6 @@ struct MethodsForReference {
       RegisterSubobjects};
 };
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Handle, typename Manager>
-constexpr Methods<Handle> MethodsForReference<Handle, Manager>::kMethods;
-#endif
-
 template <typename Handle, typename Manager>
 struct MethodsFor<Handle, Manager, false> {
   static void Construct(Storage self, Handle* self_handle,
@@ -345,11 +326,8 @@ struct MethodsFor<Handle, Manager, false> {
 
  private:
   static Dependency<Handle, Manager>* dep_ptr(const Storage self) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
+    return *std::launder(
+        reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
   }
 
   static void Destroy(Storage self) { delete dep_ptr(self); }
@@ -389,14 +367,6 @@ struct MethodsFor<Handle, Manager, false> {
       RegisterSubobjects};
 };
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Handle, typename Manager>
-constexpr Methods<Handle> MethodsFor<Handle, Manager, false>::kMethods;
-#endif
-
 template <typename Handle, typename Manager>
 struct MethodsFor<Handle, Manager, true> {
   static void Construct(Storage self, Handle* self_handle,
@@ -407,25 +377,15 @@ struct MethodsFor<Handle, Manager, true> {
 
  private:
   static Dependency<Handle, Manager>& dep(Storage self) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<Dependency<Handle, Manager>*>(self));
+    return *std::launder(reinterpret_cast<Dependency<Handle, Manager>*>(self));
   }
   static const Dependency<Handle, Manager>& dep(const Storage self) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<const Dependency<Handle, Manager>*>(self));
+    return *std::launder(
+        reinterpret_cast<const Dependency<Handle, Manager>*>(self));
   }
   static Dependency<Handle, Manager>* dep_ptr(const Storage self) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
+    return *std::launder(
+        reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
   }
 
   static void Destroy(Storage self) {
@@ -476,14 +436,6 @@ struct MethodsFor<Handle, Manager, true> {
       GetRawManager,
       RegisterSubobjects};
 };
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Handle, typename Manager>
-constexpr Methods<Handle> MethodsFor<Handle, Manager, true>::kMethods;
-#endif
 
 }  // namespace any_internal
 }  // namespace riegeli

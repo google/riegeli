@@ -42,8 +42,7 @@
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 // Ensures that Python GIL is locked. Reentrant.
 //
@@ -155,19 +154,11 @@ class PythonWrapped {
 
   T* get() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
-    return
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<T*>(storage_));
+    return std::launder(reinterpret_cast<T*>(storage_));
   }
   const T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(has_value_) << "Object uninitialized";
-    return
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<const T*>(storage_));
+    return std::launder(reinterpret_cast<const T*>(storage_));
   }
   T& operator*() ABSL_ATTRIBUTE_LIFETIME_BOUND { return *get(); }
   const T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return *get(); }
@@ -580,7 +571,6 @@ inline int Exception::Traverse(visitproc visit, void* arg) {
   return 0;
 }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python
 
 #endif  // PYTHON_RIEGELI_BASE_UTILS_H_

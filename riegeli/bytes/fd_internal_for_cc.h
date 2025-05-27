@@ -29,10 +29,8 @@
 #endif
 
 #include "absl/strings/string_view.h"
-#include "riegeli/base/constexpr.h"
 
-namespace riegeli {
-namespace fd_internal {
+namespace riegeli::fd_internal {
 
 #ifndef _WIN32
 
@@ -42,13 +40,13 @@ inline Offset LSeek(int fd, Offset offset, int whence) {
   return lseek(fd, offset, whence);
 }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kLSeekFunctionName, "lseek()");
+inline constexpr absl::string_view kLSeekFunctionName = "lseek()";
 
 using StatInfo = struct stat;
 
 inline int FStat(int fd, StatInfo* stat_info) { return fstat(fd, stat_info); }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "fstat()");
+inline constexpr absl::string_view kFStatFunctionName = "fstat()";
 
 #else  // _WIN32
 
@@ -58,7 +56,7 @@ inline Offset LSeek(int fd, Offset offset, int whence) {
   return _lseeki64(fd, offset, whence);
 }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kLSeekFunctionName, "_lseeki64()");
+inline constexpr absl::string_view kLSeekFunctionName = "_lseeki64()";
 
 // `struct __stat64` in a namespace does not work in MSVC due to a bug regarding
 // https://en.cppreference.com/w/cpp/language/elaborated_type_specifier.
@@ -68,11 +66,10 @@ inline int FStat(int fd, StatInfo* stat_info) {
   return _fstat64(fd, stat_info);
 }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFStatFunctionName, "_fstat64()");
+inline constexpr absl::string_view kFStatFunctionName = "_fstat64()";
 
 #endif  // _WIN32
 
-}  // namespace fd_internal
-}  // namespace riegeli
+}  // namespace riegeli::fd_internal
 
 #endif  // RIEGELI_BYTES_FD_INTERNAL_FOR_CC_H_

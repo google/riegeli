@@ -122,11 +122,11 @@ class AnyInitializer {
                               size_t available_size, size_t available_align);
 
   template <typename Target,
-            std::enable_if_t<!std::is_reference<Target>::value, int> = 0>
+            std::enable_if_t<!std::is_reference_v<Target>, int> = 0>
   static void Adopt(Target&& target, Storage dest,
                     MethodsAndHandle* dest_methods_and_handle);
   template <typename Target,
-            std::enable_if_t<std::is_rvalue_reference<Target>::value, int> = 0>
+            std::enable_if_t<std::is_rvalue_reference_v<Target>, int> = 0>
   static void Adopt(Target&& target, Storage dest,
                     MethodsAndHandle* dest_methods_and_handle);
 
@@ -289,8 +289,7 @@ void AnyInitializer<Handle>::ConstructMethod(
 }
 
 template <typename Handle>
-template <typename Target,
-          std::enable_if_t<!std::is_reference<Target>::value, int>>
+template <typename Target, std::enable_if_t<!std::is_reference_v<Target>, int>>
 inline void AnyInitializer<Handle>::Adopt(
     Target&& target, Storage dest, MethodsAndHandle* dest_methods_and_handle) {
   target.methods_and_handle_.methods->move_to_heap(target.repr_.storage, dest,
@@ -301,7 +300,7 @@ inline void AnyInitializer<Handle>::Adopt(
 
 template <typename Handle>
 template <typename Target,
-          std::enable_if_t<std::is_rvalue_reference<Target>::value, int>>
+          std::enable_if_t<std::is_rvalue_reference_v<Target>, int>>
 inline void AnyInitializer<Handle>::Adopt(
     Target&& target, Storage dest, MethodsAndHandle* dest_methods_and_handle) {
   target.methods_and_handle_.methods->make_reference(target.repr_.storage, dest,

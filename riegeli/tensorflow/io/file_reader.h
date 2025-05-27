@@ -242,7 +242,7 @@ class FileReaderBase : public Reader {
 // `Any<::tensorflow::RandomAccessFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The `::tensorflow::RandomAccessFile` must not be closed until the
 // `FileReader` is closed or no longer used.
@@ -299,17 +299,14 @@ class FileReader : public FileReaderBase {
   Dependency<::tensorflow::RandomAccessFile*, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit FileReader(Closed) -> FileReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FileReader(Src&& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
     -> FileReader<std::conditional_t<
-        std::is_convertible<Src&&,
-                            Initializer<std::string>::AllowingExplicit>::value,
+        std::is_convertible_v<Src&&,
+                              Initializer<std::string>::AllowingExplicit>,
         std::unique_ptr<::tensorflow::RandomAccessFile>, TargetT<Src>>>;
-#endif
 
 // Implementation details follow.
 

@@ -142,12 +142,10 @@ inline absl::Status SerializeMessageHavingSize(
     return absl::OkStatus();
   }
   RestrictedChainWriter chain_writer;
-  {
-    absl::Status status =
-        SerializeMessageUsingStream(src, chain_writer, deterministic, size);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status =
+          SerializeMessageUsingStream(src, chain_writer, deterministic, size);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return chain_writer.status();
   if (ABSL_PREDICT_FALSE(!dest.Write(std::move(chain_writer.dest())))) {

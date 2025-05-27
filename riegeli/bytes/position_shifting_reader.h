@@ -146,7 +146,7 @@ class PositionShiftingReaderBase : public Reader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The original `Reader` must not be accessed until the `PositionShiftingReader`
 // is closed or no longer used.
@@ -194,8 +194,6 @@ class PositionShiftingReader : public PositionShiftingReaderBase {
   MovingDependency<Reader*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit PositionShiftingReader(Closed)
     -> PositionShiftingReader<DeleteCtad<Closed>>;
 template <typename Src>
@@ -203,7 +201,6 @@ explicit PositionShiftingReader(Src&& src,
                                 PositionShiftingReaderBase::Options options =
                                     PositionShiftingReaderBase::Options())
     -> PositionShiftingReader<TargetT<Src>>;
-#endif
 
 // Implementation details follow.
 

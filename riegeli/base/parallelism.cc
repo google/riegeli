@@ -28,8 +28,7 @@
 #include "riegeli/base/global.h"
 #include "riegeli/base/maker.h"
 
-namespace riegeli {
-namespace internal {
+namespace riegeli::internal {
 
 ThreadPool::~ThreadPool() {
   absl::MutexLock lock(&mutex_);
@@ -77,5 +76,4 @@ ThreadPool& ThreadPool::global() {
   return Global([] { return riegeli::OwningMaker<ThreadPool>(); });
 }
 
-}  // namespace internal
-}  // namespace riegeli
+}  // namespace riegeli::internal

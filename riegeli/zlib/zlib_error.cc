@@ -22,8 +22,7 @@
 #include "riegeli/base/assert.h"
 #include "zlib.h"
 
-namespace riegeli {
-namespace zlib_internal {
+namespace riegeli::zlib_internal {
 
 absl::Status ZlibErrorToStatus(absl::string_view operation, int zlib_code,
                                const char* details) {
@@ -81,5 +80,4 @@ absl::Status ZlibErrorToStatus(absl::string_view operation, int zlib_code,
   return absl::Status(code, message);
 }
 
-}  // namespace zlib_internal
-}  // namespace riegeli
+}  // namespace riegeli::zlib_internal

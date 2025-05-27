@@ -39,13 +39,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr XzReaderBase::Container XzReaderBase::Options::kDefaultContainer;
-#endif
-
 void XzReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of XzReader: null Reader pointer";

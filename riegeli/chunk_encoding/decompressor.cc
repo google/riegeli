@@ -24,8 +24,7 @@
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/varint/varint_reading.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
                                           CompressionType compression_type) {
@@ -38,5 +37,4 @@ absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
   return size;
 }
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal

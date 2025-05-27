@@ -208,11 +208,11 @@ class DependencyManager<
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
 
   static_assert(
-      std::is_convertible<
+      std::is_convertible_v<
           decltype(std::declval<
                        typename DependencyManager::DependencyManagerImpl&>()
                        .manager()),
-          Manager&>::value,
+          Manager&>,
       "DependencyManagerImpl<Manager, Manager>::manager() "
       "must return Manager&");
 
@@ -275,11 +275,11 @@ class DependencyManager<
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
 
   static_assert(
-      std::is_convertible<
+      std::is_convertible_v<
           decltype(std::declval<
                        typename DependencyManager::DependencyManagerImpl&>()
                        .manager()),
-          Manager&>::value,
+          Manager&>,
       "DependencyManagerImpl<Manager, Manager&>::manager() "
       "must return Manager&");
 
@@ -337,11 +337,11 @@ class DependencyManager<
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
 
   static_assert(
-      std::is_convertible<
+      std::is_convertible_v<
           decltype(std::declval<
                        typename DependencyManager::DependencyManagerImpl&>()
                        .manager()),
-          Manager&>::value,
+          Manager&>,
       "DependencyManagerImpl<Manager, Manager&&>::manager() "
       "must return Manager&");
 
@@ -442,7 +442,7 @@ using DependencyManagerPtr =
 // toplevel pointer changed to lvalue reference, if any.
 //
 // This should normally be used under the condition that
-// `std::is_pointer<DependencyManagerPtr<Manager>>::value`.
+// `std::is_pointer_v<DependencyManagerPtr<Manager>>`.
 template <typename Manager>
 using DependencyManagerRef =
     typename dependency_manager_internal::DependencyManagerRefImpl<

@@ -116,7 +116,7 @@ class DigestingReaderBase : public Reader {
 // By relying on CTAD the `Digester` template argument can be deduced as
 // `TargetT` of the type of the `digester` constructor argument, and the `Src`
 // template argument can be deduced as `TargetT` of the type of the `src`
-// constructor argument. This requires C++17.
+// constructor argument.
 //
 // The original `Reader` must not be accessed until the `DigestingReader` is
 // closed or no longer used.
@@ -210,13 +210,10 @@ class DigestingReader : public DigestingReaderBase {
   MovingDependency<Reader*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit DigestingReader(Closed) -> DigestingReader<void, DeleteCtad<Closed>>;
 template <typename Digester, typename Src>
 explicit DigestingReader(Src&& src, Digester&& digester)
     -> DigestingReader<TargetT<Digester>, TargetT<Src>>;
-#endif
 
 // Reads all remaining data from `src` and returns their digest.
 //

@@ -77,12 +77,10 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
                                         sizes_compressor_.writer()))) {
     return Fail(sizes_compressor_.writer().status());
   }
-  {
-    absl::Status status = SerializeMessage(record, values_compressor_.writer(),
-                                           serialize_options);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return Fail(std::move(status));
-    }
+  if (absl::Status status = SerializeMessage(
+          record, values_compressor_.writer(), serialize_options);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return Fail(std::move(status));
   }
   return true;
 }

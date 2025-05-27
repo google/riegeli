@@ -16,8 +16,7 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
 
-namespace riegeli {
-namespace tensorflow {
+namespace riegeli::tensorflow {
 
 REGISTER_OP("RiegeliDataset")
     .Input("filenames: string")
@@ -48,5 +47,4 @@ max_buffer_size: Tunes the maximal buffer size, which determines how much data
   between min_buffer_size and max_buffer_size depending on the access pattern.
 )doc");
 
-}  // namespace tensorflow
-}  // namespace riegeli
+}  // namespace riegeli::tensorflow

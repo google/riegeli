@@ -189,7 +189,6 @@ cc_library(
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:constexpr",
         "//riegeli/base:types",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/chunk_encoding:hash",

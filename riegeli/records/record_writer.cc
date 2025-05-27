@@ -65,23 +65,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr int RecordWriterBase::Options::kMinBrotli;
-constexpr int RecordWriterBase::Options::kMaxBrotli;
-constexpr int RecordWriterBase::Options::kDefaultBrotli;
-constexpr int RecordWriterBase::Options::kMinZstd;
-constexpr int RecordWriterBase::Options::kMaxZstd;
-constexpr int RecordWriterBase::Options::kDefaultZstd;
-constexpr int RecordWriterBase::Options::kMinSnappy;
-constexpr int RecordWriterBase::Options::kMaxSnappy;
-constexpr int RecordWriterBase::Options::kDefaultSnappy;
-constexpr int RecordWriterBase::Options::kMinWindowLog;
-constexpr int RecordWriterBase::Options::kMaxWindowLog;
-#endif
-
 namespace {
 
 class FileDescriptorCollector {
@@ -873,11 +856,9 @@ void RecordWriterBase::Initialize(ChunkWriter* dest, Options&& options) {
   } else {
     worker_ = std::make_unique<ParallelWorker>(dest, std::move(options));
   }
-  {
-    absl::Status status = worker_->status();
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      FailWithoutAnnotation(std::move(status));
-    }
+  if (absl::Status status = worker_->status();
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    FailWithoutAnnotation(std::move(status));
   }
 }
 
@@ -1065,12 +1046,10 @@ FutureRecordPosition RecordWriterBase::LastPos() const {
   RIEGELI_ASSERT(last_record_is_valid())
       << "Failed precondition of RecordWriterBase::LastPos(): "
          "no record was recently written";
-  {
-    const LastRecordIsValidAt* const last_record_at_pos =
-        absl::get_if<LastRecordIsValidAt>(&last_record_);
-    if (last_record_at_pos != nullptr) {
-      return last_record_at_pos->pos;
-    }
+  if (const LastRecordIsValidAt* const last_record_at_pos =
+          absl::get_if<LastRecordIsValidAt>(&last_record_);
+      last_record_at_pos != nullptr) {
+    return last_record_at_pos->pos;
   }
   RIEGELI_ASSERT_NE(worker_, nullptr)
       << "Failed invariant of RecordWriterBase: "

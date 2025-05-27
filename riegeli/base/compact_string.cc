@@ -29,17 +29,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr uintptr_t CompactString::kTagBits;
-constexpr uintptr_t CompactString::kTagMask;
-constexpr uintptr_t CompactString::kInlineTag;
-constexpr size_t CompactString::kInlineCapacity;
-constexpr size_t CompactString::kInlineDataOffset;
-#endif
-
 void CompactString::AssignSlow(absl::string_view src) {
   const size_t old_capacity = capacity();
   DeleteRepr(std::exchange(

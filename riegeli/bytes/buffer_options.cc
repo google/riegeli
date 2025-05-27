@@ -58,14 +58,6 @@ inline size_t ApplySizeHintAndRoundPos(Position base_length, size_t min_length,
 
 }  // namespace
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t BufferOptions::kDefaultMinBufferSize;
-constexpr size_t BufferOptions::kDefaultMaxBufferSize;
-#endif
-
 size_t ReadBufferSizer::BufferLength(Position pos, size_t min_length,
                                      size_t recommended_length) const {
   RIEGELI_ASSERT_GE(pos, base_pos_)

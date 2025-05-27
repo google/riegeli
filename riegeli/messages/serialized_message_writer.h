@@ -451,11 +451,9 @@ inline absl::Status SerializedMessageWriter::WritePackedEnum(EnumType value) {
 
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
                                                          BytesRef value) {
-  {
-    absl::Status status = WriteLengthUnchecked(field_number, value.size());
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
@@ -465,11 +463,9 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
                                                          ExternalRef value) {
-  {
-    absl::Status status = WriteLengthUnchecked(field_number, value.size());
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
     return writer().status();
@@ -486,11 +482,9 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
                                                          const Chain& value) {
-  {
-    absl::Status status = WriteLengthUnchecked(field_number, value.size());
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
@@ -500,11 +494,9 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
                                                          Chain&& value) {
-  {
-    absl::Status status = WriteLengthUnchecked(field_number, value.size());
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
     return writer().status();
@@ -514,11 +506,9 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteString(
     int field_number, const absl::Cord& value) {
-  {
-    absl::Status status = WriteLengthUnchecked(field_number, value.size());
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
@@ -528,11 +518,9 @@ inline absl::Status SerializedMessageWriter::WriteString(
 
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
                                                          absl::Cord&& value) {
-  {
-    absl::Status status = WriteLengthUnchecked(field_number, value.size());
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
     return writer().status();
@@ -542,11 +530,9 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
                                                          ByteFill value) {
-  {
-    absl::Status status = WriteLengthUnchecked(field_number, value.size());
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
     return writer().status();
@@ -557,12 +543,10 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 inline absl::Status SerializedMessageWriter::WriteSerializedMessage(
     int field_number, const google::protobuf::MessageLite& message,
     SerializeOptions options) {
-  {
-    absl::Status status =
-        WriteLengthUnchecked(field_number, options.GetByteSize(message));
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status =
+          WriteLengthUnchecked(field_number, options.GetByteSize(message));
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   return riegeli::SerializeMessage(message, writer(), options);
 }

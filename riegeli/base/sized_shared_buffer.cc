@@ -29,13 +29,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t SizedSharedBuffer::kAnyLength;
-#endif
-
 void SizedSharedBuffer::ShrinkSlow(size_t max_size) {
   RIEGELI_ASSERT_GE(max_size, size_)
       << "Failed precondition of SizedSharedBuffer::ShrinkSlow(): "

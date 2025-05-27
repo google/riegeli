@@ -48,27 +48,17 @@
 #include "tensorflow/core/platform/file_system.h"
 #include "tensorflow/core/public/version.h"
 
-namespace riegeli {
-namespace tensorflow {
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t FileWriterBase::Options::kDefaultMaxBufferSize;
-#endif
+namespace riegeli::tensorflow {
 
 bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
   absl::string_view filename;
-  {
-    const absl::Status status = dest->Name(&filename);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      filename_ = "<unknown>";
-      if (!absl::IsUnimplemented(status)) {
-        return FailOperation(status, "WritableFile::Name()");
-      }
-      return true;
+  if (const absl::Status status = dest->Name(&filename);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    filename_ = "<unknown>";
+    if (!absl::IsUnimplemented(status)) {
+      return FailOperation(status, "WritableFile::Name()");
     }
+    return true;
   }
   return InitializeFilename(filename);
 }
@@ -76,12 +66,10 @@ bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
 bool FileWriterBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
-  {
-    const absl::Status status =
-        env_->GetFileSystemForFile(filename_, &file_system_);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return FailOperation(status, "Env::GetFileSystemForFile()");
-    }
+  if (const absl::Status status =
+          env_->GetFileSystemForFile(filename_, &file_system_);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return FailOperation(status, "Env::GetFileSystemForFile()");
   }
   return true;
 }
@@ -89,29 +77,25 @@ bool FileWriterBase::InitializeFilename(
 std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
     bool append) {
   std::unique_ptr<::tensorflow::WritableFile> dest;
-  {
-    const absl::Status status =
-        append ? file_system_->NewAppendableFile(filename_, &dest)
-               : file_system_->NewWritableFile(filename_, &dest);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      Writer::Reset(kClosed);
-      FailOperation(
-          status, append ? absl::string_view("FileSystem::NewAppendableFile()")
+  if (const absl::Status status =
+          append ? file_system_->NewAppendableFile(filename_, &dest)
+                 : file_system_->NewWritableFile(filename_, &dest);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    Writer::Reset(kClosed);
+    FailOperation(status,
+                  append ? absl::string_view("FileSystem::NewAppendableFile()")
                          : absl::string_view("FileSystem::NewWritableFile()"));
-      return nullptr;
-    }
+    return nullptr;
   }
   return dest;
 }
 
 void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
   int64_t file_pos;
-  {
-    const absl::Status status = dest->Tell(&file_pos);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      FailOperation(status, "WritableFile::Tell()");
-      return;
-    }
+  if (const absl::Status status = dest->Tell(&file_pos);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    FailOperation(status, "WritableFile::Tell()");
+    return;
   }
   set_start_pos(IntCast<Position>(file_pos));
   buffer_sizer_.BeginRun(start_pos());
@@ -193,11 +177,9 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  {
-    const absl::Status status = dest->Append(src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return FailOperation(status, "WritableFile::Append(string_view)");
-    }
+  if (const absl::Status status = dest->Append(src);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return FailOperation(status, "WritableFile::Append(string_view)");
   }
   move_start_pos(src.size());
   return true;
@@ -302,11 +284,9 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  {
-    absl::Status status = dest->Append(src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return FailOperation(status, "WritableFile::Append(Cord)");
-    }
+  if (absl::Status status = dest->Append(src);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return FailOperation(status, "WritableFile::Append(Cord)");
   }
   move_start_pos(src.size());
   return true;
@@ -333,5 +313,4 @@ Reader* FileWriterBase::ReadModeImpl(Position initial_pos) {
                      .set_buffer_options(buffer_sizer_.buffer_options()));
 }
 
-}  // namespace tensorflow
-}  // namespace riegeli
+}  // namespace riegeli::tensorflow

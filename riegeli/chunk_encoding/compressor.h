@@ -28,8 +28,7 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/chunk_encoding/compressor_options.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 class Compressor : public Object {
  public:
@@ -157,7 +156,6 @@ inline Writer& Compressor::writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return *writer_;
 }
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal
 
 #endif  // RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_

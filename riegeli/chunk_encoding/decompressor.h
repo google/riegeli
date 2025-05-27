@@ -39,8 +39,7 @@
 #include "riegeli/varint/varint_reading.h"
 #include "riegeli/zstd/zstd_reader.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 // Returns uncompressed size of `compressed_data`.
 //
@@ -229,7 +228,6 @@ inline void Decompressor<Src>::VerifyEnd() {
   if (ABSL_PREDICT_TRUE(ok())) decompressed_->VerifyEnd();
 }
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal
 
 #endif  // RIEGELI_CHUNK_ENCODING_DECOMPRESSOR_H_

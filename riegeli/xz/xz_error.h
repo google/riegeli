@@ -19,13 +19,11 @@
 #include "absl/strings/string_view.h"
 #include "lzma.h"
 
-namespace riegeli {
-namespace xz_internal {
+namespace riegeli::xz_internal {
 
 absl::Status XzErrorToStatus(absl::string_view operation,
                              lzma_ret liblzma_code);
 
-}  // namespace xz_internal
-}  // namespace riegeli
+}  // namespace riegeli::xz_internal
 
 #endif  // RIEGELI_XZ_XZ_ERROR_H_

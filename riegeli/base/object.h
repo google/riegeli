@@ -23,7 +23,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/constexpr.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/type_id.h"
 
@@ -32,7 +31,7 @@ namespace riegeli {
 // By convention, a constructor with a single parameter of type `Closed`
 // constructs the object as closed.
 struct Closed {};
-RIEGELI_INLINE_CONSTEXPR(Closed, kClosed, Closed());
+inline constexpr Closed kClosed = {};
 
 // Internal representation of the basic state of class `Object` and similar
 // classes: whether the object is open or closed, and whether it is not failed
@@ -373,7 +372,7 @@ inline absl::Status Object::AnnotateStatus(absl::Status status) {
 
 template <typename Target>
 inline Target* Object::GetIf() {
-  static_assert(std::is_base_of<Object, Target>::value,
+  static_assert(std::is_base_of_v<Object, Target>,
                 "GetIf() supports only downcasts");
   if (GetTypeId() != TypeId::For<Target>()) return nullptr;
   return static_cast<Target*>(this);
@@ -381,7 +380,7 @@ inline Target* Object::GetIf() {
 
 template <typename Target>
 inline const Target* Object::GetIf() const {
-  static_assert(std::is_base_of<Object, Target>::value,
+  static_assert(std::is_base_of_v<Object, Target>,
                 "GetIf() supports only downcasts");
   if (GetTypeId() != TypeId::For<Target>()) return nullptr;
   return static_cast<const Target*>(this);

@@ -144,7 +144,7 @@ class Bzip2ReaderBase : public BufferedReader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The compressed `Reader` must not be accessed until the `Bzip2Reader` is
 // closed or no longer used.
@@ -186,14 +186,11 @@ class Bzip2Reader : public Bzip2ReaderBase {
   Dependency<Reader*, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit Bzip2Reader(Closed) -> Bzip2Reader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit Bzip2Reader(
     Src&& src, Bzip2ReaderBase::Options options = Bzip2ReaderBase::Options())
     -> Bzip2Reader<TargetT<Src>>;
-#endif
 
 // Returns `true` if the data look like they have been Bzip2-compressed.
 //

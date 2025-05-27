@@ -20,8 +20,7 @@
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
 
-namespace riegeli {
-namespace file_internal {
+namespace riegeli::file_internal {
 
 // If `false`, the file will be created if it does not exist, or it will be
 // truncated to empty if it exists. This implies `SetRead(false)` and
@@ -100,7 +99,6 @@ inline bool GetAppend(absl::string_view mode) {
   return ABSL_PREDICT_TRUE(!mode.empty()) && mode[0] == 'a';
 }
 
-}  // namespace file_internal
-}  // namespace riegeli
+}  // namespace riegeli::file_internal
 
 #endif  // RIEGELI_BYTES_FILE_MODE_STRING_H_

@@ -164,7 +164,7 @@ class OStreamWriterBase : public BufferedWriter {
 // `Any<std::ostream*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // Until the `OStreamWriter` is closed or no longer used, the `std::ostream`
 // must not be closed nor have its position changed, except that if random
@@ -210,14 +210,11 @@ class OStreamWriter : public OStreamWriterBase {
   Dependency<std::ostream*, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit OStreamWriter(Closed) -> OStreamWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit OStreamWriter(Dest&& dest, OStreamWriterBase::Options options =
                                         OStreamWriterBase::Options())
     -> OStreamWriter<TargetT<Dest>>;
-#endif
 
 // Implementation details follow.
 

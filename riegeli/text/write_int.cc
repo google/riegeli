@@ -32,8 +32,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/endian/endian_writing.h"
 
-namespace riegeli {
-namespace write_int_internal {
+namespace riegeli::write_int_internal {
 
 namespace {
 
@@ -512,5 +511,4 @@ void WriteHexBackward32<DigitCase::kUpper>(absl::uint128 src, char* dest) {
   WriteHex32Impl<DigitCase::kUpper>(src, dest - 32);
 }
 
-}  // namespace write_int_internal
-}  // namespace riegeli
+}  // namespace riegeli::write_int_internal

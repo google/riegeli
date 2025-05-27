@@ -296,7 +296,7 @@ class LimitingReaderBase : public Reader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The original `Reader` must not be accessed until the `LimitingReader` is
 // closed or no longer used.
@@ -348,14 +348,11 @@ class LimitingReader : public LimitingReaderBase {
   MovingDependency<Reader*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit LimitingReader(Closed) -> LimitingReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit LimitingReader(Src&& src, LimitingReaderBase::Options options =
                                        LimitingReaderBase::Options())
     -> LimitingReader<TargetT<Src>>;
-#endif
 
 // Changes the options of a `LimitingReader` in the constructor, and restores
 // them in the destructor.

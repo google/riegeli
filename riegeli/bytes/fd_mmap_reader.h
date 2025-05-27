@@ -232,7 +232,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as `TargetT`
-// of the type of the first constructor argument. This requires C++17.
+// of the type of the first constructor argument.
 //
 // The fd must not be closed until the `FdMMapReader` is closed or no longer
 // used. File contents must not be changed while data read from the file is
@@ -247,9 +247,9 @@ class FdMMapReader : public FdMMapReaderBase {
   explicit FdMMapReader(Initializer<Src> src, Options options = Options());
 
   // Will read from `src`.
-  template <typename DependentSrc = Src,
-            std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
-                             int> = 0>
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int> = 0>
   explicit FdMMapReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
                         Options options = Options());
 
@@ -289,9 +289,9 @@ class FdMMapReader : public FdMMapReaderBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
-  template <typename DependentSrc = Src,
-            std::enable_if_t<std::is_constructible<DependentSrc, int>::value,
-                             int> = 0>
+  template <
+      typename DependentSrc = Src,
+      std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
   template <
       typename DependentSrc = Src,
@@ -340,17 +340,14 @@ class FdMMapReader : public FdMMapReaderBase {
   void OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
                   Options&& options);
 
-  template <
-      typename DependentSrc = Src,
-      std::enable_if_t<std::is_same<DependentSrc, UnownedFd>::value, int> = 0>
+  template <typename DependentSrc = Src,
+            std::enable_if_t<std::is_same_v<DependentSrc, UnownedFd>, int> = 0>
   void InitializeWithExistingData(UnownedFd src, const Chain& data);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<FdHandle, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit FdMMapReader(Closed) -> FdMMapReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FdMMapReader(
@@ -362,7 +359,6 @@ explicit FdMMapReader(
 explicit FdMMapReader(UnownedFd dir_fd, PathRef filename,
                       FdMMapReaderBase::Options options =
                           FdMMapReaderBase::Options()) -> FdMMapReader<OwnedFd>;
-#endif
 
 // Implementation details follow.
 
@@ -401,9 +397,8 @@ inline FdMMapReader<Src>::FdMMapReader(Initializer<Src> src, Options options)
 }
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int>>
 inline FdMMapReader<Src>::FdMMapReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                        Options options)
     : FdMMapReader(riegeli::Maker(src), std::move(options)) {}
@@ -447,9 +442,8 @@ inline void FdMMapReader<Src>::Reset(Initializer<Src> src, Options options) {
 }
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<std::is_constructible<DependentSrc, int>::value, int>>
+template <typename DependentSrc,
+          std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int>>
 inline void FdMMapReader<Src>::Reset(int src, Options options) {
   Reset(riegeli::Maker(src), std::move(options));
 }
@@ -514,7 +508,7 @@ void FdMMapReader<Src>::OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
 
 template <typename Src>
 template <typename DependentSrc,
-          std::enable_if_t<std::is_same<DependentSrc, UnownedFd>::value, int>>
+          std::enable_if_t<std::is_same_v<DependentSrc, UnownedFd>, int>>
 void FdMMapReader<Src>::InitializeWithExistingData(UnownedFd src,
                                                    const Chain& data) {
   FdMMapReaderBase::Reset();
@@ -526,11 +520,9 @@ template <typename Src>
 void FdMMapReader<Src>::Done() {
   FdMMapReaderBase::Done();
   if (src_.IsOwning()) {
-    {
-      absl::Status status = src_.get().Close();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        Fail(std::move(status));
-      }
+    if (absl::Status status = src_.get().Close();
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      Fail(std::move(status));
     }
   }
 }

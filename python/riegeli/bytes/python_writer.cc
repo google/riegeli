@@ -41,8 +41,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 PythonWriter::PythonWriter(PyObject* dest, Options options)
     : BufferedWriter(options.buffer_options()),
@@ -377,5 +376,4 @@ bool PythonWriter::TruncateBehindBuffer(Position new_size) {
   return true;
 }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python

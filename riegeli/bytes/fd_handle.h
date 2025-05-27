@@ -80,11 +80,11 @@ struct FdSupportsOpen : std::false_type {};
 
 template <typename T>
 struct FdSupportsOpen<
-    T, std::enable_if_t<std::is_convertible<
+    T, std::enable_if_t<std::is_convertible_v<
            decltype(std::declval<T&>().Open(
                std::declval<absl::string_view>(), std::declval<int>(),
                std::declval<fd_internal::Permissions>())),
-           absl::Status>::value>> : std::true_type {};
+           absl::Status>>> : std::true_type {};
 
 // `FdSupportsOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
 // signature like in `OwnedFd` (with `permissions` present).
@@ -94,11 +94,11 @@ struct FdSupportsOpenAt : std::false_type {};
 
 template <typename T>
 struct FdSupportsOpenAt<
-    T, std::enable_if_t<std::is_convertible<
+    T, std::enable_if_t<std::is_convertible_v<
            decltype(std::declval<T&>().OpenAt(
                std::declval<UnownedFd>(), std::declval<PathRef>(),
                std::declval<int>(), std::declval<fd_internal::Permissions>())),
-           absl::Status>::value>> : std::true_type {};
+           absl::Status>>> : std::true_type {};
 
 // Type-erased pointer to a target object like `UnownedFd` or `OwnedFd` which
 // stores and possibly owns a fd.
@@ -206,24 +206,24 @@ class
   template <typename T, typename Enable = void>
   struct HasIsOwning : std::false_type {};
   template <typename T>
-  struct HasIsOwning<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(std::declval<const T&>().IsOwning()), bool>::value>>
+  struct HasIsOwning<T,
+                     std::enable_if_t<std::is_convertible_v<
+                         decltype(std::declval<const T&>().IsOwning()), bool>>>
       : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasFilename : std::false_type {};
   template <typename T>
-  struct HasFilename<T, std::enable_if_t<std::is_convertible<
-                            decltype(std::declval<const T&>().filename()),
-                            absl::string_view>::value>> : std::true_type {};
+  struct HasFilename<
+      T, std::enable_if_t<std::is_convertible_v<
+             decltype(std::declval<const T&>().filename()), absl::string_view>>>
+      : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct HasClose : std::false_type {};
   template <typename T>
-  struct HasClose<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(std::declval<T&>().Close()), absl::Status>::value>>
+  struct HasClose<T, std::enable_if_t<std::is_convertible_v<
+                         decltype(std::declval<T&>().Close()), absl::Status>>>
       : std::true_type {};
 
   static int GetMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
@@ -289,14 +289,6 @@ class
   const Methods* methods_ = &kMethodsDefault;
   TypeErasedRef target_;
 };
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename T>
-constexpr FdHandle::Methods FdHandle::kMethods;
-#endif
 
 namespace fd_internal {
 
@@ -432,16 +424,14 @@ class
       : fd_(fd), deleter_(std::move(filename)) {}
 
   // Creates a `FdBase` converted from `UnownedFd`.
-  template <
-      typename DependentDeleter = Deleter,
-      std::enable_if_t<!std::is_same<DependentDeleter, UnownedFdDeleter>::value,
-                       int> = 0>
+  template <typename DependentDeleter = Deleter,
+            std::enable_if_t<
+                !std::is_same_v<DependentDeleter, UnownedFdDeleter>, int> = 0>
   explicit FdBase(const FdBase<UnownedFdDeleter>& that)
       : fd_(that.fd_), deleter_(that.deleter_) {}
-  template <
-      typename DependentDeleter = Deleter,
-      std::enable_if_t<!std::is_same<DependentDeleter, UnownedFdDeleter>::value,
-                       int> = 0>
+  template <typename DependentDeleter = Deleter,
+            std::enable_if_t<
+                !std::is_same_v<DependentDeleter, UnownedFdDeleter>, int> = 0>
   explicit FdBase(FdBase<UnownedFdDeleter>&& that)
       : fd_(that.Release()), deleter_(std::move(that.deleter_)) {}
 

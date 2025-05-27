@@ -382,7 +382,7 @@ struct StringResizableTraits {
 template <typename T, typename Allocator = std::allocator<T>>
 struct VectorResizableTraits {
   static_assert(
-      std::is_trivially_copyable<T>::value,
+      std::is_trivially_copyable_v<T>,
       "Parameter of VectorResizableTraits must be trivially copyable");
 
   using Resizable = std::vector<T, Allocator>;

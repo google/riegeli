@@ -41,13 +41,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t ChunkedSortedStringSet::Options::kDefaultChunkSize;
-#endif
-
 ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(
     std::initializer_list<absl::string_view> src, Options options) {
   return FromSorted<>(src, std::move(options));
@@ -108,11 +101,9 @@ StrongOrdering ChunkedSortedStringSet::Compare(
   Iterator b_iter = b.cbegin();
   while (a_iter != a.cend()) {
     if (b_iter == b.cend()) return StrongOrdering::greater;
-    {
-      const StrongOrdering ordering = riegeli::Compare(*a_iter, *b_iter);
-      if (ordering != 0) {
-        return ordering;
-      }
+    if (const StrongOrdering ordering = riegeli::Compare(*a_iter, *b_iter);
+        ordering != 0) {
+      return ordering;
     }
     ++a_iter;
     ++b_iter;
@@ -131,11 +122,9 @@ absl::Status ChunkedSortedStringSet::EncodeImpl(Writer& dest) const {
     return dest.status();
   }
   for (const Chunk& chunk : chunks_) {
-    {
-      absl::Status status = chunk.set.Encode(dest);
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
+    if (absl::Status status = chunk.set.Encode(dest);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
     }
   }
   return absl::OkStatus();
@@ -163,11 +152,9 @@ absl::Status ChunkedSortedStringSet::DecodeImpl(Reader& src,
           .set_decode_state(&decode_state);
   Chunks chunks(IntCast<size_t>(num_chunks));
   for (Chunk& chunk : chunks) {
-    {
-      absl::Status status = chunk.set.Decode(src, linear_options);
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
+    if (absl::Status status = chunk.set.Decode(src, linear_options);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
     }
     if (ABSL_PREDICT_FALSE(chunk.set.empty())) {
       return src.AnnotateStatus(absl::InvalidArgumentError(
@@ -245,7 +232,7 @@ bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
 }
 
 template <typename Element,
-          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+          std::enable_if_t<std::is_same_v<Element, std::string>, int>>
 bool ChunkedSortedStringSet::Builder::InsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
@@ -264,7 +251,7 @@ absl::StatusOr<bool> ChunkedSortedStringSet::Builder::TryInsertNext(
 }
 
 template <typename Element,
-          std::enable_if_t<std::is_same<Element, std::string>::value, int>>
+          std::enable_if_t<std::is_same_v<Element, std::string>, int>>
 absl::StatusOr<bool> ChunkedSortedStringSet::Builder::TryInsertNext(
     Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
@@ -287,12 +274,10 @@ absl::StatusOr<bool> ChunkedSortedStringSet::Builder::InsertNextImpl(
     }
     AddChunk();
   }
-  {
-    absl::StatusOr<bool> inserted =
-        current_builder_.TryInsertNext(std::forward<Element>(element));
-    if (ABSL_PREDICT_FALSE(!inserted.ok() || !*inserted)) {
-      return inserted;
-    }
+  if (absl::StatusOr<bool> inserted =
+          current_builder_.TryInsertNext(std::forward<Element>(element));
+      ABSL_PREDICT_FALSE(!inserted.ok() || !*inserted)) {
+    return inserted;
   }
   return true;
 }

@@ -36,8 +36,7 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 // A `Reader` which reads from a Python binary I/O stream.
 //
@@ -178,7 +177,6 @@ inline int PythonReader::Traverse(visitproc visit, void* arg) {
   return exception_.Traverse(visit, arg);
 }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python
 
 #endif  // PYTHON_RIEGELI_BYTES_PYTHON_READER_H_

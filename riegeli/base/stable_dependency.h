@@ -189,7 +189,7 @@ template <typename Handle, typename Manager>
 class StableDependency<
     Handle, Manager,
     std::enable_if_t<absl::conjunction<
-        std::integral_constant<bool, !Dependency<Handle, Manager>::kIsStable>,
+        std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
         std::is_default_constructible<Dependency<Handle, Manager>>>::value>>
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyDefault<Handle, Manager>, Handle,
@@ -208,7 +208,7 @@ template <typename Handle, typename Manager>
 class StableDependency<
     Handle, Manager,
     std::enable_if_t<absl::conjunction<
-        std::integral_constant<bool, !Dependency<Handle, Manager>::kIsStable>,
+        std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
         absl::negation<std::is_default_constructible<
             Dependency<Handle, Manager>>>>::value>>
     : public dependency_internal::DependencyDerived<

@@ -42,16 +42,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr int ZlibReaderBase::Options::kMinWindowLog;
-constexpr int ZlibReaderBase::Options::kMaxWindowLog;
-constexpr int ZlibReaderBase::Options::kDefaultWindowLog;
-constexpr ZlibReaderBase::Header ZlibReaderBase::Options::kDefaultHeader;
-#endif
-
 static_assert(ZlibReaderBase::Options::kMaxWindowLog == MAX_WBITS,
               "Mismatched constant");
 static_assert(ZlibReaderBase::Options::kDefaultWindowLog == MAX_WBITS,

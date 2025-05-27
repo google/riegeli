@@ -16,7 +16,6 @@
 #define RIEGELI_LINES_NEWLINE_H_
 
 #include "absl/strings/string_view.h"
-#include "riegeli/base/constexpr.h"
 
 namespace riegeli {
 
@@ -42,13 +41,13 @@ enum class WriteNewline {
 
 // Native line representation as a string.
 #ifndef _WIN32
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kNewline, "\n");
+inline constexpr absl::string_view kNewline = "\n";
 #else
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kNewline, "\r\n");
+inline constexpr absl::string_view kNewline = "\r\n";
 #endif
 
 // UTF-8 BOM representation as a string.
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kUtf8Bom, "\xef\xbb\xbf");
+inline constexpr absl::string_view kUtf8Bom = "\xef\xbb\xbf";
 
 }  // namespace riegeli
 

@@ -19,8 +19,7 @@
 
 #include "riegeli/base/compact_string.h"
 
-namespace riegeli {
-namespace cfile_internal {
+namespace riegeli::cfile_internal {
 
 // Infers a filename from the fd corresponding to the `FILE` by reading the
 // symlink target for `absl::StrCat("/proc/self/fd/", fd)` (on Windows returns
@@ -28,7 +27,6 @@ namespace cfile_internal {
 // "<unknown>" if there is no corresponding fd.
 CompactString FilenameForCFile(FILE* file);
 
-}  // namespace cfile_internal
-}  // namespace riegeli
+}  // namespace riegeli::cfile_internal
 
 #endif  // RIEGELI_BYTES_CFILE_INTERNAL_H_

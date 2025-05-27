@@ -23,8 +23,7 @@
 #include "riegeli/bytes/writer.h"
 #include "snappy-sinksource.h"
 
-namespace riegeli {
-namespace snappy_internal {
+namespace riegeli::snappy_internal {
 
 // Adapts a `Writer` to a `snappy::Sink`.
 class WriterSnappySink : public snappy::Sink {
@@ -66,7 +65,6 @@ class ReaderSnappySource : public snappy::Source {
   Position size_;
 };
 
-}  // namespace snappy_internal
-}  // namespace riegeli
+}  // namespace riegeli::snappy_internal
 
 #endif  // RIEGELI_SNAPPY_SNAPPY_STREAMS_H_

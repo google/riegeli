@@ -510,11 +510,10 @@ inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
     int field_number, const google::protobuf::MessageLite& message,
     SerializeOptions options) {
   const size_t length = options.GetByteSize(message);
-  {
-    absl::Status status = riegeli::SerializeMessage(message, writer(), options);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
+  if (absl::Status status =
+          riegeli::SerializeMessage(message, writer(), options);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
   }
   return WriteLengthUnchecked(field_number, length);
 }

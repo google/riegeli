@@ -145,12 +145,10 @@ struct PriorityQueueEntry : WithCompare<PriorityQueueEntry> {
   friend StrongOrdering RIEGELI_COMPARE(const PriorityQueueEntry& a,
                                         const PriorityQueueEntry& b) {
     // Sort by `num_transitions`. Largest first.
-    {
-      const StrongOrdering ordering =
-          riegeli::Compare(b.num_transitions, a.num_transitions);
-      if (ordering != 0) {
-        return ordering;
-      }
+    if (const StrongOrdering ordering =
+            riegeli::Compare(b.num_transitions, a.num_transitions);
+        ordering != 0) {
+      return ordering;
     }
     // Break ties for reproducible ordering.
     return riegeli::Compare(a.dest_index, b.dest_index);

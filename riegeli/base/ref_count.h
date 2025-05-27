@@ -38,7 +38,7 @@ class RefCount {
   template <typename Ownership = ShareOwnership,
             std::enable_if_t<IsOwnership<Ownership>::value, int> = 0>
   void Ref() const {
-    if (std::is_same<Ownership, ShareOwnership>::value) {
+    if (std::is_same_v<Ownership, ShareOwnership>) {
       ref_count_.fetch_add(1, std::memory_order_relaxed);
     }
   }
@@ -55,7 +55,7 @@ class RefCount {
   template <typename Ownership = PassOwnership,
             std::enable_if_t<IsOwnership<Ownership>::value, int> = 0>
   bool Unref() const {
-    return std::is_same<Ownership, PassOwnership>::value &&
+    return std::is_same_v<Ownership, PassOwnership> &&
            (HasUniqueOwner() ||
             ref_count_.fetch_sub(1, std::memory_order_acq_rel) == 1);
   }

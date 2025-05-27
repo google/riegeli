@@ -42,11 +42,9 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/estimated_allocated_size.h"
 
-namespace google {
-namespace protobuf {
+namespace google::protobuf {
 class Message;
-}  // namespace protobuf
-}  // namespace google
+}  // namespace google::protobuf
 
 namespace riegeli {
 
@@ -197,7 +195,7 @@ class MemoryEstimator {
   //  * `google::protobuf::Message`
   template <typename T>
   void RegisterSubobjects(const T* object);
-  template <typename T, std::enable_if_t<std::is_reference<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<std::is_reference_v<T>, int> = 0>
   void RegisterSubobjects(const std::remove_reference_t<T>* object);
 
   // Registers each element of a range.
@@ -368,10 +366,9 @@ struct HasRiegeliDynamicSizeOf : std::false_type {};
 
 template <typename T>
 struct HasRiegeliDynamicSizeOf<
-    T, std::enable_if_t<std::is_convertible<decltype(RiegeliDynamicSizeOf(
-                                                std::declval<const T*>())),
-                                            size_t>::value>> : std::true_type {
-};
+    T, std::enable_if_t<std::is_convertible_v<
+           decltype(RiegeliDynamicSizeOf(std::declval<const T*>())), size_t>>>
+    : std::true_type {};
 
 template <typename T,
           std::enable_if_t<HasRiegeliDynamicSizeOf<T>::value, int> = 0>
@@ -421,7 +418,7 @@ inline void MemoryEstimator::RegisterSubobjects(const T* object) {
   memory_estimator_internal::RegisterSubobjects(object, *this);
 }
 
-template <typename T, std::enable_if_t<std::is_reference<T>::value, int>>
+template <typename T, std::enable_if_t<std::is_reference_v<T>, int>>
 inline void MemoryEstimator::RegisterSubobjects(
     ABSL_ATTRIBUTE_UNUSED const std::remove_reference_t<T>* object) {}
 
@@ -657,10 +654,9 @@ inline void RiegeliRegisterSubobjects(
   memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
-template <
-    typename T,
-    std::enable_if_t<std::is_convertible<T*, google::protobuf::Message*>::value,
-                     int> = 0>
+template <typename T,
+          std::enable_if_t<
+              std::is_convertible_v<T*, google::protobuf::Message*>, int> = 0>
 inline void RiegeliRegisterSubobjects(const T* self,
                                       MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(self->SpaceUsedLong() - sizeof(T));

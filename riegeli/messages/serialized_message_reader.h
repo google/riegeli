@@ -175,10 +175,10 @@ class SerializedMessageReaderBase {
   };
 
   template <typename EnumType,
-            std::enable_if_t<std::is_enum<EnumType>::value, int> = 0>
+            std::enable_if_t<std::is_enum_v<EnumType>, int> = 0>
   static EnumType CastToEnum(uint64_t repr);
   template <typename EnumType,
-            std::enable_if_t<!std::is_enum<EnumType>::value, int> = 0>
+            std::enable_if_t<!std::is_enum_v<EnumType>, int> = 0>
   static EnumType CastToEnum(uint64_t repr);
 
   ABSL_ATTRIBUTE_COLD static absl::Status ReadVarintError(Reader& src);
@@ -529,22 +529,21 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   //
   // A reference to `context` is passed to the actions.
   template <typename DependentContext = Context,
-            std::enable_if_t<!std::is_void<DependentContext>::value, int> = 0>
+            std::enable_if_t<!std::is_void_v<DependentContext>, int> = 0>
   absl::Status Read(AnyRef<Reader*> src,
                     type_identity_t<DependentContext&> context) const;
   template <typename DependentContext = Context,
-            std::enable_if_t<!std::is_void<DependentContext>::value, int> = 0>
+            std::enable_if_t<!std::is_void_v<DependentContext>, int> = 0>
   absl::Status Read(AnyRef<Reader*> src,
                     type_identity_t<DependentContext&&> context) const;
   template <typename DependentContext = Context,
-            std::enable_if_t<std::is_void<DependentContext>::value, int> = 0>
+            std::enable_if_t<std::is_void_v<DependentContext>, int> = 0>
   absl::Status Read(AnyRef<Reader*> src) const;
 };
 
 // Implementation details follow.
 
-template <typename EnumType,
-          std::enable_if_t<std::is_enum<EnumType>::value, int>>
+template <typename EnumType, std::enable_if_t<std::is_enum_v<EnumType>, int>>
 inline EnumType SerializedMessageReaderBase::CastToEnum(uint64_t repr) {
   // Casting an out of range value to an enum has undefined behavior.
   // Casting such a value to an integral type wraps around.
@@ -552,8 +551,7 @@ inline EnumType SerializedMessageReaderBase::CastToEnum(uint64_t repr) {
       static_cast<std::underlying_type_t<EnumType>>(repr));
 }
 
-template <typename EnumType,
-          std::enable_if_t<!std::is_enum<EnumType>::value, int>>
+template <typename EnumType, std::enable_if_t<!std::is_enum_v<EnumType>, int>>
 inline EnumType SerializedMessageReaderBase::CastToEnum(uint64_t repr) {
   return static_cast<EnumType>(repr);
 }
@@ -1061,7 +1059,7 @@ inline void SerializedMessageReader<Context>::AfterOtherMessage(Action action) {
 
 template <typename Context>
 template <typename DependentContext,
-          std::enable_if_t<!std::is_void<DependentContext>::value, int>>
+          std::enable_if_t<!std::is_void_v<DependentContext>, int>>
 inline absl::Status SerializedMessageReader<Context>::Read(
     AnyRef<Reader*> src, type_identity_t<DependentContext&> context) const {
   return SerializedMessageReaderBase::Read(std::move(src),
@@ -1070,7 +1068,7 @@ inline absl::Status SerializedMessageReader<Context>::Read(
 
 template <typename Context>
 template <typename DependentContext,
-          std::enable_if_t<!std::is_void<DependentContext>::value, int>>
+          std::enable_if_t<!std::is_void_v<DependentContext>, int>>
 inline absl::Status SerializedMessageReader<Context>::Read(
     AnyRef<Reader*> src, type_identity_t<DependentContext&&> context) const {
   return SerializedMessageReaderBase::Read(std::move(src),
@@ -1079,7 +1077,7 @@ inline absl::Status SerializedMessageReader<Context>::Read(
 
 template <typename Context>
 template <typename DependentContext,
-          std::enable_if_t<std::is_void<DependentContext>::value, int>>
+          std::enable_if_t<std::is_void_v<DependentContext>, int>>
 inline absl::Status SerializedMessageReader<Context>::Read(
     AnyRef<Reader*> src) const {
   return SerializedMessageReaderBase::Read(std::move(src), TypeErasedRef());

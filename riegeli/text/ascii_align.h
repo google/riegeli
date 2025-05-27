@@ -175,7 +175,7 @@ template <
     typename... Args,
     std::enable_if_t<
         absl::conjunction<
-            std::integral_constant<bool, sizeof...(Args) != 2>,
+            std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                  IsStringifiable>>::value,
@@ -298,7 +298,7 @@ template <
     typename... Args,
     std::enable_if_t<
         absl::conjunction<
-            std::integral_constant<bool, sizeof...(Args) != 2>,
+            std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                  IsStringifiable>>::value,
@@ -420,7 +420,7 @@ template <
     typename... Args,
     std::enable_if_t<
         absl::conjunction<
-            std::integral_constant<bool, sizeof...(Args) != 2>,
+            std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                  IsStringifiable>>::value,

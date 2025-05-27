@@ -92,9 +92,9 @@ class SimpleClass {
   int member;
 };
 
-template <typename Mover, typename Host,
-          std::enable_if_t<std::is_constructible<Mover, Host&, Host&>::value,
-                           int> = 0>
+template <
+    typename Mover, typename Host,
+    std::enable_if_t<std::is_constructible_v<Mover, Host&, Host&>, int> = 0>
 Mover MakeMover(Host& self, Host& that) {
   return Mover(self, that);
 }

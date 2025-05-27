@@ -178,7 +178,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
 // `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The byte `Writer` must not be accessed until the `DefaultChunkWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -223,15 +223,12 @@ class DefaultChunkWriter : public DefaultChunkWriterBase {
   Dependency<Writer*, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit DefaultChunkWriter(Closed) -> DefaultChunkWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit DefaultChunkWriter(
     Dest&& dest,
     DefaultChunkWriterBase::Options options = DefaultChunkWriterBase::Options())
     -> DefaultChunkWriter<TargetT<Dest>>;
-#endif
 
 // Specialization of `DependencyImpl<ChunkWriter*, Manager>` adapted from
 // `DependencyImpl<Writer*, Manager>` by wrapping `Manager` in

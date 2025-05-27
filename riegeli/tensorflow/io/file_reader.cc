@@ -50,27 +50,17 @@
 #include "tensorflow/core/platform/file_system.h"
 #include "tensorflow/core/public/version.h"
 
-namespace riegeli {
-namespace tensorflow {
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr size_t FileReaderBase::Options::kDefaultMaxBufferSize;
-#endif
+namespace riegeli::tensorflow {
 
 bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
   absl::string_view filename;
-  {
-    const absl::Status status = src->Name(&filename);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      filename_ = "<unknown>";
-      if (!absl::IsUnimplemented(status)) {
-        return FailOperation(status, "RandomAccessFile::Name()");
-      }
-      return true;
+  if (const absl::Status status = src->Name(&filename);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    filename_ = "<unknown>";
+    if (!absl::IsUnimplemented(status)) {
+      return FailOperation(status, "RandomAccessFile::Name()");
     }
+    return true;
   }
   return InitializeFilename(filename);
 }
@@ -78,26 +68,22 @@ bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
 bool FileReaderBase::InitializeFilename(
     Initializer<std::string>::AllowingExplicit filename) {
   riegeli::Reset(filename_, std::move(filename));
-  {
-    const absl::Status status =
-        env_->GetFileSystemForFile(filename_, &file_system_);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      return FailOperation(status, "Env::GetFileSystemForFile()");
-    }
+  if (const absl::Status status =
+          env_->GetFileSystemForFile(filename_, &file_system_);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return FailOperation(status, "Env::GetFileSystemForFile()");
   }
   return true;
 }
 
 std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
   std::unique_ptr<::tensorflow::RandomAccessFile> src;
-  {
-    const absl::Status status =
-        file_system_->NewRandomAccessFile(filename_, &src);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      Reader::Reset(kClosed);
-      FailOperation(status, "FileSystem::NewRandomAccessFile()");
-      return nullptr;
-    }
+  if (const absl::Status status =
+          file_system_->NewRandomAccessFile(filename_, &src);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    Reader::Reset(kClosed);
+    FailOperation(status, "FileSystem::NewRandomAccessFile()");
+    return nullptr;
   }
   return src;
 }
@@ -642,12 +628,10 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
     if (exact_size() != absl::nullopt) {
       file_size = IntCast<uint64_t>(*exact_size());
     } else {
-      {
-        const absl::Status status =
-            file_system_->GetFileSize(filename_, &file_size);
-        if (ABSL_PREDICT_FALSE(!status.ok())) {
-          return FailOperation(status, "FileSystem::GetFileSize()");
-        }
+      if (const absl::Status status =
+              file_system_->GetFileSize(filename_, &file_size);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return FailOperation(status, "FileSystem::GetFileSize()");
       }
       if (!growing_source_) set_exact_size(Position{file_size});
     }
@@ -671,13 +655,11 @@ absl::optional<Position> FileReaderBase::SizeImpl() {
     return absl::nullopt;
   }
   uint64_t file_size;
-  {
-    const absl::Status status =
-        file_system_->GetFileSize(filename_, &file_size);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      FailOperation(status, "FileSystem::GetFileSize()");
-      return absl::nullopt;
-    }
+  if (const absl::Status status =
+          file_system_->GetFileSize(filename_, &file_size);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    FailOperation(status, "FileSystem::GetFileSize()");
+    return absl::nullopt;
   }
   if (!growing_source_) set_exact_size(Position{file_size});
   return Position{file_size};
@@ -709,5 +691,4 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
   return reader;
 }
 
-}  // namespace tensorflow
-}  // namespace riegeli
+}  // namespace riegeli::tensorflow

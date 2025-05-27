@@ -350,7 +350,7 @@ class CFileWriterBase : public BufferedWriter {
 //
 // By relying on CTAD the template argument can be deduced as `OwnedCFile` if
 // the first constructor argument is a filename or a `FILE*`, otherwise as
-// `TargetT` of the type of the first constructor argument. This requires C++17.
+// `TargetT` of the type of the first constructor argument.
 //
 // Until the `CFileWriter` is closed or no longer used, the `FILE` must not be
 // closed nor have its position changed, except that if random access is not
@@ -367,9 +367,9 @@ class CFileWriter : public CFileWriterBase {
   explicit CFileWriter(Initializer<Dest> dest, Options options = Options());
 
   // Will write to `dest`.
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value,
-                             int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int> = 0>
   explicit CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                        Options options = Options());
 
@@ -393,9 +393,9 @@ class CFileWriter : public CFileWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value,
-                             int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* dest,
                                           Options options = Options());
   template <
@@ -437,8 +437,6 @@ class CFileWriter : public CFileWriterBase {
   Dependency<CFileHandle, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit CFileWriter(Closed) -> CFileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CFileWriter(
@@ -447,7 +445,6 @@ explicit CFileWriter(
         absl::disjunction<std::is_convertible<Dest&&, FILE*>,
                           std::is_convertible<Dest&&, PathRef>>::value,
         OwnedCFile, TargetT<Dest>>>;
-#endif
 
 // Implementation details follow.
 
@@ -519,9 +516,8 @@ inline CFileWriter<Dest>::CFileWriter(Initializer<Dest> dest, Options options)
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int>>
 inline CFileWriter<Dest>::CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                       Options options)
     : CFileWriter(riegeli::Maker(dest), std::move(options)) {}
@@ -552,9 +548,8 @@ inline void CFileWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_constructible<DependentDest, FILE*>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int>>
 inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
   Reset(riegeli::Maker(dest), std::move(options));
 }
@@ -592,11 +587,9 @@ template <typename Dest>
 void CFileWriter<Dest>::Done() {
   CFileWriterBase::Done();
   if (dest_.IsOwning()) {
-    {
-      absl::Status status = dest_.get().Close();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        Fail(std::move(status));
-      }
+    if (absl::Status status = dest_.get().Close();
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      Fail(std::move(status));
     }
   }
 }

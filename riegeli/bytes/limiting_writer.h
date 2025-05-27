@@ -225,7 +225,7 @@ class LimitingWriterBase : public Writer {
 // `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The original `Writer` must not be accessed until the `LimitingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -270,14 +270,11 @@ class LimitingWriter : public LimitingWriterBase {
   MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit LimitingWriter(Closed) -> LimitingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit LimitingWriter(Dest&& dest, LimitingWriterBase::Options options =
                                          LimitingWriterBase::Options())
     -> LimitingWriter<TargetT<Dest>>;
-#endif
 
 // Implementation details follow.
 

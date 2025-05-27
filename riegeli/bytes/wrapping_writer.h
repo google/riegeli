@@ -102,7 +102,7 @@ class WrappingWriterBase : public Writer {
 // `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The original `Writer` must not be accessed until the `WrappingWriter` is
 // closed or no longer used, except that it is allowed to read the destination
@@ -146,12 +146,9 @@ class WrappingWriter : public WrappingWriterBase {
   MovingDependency<Writer*, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit WrappingWriter(Closed) -> WrappingWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit WrappingWriter(Dest&& dest) -> WrappingWriter<TargetT<Dest>>;
-#endif
 
 // Implementation details follow.
 

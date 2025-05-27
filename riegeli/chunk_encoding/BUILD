@@ -59,7 +59,6 @@ cc_library(
 cc_library(
     name = "constants",
     hdrs = ["constants.h"],
-    deps = ["//riegeli/base:constexpr"],
 )
 
 cc_library(
@@ -314,7 +313,6 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:assert",
-        "//riegeli/base:constexpr",
         "//riegeli/messages:message_wire_format",
         "//riegeli/varint:varint_writing",
     ],
@@ -322,7 +320,6 @@ cc_library(
 
 cc_library(
     name = "field_projection",
-    srcs = ["field_projection.cc"],
     hdrs = ["field_projection.h"],
     deps = [
         "//riegeli/base:assert",

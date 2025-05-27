@@ -36,8 +36,7 @@
 #include "riegeli/varint/varint_writing.h"
 #include "riegeli/zstd/zstd_writer.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 Compressor::Compressor(CompressorOptions compressor_options,
                        TuningOptions tuning_options)
@@ -134,5 +133,4 @@ bool Compressor::LengthPrefixedEncodeAndClose(Writer& dest) {
   return Close();
 }
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal

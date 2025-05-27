@@ -220,15 +220,13 @@ bool RecordReaderBase::ReadMetadata(RecordsMetadata& metadata) {
     metadata.Clear();
     return false;
   }
-  {
-    absl::Status status = ParseMessage(serialized_metadata, metadata);
-    if (ABSL_PREDICT_FALSE(!status.ok())) {
-      metadata.Clear();
-      recoverable_ = Recoverable::kRecoverMetadata;
-      Fail(std::move(status));
-      if (!TryRecovery()) return false;
-      // Recovered metadata parsing, assume empty `RecordsMetadata`.
-    }
+  if (absl::Status status = ParseMessage(serialized_metadata, metadata);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    metadata.Clear();
+    recoverable_ = Recoverable::kRecoverMetadata;
+    Fail(std::move(status));
+    if (!TryRecovery()) return false;
+    // Recovered metadata parsing, assume empty `RecordsMetadata`.
   }
   return true;
 }

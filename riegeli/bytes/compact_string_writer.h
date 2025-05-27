@@ -83,7 +83,7 @@ using CompactStringWriterBase = ResizableWriterBase;
 // otherwise as `TargetT` of the type of the first constructor argument, except
 // that CTAD is deleted if the first constructor argument is a `CompactString&`
 // or `const CompactString&` (to avoid writing to an unintentionally separate
-// copy of an existing object). This requires C++17.
+// copy of an existing object).
 //
 // The `CompactString` must not be accessed until the `CompactStringWriter` is
 // closed or no longer used, except that it is allowed to read the
@@ -99,8 +99,6 @@ class CompactStringWriter
   CompactStringWriter& operator=(CompactStringWriter&& that) = default;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit CompactStringWriter(Closed) -> CompactStringWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CompactStringWriter(Dest&& dest,
@@ -114,7 +112,6 @@ explicit CompactStringWriter(Dest&& dest,
 explicit CompactStringWriter(CompactStringWriterBase::Options options =
                                  CompactStringWriterBase::Options())
     -> CompactStringWriter<CompactString>;
-#endif
 
 }  // namespace riegeli
 

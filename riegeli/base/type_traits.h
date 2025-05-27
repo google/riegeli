@@ -119,7 +119,7 @@ struct IsInvocableRImpl<
 
 template <typename Result, typename Function, typename... Args>
 struct IsInvocableRImpl<
-    std::enable_if_t<std::is_void<Result>::value,
+    std::enable_if_t<std::is_void_v<Result>,
                      absl::void_t<decltype(riegeli::invoke(
                          std::declval<Function>(), std::declval<Args>()...))>>,
     Result, Function, Args...> : std::true_type {};
@@ -397,8 +397,6 @@ inline DecayTupleTypeT<Tuple> DecayTuple(Tuple&& tuple) {
   return tuple;
 }
 
-#if __cpp_deduction_guides
-
 // `DeduceClassTemplateArguments<Template, Args...>::type` and
 // `DeduceClassTemplateArgumentsT<Template, Args...>` deduce class template
 // arguments using CTAD from constructor arguments.
@@ -413,8 +411,6 @@ struct DeduceClassTemplateArguments {
 template <template <typename...> class Template, typename... Args>
 using DeduceClassTemplateArgumentsT =
     typename DeduceClassTemplateArguments<Template, Args...>::type;
-
-#endif
 
 // `IntersectionType<Ts...>::type` and `IntersectionTypeT<Ts...>` compute the
 // smallest of unsigned integer types.
@@ -478,8 +474,8 @@ template <typename T, typename Enable = void>
 struct HasArrow : std::false_type {};
 
 template <typename T>
-struct HasArrow<T, std::enable_if_t<std::is_pointer<
-                       std::decay_t<decltype(std::declval<T>())>>::value>>
+struct HasArrow<T, std::enable_if_t<std::is_pointer_v<
+                       std::decay_t<decltype(std::declval<T>())>>>>
     : std::true_type {};
 
 template <typename T>
@@ -501,8 +497,8 @@ struct IsComparableAgainstNullptr<absl::string_view> : std::false_type {};
 
 template <typename T>
 struct IsComparableAgainstNullptr<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(std::declval<T>() == nullptr), bool>::value>>
+    T, std::enable_if_t<
+           std::is_convertible_v<decltype(std::declval<T>() == nullptr), bool>>>
     : std::true_type {};
 
 namespace type_traits_internal {
@@ -603,11 +599,9 @@ class ConditionallyDeleteAssignment<true, false> {
 template <typename T>
 class CopyableLike
     : public type_traits_internal::ConditionallyDeleteConstructor<
-          std::is_copy_constructible<T>::value,
-          std::is_move_constructible<T>::value>,
+          std::is_copy_constructible_v<T>, std::is_move_constructible_v<T>>,
       public type_traits_internal::ConditionallyDeleteAssignment<
-          std::is_copy_assignable<T>::value,
-          std::is_move_assignable<T>::value> {};
+          std::is_copy_assignable_v<T>, std::is_move_assignable_v<T>> {};
 
 // Deriving a class from `ConditionallyCopyable<is_copyable>` disables copy and
 // move constructor and assignment if `!is_copyable`.

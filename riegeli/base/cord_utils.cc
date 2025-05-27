@@ -26,8 +26,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/string_utils.h"
 
-namespace riegeli {
-namespace cord_internal {
+namespace riegeli::cord_internal {
 
 void CopyCordToArray(const absl::Cord& src, char* dest) {
   for (const absl::string_view fragment : src.Chunks()) {
@@ -94,5 +93,4 @@ void PrependToBlockyCord(absl::string_view src, absl::Cord& dest) {
   }
 }
 
-}  // namespace cord_internal
-}  // namespace riegeli
+}  // namespace riegeli::cord_internal

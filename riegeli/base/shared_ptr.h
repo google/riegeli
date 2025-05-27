@@ -251,13 +251,13 @@ class
   friend class SharedPtr;
 
   // An object of type `SubT` is allocated together with `RefCount` if
-  // `!std::has_virtual_destructor<SubT>::value`, or `Control` otherwise.
+  // `!std::has_virtual_destructor_v<SubT>`, or `Control` otherwise.
   //
   // `RefCount` or `Control` immediately precede the object. If the object has
   // a higher alignment requirement than `RefCount` or `Control`, there can be
   // padding at the beginning of the allocation, before `RefCount` or `Control`.
-  // Hence if `std::has_virtual_destructor<SubT>::value` then the beginning of
-  // the allocation is known only to `Control::destroy()`.
+  // Hence if `std::has_virtual_destructor_v<SubT>` then the beginning of the
+  // allocation is known only to `Control::destroy()`.
   struct Control {
     explicit Control(void (*destroy)(void* ptr)) : destroy(destroy) {}
 
@@ -291,9 +291,8 @@ class
     return super_ptr;
   }
 
-  template <
-      typename SubT,
-      std::enable_if_t<!std::has_virtual_destructor<SubT>::value, int> = 0>
+  template <typename SubT,
+            std::enable_if_t<!std::has_virtual_destructor_v<SubT>, int> = 0>
   static SubT* New(Initializer<SubT> value) {
     static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(RefCount));
     void* const allocated_ptr =
@@ -302,14 +301,10 @@ class
     void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
     new (static_cast<RefCount*>(ptr) - 1) RefCount();
     std::move(value).ConstructAt(ptr);
-    return
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<SubT*>(ptr));
+    return std::launder(static_cast<SubT*>(ptr));
   }
   template <typename SubT,
-            std::enable_if_t<std::has_virtual_destructor<SubT>::value, int> = 0>
+            std::enable_if_t<std::has_virtual_destructor_v<SubT>, int> = 0>
   static SubT* New(Initializer<SubT> value) {
     static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(Control));
     void* const allocated_ptr =
@@ -318,16 +313,12 @@ class
     void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
     new (static_cast<Control*>(ptr) - 1) Control(DestroyMethod<SubT>);
     std::move(value).ConstructAt(ptr);
-    return
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<SubT*>(ptr));
+    return std::launder(static_cast<SubT*>(ptr));
   }
 
-  template <typename DependentT = T,
-            std::enable_if_t<!std::has_virtual_destructor<DependentT>::value,
-                             int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<!std::has_virtual_destructor_v<DependentT>, int> = 0>
   static void Delete(T* ptr) {
     ptr->~T();
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
@@ -362,29 +353,22 @@ class
   }
 
   template <typename SubT,
-            std::enable_if_t<std::has_virtual_destructor<SubT>::value, int> = 0>
+            std::enable_if_t<std::has_virtual_destructor_v<SubT>, int> = 0>
   static Control& control(SubT* ptr) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<Control*>(const_cast<std::remove_cv_t<SubT>*>(ptr)) -
-         1);
+    return *std::launder(
+        reinterpret_cast<Control*>(const_cast<std::remove_cv_t<SubT>*>(ptr)) -
+        1);
   }
 
-  template <
-      typename SubT,
-      std::enable_if_t<!std::has_virtual_destructor<SubT>::value, int> = 0>
+  template <typename SubT,
+            std::enable_if_t<!std::has_virtual_destructor_v<SubT>, int> = 0>
   static RefCount& ref_count(SubT* ptr) {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<RefCount*>(const_cast<std::remove_cv_t<SubT>*>(ptr)) -
-         1);
+    return *std::launder(
+        reinterpret_cast<RefCount*>(const_cast<std::remove_cv_t<SubT>*>(ptr)) -
+        1);
   }
   template <typename SubT,
-            std::enable_if_t<std::has_virtual_destructor<SubT>::value, int> = 0>
+            std::enable_if_t<std::has_virtual_destructor_v<SubT>, int> = 0>
   static RefCount& ref_count(SubT* ptr) {
     return control(ptr).ref_count;
   }
@@ -418,9 +402,9 @@ class
     ptr_.reset(New(std::move(value)));
   }
 
-  template <typename MemoryEstimator, typename DependentT = T,
-            std::enable_if_t<!std::has_virtual_destructor<DependentT>::value,
-                             int> = 0>
+  template <
+      typename MemoryEstimator, typename DependentT = T,
+      std::enable_if_t<!std::has_virtual_destructor_v<DependentT>, int> = 0>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
     void* const allocated_ptr =
@@ -461,10 +445,8 @@ class
   std::unique_ptr<T, Unrefer> ptr_;
 };
 
-#if __cpp_deduction_guides
 template <typename T>
 explicit SharedPtr(T&& value) -> SharedPtr<TargetT<T>>;
-#endif
 
 }  // namespace riegeli
 

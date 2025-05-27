@@ -250,7 +250,7 @@ class CordWriterBase : public Writer {
 // otherwise as `TargetT` of the type of the first constructor argument, except
 // that CTAD is deleted if the first constructor argument is an `absl::Cord&`
 // or `const absl::Cord&` (to avoid writing to an unintentionally separate copy
-// of an existing object). This requires C++17.
+// of an existing object).
 //
 // The `absl::Cord` must not be accessed until the `CordWriter` is closed or no
 // longer used, except that it is allowed to read the `absl::Cord` immediately
@@ -268,7 +268,7 @@ class CordWriter : public CordWriterBase {
   // This constructor is present only if `Dest` is `absl::Cord`.
   template <
       typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int> = 0>
+      std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int> = 0>
   explicit CordWriter(Options options = Options());
 
   CordWriter(CordWriter&& that) = default;
@@ -281,7 +281,7 @@ class CordWriter : public CordWriterBase {
                                           Options options = Options());
   template <
       typename DependentDest = Dest,
-      std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int> = 0>
+      std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `absl::Cord` being
@@ -299,8 +299,6 @@ class CordWriter : public CordWriterBase {
   Dependency<absl::Cord*, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit CordWriter(Closed) -> CordWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit CordWriter(Dest&& dest,
@@ -312,7 +310,6 @@ explicit CordWriter(Dest&& dest,
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit CordWriter(CordWriterBase::Options options = CordWriterBase::Options())
     -> CordWriter<absl::Cord>;
-#endif
 
 // Implementation details follow.
 
@@ -410,7 +407,7 @@ inline CordWriter<Dest>::CordWriter(Initializer<Dest> dest, Options options)
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
+          std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int>>
 inline CordWriter<Dest>::CordWriter(Options options)
     : CordWriter(riegeli::Maker(), std::move(options)) {}
 
@@ -429,7 +426,7 @@ inline void CordWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
 
 template <typename Dest>
 template <typename DependentDest,
-          std::enable_if_t<std::is_same<DependentDest, absl::Cord>::value, int>>
+          std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int>>
 inline void CordWriter<Dest>::Reset(Options options) {
   Reset(riegeli::Maker(), std::move(options));
 }

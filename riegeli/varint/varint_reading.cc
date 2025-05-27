@@ -21,8 +21,7 @@
 #include "absl/types/optional.h"
 #include "riegeli/bytes/reader.h"
 
-namespace riegeli {
-namespace varint_internal {
+namespace riegeli::varint_internal {
 
 namespace {
 
@@ -197,5 +196,4 @@ absl::optional<const char*> ReadVarint64Slow(const char* src, const char* limit,
   return src;
 }
 
-}  // namespace varint_internal
-}  // namespace riegeli
+}  // namespace riegeli::varint_internal

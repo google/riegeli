@@ -251,7 +251,7 @@ using ChunkReader = DefaultChunkReaderBase;
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The byte `Reader` must not be accessed until the `DefaultChunkReader` is
 // closed or no longer used.
@@ -291,12 +291,9 @@ class DefaultChunkReader : public DefaultChunkReaderBase {
   Dependency<Reader*, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit DefaultChunkReader(Closed) -> DefaultChunkReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit DefaultChunkReader(Src&& src) -> DefaultChunkReader<TargetT<Src>>;
-#endif
 
 // Specialization of `DependencyImpl<ChunkReader*, Manager>` adapted from
 // `DependencyImpl<Reader*, Manager>` by wrapping `Manager` in

@@ -92,7 +92,7 @@ class FramedSnappyReaderBase : public PullableReader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The compressed `Reader` must not be accessed until the `FramedSnappyReader`
 // is closed or no longer used.
@@ -138,14 +138,11 @@ class FramedSnappyReader : public FramedSnappyReaderBase {
   MovingDependency<Reader*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit FramedSnappyReader(Closed) -> FramedSnappyReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit FramedSnappyReader(Src&& src, FramedSnappyReaderBase::Options options =
                                            FramedSnappyReaderBase::Options())
     -> FramedSnappyReader<TargetT<Src>>;
-#endif
 
 // Returns `true` if the data look like they have been FramedSnappy-compressed.
 //

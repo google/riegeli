@@ -38,8 +38,8 @@ template <typename Enable, typename Context, typename Action, typename... Args>
 struct IsInvocableWithContextImpl : std::false_type {};
 
 template <typename Context, typename Action, typename... Args>
-struct IsInvocableWithContextImpl<
-    std::enable_if_t<!std::is_void<Context>::value>, Context, Action, Args...>
+struct IsInvocableWithContextImpl<std::enable_if_t<!std::is_void_v<Context>>,
+                                  Context, Action, Args...>
     : is_invocable_r<absl::Status, Action, Args..., Context&> {};
 
 template <typename Context, typename Action, typename... Args>

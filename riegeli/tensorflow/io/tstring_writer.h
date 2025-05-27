@@ -28,8 +28,7 @@
 #include "riegeli/bytes/resizable_writer.h"
 #include "tensorflow/core/platform/tstring.h"
 
-namespace riegeli {
-namespace tensorflow {
+namespace riegeli::tensorflow {
 
 namespace tstring_internal {
 
@@ -99,7 +98,7 @@ using TStringWriterBase = ResizableWriterBase;
 // constructor argument, except that CTAD is deleted if the first constructor
 // argument is a `tensorflow::tstring&` or `const tensorflow::tstring&` (to
 // avoid writing to an unintentionally separate copy of an existing object).
-// This requires C++17.
+//
 //
 // The `tensorflow::tstring` must not be accessed until the `TStringWriter` is
 // closed or no longer used, except that it is allowed to read the
@@ -114,8 +113,6 @@ class TStringWriter
   TStringWriter& operator=(TStringWriter&& that) = default;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit TStringWriter(Closed) -> TStringWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit TStringWriter(Dest&& dest, TStringWriterBase::Options options =
@@ -129,9 +126,7 @@ explicit TStringWriter(Dest&& dest, TStringWriterBase::Options options =
 explicit TStringWriter(
     TStringWriterBase::Options options = TStringWriterBase::Options())
     -> TStringWriter<::tensorflow::tstring>;
-#endif
 
-}  // namespace tensorflow
-}  // namespace riegeli
+}  // namespace riegeli::tensorflow
 
 #endif  // RIEGELI_TENSORFLOW_IO_TSTRING_WRITER_H_

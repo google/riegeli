@@ -81,21 +81,17 @@ inline void Crc32cDigester::Write(absl::string_view src) {
 }
 
 inline void Crc32cDigester::Write(const absl::Cord& src) {
-  {
-    const absl::optional<uint32_t> src_crc = src.ExpectedChecksum();
-    if (src_crc != absl::nullopt) {
-      crc_ = static_cast<uint32_t>(absl::ConcatCrc32c(
-          absl::crc32c_t{crc_}, absl::crc32c_t{*src_crc}, src.size()));
-      return;
-    }
+  if (const absl::optional<uint32_t> src_crc = src.ExpectedChecksum();
+      src_crc != absl::nullopt) {
+    crc_ = static_cast<uint32_t>(absl::ConcatCrc32c(
+        absl::crc32c_t{crc_}, absl::crc32c_t{*src_crc}, src.size()));
+    return;
   }
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      crc_ = static_cast<uint32_t>(
-          absl::ExtendCrc32c(absl::crc32c_t{crc_}, *flat));
-      return;
-    }
+  if (const absl::optional<absl::string_view> flat = src.TryFlat();
+      flat != absl::nullopt) {
+    crc_ =
+        static_cast<uint32_t>(absl::ExtendCrc32c(absl::crc32c_t{crc_}, *flat));
+    return;
   }
   for (const absl::string_view fragment : src.Chunks()) {
     crc_ = static_cast<uint32_t>(

@@ -20,14 +20,13 @@
 #include "absl/base/optimization.h"
 #include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
 
 namespace riegeli {
 
 // Typical bounds of sizes of memory blocks holding pieces of data in objects.
-RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultMinBlockSize, 256);
-RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultMaxBlockSize, size_t{64} << 10);
+inline constexpr size_t kDefaultMinBlockSize = 256;
+inline constexpr size_t kDefaultMaxBlockSize = size_t{64} << 10;
 
 // When deciding whether to copy an array of bytes or share memory, prefer
 // copying up to this length.
@@ -35,7 +34,7 @@ RIEGELI_INLINE_CONSTEXPR(size_t, kDefaultMaxBlockSize, size_t{64} << 10);
 // Copying can often be done in an inlined fast path. Sharing has more overhead,
 // especially in a virtual slow path, so copying sufficiently short lengths
 // performs better.
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxBytesToCopy, 255);
+inline constexpr size_t kMaxBytesToCopy = 255;
 
 // Recommends the length of a buffer by modifying the base recommendation.
 //

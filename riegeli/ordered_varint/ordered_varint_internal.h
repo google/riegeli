@@ -20,12 +20,10 @@
 
 #include <stddef.h>
 
-#include "riegeli/base/constexpr.h"
-
 namespace riegeli {
 
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxLengthOrderedVarint32, 5);
-RIEGELI_INLINE_CONSTEXPR(size_t, kMaxLengthOrderedVarint64, 9);
+inline constexpr size_t kMaxLengthOrderedVarint32 = 5;
+inline constexpr size_t kMaxLengthOrderedVarint64 = 9;
 
 }  // namespace riegeli
 

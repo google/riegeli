@@ -477,14 +477,6 @@ struct Chain::ExternalMethodsFor {
       DeleteBlock, DumpStructure, DynamicSizeOf(), RegisterSubobjects};
 };
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename T>
-constexpr Chain::ExternalMethods Chain::ExternalMethodsFor<T>::kMethods;
-#endif
-
 template <typename T>
 inline IntrusiveSharedPtr<Chain::RawBlock>
 Chain::ExternalMethodsFor<T>::NewBlock(Initializer<T> object) {
@@ -598,12 +590,8 @@ inline T& Chain::RawBlock::unchecked_external_object() {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
-  return *
-#if __cpp_lib_launder >= 201606
-      std::launder
-#endif
-      (reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
-                            kExternalObjectOffset<T>()));
+  return *std::launder(reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
+                                            kExternalObjectOffset<T>()));
 }
 
 template <typename T>
@@ -611,12 +599,8 @@ inline const T& Chain::RawBlock::unchecked_external_object() const {
   RIEGELI_ASSERT(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
-  return *
-#if __cpp_lib_launder >= 201606
-      std::launder
-#endif
-      (reinterpret_cast<const T*>(reinterpret_cast<const char*>(this) +
-                                  kExternalObjectOffset<T>()));
+  return *std::launder(reinterpret_cast<const T*>(
+      reinterpret_cast<const char*>(this) + kExternalObjectOffset<T>()));
 }
 
 template <typename T>
@@ -1184,11 +1168,9 @@ HashState Chain::HashValue(HashState hash_state) const {
   // 1. AbslInternalPiecewiseCombiner
   // 2. WeaklyMixedInteger
   // Reimplement this in terms of the public Abseil API.
-  {
-    const absl::optional<absl::string_view> flat = TryFlat();
-    if (flat != absl::nullopt) {
-      return HashState::combine(std::move(hash_state), *flat);
-    }
+  if (const absl::optional<absl::string_view> flat = TryFlat();
+      flat != absl::nullopt) {
+    return HashState::combine(std::move(hash_state), *flat);
   }
   typename HashState::AbslInternalPiecewiseCombiner combiner;
   for (const absl::string_view block : blocks()) {

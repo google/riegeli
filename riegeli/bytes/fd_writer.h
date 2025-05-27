@@ -499,7 +499,7 @@ class FdWriterBase : public BufferedWriter {
 //
 // By relying on CTAD the template argument can be deduced as `OwnedFd` if the
 // first constructor argument is a filename or an `int`, otherwise as `TargetT`
-// of the type of the first constructor argument. This requires C++17.
+// of the type of the first constructor argument.
 //
 // Until the `FdWriter` is closed or no longer used, the fd must not be closed.
 // Additionally, if `Options::independent_pos() == absl::nullopt`
@@ -517,9 +517,9 @@ class FdWriter : public FdWriterBase {
   explicit FdWriter(Initializer<Dest> dest, Options options = Options());
 
   // Will write to `dest`.
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_constructible<DependentDest, int>::value,
-                             int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_constructible_v<DependentDest, int>, int> = 0>
   explicit FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                     Options options = Options());
 
@@ -557,9 +557,9 @@ class FdWriter : public FdWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_constructible<DependentDest, int>::value,
-                             int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_constructible_v<DependentDest, int>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dest,
                                           Options options = Options());
   template <
@@ -611,8 +611,6 @@ class FdWriter : public FdWriterBase {
   Dependency<FdHandle, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit FdWriter(Closed) -> FdWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FdWriter(Dest&& dest,
@@ -624,7 +622,6 @@ explicit FdWriter(Dest&& dest,
 explicit FdWriter(UnownedFd dir_fd, PathRef filename,
                   FdWriterBase::Options options = FdWriterBase::Options())
     -> FdWriter<OwnedFd>;
-#endif
 
 // Implementation details follow.
 
@@ -699,9 +696,8 @@ inline FdWriter<Dest>::FdWriter(Initializer<Dest> dest, Options options)
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_constructible<DependentDest, int>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_constructible_v<DependentDest, int>, int>>
 inline FdWriter<Dest>::FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                 Options options)
     : FdWriter(riegeli::Maker(dest), std::move(options)) {}
@@ -745,9 +741,8 @@ inline void FdWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_constructible<DependentDest, int>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_constructible_v<DependentDest, int>, int>>
 inline void FdWriter<Dest>::Reset(int dest, Options options) {
   Reset(riegeli::Maker(dest), std::move(options));
 }
@@ -815,11 +810,9 @@ template <typename Dest>
 void FdWriter<Dest>::Done() {
   FdWriterBase::Done();
   if (dest_.IsOwning()) {
-    {
-      absl::Status status = dest_.get().Close();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        Fail(std::move(status));
-      }
+    if (absl::Status status = dest_.get().Close();
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      Fail(std::move(status));
     }
   }
 }

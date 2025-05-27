@@ -62,9 +62,8 @@ class
   struct HasCStr : std::false_type {};
 
   template <typename T>
-  struct HasCStr<T,
-                 std::enable_if_t<std::is_convertible<
-                     decltype(std::declval<T>().c_str()), const char*>::value>>
+  struct HasCStr<T, std::enable_if_t<std::is_convertible_v<
+                        decltype(std::declval<T>().c_str()), const char*>>>
       : std::true_type {};
 
  public:

@@ -53,9 +53,11 @@ template <typename T, typename Enable = void>
 struct HasDebugString : std::false_type {};
 
 template <typename T>
-struct HasDebugString<T, std::enable_if_t<std::is_convertible<
-                             decltype(std::declval<const T&>().DebugString()),
-                             absl::string_view>::value>> : std::true_type {};
+struct HasDebugString<
+    T,
+    std::enable_if_t<std::is_convertible_v<
+        decltype(std::declval<const T&>().DebugString()), absl::string_view>>>
+    : std::true_type {};
 
 template <typename T, typename Enable = void>
 struct HasOperatorOutput : std::false_type {};
@@ -227,7 +229,7 @@ void RiegeliDebug(char16_t src, DebugStream& dest);
 void RiegeliDebug(char32_t src, DebugStream& dest);
 
 // Enumeration types are written like their underlying types.
-template <typename T, std::enable_if_t<std::is_enum<T>::value, int> = 0>
+template <typename T, std::enable_if_t<std::is_enum_v<T>, int> = 0>
 void RiegeliDebug(T src, DebugStream& dest) {
   dest.Debug(static_cast<std::underlying_type_t<T>>(src));
 }
@@ -262,7 +264,7 @@ void RiegeliDebug(const absl::Cord& src, DebugStream& dest);
 // `const void*`.
 void RiegeliDebug(std::nullptr_t src, DebugStream& dest);
 void RiegeliDebug(const void* src, DebugStream& dest);
-template <typename T, std::enable_if_t<std::is_function<T>::value, int> = 0>
+template <typename T, std::enable_if_t<std::is_function_v<T>, int> = 0>
 void RiegeliDebug(T* src, DebugStream& dest) {
   dest.Debug(reinterpret_cast<void*>(src));
 }
@@ -295,13 +297,11 @@ void RiegeliDebug(const absl::optional<T>& src, DebugStream& dest) {
 template <typename T>
 class DebugType {
  public:
-  template <
-      typename DependentT = T,
-      std::enable_if_t<!std::is_rvalue_reference<DependentT>::value, int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<!std::is_rvalue_reference_v<DependentT>, int> = 0>
   explicit DebugType(const T& src) : src_(src) {}
-  template <
-      typename DependentT = T,
-      std::enable_if_t<!std::is_lvalue_reference<DependentT>::value, int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<!std::is_lvalue_reference_v<DependentT>, int> = 0>
   explicit DebugType(T&& src) : src_(std::forward<T>(src)) {}
 
   DebugType(const DebugType& that) = default;
@@ -328,11 +328,8 @@ class DebugType {
   T src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename T>
 explicit DebugType(T&& src) -> DebugType<std::decay_t<T>>;
-#endif
 
 // `riegeli::Debug()` wraps an object such that it is formatted using
 // `DebugStream::Debug()` when explicitly converted to `std::string` or written

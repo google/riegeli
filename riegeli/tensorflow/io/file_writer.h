@@ -186,7 +186,7 @@ class FileWriterBase : public Writer {
 // `Any<::tensorflow::WritableFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The `::tensorflow::WritableFile` must not be closed until the `FileWriter` is
 // closed or no longer used. Until then the `::tensorflow::WritableFile` may be
@@ -245,17 +245,14 @@ class FileWriter : public FileWriterBase {
   Dependency<::tensorflow::WritableFile*, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit FileWriter(Closed) -> FileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FileWriter(Dest&& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())
     -> FileWriter<std::conditional_t<
-        std::is_convertible<Dest&&,
-                            Initializer<std::string>::AllowingExplicit>::value,
+        std::is_convertible_v<Dest&&,
+                              Initializer<std::string>::AllowingExplicit>,
         std::unique_ptr<::tensorflow::WritableFile>, TargetT<Dest>>>;
-#endif
 
 // Implementation details follow.
 
@@ -360,11 +357,9 @@ template <typename Dest>
 void FileWriter<Dest>::Done() {
   FileWriterBase::Done();
   if (dest_.IsOwning()) {
-    {
-      const absl::Status status = dest_->Close();
-      if (ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(ok())) {
-        FailOperation(status, "WritableFile::Close()");
-      }
+    if (const absl::Status status = dest_->Close();
+        ABSL_PREDICT_FALSE(!status.ok()) && ABSL_PREDICT_TRUE(ok())) {
+      FailOperation(status, "WritableFile::Close()");
     }
   }
 }
@@ -376,19 +371,17 @@ bool FileWriter<Dest>::FlushImpl(FlushType flush_type) {
     case FlushType::kFromObject:
       if (!dest_.IsOwning()) return true;
       ABSL_FALLTHROUGH_INTENDED;
-    case FlushType::kFromProcess: {
-      const absl::Status status = dest_->Flush();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
+    case FlushType::kFromProcess:
+      if (const absl::Status status = dest_->Flush();
+          ABSL_PREDICT_FALSE(!status.ok())) {
         return FailOperation(status, "WritableFile::Flush()");
       }
-    }
       return true;
-    case FlushType::kFromMachine: {
-      const absl::Status status = dest_->Sync();
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
+    case FlushType::kFromMachine:
+      if (const absl::Status status = dest_->Sync();
+          ABSL_PREDICT_FALSE(!status.ok())) {
         return FailOperation(status, "WritableFile::Sync()");
       }
-    }
       return true;
   }
   RIEGELI_ASSUME_UNREACHABLE()

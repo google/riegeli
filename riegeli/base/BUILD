@@ -20,7 +20,6 @@ cc_library(
     name = "constexpr",
     srcs = ["port.h"],
     hdrs = ["constexpr.h"],
-    deps = [":type_traits"],
 )
 
 cc_library(
@@ -96,7 +95,6 @@ cc_library(
     hdrs = ["buffering.h"],
     deps = [
         ":arithmetic",
-        ":constexpr",
         ":types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/types:optional",
@@ -138,7 +136,6 @@ cc_library(
     deps = [
         ":arithmetic",
         ":buffering",
-        ":constexpr",
         ":string_utils",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/strings",
@@ -419,7 +416,6 @@ cc_library(
     hdrs = ["object.h"],
     deps = [
         ":assert",
-        ":constexpr",
         ":initializer",
         ":type_id",
         "@com_google_absl//absl/base:core_headers",
@@ -446,7 +442,6 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":compare",
-        ":constexpr",
         ":external_data",
         ":initializer",
         ":new_aligned",
@@ -655,7 +650,6 @@ cc_library(
 
 cc_library(
     name = "recycling_pool",
-    srcs = ["recycling_pool.cc"],
     hdrs = ["recycling_pool.h"],
     deps = [
         ":arithmetic",

@@ -22,8 +22,7 @@
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 
-namespace riegeli {
-namespace iostream_internal {
+namespace riegeli::iostream_internal {
 
 // There is no `std::istream::close()` nor `std::ostream::close()`, but some
 // subclasses have `close()`, e.g. `std::ifstream`, `std::ofstream`,
@@ -49,18 +48,17 @@ inline void Close(Stream& stream) {
 }
 
 template <typename T,
-          std::enable_if_t<std::is_base_of<std::istream, T>::value, int> = 0>
+          std::enable_if_t<std::is_base_of_v<std::istream, T>, int> = 0>
 inline std::istream* DetectIStream(T* stream) {
   return stream;
 }
 
 template <typename T,
-          std::enable_if_t<!std::is_base_of<std::istream, T>::value, int> = 0>
+          std::enable_if_t<!std::is_base_of_v<std::istream, T>, int> = 0>
 inline std::istream* DetectIStream(ABSL_ATTRIBUTE_UNUSED T* stream) {
   return nullptr;
 }
 
-}  // namespace iostream_internal
-}  // namespace riegeli
+}  // namespace riegeli::iostream_internal
 
 #endif  // RIEGELI_BYTES_IOSTREAM_INTERNAL_H_

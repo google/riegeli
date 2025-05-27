@@ -109,8 +109,7 @@ class ArrayWriterBase : public PushableWriter {
 // type of the first constructor argument, except that CTAD is deleted if the
 // first constructor argument is a reference to a type that `absl::Span<char>`
 // would be constructible from, other than `absl::Span<char>` itself (to avoid
-// writing to an unintentionally separate copy of an existing object). This
-// requires C++17.
+// writing to an unintentionally separate copy of an existing object).
 //
 // The array must not be destroyed until the `ArrayWriter` is closed or no
 // longer used.
@@ -126,8 +125,8 @@ class ArrayWriter : public ArrayWriterBase {
   // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
   // only if `Dest` is `absl::Span<char>`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<
-                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>,
+                             int> = 0>
   explicit ArrayWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND, size_t size);
 
   ArrayWriter(ArrayWriter&& that) = default;
@@ -138,8 +137,8 @@ class ArrayWriter : public ArrayWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest);
   template <typename DependentDest = Dest,
-            std::enable_if_t<
-                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(char* dest, size_t size);
 
   // Returns the object providing and possibly owning the array being written
@@ -159,8 +158,6 @@ class ArrayWriter : public ArrayWriterBase {
   MovingDependency<absl::Span<char>, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit ArrayWriter(Closed) -> ArrayWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
@@ -170,7 +167,6 @@ explicit ArrayWriter(Dest&& dest) -> ArrayWriter<std::conditional_t<
         std::is_constructible<absl::Span<char>, Dest>>::value,
     DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit ArrayWriter(char* dest, size_t size) -> ArrayWriter<absl::Span<char>>;
-#endif
 
 // Implementation details follow.
 
@@ -254,7 +250,7 @@ inline ArrayWriter<Dest>::ArrayWriter(Initializer<Dest> dest)
 template <typename Dest>
 template <
     typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>, int>>
 inline ArrayWriter<Dest>::ArrayWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                       size_t size)
     : ArrayWriter(absl::MakeSpan(dest, size)) {}
@@ -275,7 +271,7 @@ inline void ArrayWriter<Dest>::Reset(Initializer<Dest> dest) {
 template <typename Dest>
 template <
     typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>, int>>
 inline void ArrayWriter<Dest>::Reset(char* dest, size_t size) {
   Reset(absl::MakeSpan(dest, size));
 }

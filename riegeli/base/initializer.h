@@ -106,14 +106,14 @@ class InitializerBase {
   //
   // For a non-default-constructed deleter, use `UniquePtr(deleter)`.
   template <typename Target, typename Deleter,
-            std::enable_if_t<
-                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<std::decay_t<T>*, Target*>,
+                             int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
     return std::move(*this).template UniquePtr<Deleter>();
   }
   template <typename Target, typename Deleter,
-            std::enable_if_t<
-                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<std::decay_t<T>*, Target*>,
+                             int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
     return UniquePtr<Deleter>();
   }
@@ -131,22 +131,14 @@ class InitializerBase {
     void* const ptr = Allocate<std::decay_t<T>>();
     std::move(*this).ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)));
+        std::launder(static_cast<std::decay_t<T>*>(ptr)));
   }
   template <typename Deleter>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
     void* const ptr = Allocate<std::decay_t<T>>();
     std::move(*this).ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)),
+        std::launder(static_cast<std::decay_t<T>*>(ptr)),
         std::forward<Deleter>(deleter));
   }
 
@@ -624,14 +616,14 @@ class InitializerReference {
   //
   // For a non-default-constructed deleter, use `UniquePtr(deleter)`.
   template <typename Target, typename Deleter,
-            std::enable_if_t<
-                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<std::decay_t<T>*, Target*>,
+                             int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
     return std::move(*this).template UniquePtr<Deleter>();
   }
   template <typename Target, typename Deleter,
-            std::enable_if_t<
-                std::is_convertible<std::decay_t<T>*, Target*>::value, int> = 0>
+            std::enable_if_t<std::is_convertible_v<std::decay_t<T>*, Target*>,
+                             int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
     return UniquePtr<Deleter>();
   }
@@ -646,40 +638,32 @@ class InitializerReference {
   // use a non-default-constructed deleter.
   template <typename Deleter = std::default_delete<std::decay_t<T>>,
             typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   DependentT>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<DependentT>, DependentT>,
+                int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
     void* const ptr = Allocate<std::decay_t<T>>();
     std::move(*this).ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)));
+        std::launder(static_cast<std::decay_t<T>*>(ptr)));
   }
   template <typename Deleter, typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   DependentT>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<DependentT>, DependentT>,
+                int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
     void* const ptr = Allocate<std::decay_t<T>>();
     std::move(*this).ConstructAt(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)),
+        std::launder(static_cast<std::decay_t<T>*>(ptr)),
         std::forward<Deleter>(deleter));
   }
 
   // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
   template <typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   DependentT>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<DependentT>, DependentT>,
+                int> = 0>
   void ConstructAt(void* ptr) && {
     new (ptr) std::decay_t<T>(std::move(*this).Construct());
   }
@@ -752,8 +736,7 @@ template <typename T, typename Enable = void>
 struct InitializerImpl;
 
 template <typename T>
-struct InitializerImpl<T,
-                       std::enable_if_t<!std::is_convertible<T&&, T>::value>> {
+struct InitializerImpl<T, std::enable_if_t<!std::is_convertible_v<T&&, T>>> {
   using type = InitializerBase<T>;
 };
 
@@ -774,7 +757,7 @@ struct InitializerImpl<
 };
 
 template <typename T>
-struct InitializerImpl<T, std::enable_if_t<std::is_reference<T>::value>> {
+struct InitializerImpl<T, std::enable_if_t<std::is_reference_v<T>>> {
   using type = InitializerReference<T>;
 };
 
@@ -807,9 +790,9 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   using AllowingExplicit = Initializer<T, true>;
 
   // Constructs `Initializer<T>` which specifies `T()`.
-  template <typename DependentT = T,
-            std::enable_if_t<std::is_default_constructible<DependentT>::value,
-                             int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_default_constructible_v<DependentT>, int> = 0>
   Initializer() : Base(&Base::template kMethodsDefault<>) {}
 
   // Constructs `Initializer<T>` from a value convertible to `T`.
@@ -829,15 +812,14 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   //
   // Prefer `Template(riegeli::Maker<T>(args...))` over
   // `Template<T>(riegeli::Maker(args...))` if CTAD for `Template` can be used.
-  template <
-      typename... Args,
-      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  template <typename... Args,
+            std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
   /*implicit*/ Initializer(
       MakerType<Args...>&& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromMaker<Args...>, std::move(args)) {}
-  template <typename... Args,
-            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
-                             int> = 0>
+  template <
+      typename... Args,
+      std::enable_if_t<std::is_constructible_v<T, const Args&...>, int> = 0>
   /*implicit*/ Initializer(
       const MakerType<Args...>& args ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromConstMaker<Args...>, args) {}

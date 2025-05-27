@@ -64,16 +64,16 @@ struct HasDigestConverterImpl<
 // This includes the case when `To` is the same as `From`.
 template <typename From, typename To>
 struct DigestConverterImpl<
-    From, To, std::enable_if_t<std::is_constructible<To, From>::value>> {
-  template <typename DependentFrom = From,
-            std::enable_if_t<!std::is_rvalue_reference<DependentFrom>::value,
-                             int> = 0>
+    From, To, std::enable_if_t<std::is_constructible_v<To, From>>> {
+  template <
+      typename DependentFrom = From,
+      std::enable_if_t<!std::is_rvalue_reference_v<DependentFrom>, int> = 0>
   static To Convert(const From& digest) {
     return To(digest);
   }
-  template <typename DependentFrom = From,
-            std::enable_if_t<!std::is_lvalue_reference<DependentFrom>::value,
-                             int> = 0>
+  template <
+      typename DependentFrom = From,
+      std::enable_if_t<!std::is_lvalue_reference_v<DependentFrom>, int> = 0>
   static To Convert(From&& digest) {
     return To(std::forward<From>(digest));
   }
@@ -209,7 +209,7 @@ template <size_t size, typename To>
 struct DigestConverterImpl<
     std::array<char, size>, To,
     std::enable_if_t<absl::conjunction<
-        std::integral_constant<bool, size % sizeof(uint64_t) == 0>,
+        std::bool_constant<size % sizeof(uint64_t) == 0>,
         absl::negation<std::is_constructible<To, std::array<char, size>>>,
         std::is_constructible<
             To, std::array<uint64_t, size / sizeof(uint64_t)>>>::value>> {
@@ -228,8 +228,8 @@ template <typename From, typename To, typename Enable = void>
 struct DigestConverter;
 
 template <typename From, typename To>
-struct DigestConverter<
-    From&, To&, std::enable_if_t<std::is_convertible<From*, To*>::value>> {
+struct DigestConverter<From&, To&,
+                       std::enable_if_t<std::is_convertible_v<From*, To*>>> {
   static To& Convert(From& digest) { return digest; }
 };
 
@@ -241,10 +241,10 @@ struct DigestConverter<
         HasDigestConverterImpl<absl::remove_cvref_t<From>, To>>::value>>
     : DigestConverterImpl<absl::remove_cvref_t<From>, To> {
   static_assert(
-      std::is_convertible<
+      std::is_convertible_v<
           decltype(DigestConverterImpl<absl::remove_cvref_t<From>, To>::Convert(
               std::declval<From>())),
-          To>::value,
+          To>,
       "DigestConverterImpl<From, To>::Convert() must return To");
 };
 
@@ -279,7 +279,7 @@ inline To ConvertDigest(DigestFunction&& digest_function) {
 }
 
 template <typename To, typename DigestFunction,
-          std::enable_if_t<std::is_void<To>::value, int> = 0>
+          std::enable_if_t<std::is_void_v<To>, int> = 0>
 inline void ConvertDigest(DigestFunction&& digest_function) {
   std::forward<DigestFunction>(digest_function)();
 }

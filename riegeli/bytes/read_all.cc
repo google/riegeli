@@ -33,8 +33,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 
-namespace riegeli {
-namespace read_all_internal {
+namespace riegeli::read_all_internal {
 
 namespace {
 
@@ -281,5 +280,4 @@ absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
   return status;
 }
 
-}  // namespace read_all_internal
-}  // namespace riegeli
+}  // namespace riegeli::read_all_internal

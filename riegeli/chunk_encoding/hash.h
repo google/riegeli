@@ -20,13 +20,11 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 uint64_t Hash(absl::string_view data);
 uint64_t Hash(const Chain& data);
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal
 
 #endif  // RIEGELI_CHUNK_ENCODING_HASH_H_

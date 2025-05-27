@@ -18,12 +18,10 @@
 #include <stdint.h>
 
 #include "riegeli/base/assert.h"
-#include "riegeli/base/constexpr.h"
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/varint/varint_writing.h"
 
-namespace riegeli {
-namespace chunk_encoding_internal {
+namespace riegeli::chunk_encoding_internal {
 
 enum class MessageId : uint32_t {
   kNoOp,
@@ -47,8 +45,7 @@ static_assert(static_cast<uint32_t>(MessageId::kRoot) <= 8,
 // `kSubmessageWireType` does marks the end of a submessage, distinguishing it
 // from the end of a string or bytes field, which is encoded using
 // `WireType::kLengthDelimited`.
-RIEGELI_INLINE_CONSTEXPR(WireType, kSubmessageWireType,
-                         static_cast<WireType>(6));
+inline constexpr WireType kSubmessageWireType = static_cast<WireType>(6);
 
 enum class Subtype : uint8_t {
   kTrivial = 0,
@@ -119,7 +116,6 @@ inline bool HasSubtype(uint32_t tag) {
   }
 }
 
-}  // namespace chunk_encoding_internal
-}  // namespace riegeli
+}  // namespace riegeli::chunk_encoding_internal
 
 #endif  // RIEGELI_CHUNK_ENCODING_TRANSPOSE_INTERNAL_H_

@@ -112,11 +112,9 @@ bool Writer::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  {
-    const absl::optional<absl::string_view> flat = src.TryFlat();
-    if (flat != absl::nullopt) {
-      return Write(*flat);
-    }
+  if (const absl::optional<absl::string_view> flat = src.TryFlat();
+      flat != absl::nullopt) {
+    return Write(*flat);
   }
   for (const absl::string_view fragment : src.Chunks()) {
     if (ABSL_PREDICT_FALSE(!Write(fragment))) return false;

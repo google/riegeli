@@ -50,8 +50,8 @@ struct IsIterableOf : std::false_type {};
 template <typename Iterable, typename Element>
 struct IsIterableOf<
     Iterable, Element,
-    std::enable_if_t<std::is_convertible<
-        decltype(*std::declval<IteratorT<Iterable>>()), Element>::value>>
+    std::enable_if_t<std::is_convertible_v<
+        decltype(*std::declval<IteratorT<Iterable>>()), Element>>>
     : std::true_type {};
 
 // `IsIterableOfPairsWithAssignableValues<Iterable, Key, Value>::value` is
@@ -102,9 +102,9 @@ struct IsRandomAccessIterable : std::false_type {};
 
 template <typename Iterable>
 struct IsRandomAccessIterable<
-    Iterable, std::enable_if_t<std::is_convertible<
+    Iterable, std::enable_if_t<std::is_convertible_v<
                   iterable_internal::IteratorConceptT<IteratorT<Iterable>>,
-                  std::random_access_iterator_tag>::value>> : std::true_type {};
+                  std::random_access_iterator_tag>>> : std::true_type {};
 
 // `HasMovableElements<Src>::value` is `true` if moving (rather than copying)
 // out of elements of the iterable provided by `Src` is safe.
@@ -142,11 +142,11 @@ struct IterableHasMovableElements
 template <typename Iterable>
 struct IterableHasMovableElements<
     Iterable,
-    absl::enable_if_t<std::is_convertible<decltype(RiegeliHasMovableElements(
-                                              static_cast<Iterable*>(nullptr))),
-                                          bool>::value>>
-    : std::integral_constant<bool, RiegeliHasMovableElements(
-                                       static_cast<Iterable*>(nullptr))> {};
+    absl::enable_if_t<std::is_convertible_v<
+        decltype(RiegeliHasMovableElements(static_cast<Iterable*>(nullptr))),
+        bool>>>
+    : std::bool_constant<RiegeliHasMovableElements(
+          static_cast<Iterable*>(nullptr))> {};
 
 }  // namespace iterable_internal
 

@@ -27,23 +27,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr int CompressorOptions::kMinBrotli;
-constexpr int CompressorOptions::kMaxBrotli;
-constexpr int CompressorOptions::kDefaultBrotli;
-constexpr int CompressorOptions::kMinZstd;
-constexpr int CompressorOptions::kMaxZstd;
-constexpr int CompressorOptions::kDefaultZstd;
-constexpr int CompressorOptions::kMinSnappy;
-constexpr int CompressorOptions::kMaxSnappy;
-constexpr int CompressorOptions::kDefaultSnappy;
-constexpr int CompressorOptions::kMinWindowLog;
-constexpr int CompressorOptions::kMaxWindowLog;
-#endif
-
 absl::Status CompressorOptions::FromString(absl::string_view text) {
   // Set just `compression_type_` first because other parsers depend on
   // `compression_type_`.

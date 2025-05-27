@@ -39,8 +39,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/records/record_position.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 namespace {
 
@@ -441,5 +440,4 @@ PyObject* InitModule() {
 
 PyMODINIT_FUNC PyInit_record_position() { return InitModule(); }
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python

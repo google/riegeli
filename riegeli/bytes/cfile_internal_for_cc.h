@@ -29,10 +29,8 @@
 
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/constexpr.h"
 
-namespace riegeli {
-namespace cfile_internal {
+namespace riegeli::cfile_internal {
 
 #ifndef _WIN32
 
@@ -61,8 +59,8 @@ inline int FSeek(File* file, Offset offset, int whence) {
   return fseek(file, offset, whence);
 }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFSeekFunctionName,
-                         HaveFSeekO<FILE>::value ? "fseeko()" : "fseek()");
+inline constexpr absl::string_view kFSeekFunctionName =
+    HaveFSeekO<FILE>::value ? "fseeko()" : "fseek()";
 
 template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
 inline Offset FTell(File* file) {
@@ -74,8 +72,8 @@ inline Offset FTell(File* file) {
   return ftell(file);
 }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName,
-                         HaveFSeekO<FILE>::value ? "ftello()" : "ftell()");
+inline constexpr absl::string_view kFTellFunctionName =
+    HaveFSeekO<FILE>::value ? "ftello()" : "ftell()";
 
 #else  // _WIN32
 
@@ -85,15 +83,14 @@ inline int FSeek(FILE* file, Offset offset, int whence) {
   return _fseeki64(file, offset, whence);
 }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFSeekFunctionName, "_fseeki64");
+inline constexpr absl::string_view kFSeekFunctionName = "_fseeki64";
 
 inline Offset FTell(FILE* file) { return _ftelli64(file); }
 
-RIEGELI_INLINE_CONSTEXPR(absl::string_view, kFTellFunctionName, "_ftelli64()");
+inline constexpr absl::string_view kFTellFunctionName = "_ftelli64";
 
 #endif  // _WIN32
 
-}  // namespace cfile_internal
-}  // namespace riegeli
+}  // namespace riegeli::cfile_internal
 
 #endif  // RIEGELI_BYTES_CFILE_INTERNAL_FOR_CC_H_

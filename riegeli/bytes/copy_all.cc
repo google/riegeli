@@ -31,8 +31,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
-namespace riegeli {
-namespace copy_all_internal {
+namespace riegeli::copy_all_internal {
 
 namespace {
 
@@ -133,5 +132,4 @@ absl::Status CopyAllImpl(Reader& src, BackwardWriter& dest, size_t max_length,
   return absl::OkStatus();
 }
 
-}  // namespace copy_all_internal
-}  // namespace riegeli
+}  // namespace riegeli::copy_all_internal

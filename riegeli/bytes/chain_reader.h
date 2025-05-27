@@ -94,7 +94,7 @@ class ChainReaderBase : public PullableReader {
 // `Chain` (owned), `Any<const Chain*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The `Chain` must not be changed until the `ChainReader` is closed or no
 // longer used.
@@ -132,12 +132,9 @@ class ChainReader : public ChainReaderBase {
   MovingDependency<const Chain*, Src, Mover> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit ChainReader(Closed) -> ChainReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit ChainReader(Src&& src) -> ChainReader<TargetT<Src>>;
-#endif
 
 // Implementation details follow.
 

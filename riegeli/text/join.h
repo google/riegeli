@@ -61,12 +61,9 @@ class InvokingFormatter {
   Function function_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename Function>
 explicit InvokingFormatter(Function&& function)
     -> InvokingFormatter<TargetT<Function>>;
-#endif
 
 // A formatter for `Join()` which decorates the value with a string before
 // and/or a string after formatting it with another formatter.
@@ -108,14 +105,12 @@ class DecoratingFormatter {
   absl::string_view after_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit DecoratingFormatter(absl::string_view after)
     -> DecoratingFormatter<DefaultFormatter>;
-template <typename ValueFormatter = DefaultFormatter,
-          std::enable_if_t<
-              !std::is_convertible<ValueFormatter, absl::string_view>::value,
-              int> = 0>
+template <
+    typename ValueFormatter = DefaultFormatter,
+    std::enable_if_t<!std::is_convertible_v<ValueFormatter, absl::string_view>,
+                     int> = 0>
 explicit DecoratingFormatter(ValueFormatter&& value_formatter,
                              absl::string_view after)
     -> DecoratingFormatter<TargetT<ValueFormatter>>;
@@ -126,7 +121,6 @@ explicit DecoratingFormatter(absl::string_view before,
                              ValueFormatter&& value_formatter,
                              absl::string_view after)
     -> DecoratingFormatter<TargetT<ValueFormatter>>;
-#endif
 
 // A formatter for `Join()` which formats a pair with a separator between the
 // elements.
@@ -169,8 +163,6 @@ class PairFormatter {
   SecondFormatter second_formatter_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename SecondFormatter = DefaultFormatter>
 explicit PairFormatter(absl::string_view separator,
                        SecondFormatter&& second_formatter = SecondFormatter())
@@ -181,7 +173,6 @@ explicit PairFormatter(FirstFormatter&& first_formatter,
                        absl::string_view separator,
                        SecondFormatter&& second_formatter = SecondFormatter())
     -> PairFormatter<TargetT<FirstFormatter>, TargetT<SecondFormatter>>;
-#endif
 
 // The type returned by `Join()`.
 template <typename Src, typename Formatter = DefaultFormatter>
@@ -255,13 +246,10 @@ class JoinType {
   Formatter formatter_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename Src, typename Formatter = DefaultFormatter>
 explicit JoinType(Src&& src, absl::string_view separator,
                   Formatter&& formatter = Formatter())
     -> JoinType<TargetT<Src>, TargetT<Formatter>>;
-#endif
 
 // `riegeli::Join()` wraps a collection such that its stringified representation
 // joins elements with a separator. Each element is formatted with the given
@@ -273,10 +261,9 @@ explicit JoinType(Src&& src, absl::string_view separator,
 // a `JoinType` in a variable or returning it from a function, construct
 // `JoinType` directly.
 
-template <
-    typename Src, typename Formatter = DefaultFormatter,
-    std::enable_if_t<
-        !std::is_convertible<Formatter&&, absl::string_view>::value, int> = 0>
+template <typename Src, typename Formatter = DefaultFormatter,
+          std::enable_if_t<
+              !std::is_convertible_v<Formatter&&, absl::string_view>, int> = 0>
 inline JoinType<TargetRefT<Src>, TargetRefT<Formatter>> Join(
     Src&& src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
@@ -284,10 +271,10 @@ inline JoinType<TargetRefT<Src>, TargetRefT<Formatter>> Join(
       std::forward<Src>(src), std::forward<Formatter>(formatter));
 }
 
-template <
-    typename Value = absl::string_view, typename Formatter = DefaultFormatter,
-    std::enable_if_t<
-        !std::is_convertible<Formatter&&, absl::string_view>::value, int> = 0>
+template <typename Value = absl::string_view,
+          typename Formatter = DefaultFormatter,
+          std::enable_if_t<
+              !std::is_convertible_v<Formatter&&, absl::string_view>, int> = 0>
 inline JoinType<std::initializer_list<Value>, TargetRefT<Formatter>> Join(
     std::initializer_list<Value> src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {

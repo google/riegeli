@@ -21,8 +21,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
 
-namespace riegeli {
-namespace ordered_varint_internal {
+namespace riegeli::ordered_varint_internal {
 
 bool ReadOrderedVarint32Slow(Reader& src, uint32_t& dest) {
   RIEGELI_ASSERT_GT(src.available(), 0u)
@@ -130,5 +129,4 @@ bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest) {
   }
 }
 
-}  // namespace ordered_varint_internal
-}  // namespace riegeli
+}  // namespace riegeli::ordered_varint_internal

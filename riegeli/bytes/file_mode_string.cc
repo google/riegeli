@@ -32,8 +32,7 @@
 //    on Windows. To avoid breaking the encoding name which may use characters
 //    ordinarily used as modifiers, functions below stop parsing at ','.
 
-namespace riegeli {
-namespace file_internal {
+namespace riegeli::file_internal {
 
 void SetExisting(bool existing, std::string& mode) {
   if (ABSL_PREDICT_FALSE(mode.empty())) mode = "w";
@@ -247,5 +246,4 @@ int GetTextAsFlags(absl::string_view mode) {
 
 #endif  // _WIN32
 
-}  // namespace file_internal
-}  // namespace riegeli
+}  // namespace riegeli::file_internal

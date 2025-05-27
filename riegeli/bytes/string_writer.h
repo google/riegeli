@@ -194,7 +194,7 @@ class StringWriterBase : public Writer {
 // otherwise as `TargetT` of the type of the first constructor argument, except
 // that CTAD is deleted if the first constructor argument is a `std::string&`
 // or `const std::string&` (to avoid writing to an unintentionally separate copy
-// of an existing object). This requires C++17.
+// of an existing object).
 //
 // The `std::string` must not be accessed until the `StringWriter` is closed or
 // no longer used, except that it is allowed to read the `std::string`
@@ -210,9 +210,9 @@ class StringWriter : public StringWriterBase {
 
   // Will append to an owned `std::string` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `std::string`.
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
-                             int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same_v<DependentDest, std::string>, int> = 0>
   explicit StringWriter(Options options = Options());
 
   StringWriter(StringWriter&& that) = default;
@@ -223,9 +223,9 @@ class StringWriter : public StringWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
-  template <typename DependentDest = Dest,
-            std::enable_if_t<std::is_same<DependentDest, std::string>::value,
-                             int> = 0>
+  template <
+      typename DependentDest = Dest,
+      std::enable_if_t<std::is_same_v<DependentDest, std::string>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
 
   // Returns the object providing and possibly owning the `std::string` being
@@ -247,8 +247,6 @@ class StringWriter : public StringWriterBase {
   MovingDependency<std::string*, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit StringWriter(Closed) -> StringWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit StringWriter(Dest&& dest, StringWriterBase::Options options =
@@ -261,7 +259,6 @@ explicit StringWriter(Dest&& dest, StringWriterBase::Options options =
 explicit StringWriter(
     StringWriterBase::Options options = StringWriterBase::Options())
     -> StringWriter<std::string>;
-#endif
 
 // Implementation details follow.
 
@@ -374,9 +371,8 @@ inline StringWriter<Dest>::StringWriter(Initializer<Dest> dest, Options options)
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same_v<DependentDest, std::string>, int>>
 inline StringWriter<Dest>::StringWriter(Options options)
     : StringWriter(riegeli::Maker(), std::move(options)) {}
 
@@ -394,9 +390,8 @@ inline void StringWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, std::string>::value, int>>
+template <typename DependentDest,
+          std::enable_if_t<std::is_same_v<DependentDest, std::string>, int>>
 inline void StringWriter<Dest>::Reset(Options options) {
   Reset(riegeli::Maker(), std::move(options));
 }

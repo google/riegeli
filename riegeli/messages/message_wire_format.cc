@@ -19,8 +19,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 
-namespace riegeli {
-namespace message_wire_format_internal {
+namespace riegeli::message_wire_format_internal {
 
 bool FailLengthOverflow(Object& dest, Position length) {
   return dest.Fail(absl::ResourceExhaustedError(
@@ -29,5 +28,4 @@ bool FailLengthOverflow(Object& dest, Position length) {
                    length)));
 }
 
-}  // namespace message_wire_format_internal
-}  // namespace riegeli
+}  // namespace riegeli::message_wire_format_internal

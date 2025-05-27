@@ -220,12 +220,11 @@ class BackwardWriter : public Object {
   // Return values:
   //  * `true`  - success
   //  * `false` - failure (`!ok()`)
-  template <
-      typename... Srcs,
-      std::enable_if_t<
-          absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
-                            IsStringifiable<Srcs>...>::value,
-          int> = 0>
+  template <typename... Srcs,
+            std::enable_if_t<
+                absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
+                                  IsStringifiable<Srcs>...>::value,
+                int> = 0>
   bool Write(Srcs&&... srcs);
 
   // Writes stringified elements of the tuple to the buffer and/or the
@@ -758,10 +757,9 @@ inline bool BackwardWriter::Write(Src&& src) {
 
 template <
     typename... Srcs,
-    std::enable_if_t<
-        absl::conjunction<std::integral_constant<bool, sizeof...(Srcs) != 1>,
-                          IsStringifiable<Srcs>...>::value,
-        int>>
+    std::enable_if_t<absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
+                                       IsStringifiable<Srcs>...>::value,
+                     int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::Write(Srcs&&... srcs) {
   return WriteTuple(std::forward_as_tuple(std::forward<Srcs>(srcs)...));
 }

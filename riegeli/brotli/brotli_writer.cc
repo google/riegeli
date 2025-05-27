@@ -39,18 +39,6 @@
 
 namespace riegeli {
 
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-constexpr int BrotliWriterBase::Options::kMinCompressionLevel;
-constexpr int BrotliWriterBase::Options::kMaxCompressionLevel;
-constexpr int BrotliWriterBase::Options::kDefaultCompressionLevel;
-constexpr int BrotliWriterBase::Options::kMinWindowLog;
-constexpr int BrotliWriterBase::Options::kMaxWindowLog;
-constexpr int BrotliWriterBase::Options::kDefaultWindowLog;
-#endif
-
 namespace {
 
 struct BrotliEncoderDictionaryDeleter {

@@ -579,9 +579,8 @@ class LinearSortedStringSet::Builder {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   bool InsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  template <typename Element,
+            std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
   bool InsertNext(Element&& element);
 
   // Inserts an element. Elements out of order are skipped.
@@ -596,9 +595,8 @@ class LinearSortedStringSet::Builder {
   // to `std::string` which can be ambiguous against `absl::string_view`
   // (e.g. `const char*`).
   absl::StatusOr<bool> TryInsertNext(absl::string_view element);
-  template <
-      typename Element,
-      std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+  template <typename Element,
+            std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
   absl::StatusOr<bool> TryInsertNext(Element&& element);
 
   // Returns `true` if the set is empty.
@@ -653,9 +651,8 @@ class LinearSortedStringSet::NextInsertIterator {
       builder_->InsertNext(element);
       return *this;
     }
-    template <
-        typename Element,
-        std::enable_if_t<std::is_same<Element, std::string>::value, int> = 0>
+    template <typename Element,
+              std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
     reference& operator=(Element&& element) {
       // `std::move(element)` is correct and `std::forward<Element>(element)` is
       // not necessary: `Element` is always `std::string`, never an lvalue
@@ -721,9 +718,9 @@ inline LinearSortedStringSet LinearSortedStringSet::FromUnsorted(Src&& src) {
   auto end_iter = end(src);
   using SrcIterator = decltype(iter);
   std::vector<SrcIterator> iterators;
-  if (std::is_convertible<
+  if (std::is_convertible_v<
           typename std::iterator_traits<SrcIterator>::iterator_category,
-          std::random_access_iterator_tag>::value) {
+          std::random_access_iterator_tag>) {
     iterators.reserve(std::distance(iter, end_iter));
   }
   for (; iter != end_iter; ++iter) iterators.push_back(iter);

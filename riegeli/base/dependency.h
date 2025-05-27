@@ -56,8 +56,8 @@ namespace riegeli {
 // A user of the host class specifies ownership of the dependent object and
 // possibly narrows its type by choosing the `Manager` template argument of the
 // host class. The `Manager` type can be deduced from a constructor argument
-// using CTAD (since C++17), which is usually done by removing any toplevel
-// references and `const` qualifiers using `std::decay`.
+// using CTAD, which is usually done by removing any toplevel references and
+// `const` qualifiers using `std::decay`.
 //
 // As an alternative to passing `std::move(manager)`, passing
 // `ClosingPtr(&manager)` avoids moving `manager`, but the caller must ensure
@@ -257,17 +257,17 @@ class DependencyImpl<
   // Return `absl::Span<std::remove_const_t<T>>` when
   // `DependencyManagerRef<Manager>` is convertible to it.
   template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_constructible<
-                                 absl::Span<std::remove_const_t<T>>,
-                                 DependencyManagerRef<DependentManager>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::is_constructible_v<absl::Span<std::remove_const_t<T>>,
+                                        DependencyManagerRef<DependentManager>>,
+                int> = 0>
   absl::Span<std::remove_const_t<T>> get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::Span<std::remove_const_t<T>>(*this->ptr());
   }
   template <typename DependentManager = Manager,
-            std::enable_if_t<!std::is_constructible<
+            std::enable_if_t<!std::is_constructible_v<
                                  absl::Span<std::remove_const_t<T>>,
-                                 DependencyManagerRef<DependentManager>>::value,
+                                 DependencyManagerRef<DependentManager>>,
                              int> = 0>
   absl::Span<T> get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return absl::Span<T>(*this->ptr());
@@ -275,8 +275,8 @@ class DependencyImpl<
 
   static constexpr bool kIsStable =
       DependencyImpl::DependencyManager::kIsStable ||
-      std::is_same<Manager, absl::Span<T>>::value ||
-      std::is_same<Manager, absl::Span<std::remove_const_t<T>>>::value;
+      std::is_same_v<Manager, absl::Span<T>> ||
+      std::is_same_v<Manager, absl::Span<std::remove_const_t<T>>>;
 
  protected:
   DependencyImpl(const DependencyImpl& that) = default;
@@ -337,12 +337,12 @@ class DependencyImpl<
 
   static constexpr bool kIsStable =
       DependencyImpl::DependencyManager::kIsStable ||
-      std::is_same<Manager, absl::string_view>::value ||
+      std::is_same_v<Manager, absl::string_view> ||
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
-      std::is_same<Manager, std::string_view>::value ||
+      std::is_same_v<Manager, std::string_view> ||
 #endif
-      std::is_same<Manager, absl::Span<const char>>::value ||
-      std::is_same<Manager, absl::Span<char>>::value;
+      std::is_same_v<Manager, absl::Span<const char>> ||
+      std::is_same_v<Manager, absl::Span<char>>;
 
  protected:
   DependencyImpl(const DependencyImpl& that) = default;
@@ -420,11 +420,11 @@ class DependencyDefault<
   using DependencyDefault::DependencyImpl::DependencyImpl;
 
   static_assert(
-      std::is_convertible<
+      std::is_convertible_v<
           decltype(std::declval<
                        const typename DependencyDefault::DependencyImpl&>()
                        .get()),
-          Handle>::value,
+          Handle>,
       "DependencyImpl<Handle, Manager>::get() must return a subtype of Handle");
 
  protected:
@@ -453,27 +453,27 @@ class DependencyDefault<
   using DependencyDefault::DependencyManager::DependencyManager;
 
   // Return `DependencyManagerRef<Manager>` when it is a subclass of `Handle`.
-  template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_convertible<DependencyManagerPtr<DependentManager>,
-                                    Handle*>::value,
-                int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<std::is_convertible_v<
+                           DependencyManagerPtr<DependentManager>, Handle*>,
+                       int> = 0>
   DependencyManagerRef<DependentManager> get() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return *this->ptr();
   }
-  template <typename DependentManager = Manager,
-            std::enable_if_t<
-                !std::is_convertible<DependencyManagerPtr<DependentManager>,
-                                     Handle*>::value,
-                int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<!std::is_convertible_v<
+                           DependencyManagerPtr<DependentManager>, Handle*>,
+                       int> = 0>
   Handle get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return Handle(*this->ptr());
   }
 
   static constexpr bool kIsStable =
       DependencyDefault::DependencyManager::kIsStable ||
-      std::is_convertible<DependencyManagerPtr<Manager>, Handle*>::value;
+      std::is_convertible_v<DependencyManagerPtr<Manager>, Handle*>;
 
  protected:
   DependencyDefault(const DependencyDefault& that) = default;
@@ -504,27 +504,27 @@ class DependencyDefault<
   using DependencyDefault::DependencyManager::DependencyManager;
 
   // Return `DependencyManagerPtr<Manager>` when it is a subclass of `Handle`.
-  template <typename DependentManager = Manager,
-            std::enable_if_t<
-                std::is_convertible<DependencyManagerPtr<DependentManager>*,
-                                    Handle*>::value,
-                int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<std::is_convertible_v<
+                           DependencyManagerPtr<DependentManager>*, Handle*>,
+                       int> = 0>
   DependencyManagerPtr<DependentManager> get() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return this->ptr();
   }
-  template <typename DependentManager = Manager,
-            std::enable_if_t<
-                !std::is_convertible<DependencyManagerPtr<DependentManager>*,
-                                     Handle*>::value,
-                int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<!std::is_convertible_v<
+                           DependencyManagerPtr<DependentManager>*, Handle*>,
+                       int> = 0>
   Handle get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return Handle(this->ptr());
   }
 
   static constexpr bool kIsStable =
       DependencyDefault::DependencyManager::kIsStable ||
-      std::is_convertible<DependencyManagerPtr<Manager>*, Handle*>::value;
+      std::is_convertible_v<DependencyManagerPtr<Manager>*, Handle*>;
 
  protected:
   DependencyDefault(const DependencyDefault& that) = default;
@@ -704,8 +704,8 @@ struct HasDynamicIsOwning : std::false_type {};
 
 template <typename T>
 struct HasDynamicIsOwning<
-    T, std::enable_if_t<std::is_convertible<
-           decltype(std::declval<const T&>().IsOwning()), bool>::value>>
+    T, std::enable_if_t<std::is_convertible_v<
+           decltype(std::declval<const T&>().IsOwning()), bool>>>
     : std::true_type {};
 
 // `DependencyDerived` adds `Dependency` and `StableDependency` operations

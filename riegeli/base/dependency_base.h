@@ -52,10 +52,10 @@ template <typename Manager>
 class DependencyBase {
  public:
   template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_convertible<
+            std::enable_if_t<std::is_convertible_v<
                                  decltype(RiegeliDependencySentinel(
                                      static_cast<DependentManager*>(nullptr))),
-                                 Initializer<DependentManager>>::value,
+                                 Initializer<DependentManager>>,
                              int> = 0>
   DependencyBase() noexcept
       : DependencyBase(
@@ -76,9 +76,9 @@ class DependencyBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     Reset(RiegeliDependencySentinel(static_cast<Manager*>(nullptr)));
   }
-  template <typename DependentManager = Manager,
-            std::enable_if_t<std::is_move_assignable<DependentManager>::value,
-                             int> = 0>
+  template <
+      typename DependentManager = Manager,
+      std::enable_if_t<std::is_move_assignable_v<DependentManager>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Manager> manager) {
     riegeli::Reset(manager_, std::move(manager));
   }

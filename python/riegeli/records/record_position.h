@@ -24,11 +24,9 @@
 
 #include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
-#include "riegeli/base/constexpr.h"
 #include "riegeli/records/record_position.h"
 
-namespace riegeli {
-namespace python {
+namespace riegeli::python {
 
 // Access the API thus:
 // ```
@@ -41,10 +39,9 @@ struct RecordPositionApi {
   absl::optional<RecordPosition> (*RecordPositionFromPython)(PyObject* object);
 };
 
-RIEGELI_INLINE_CONSTEXPR(const char*, kRecordPositionCapsuleName,
-                         "riegeli.records.record_position._CPPAPI");
+inline constexpr const char* kRecordPositionCapsuleName =
+    "riegeli.records.record_position._CPPAPI";
 
-}  // namespace python
-}  // namespace riegeli
+}  // namespace riegeli::python
 
 #endif  // PYTHON_RIEGELI_RECORDS_RECORD_POSITION_H_

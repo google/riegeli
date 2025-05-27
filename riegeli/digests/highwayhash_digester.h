@@ -36,9 +36,9 @@ template <typename ResultType>
 class HighwayHashDigester {
  private:
   using DigestType =
-      std::conditional_t<std::is_array<ResultType>::value,
+      std::conditional_t<std::is_array_v<ResultType>,
                          const std::array<std::remove_extent_t<ResultType>,
-                                          std::extent<ResultType>::value>&,
+                                          std::extent_v<ResultType>>&,
                          ResultType>;
 
  public:

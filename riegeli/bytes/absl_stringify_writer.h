@@ -106,12 +106,9 @@ class AbslStringifyWriter<WriterAbslStringifySink*>
   WriterAbslStringifySink* dest_{};
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit AbslStringifyWriter(Closed) -> AbslStringifyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit AbslStringifyWriter(Dest dest) -> AbslStringifyWriter<Dest>;
-#endif
 
 // Implementation details follow.
 

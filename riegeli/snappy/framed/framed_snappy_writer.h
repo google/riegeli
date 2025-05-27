@@ -139,7 +139,7 @@ class FramedSnappyWriterBase : public PushableWriter {
 // `Any<Writer*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The compressed `Writer` must not be accessed until the `FramedSnappyWriter`
 // is closed or no longer used.
@@ -182,15 +182,12 @@ class FramedSnappyWriter : public FramedSnappyWriterBase {
   Dependency<Writer*, Dest> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit FramedSnappyWriter(Closed) -> FramedSnappyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FramedSnappyWriter(
     Dest&& dest,
     FramedSnappyWriterBase::Options options = FramedSnappyWriterBase::Options())
     -> FramedSnappyWriter<TargetT<Dest>>;
-#endif
 
 // Implementation details follow.
 

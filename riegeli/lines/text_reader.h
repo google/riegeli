@@ -124,7 +124,7 @@ class TextReaderImpl<ReadNewline::kAny> : public TextReaderBase {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the second template argument can be deduced as `TargetT`
-// of the type of the first constructor argument. This requires C++17.
+// of the type of the first constructor argument.
 //
 // The original `Reader` must not be accessed until the `TextReader` is closed
 // or no longer used.
@@ -200,15 +200,12 @@ class TextReader<ReadNewline::kLf, Src> : public PrefixLimitingReader<Src> {
                                           Options options = Options());
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit TextReader(Closed)
     -> TextReader<ReadNewline::kCrLfOrLf, DeleteCtad<Closed>>;
 template <typename Src>
 explicit TextReader(Src&& src,
                     TextReaderBase::Options options = TextReaderBase::Options())
     -> TextReader<ReadNewline::kCrLfOrLf, TargetT<Src>>;
-#endif
 
 // Wraps a `TextReader` for a line terminator specified at runtime.
 template <typename Src = Reader*>

@@ -25,8 +25,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 
-namespace riegeli {
-namespace write_int_internal {
+namespace riegeli::write_int_internal {
 
 namespace {
 
@@ -343,5 +342,4 @@ char* WriteDecBackward(absl::int128 src, char* dest) {
   }
 }
 
-}  // namespace write_int_internal
-}  // namespace riegeli
+}  // namespace riegeli::write_int_internal

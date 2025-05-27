@@ -67,15 +67,14 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   MakerType& operator=(const MakerType& that) = default;
 
   // Constructs the `T`.
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  template <typename T,
+            std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
   T Construct() && {
     return absl::make_from_tuple<T>(std::move(args_));
   }
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
-                             int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible_v<T, const Args&...>, int> = 0>
   T Construct() const& {
     return absl::make_from_tuple<T>(args_);
   }
@@ -83,79 +82,60 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   // Constructs the `std::decay_t<T>` on the heap.
   //
   // In contrast to `std::make_unique()`, this supports custom deleters.
-  template <
-      typename T, typename Deleter = std::default_delete<std::decay_t<T>>,
-      std::enable_if_t<std::is_constructible<std::decay_t<T>, Args&&...>::value,
-                       int> = 0>
+  template <typename T, typename Deleter = std::default_delete<std::decay_t<T>>,
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<T>, Args&&...>, int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
     void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
     std::move(*this).template ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)));
+        std::launder(static_cast<std::decay_t<T>*>(ptr)));
   }
-  template <
-      typename T, typename Deleter,
-      std::enable_if_t<std::is_constructible<std::decay_t<T>, Args&&...>::value,
-                       int> = 0>
+  template <typename T, typename Deleter,
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<T>, Args&&...>, int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
     void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
     std::move(*this).template ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)),
+        std::launder(static_cast<std::decay_t<T>*>(ptr)),
         std::forward<Deleter>(deleter));
   }
-  template <typename T, typename Deleter = std::default_delete<std::decay_t<T>>,
-            std::enable_if_t<
-                std::is_constructible<std::decay_t<T>, const Args&...>::value,
-                int> = 0>
+  template <
+      typename T, typename Deleter = std::default_delete<std::decay_t<T>>,
+      std::enable_if_t<std::is_constructible_v<std::decay_t<T>, const Args&...>,
+                       int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() const& {
     void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
     ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)));
+        std::launder(static_cast<std::decay_t<T>*>(ptr)));
   }
-  template <typename T, typename Deleter,
-            std::enable_if_t<
-                std::is_constructible<std::decay_t<T>, const Args&...>::value,
-                int> = 0>
+  template <
+      typename T, typename Deleter,
+      std::enable_if_t<std::is_constructible_v<std::decay_t<T>, const Args&...>,
+                       int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(
       Deleter&& deleter) const& {
     void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
     ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (static_cast<std::decay_t<T>*>(ptr)),
+        std::launder(static_cast<std::decay_t<T>*>(ptr)),
         std::forward<Deleter>(deleter));
   }
 
   // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<std::decay_t<T>, Args&&...>::value,
-                       int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<T>, Args&&...>, int> = 0>
   void ConstructAt(void* ptr) && {
     std::move(*this).template ConstructAtImpl<T>(
         ptr, std::index_sequence_for<Args...>());
   }
-  template <typename T,
-            std::enable_if_t<
-                std::is_constructible<std::decay_t<T>, const Args&...>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible_v<std::decay_t<T>, const Args&...>,
+                       int> = 0>
   void ConstructAt(void* ptr) const& {
     ConstructAtImpl<T>(ptr, std::index_sequence_for<Args...>());
   }
@@ -170,16 +150,14 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   // result is returned by value instead of by reference, which is a more
   // efficient way to construct the temporary.
 #if __cpp_guaranteed_copy_elision
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  template <typename T,
+            std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
   T Reference() && {
     return std::move(*this).template Construct<T>();
   }
 #endif
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+  template <typename T,
+            std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
                 = {}
@@ -192,16 +170,16 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
         std::move(args_));
   }
 #if __cpp_guaranteed_copy_elision
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
-                             int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible_v<T, const Args&...>, int> = 0>
   T Reference() const& {
     return Construct<T>();
   }
 #endif
-  template <typename T,
-            std::enable_if_t<std::is_constructible<T, const Args&...>::value,
-                             int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::is_constructible_v<T, const Args&...>, int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
                 = {}
@@ -270,11 +248,8 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 template <typename... Args>
 /*implicit*/ MakerType(Args&&...) -> MakerType<std::decay_t<Args>...>;
-#endif
 
 // `MakerTypeFor<T, Args...>, usually made with `riegeli::Maker<T>(args...)`,
 // packs constructor arguments for `T`. `MakerTypeFor<T, Args...>` is
@@ -307,16 +282,15 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   MakerTypeFor& operator=(const MakerTypeFor& that) = default;
 
   // Constructs the `T`.
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::is_constructible<DependentT, Args&&...>::value, int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_constructible_v<DependentT, Args&&...>, int> = 0>
   /*implicit*/ operator T() && {
     return std::move(*this).Construct();
   }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<
+                std::is_constructible_v<DependentT, const Args&...>, int> = 0>
   /*implicit*/ operator T() const& {
     return Construct();
   }
@@ -327,16 +301,15 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   // temporary if the context accepts an arbitrary type convertible to `T`.
   // An explicit `Construct()` call can force construction right away while
   // avoiding specifying the full target type.
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::is_constructible<DependentT, Args&&...>::value, int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_constructible_v<DependentT, Args&&...>, int> = 0>
   T Construct() && {
     return std::move(*this).maker().template Construct<T>();
   }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<
+                std::is_constructible_v<DependentT, const Args&...>, int> = 0>
   T Construct() const& {
     return this->maker().template Construct<T>();
   }
@@ -377,31 +350,31 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   // use a non-default-constructed deleter.
   template <typename Deleter = std::default_delete<std::decay_t<T>>,
             typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   Args&&...>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<DependentT>, Args&&...>,
+                int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
     return std::move(*this).maker().template UniquePtr<T, Deleter>();
   }
   template <typename Deleter, typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   Args&&...>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<DependentT>, Args&&...>,
+                int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
     return std::move(*this).maker().template UniquePtr<T, Deleter>(
         std::forward<Deleter>(deleter));
   }
   template <typename Deleter = std::default_delete<std::decay_t<T>>,
             typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   const Args&...>::value,
+            std::enable_if_t<std::is_constructible_v<std::decay_t<DependentT>,
+                                                     const Args&...>,
                              int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() const& {
     return this->maker().template UniquePtr<T, Deleter>();
   }
   template <typename Deleter, typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   const Args&...>::value,
+            std::enable_if_t<std::is_constructible_v<std::decay_t<DependentT>,
+                                                     const Args&...>,
                              int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(
       Deleter&& deleter) const& {
@@ -411,15 +384,15 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
 
   // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
   template <typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   Args&&...>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::is_constructible_v<std::decay_t<DependentT>, Args&&...>,
+                int> = 0>
   void ConstructAt(void* ptr) && {
     std::move(*this).maker().template ConstructAt<T>(ptr);
   }
   template <typename DependentT = T,
-            std::enable_if_t<std::is_constructible<std::decay_t<DependentT>,
-                                                   const Args&...>::value,
+            std::enable_if_t<std::is_constructible_v<std::decay_t<DependentT>,
+                                                     const Args&...>,
                              int> = 0>
   void ConstructAt(void* ptr) const& {
     this->maker().template ConstructAt<T>(ptr);
@@ -435,16 +408,16 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   // result is returned by value instead of by reference, which is a more
   // efficient way to construct the temporary.
 #if __cpp_guaranteed_copy_elision
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::is_constructible<DependentT, Args&&...>::value, int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_constructible_v<DependentT, Args&&...>, int> = 0>
   T Reference() && {
     return std::move(*this).maker().template Reference<T>();
   }
 #endif
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::is_constructible<DependentT, Args&&...>::value, int> = 0>
+  template <
+      typename DependentT = T,
+      std::enable_if_t<std::is_constructible_v<DependentT, Args&&...>, int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
                 = {}
@@ -453,18 +426,16 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
     return std::move(*this).maker().template Reference<T>(std::move(storage));
   }
 #if __cpp_guaranteed_copy_elision
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<
+                std::is_constructible_v<DependentT, const Args&...>, int> = 0>
   T Reference() const& {
     return this->maker().template Reference<T>();
   }
 #endif
-  template <
-      typename DependentT = T,
-      std::enable_if_t<std::is_constructible<DependentT, const Args&...>::value,
-                       int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<
+                std::is_constructible_v<DependentT, const Args&...>, int> = 0>
   T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
 #if !__cpp_guaranteed_copy_elision
                 = {}
@@ -543,14 +514,14 @@ struct MakerTargetImpl {
 template <typename Target, typename... Args>
 struct MakerTargetImpl<
     MakerTypeFor<Target, Args...>,
-    std::enable_if_t<std::is_constructible<Target, Args&&...>::value>> {
+    std::enable_if_t<std::is_constructible_v<Target, Args&&...>>> {
   using type = Target;
 };
 
 template <typename Target, typename... Args>
 struct MakerTargetImpl<
     const MakerTypeFor<Target, Args...>,
-    std::enable_if_t<std::is_constructible<Target, const Args&...>::value>> {
+    std::enable_if_t<std::is_constructible_v<Target, const Args&...>>> {
   using type = Target;
 };
 
@@ -616,27 +587,25 @@ MakerType<Args&&...> Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
 // `MakerTypeFor` in a variable or returning it from a function, use
 // `riegeli::OwningMaker<T>(args...)` or construct `MakerTypeFor` directly.
 template <typename T, typename... Args,
-          std::enable_if_t<std::is_constructible<T, Args&&...>::value, int> = 0>
+          std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
 MakerTypeFor<T, Args&&...> Maker(Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
 
-#if __cpp_deduction_guides
 // `riegeli::Maker<Template>()` is like `riegeli::Maker<T>()`, but the exact
 // target type is deduced using CTAD from the class template and the constructor
 // arguments.
 //
 // Only class templates with solely type template parameters are supported.
 template <template <typename...> class Template, typename... Args,
-          std::enable_if_t<std::is_constructible<
-                               DeduceClassTemplateArgumentsT<Template, Args...>,
-                               Args&&...>::value,
-                           int> = 0>
+          std::enable_if_t<
+              std::is_constructible_v<
+                  DeduceClassTemplateArgumentsT<Template, Args...>, Args&&...>,
+              int> = 0>
 MakerTypeFor<DeduceClassTemplateArgumentsT<Template, Args...>, Args&&...> Maker(
     Args&&... args ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return {std::forward<Args>(args)...};
 }
-#endif
 
 // `riegeli::OwningMaker()` is like `riegeli::Maker()`, but the arguments are
 // stored by value instead of by reference. This is useful for storing the
@@ -649,32 +618,29 @@ MakerType<std::decay_t<Args>...> OwningMaker(Args&&... args) {
 // `riegeli::OwningMaker<T>()` is like `riegeli::Maker<T>()`, but the arguments
 // are stored by value instead of by reference. This is useful for storing the
 // `MakerTypeFor` in a variable or returning it from a function.
-template <
-    typename T, typename... Args,
-    std::enable_if_t<std::is_constructible<T, std::decay_t<Args>&&...>::value,
-                     int> = 0>
+template <typename T, typename... Args,
+          std::enable_if_t<std::is_constructible_v<T, std::decay_t<Args>&&...>,
+                           int> = 0>
 MakerTypeFor<T, std::decay_t<Args>...> OwningMaker(Args&&... args) {
   return {std::forward<Args>(args)...};
 }
 
-#if __cpp_deduction_guides
 // `riegeli::OwningMaker<Template>()` is like `riegeli::OwningMaker<T>()`, but
 // the exact target type is deduced using CTAD from the class template and the
 // constructor arguments.
 //
 // Only class templates with solely type template parameters are supported.
-template <
-    template <typename...> class Template, typename... Args,
-    std::enable_if_t<std::is_constructible<DeduceClassTemplateArgumentsT<
-                                               Template, std::decay_t<Args>...>,
-                                           std::decay_t<Args>...>::value,
-                     int> = 0>
+template <template <typename...> class Template, typename... Args,
+          std::enable_if_t<
+              std::is_constructible_v<DeduceClassTemplateArgumentsT<
+                                          Template, std::decay_t<Args>...>,
+                                      std::decay_t<Args>...>,
+              int> = 0>
 MakerTypeFor<DeduceClassTemplateArgumentsT<Template, std::decay_t<Args>&&...>,
              std::decay_t<Args>...>
 OwningMaker(Args&&... args) {
   return {std::forward<Args>(args)...};
 }
-#endif
 
 }  // namespace riegeli
 

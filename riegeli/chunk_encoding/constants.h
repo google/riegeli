@@ -19,8 +19,6 @@
 
 #include <limits>
 
-#include "riegeli/base/constexpr.h"
-
 namespace riegeli {
 
 // These values are frozen in the file format.
@@ -40,8 +38,8 @@ enum class CompressionType : uint8_t {
   kSnappy = 's',
 };
 
-RIEGELI_INLINE_CONSTEXPR(uint64_t, kMaxNumRecords,
-                         std::numeric_limits<uint64_t>::max() >> 8);
+inline constexpr uint64_t kMaxNumRecords =
+    std::numeric_limits<uint64_t>::max() >> 8;
 
 }  // namespace riegeli
 

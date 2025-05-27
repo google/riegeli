@@ -102,7 +102,7 @@ template <typename Options>
 class BufferOptionsBase {
  public:
   BufferOptionsBase() noexcept {
-    static_assert(std::is_base_of<BufferOptionsBase<Options>, Options>::value,
+    static_assert(std::is_base_of_v<BufferOptionsBase<Options>, Options>,
                   "The template argument Options in BufferOptionsBase<Options> "
                   "must be the class derived from BufferOptionsBase<Options>");
     set_min_buffer_size(Options::kDefaultMinBufferSize);
@@ -347,16 +347,6 @@ class WriteBufferSizer {
 };
 
 // Implementation details follow.
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename Options>
-constexpr size_t BufferOptionsBase<Options>::kDefaultMinBufferSize;
-template <typename Options>
-constexpr size_t BufferOptionsBase<Options>::kDefaultMaxBufferSize;
-#endif
 
 inline ReadBufferSizer::ReadBufferSizer(BufferOptions buffer_options)
     : buffer_options_(buffer_options) {}

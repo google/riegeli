@@ -32,7 +32,7 @@ namespace riegeli {
 // The object is created when `Global` is first called with the given `T` type,
 // and is never destroyed.
 template <typename T,
-          std::enable_if_t<std::is_default_constructible<T>::value, int> = 0>
+          std::enable_if_t<std::is_default_constructible_v<T>, int> = 0>
 const T& Global();
 
 // `Global(construct)` returns a reference to an object returned by `construct`,
@@ -113,13 +113,7 @@ class NoDestructor {
   NoDestructor(const NoDestructor&) = delete;
   NoDestructor& operator=(const NoDestructor&) = delete;
 
-  T& object() {
-    return *
-#if __cpp_lib_launder >= 201606
-        std::launder
-#endif
-        (reinterpret_cast<T*>(storage_));
-  }
+  T& object() { return *std::launder(reinterpret_cast<T*>(storage_)); }
 
  private:
   alignas(T) char storage_[sizeof(T)];
@@ -127,8 +121,7 @@ class NoDestructor {
 
 }  // namespace global_internal
 
-template <typename T,
-          std::enable_if_t<std::is_default_constructible<T>::value, int>>
+template <typename T, std::enable_if_t<std::is_default_constructible_v<T>, int>>
 inline const T& Global() {
   static global_internal::NoDestructor<const T> kStorage;
   return kStorage.object();

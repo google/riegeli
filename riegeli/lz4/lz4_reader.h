@@ -207,7 +207,7 @@ class Lz4ReaderBase : public BufferedReader {
 // `Any<Reader*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
-// type of the first constructor argument. This requires C++17.
+// type of the first constructor argument.
 //
 // The compressed `Reader` must not be accessed until the `Lz4Reader` is closed
 // or no longer used.
@@ -249,14 +249,11 @@ class Lz4Reader : public Lz4ReaderBase {
   Dependency<Reader*, Src> src_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit Lz4Reader(Closed) -> Lz4Reader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit Lz4Reader(Src&& src,
                    Lz4ReaderBase::Options options = Lz4ReaderBase::Options())
     -> Lz4Reader<TargetT<Src>>;
-#endif
 
 // Returns `true` if the data look like they have been Lz4-compressed.
 //

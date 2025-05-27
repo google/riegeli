@@ -24,8 +24,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 
-namespace riegeli {
-namespace internal {
+namespace riegeli::internal {
 
 // A thread pool with lazily created worker threads, without a thread count
 // limit. Worker threads exit after being idle for one minute.
@@ -50,7 +49,6 @@ class ThreadPool {
   std::deque<absl::AnyInvocable<void() &&>> tasks_ ABSL_GUARDED_BY(mutex_);
 };
 
-}  // namespace internal
-}  // namespace riegeli
+}  // namespace riegeli::internal
 
 #endif  // RIEGELI_BASE_PARALLELISM_H_

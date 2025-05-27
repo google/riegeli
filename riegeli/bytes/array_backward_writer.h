@@ -89,8 +89,7 @@ class ArrayBackwardWriterBase : public PushableBackwardWriter {
 // type of the first constructor argument, except that CTAD is deleted if the
 // first constructor argument is a reference to a type that `absl::Span<char>`
 // would be constructible from, other than `absl::Span<char>` itself (to avoid
-// writing to an unintentionally separate copy of an existing object). This
-// requires C++17.
+// writing to an unintentionally separate copy of an existing object).
 //
 // The array must not be destroyed until the `ArrayBackwardWriter` is closed or
 // no longer used.
@@ -107,8 +106,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   // Will write to `absl::MakeSpan(dest, size)`. This constructor is present
   // only if `Dest` is `absl::Span<char>`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<
-                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>,
+                             int> = 0>
   explicit ArrayBackwardWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                size_t size);
 
@@ -120,8 +119,8 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest);
   template <typename DependentDest = Dest,
-            std::enable_if_t<
-                std::is_same<DependentDest, absl::Span<char>>::value, int> = 0>
+            std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(char* dest, size_t size);
 
   // Returns the object providing and possibly owning the array being written
@@ -141,8 +140,6 @@ class ArrayBackwardWriter : public ArrayBackwardWriterBase {
   MovingDependency<absl::Span<char>, Dest, Mover> dest_;
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 explicit ArrayBackwardWriter(Closed) -> ArrayBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayBackwardWriter(Dest&& dest)
@@ -155,7 +152,6 @@ explicit ArrayBackwardWriter(Dest&& dest)
 explicit ArrayBackwardWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                              size_t size)
     -> ArrayBackwardWriter<absl::Span<char>>;
-#endif
 
 // Implementation details follow.
 
@@ -239,7 +235,7 @@ inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(Initializer<Dest> dest)
 template <typename Dest>
 template <
     typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>, int>>
 inline ArrayBackwardWriter<Dest>::ArrayBackwardWriter(char* dest, size_t size)
     : ArrayBackwardWriter(absl::MakeSpan(dest, size)) {}
 
@@ -259,7 +255,7 @@ inline void ArrayBackwardWriter<Dest>::Reset(Initializer<Dest> dest) {
 template <typename Dest>
 template <
     typename DependentDest,
-    std::enable_if_t<std::is_same<DependentDest, absl::Span<char>>::value, int>>
+    std::enable_if_t<std::is_same_v<DependentDest, absl::Span<char>>, int>>
 inline void ArrayBackwardWriter<Dest>::Reset(char* dest, size_t size) {
   Reset(absl::MakeSpan(dest, size));
 }

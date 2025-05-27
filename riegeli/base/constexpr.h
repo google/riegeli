@@ -16,30 +16,8 @@
 #define RIEGELI_BASE_CONSTEXPR_H_
 
 #include "riegeli/base/port.h"
-#include "riegeli/base/type_traits.h"  // IWYU pragma: keep
 
 namespace riegeli {
-
-// `RIEGELI_INLINE_CONSTEXPR(type, name, init)` emulates namespace-scope
-// `inline constexpr type name = init;` from C++17, but is available since
-// C++14.
-
-#if __cpp_inline_variables
-
-#define RIEGELI_INLINE_CONSTEXPR(type, name, init) \
-  inline constexpr ::riegeli::type_identity_t<type> name = init
-
-#else
-
-#define RIEGELI_INLINE_CONSTEXPR(type, name, init)                \
-  template <typename RiegeliInternalDummy>                        \
-  constexpr ::riegeli::type_identity_t<type>                      \
-      kRiegeliInternalInlineConstexpr_##name = init;              \
-  static constexpr const ::riegeli::type_identity_t<type>& name = \
-      kRiegeliInternalInlineConstexpr_##name<void>;               \
-  static_assert(sizeof(name) != 0, "Silence unused variable warnings.")
-
-#endif
 
 // Returns `true` if the value of the expression is known at compile time.
 #if RIEGELI_INTERNAL_HAS_BUILTIN(__builtin_constant_p) || \

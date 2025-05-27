@@ -75,7 +75,6 @@ py_extension(
     deps = [
         "//python/riegeli/base:utils",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:constexpr",
         "//riegeli/base:types",
         "//riegeli/records:record_position",
         "@com_google_absl//absl/base:core_headers",

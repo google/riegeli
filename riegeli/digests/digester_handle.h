@@ -230,18 +230,17 @@ class
   ABSL_ATTRIBUTE_NORETURN static void FailedDigestMethodDefault();
 
  private:
-  template <
-      typename Function,
-      std::enable_if_t<
-          std::is_same<decltype(std::declval<Function&&>()()), bool>::value,
-          int> = 0>
+  template <typename Function,
+            std::enable_if_t<
+                std::is_same_v<decltype(std::declval<Function&&>()()), bool>,
+                int> = 0>
   static bool ConvertToBool(Function&& function) {
     return std::forward<Function>(function)();
   }
   template <
       typename Function,
-      std::enable_if_t<
-          std::is_void<decltype(std::declval<Function&&>()())>::value, int> = 0>
+      std::enable_if_t<std::is_void_v<decltype(std::declval<Function&&>()())>,
+                       int> = 0>
   static bool ConvertToBool(Function&& function) {
     std::forward<Function>(function)();
     return true;
@@ -292,8 +291,8 @@ class
 
   template <typename T>
   struct DigesterTargetHasStatus<
-      T, std::enable_if_t<std::is_convertible<
-             decltype(std::declval<const T&>().status()), absl::Status>::value>>
+      T, std::enable_if_t<std::is_convertible_v<
+             decltype(std::declval<const T&>().status()), absl::Status>>>
       : std::true_type {};
 
   static void SetWriteSizeHintMethodDefault(
@@ -574,12 +573,11 @@ class DigesterHandle : public DigesterBaseHandle {
   };
 
   template <typename DependentDigestType = DigestType,
-            std::enable_if_t<std::is_void<DependentDigestType>::value, int> = 0>
+            std::enable_if_t<std::is_void_v<DependentDigestType>, int> = 0>
   static DigestType DigestMethodDefault(
       ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {}
-  template <
-      typename DependentDigestType = DigestType,
-      std::enable_if_t<!std::is_void<DependentDigestType>::value, int> = 0>
+  template <typename DependentDigestType = DigestType,
+            std::enable_if_t<!std::is_void_v<DependentDigestType>, int> = 0>
   static DigestType DigestMethodDefault(
       ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
     FailedDigestMethodDefault();
@@ -637,15 +635,12 @@ class DigesterHandle : public DigesterBaseHandle {
   }
 };
 
-// Support CTAD.
-#if __cpp_deduction_guides
 DigesterHandle() -> DigesterHandle<DeleteCtad<>>;
 DigesterHandle(std::nullptr_t) -> DigesterHandle<DeleteCtad<std::nullptr_t>>;
 template <typename T,
           std::enable_if_t<SupportsDigesterBaseHandle<T>::value, int> = 0>
 explicit DigesterHandle(T& target) -> DigesterHandle<
     typename digester_handle_internal::DigestOfDigesterTarget<T>::type>;
-#endif
 
 // Specialization of `DependencyImpl<DigesterBaseHandle, Manager>` when
 // `DependencyManagerRef<Manager>` is a valid digester target.
@@ -690,18 +685,6 @@ template <typename DigestType>
 using AnyDigester = Any<DigesterHandle<DigestType>>;
 
 // Implementation details follow.
-
-// Before C++17 if a constexpr static data member is ODR-used, its definition at
-// namespace scope is required. Since C++17 these definitions are deprecated:
-// http://en.cppreference.com/w/cpp/language/static
-#if !__cpp_inline_variables
-template <typename T>
-constexpr DigesterBaseHandle::Methods DigesterBaseHandle::kMethods;
-template <typename DigestTypeParam>
-template <typename T>
-constexpr typename DigesterHandle<DigestTypeParam>::Methods
-    DigesterHandle<DigestTypeParam>::kMethods;
-#endif
 
 class DigesterBaseHandle::DigesterAbslStringifySink {
  public:
