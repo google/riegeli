@@ -80,7 +80,7 @@ template <
     typename A, typename B,
     std::enable_if_t<
         absl::conjunction<IsUnsignedInt<A>, IsUnsignedInt<B>>::value, int> = 0>
-inline A IntCast(B value) {
+constexpr A IntCast(B value) {
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
@@ -90,7 +90,7 @@ template <
     typename A, typename B,
     std::enable_if_t<absl::conjunction<IsUnsignedInt<A>, IsSignedInt<B>>::value,
                      int> = 0>
-inline A IntCast(B value) {
+constexpr A IntCast(B value) {
   RIEGELI_ASSERT_GE(value, 0)
       << "Failed precondition of IntCast(): value out of range";
   RIEGELI_ASSERT_LE(static_cast<MakeUnsignedT<B>>(value),
@@ -103,7 +103,7 @@ template <
     typename A, typename B,
     std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsUnsignedInt<B>>::value,
                      int> = 0>
-inline A IntCast(B value) {
+constexpr A IntCast(B value) {
   RIEGELI_ASSERT_LE(value, MakeUnsignedT<A>{std::numeric_limits<A>::max()})
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
@@ -113,7 +113,7 @@ template <
     typename A, typename B,
     std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsSignedInt<B>>::value,
                      int> = 0>
-inline A IntCast(B value) {
+constexpr A IntCast(B value) {
   RIEGELI_ASSERT_GE(value, std::numeric_limits<A>::min())
       << "Failed precondition of IntCast(): value out of range";
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
@@ -127,7 +127,7 @@ template <
     typename T,
     std::enable_if_t<absl::disjunction<IsSignedInt<T>, IsUnsignedInt<T>>::value,
                      int> = 0>
-inline MakeUnsignedT<T> UnsignedCast(T value) {
+constexpr MakeUnsignedT<T> UnsignedCast(T value) {
   return IntCast<MakeUnsignedT<T>>(value);
 }
 
@@ -135,7 +135,7 @@ inline MakeUnsignedT<T> UnsignedCast(T value) {
 // type, asserting that `value` was non-positive, and correctly handling
 // `std::numeric_limits<T>::min()`.
 template <typename T, std::enable_if_t<IsSignedInt<T>::value, int> = 0>
-inline MakeUnsignedT<T> NegatingUnsignedCast(T value) {
+constexpr MakeUnsignedT<T> NegatingUnsignedCast(T value) {
   RIEGELI_ASSERT_LE(value, 0)
       << "Failed precondition of NegatingUnsignedCast(): positive value";
   // Negate in the unsigned space to correctly handle
@@ -256,7 +256,7 @@ template <
     std::enable_if_t<absl::conjunction<IsUnsignedInt<Value>, IsUnsignedInt<Min>,
                                        IsUnsignedInt<Max>>::value,
                      int> = 0>
-inline std::common_type_t<IntersectionTypeT<Value, Max>, Min> UnsignedClamp(
+constexpr std::common_type_t<IntersectionTypeT<Value, Max>, Min> UnsignedClamp(
     Value value, Min min, Max max) {
   return UnsignedMax(UnsignedMin(value, max), min);
 }
@@ -268,7 +268,7 @@ template <
     typename A, typename B,
     std::enable_if_t<
         absl::conjunction<IsUnsignedInt<A>, IsUnsignedInt<B>>::value, int> = 0>
-inline A SaturatingIntCast(B value) {
+constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value > std::numeric_limits<A>::max())) {
     return std::numeric_limits<A>::max();
   }
@@ -279,7 +279,7 @@ template <
     typename A, typename B,
     std::enable_if_t<absl::conjunction<IsUnsignedInt<A>, IsSignedInt<B>>::value,
                      int> = 0>
-inline A SaturatingIntCast(B value) {
+constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value < 0)) return 0;
   if (ABSL_PREDICT_FALSE(static_cast<MakeUnsignedT<B>>(value) >
                          std::numeric_limits<A>::max())) {
@@ -292,7 +292,7 @@ template <
     typename A, typename B,
     std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsUnsignedInt<B>>::value,
                      int> = 0>
-inline A SaturatingIntCast(B value) {
+constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value >
                          MakeUnsignedT<A>{std::numeric_limits<A>::max()})) {
     return std::numeric_limits<A>::max();
@@ -304,7 +304,7 @@ template <
     typename A, typename B,
     std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsSignedInt<B>>::value,
                      int> = 0>
-inline A SaturatingIntCast(B value) {
+constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value < std::numeric_limits<A>::min())) {
     return std::numeric_limits<A>::min();
   }
@@ -384,7 +384,7 @@ constexpr T RoundUp(T value) {
 // `PtrDistance(first, last)` returns `last - first` as `size_t`, asserting that
 // `first <= last`.
 template <typename A>
-inline size_t PtrDistance(const A* first, const A* last) {
+constexpr size_t PtrDistance(const A* first, const A* last) {
   RIEGELI_ASSERT_LE(first, last)
       << "Failed precondition of PtrDistance(): pointers in the wrong order";
   return IntCast<size_t>(last - first);
