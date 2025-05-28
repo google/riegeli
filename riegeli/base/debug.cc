@@ -18,9 +18,9 @@
 
 #include <cstddef>
 #include <optional>
+#include <type_traits>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -137,8 +137,7 @@ void RiegeliDebug(char src, DebugStream& dest) {
 
 void RiegeliDebug(wchar_t src, DebugStream& dest) {
   dest.Write('\'');
-  WriteChar<'\'',
-            absl::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
+  WriteChar<'\'', std::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
       src, dest);
   dest.Write('\'');
 }
@@ -174,7 +173,7 @@ void RiegeliDebug(absl::string_view src, DebugStream& dest) {
 void RiegeliDebug(std::wstring_view src, DebugStream& dest) {
   dest.DebugStringQuote();
   WriteStringFragment<
-      absl::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
+      std::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
       absl::MakeConstSpan(src), dest);
   dest.DebugStringQuote();
 }
@@ -204,7 +203,7 @@ void RiegeliDebug(std::u32string_view src, DebugStream& dest) {
 void RiegeliDebug(const std::wstring& src, DebugStream& dest) {
   dest.DebugStringQuote();
   WriteStringFragment<
-      absl::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
+      std::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
       absl::MakeConstSpan(src), dest);
   dest.DebugStringQuote();
 }

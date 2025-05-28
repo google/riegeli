@@ -27,7 +27,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 
 namespace riegeli::cfile_internal {
@@ -41,13 +40,13 @@ template <typename File, typename Enable = void>
 struct HaveFSeekO : std::false_type {};
 
 template <typename File>
-struct HaveFSeekO<File, absl::void_t<decltype(fseeko(std::declval<File*>(),
-                                                     std::declval<off_t>(),
-                                                     std::declval<int>())),
-                                     decltype(ftello(std::declval<File*>()))>>
+struct HaveFSeekO<File, std::void_t<decltype(fseeko(std::declval<File*>(),
+                                                    std::declval<off_t>(),
+                                                    std::declval<int>())),
+                                    decltype(ftello(std::declval<File*>()))>>
     : std::true_type {};
 
-using Offset = absl::conditional_t<HaveFSeekO<FILE>::value, off_t, long>;
+using Offset = std::conditional_t<HaveFSeekO<FILE>::value, off_t, long>;
 
 template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
 inline int FSeek(File* file, Offset offset, int whence) {

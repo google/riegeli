@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
@@ -67,11 +66,11 @@ class
  private:
   template <typename SubT>
   struct IsCompatibleProperSubtype
-      : absl::conjunction<absl::negation<std::is_same<SubT, T>>,
-                          std::is_convertible<SubT*, T*>,
-                          absl::disjunction<std::is_same<std::remove_cv_t<SubT>,
-                                                         std::remove_cv_t<T>>,
-                                            std::has_virtual_destructor<T>>> {};
+      : std::conjunction<std::negation<std::is_same<SubT, T>>,
+                         std::is_convertible<SubT*, T*>,
+                         std::disjunction<std::is_same<std::remove_cv_t<SubT>,
+                                                       std::remove_cv_t<T>>,
+                                          std::has_virtual_destructor<T>>> {};
 
  public:
   // Creates an empty `SharedPtr`.
@@ -330,8 +329,8 @@ class
   }
   template <typename DependentT = T,
             std::enable_if_t<
-                absl::conjunction<std::has_virtual_destructor<DependentT>,
-                                  std::is_final<DependentT>>::value,
+                std::conjunction_v<std::has_virtual_destructor<DependentT>,
+                                   std::is_final<DependentT>>,
                 int> = 0>
   static void Delete(T* ptr) {
     ptr->~T();
@@ -342,12 +341,11 @@ class
     DeleteAligned<void, UnsignedMax(alignof(Control), alignof(T))>(
         allocated_ptr, kOffset + sizeof(T));
   }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<
-          absl::conjunction<std::has_virtual_destructor<DependentT>,
-                            absl::negation<std::is_final<DependentT>>>::value,
-          int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<
+                std::conjunction_v<std::has_virtual_destructor<DependentT>,
+                                   std::negation<std::is_final<DependentT>>>,
+                int> = 0>
   static void Delete(T* ptr) {
     control(ptr).destroy(const_cast<std::remove_cv_t<T>*>(ptr));
   }
@@ -381,9 +379,9 @@ class
 
   template <typename DependentT>
   struct IsAssignable
-      : public absl::conjunction<
-            absl::disjunction<
-                absl::negation<std::has_virtual_destructor<DependentT>>,
+      : public std::conjunction<
+            std::disjunction<
+                std::negation<std::has_virtual_destructor<DependentT>>,
                 std::is_final<DependentT>>,
             std::is_move_assignable<DependentT>> {};
 
@@ -415,8 +413,8 @@ class
   }
   template <typename MemoryEstimator, typename DependentT = T,
             std::enable_if_t<
-                absl::conjunction<std::has_virtual_destructor<DependentT>,
-                                  std::is_final<DependentT>>::value,
+                std::conjunction_v<std::has_virtual_destructor<DependentT>,
+                                   std::is_final<DependentT>>,
                 int> = 0>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
@@ -426,12 +424,11 @@ class
     memory_estimator.RegisterDynamicMemory(allocated_ptr, kOffset + sizeof(T));
     memory_estimator.RegisterSubobjects(ptr_.get());
   }
-  template <
-      typename MemoryEstimator, typename DependentT = T,
-      std::enable_if_t<
-          absl::conjunction<std::has_virtual_destructor<DependentT>,
-                            absl::negation<std::is_final<DependentT>>>::value,
-          int> = 0>
+  template <typename MemoryEstimator, typename DependentT = T,
+            std::enable_if_t<
+                std::conjunction_v<std::has_virtual_destructor<DependentT>,
+                                   std::negation<std::is_final<DependentT>>>,
+                int> = 0>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
     static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
     // `kOffset` is not necessarily accurate because the object can be of a

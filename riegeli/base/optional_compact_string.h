@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
@@ -185,22 +184,22 @@ class
     return StrongOrdering::greater;
   }
 
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<OptionalCompactString, T>,
-                                  NotSameRef<std::nullptr_t, T>,
-                                  std::is_convertible<T&&, BytesRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<OptionalCompactString, T>,
+                                          NotSameRef<std::nullptr_t, T>,
+                                          std::is_convertible<T&&, BytesRef>>,
+                       int> = 0>
   friend bool operator==(const OptionalCompactString& a, T&& b) {
     if (a.repr_ == kNullRepr) return false;
     return *a == absl::string_view(b);
   }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<OptionalCompactString, T>,
-                                  NotSameRef<std::nullptr_t, T>,
-                                  std::is_convertible<T&&, BytesRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<OptionalCompactString, T>,
+                                          NotSameRef<std::nullptr_t, T>,
+                                          std::is_convertible<T&&, BytesRef>>,
+                       int> = 0>
   friend StrongOrdering RIEGELI_COMPARE(const OptionalCompactString& a, T&& b) {
     if (a.repr_ == kNullRepr) return StrongOrdering::less;
     return riegeli::Compare(*a, absl::string_view(b));

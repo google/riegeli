@@ -24,7 +24,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
@@ -343,8 +342,8 @@ inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
 }
 
 template <DigitCase digit_case, typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint8_t>>,
-                                             FitsIn<T, uint16_t>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint8_t>>,
+                                              FitsIn<T, uint16_t>>,
                            int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 4 ? WriteHex4<digit_case>(IntCast<uint16_t>(src), dest)
@@ -355,8 +354,8 @@ inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
 
 template <
     DigitCase digit_case, typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
-                                       FitsIn<T, uint32_t>>::value,
+    std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint16_t>>,
+                                        FitsIn<T, uint32_t>>,
                      int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 8 ? WriteHex8<digit_case>(IntCast<uint32_t>(src), dest)
@@ -367,8 +366,8 @@ inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
 
 template <
     DigitCase digit_case, typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
-                                       FitsIn<T, uint64_t>>::value,
+    std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
+                                        FitsIn<T, uint64_t>>,
                      int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 16 ? WriteHex16<digit_case>(IntCast<uint64_t>(src), dest)
@@ -379,8 +378,8 @@ inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
 
 template <
     DigitCase digit_case, typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
-                                       FitsIn<T, absl::uint128>>::value,
+    std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
+                                        FitsIn<T, absl::uint128>>,
                      int> = 0>
 inline char* WriteHexUnsigned(T src, char* dest, size_t width) {
   return width == 32 ? WriteHex32<digit_case>(IntCast<absl::uint128>(src), dest)
@@ -449,8 +448,8 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
 }
 
 template <DigitCase digit_case, typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint8_t>>,
-                                             FitsIn<T, uint16_t>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint8_t>>,
+                                              FitsIn<T, uint16_t>>,
                            int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 4u)
@@ -465,8 +464,8 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
 
 template <
     DigitCase digit_case, typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint16_t>>,
-                                       FitsIn<T, uint32_t>>::value,
+    std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint16_t>>,
+                                        FitsIn<T, uint32_t>>,
                      int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 8u)
@@ -480,8 +479,8 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
 
 template <
     DigitCase digit_case, typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
-                                       FitsIn<T, uint64_t>>::value,
+    std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
+                                        FitsIn<T, uint64_t>>,
                      int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 16u)
@@ -495,8 +494,8 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
 
 template <
     DigitCase digit_case, typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
-                                       FitsIn<T, absl::uint128>>::value,
+    std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
+                                        FitsIn<T, absl::uint128>>,
                      int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 32u)

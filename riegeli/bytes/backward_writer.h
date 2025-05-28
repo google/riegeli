@@ -27,7 +27,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -196,12 +195,12 @@ class BackwardWriter : public Object {
   template <
       typename Src,
       std::enable_if_t<
-          absl::conjunction<
+          std::conjunction_v<
               HasAbslStringify<Src>,
-              absl::negation<std::is_convertible<Src&&, BytesRef>>,
-              absl::negation<std::is_convertible<Src&&, const Chain&>>,
-              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-              absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+              std::negation<std::is_convertible<Src&&, BytesRef>>,
+              std::negation<std::is_convertible<Src&&, const Chain&>>,
+              std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+              std::negation<std::is_convertible<Src&&, ByteFill>>>,
           int> = 0>
   bool Write(Src&& src);
 
@@ -222,8 +221,8 @@ class BackwardWriter : public Object {
   //  * `false` - failure (`!ok()`)
   template <typename... Srcs,
             std::enable_if_t<
-                absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
-                                  IsStringifiable<Srcs>...>::value,
+                std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
+                                   IsStringifiable<Srcs>...>,
                 int> = 0>
   bool Write(Srcs&&... srcs);
 
@@ -236,13 +235,13 @@ class BackwardWriter : public Object {
   // Return values:
   //  * `true`  - success
   //  * `false` - failure (`!ok()`)
-  template <typename... Srcs,
-            std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
-                             int> = 0>
+  template <
+      typename... Srcs,
+      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
   bool WriteTuple(const std::tuple<Srcs...>& srcs);
-  template <typename... Srcs,
-            std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
-                             int> = 0>
+  template <
+      typename... Srcs,
+      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
   bool WriteTuple(std::tuple<Srcs...>&& srcs);
 
   // Pushes buffered data to the destination.
@@ -738,12 +737,12 @@ inline bool BackwardWriter::Write(absl::uint128 src) {
 
 template <typename Src,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   HasAbslStringify<Src>,
-                  absl::negation<std::is_convertible<Src&&, BytesRef>>,
-                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
-                  absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-                  absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+                  std::negation<std::is_convertible<Src&&, BytesRef>>,
+                  std::negation<std::is_convertible<Src&&, const Chain&>>,
+                  std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+                  std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
 inline bool BackwardWriter::Write(Src&& src) {
   RestrictedChainWriter chain_writer;
@@ -755,26 +754,24 @@ inline bool BackwardWriter::Write(Src&& src) {
   return Write(std::move(chain_writer.dest()));
 }
 
-template <
-    typename... Srcs,
-    std::enable_if_t<absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
-                                       IsStringifiable<Srcs>...>::value,
-                     int>>
+template <typename... Srcs,
+          std::enable_if_t<
+              std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
+                                 IsStringifiable<Srcs>...>,
+              int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::Write(Srcs&&... srcs) {
   return WriteTuple(std::forward_as_tuple(std::forward<Srcs>(srcs)...));
 }
 
-template <
-    typename... Srcs,
-    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+template <typename... Srcs,
+          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::WriteTuple(
     const std::tuple<Srcs...>& srcs) {
   return WriteInternal<sizeof...(Srcs)>(srcs);
 }
 
-template <
-    typename... Srcs,
-    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+template <typename... Srcs,
+          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::WriteTuple(
     std::tuple<Srcs...>&& srcs) {
   return WriteInternal<sizeof...(Srcs)>(std::move(srcs));

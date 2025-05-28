@@ -21,7 +21,6 @@
 #include <limits>
 #include <type_traits>
 
-#include "absl/meta/type_traits.h"
 #include "absl/numeric/int128.h"
 #include "riegeli/base/arithmetic.h"
 
@@ -31,11 +30,10 @@ template <typename T, typename Target, typename Enable = void>
 struct FitsIn;
 
 template <typename T, typename Target>
-struct FitsIn<
-    T, Target,
-    std::enable_if_t<absl::disjunction<
-        absl::conjunction<IsUnsignedInt<T>, IsUnsignedInt<Target>>,
-        absl::conjunction<IsSignedInt<T>, IsSignedInt<Target>>>::value>>
+struct FitsIn<T, Target,
+              std::enable_if_t<std::disjunction_v<
+                  std::conjunction<IsUnsignedInt<T>, IsUnsignedInt<Target>>,
+                  std::conjunction<IsSignedInt<T>, IsSignedInt<Target>>>>>
     : std::bool_constant<(std::numeric_limits<T>::max() <=
                           std::numeric_limits<Target>::max())> {};
 
@@ -57,16 +55,16 @@ inline char* WriteDecUnsigned(T src, char* dest) {
 }
 
 template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
-                                            FitsIn<T, uint64_t>>::value,
+                          std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
+                                             FitsIn<T, uint64_t>>,
                           int> = 0>
 inline char* WriteDecUnsigned(T src, char* dest) {
   return WriteDec(IntCast<uint64_t>(src), dest);
 }
 
 template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
-                                            FitsIn<T, absl::uint128>>::value,
+                          std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
+                                             FitsIn<T, absl::uint128>>,
                           int> = 0>
 inline char* WriteDecUnsigned(T src, char* dest) {
   return WriteDec(IntCast<absl::uint128>(src), dest);
@@ -81,16 +79,16 @@ inline char* WriteDecSigned(T src, char* dest) {
 }
 
 template <typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, int32_t>>,
-                                             FitsIn<T, int64_t>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int32_t>>,
+                                              FitsIn<T, int64_t>>,
                            int> = 0>
 inline char* WriteDecSigned(T src, char* dest) {
   return WriteDec(IntCast<int64_t>(src), dest);
 }
 
 template <typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, int64_t>>,
-                                             FitsIn<T, absl::int128>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int64_t>>,
+                                              FitsIn<T, absl::int128>>,
                            int> = 0>
 inline char* WriteDecSigned(T src, char* dest) {
   return WriteDec(IntCast<absl::int128>(src), dest);
@@ -113,8 +111,8 @@ inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
 }
 
 template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
-                                            FitsIn<T, uint64_t>>::value,
+                          std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
+                                             FitsIn<T, uint64_t>>,
                           int> = 0>
 inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
   return width <= 1 ? WriteDec(IntCast<uint64_t>(src), dest)
@@ -122,8 +120,8 @@ inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
 }
 
 template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
-                                            FitsIn<T, absl::uint128>>::value,
+                          std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
+                                             FitsIn<T, absl::uint128>>,
                           int> = 0>
 inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
   return width <= 1 ? WriteDec(IntCast<absl::uint128>(src), dest)
@@ -139,8 +137,8 @@ inline char* WriteDecSigned(T src, char* dest, size_t width) {
 }
 
 template <typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, int32_t>>,
-                                             FitsIn<T, int64_t>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int32_t>>,
+                                              FitsIn<T, int64_t>>,
                            int> = 0>
 inline char* WriteDecSigned(T src, char* dest, size_t width) {
   return width <= 1 ? WriteDec(IntCast<int64_t>(src), dest)
@@ -148,8 +146,8 @@ inline char* WriteDecSigned(T src, char* dest, size_t width) {
 }
 
 template <typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, int64_t>>,
-                                             FitsIn<T, absl::int128>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int64_t>>,
+                                              FitsIn<T, absl::int128>>,
                            int> = 0>
 inline char* WriteDecSigned(T src, char* dest, size_t width) {
   return width <= 1 ? WriteDec(IntCast<absl::int128>(src), dest)
@@ -172,16 +170,16 @@ inline char* WriteDecUnsignedBackward(T src, char* dest) {
 }
 
 template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint32_t>>,
-                                            FitsIn<T, uint64_t>>::value,
+                          std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
+                                             FitsIn<T, uint64_t>>,
                           int> = 0>
 inline char* WriteDecUnsignedBackward(T src, char* dest) {
   return WriteDecBackward(IntCast<uint64_t>(src), dest);
 }
 
 template <typename T, std::enable_if_t<
-                          absl::conjunction<absl::negation<FitsIn<T, uint64_t>>,
-                                            FitsIn<T, absl::uint128>>::value,
+                          std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
+                                             FitsIn<T, absl::uint128>>,
                           int> = 0>
 inline char* WriteDecUnsignedBackward(T src, char* dest) {
   return WriteDecBackward(IntCast<absl::uint128>(src), dest);
@@ -195,16 +193,16 @@ inline char* WriteDecSignedBackward(T src, char* dest) {
 }
 
 template <typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, int32_t>>,
-                                             FitsIn<T, int64_t>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int32_t>>,
+                                              FitsIn<T, int64_t>>,
                            int> = 0>
 inline char* WriteDecSignedBackward(T src, char* dest) {
   return WriteDecBackward(IntCast<int64_t>(src), dest);
 }
 
 template <typename T,
-          std::enable_if_t<absl::conjunction<absl::negation<FitsIn<T, int64_t>>,
-                                             FitsIn<T, absl::int128>>::value,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int64_t>>,
+                                              FitsIn<T, absl::int128>>,
                            int> = 0>
 inline char* WriteDecSignedBackward(T src, char* dest) {
   return WriteDecBackward(IntCast<absl::int128>(src), dest);

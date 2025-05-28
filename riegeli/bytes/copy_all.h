@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/types.h"
@@ -61,28 +60,26 @@ namespace riegeli {
 // `DependencyRef<Writer*, Dest>`, e.g. `Writer&` (not owned),
 // `ChainWriter<>` (owned), `std::unique_ptr<Writer>` (owned),
 // `AnyRef<Writer*>` (maybe owned). Analogously for `BackwardWriter`.
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
-        int> = 0>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int> = 0>
 absl::Status CopyAll(Src&& src, Dest&& dest,
                      Position max_length = std::numeric_limits<Position>::max(),
                      Position* length_read = nullptr);
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int> = 0>
+absl::Status CopyAll(Src&& src, Dest&& dest, Position* length_read);
 template <
     typename Src, typename Dest,
     std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
+        std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                           TargetRefSupportsDependency<BackwardWriter*, Dest>>,
         int> = 0>
-absl::Status CopyAll(Src&& src, Dest&& dest, Position* length_read);
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<
-                  TargetRefSupportsDependency<Reader*, Src>,
-                  TargetRefSupportsDependency<BackwardWriter*, Dest>>::value,
-              int> = 0>
 absl::Status CopyAll(Src&& src, Dest&& dest,
                      size_t max_length = std::numeric_limits<size_t>::max());
 
@@ -97,12 +94,11 @@ absl::Status CopyAllImpl(Reader& src, BackwardWriter& dest, size_t max_length,
 
 }  // namespace copy_all_internal
 
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
-        int>>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int>>
 inline absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length,
                             Position* length_read) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
@@ -122,23 +118,22 @@ inline absl::Status CopyAll(Src&& src, Dest&& dest, Position max_length,
   return status;
 }
 
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
-        int>>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int>>
 inline absl::Status CopyAll(Src&& src, Dest&& dest, Position* length_read) {
   return CopyAll(std::forward<Src>(src), std::forward<Dest>(dest),
                  std::numeric_limits<Position>::max(), length_read);
 }
 
-template <typename Src, typename Dest,
-          std::enable_if_t<
-              absl::conjunction<
-                  TargetRefSupportsDependency<Reader*, Src>,
-                  TargetRefSupportsDependency<BackwardWriter*, Dest>>::value,
-              int>>
+template <
+    typename Src, typename Dest,
+    std::enable_if_t<
+        std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                           TargetRefSupportsDependency<BackwardWriter*, Dest>>,
+        int>>
 inline absl::Status CopyAll(Src&& src, Dest&& dest, size_t max_length) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   DependencyRef<BackwardWriter*, Dest> dest_dep(std::forward<Dest>(dest));

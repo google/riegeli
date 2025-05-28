@@ -19,7 +19,6 @@
 #include <new>
 #include <type_traits>
 
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer.h"
 
 namespace riegeli {
@@ -50,11 +49,10 @@ const T& Global();
 // be misleadingly ignored for subsequent calls. Since distinct lambdas have
 // distinct types, distinct call sites with lambdas return references to
 // distinct objects.
-template <
-    typename Construct,
-    std::enable_if_t<absl::conjunction<std::is_empty<Construct>,
-                                       std::is_invocable<Construct>>::value,
-                     int> = 0>
+template <typename Construct,
+          std::enable_if_t<std::conjunction_v<std::is_empty<Construct>,
+                                              std::is_invocable<Construct>>,
+                           int> = 0>
 TargetT<std::invoke_result_t<Construct>>& Global(Construct construct);
 
 // `Global(construct, initialize)` returns a reference to an object returned by
@@ -73,14 +71,13 @@ TargetT<std::invoke_result_t<Construct>>& Global(Construct construct);
 // state, which would be misleadingly ignored for subsequent calls. Since
 // distinct lambdas have distinct types, distinct call sites with lambdas return
 // references to distinct objects.
-template <
-    typename Construct, typename Initialize,
-    std::enable_if_t<
-        absl::conjunction<
-            std::is_empty<Construct>, std::is_empty<Initialize>,
-            std::is_invocable<
-                Initialize, TargetT<std::invoke_result_t<Construct>>&>>::value,
-        int> = 0>
+template <typename Construct, typename Initialize,
+          std::enable_if_t<
+              std::conjunction_v<
+                  std::is_empty<Construct>, std::is_empty<Initialize>,
+                  std::is_invocable<Initialize,
+                                    TargetT<std::invoke_result_t<Construct>>&>>,
+              int> = 0>
 TargetT<std::invoke_result_t<Construct>>& Global(Construct construct,
                                                  Initialize initialize);
 
@@ -129,25 +126,23 @@ inline const T& Global() {
   return kStorage.object();
 }
 
-template <
-    typename Construct,
-    std::enable_if_t<absl::conjunction<std::is_empty<Construct>,
-                                       std::is_invocable<Construct>>::value,
-                     int>>
+template <typename Construct,
+          std::enable_if_t<std::conjunction_v<std::is_empty<Construct>,
+                                              std::is_invocable<Construct>>,
+                           int>>
 inline TargetT<std::invoke_result_t<Construct>>& Global(Construct construct) {
   static global_internal::NoDestructor<TargetT<std::invoke_result_t<Construct>>>
       kStorage(construct);
   return kStorage.object();
 }
 
-template <
-    typename Construct, typename Initialize,
-    std::enable_if_t<
-        absl::conjunction<
-            std::is_empty<Construct>, std::is_empty<Initialize>,
-            std::is_invocable<
-                Initialize, TargetT<std::invoke_result_t<Construct>>&>>::value,
-        int>>
+template <typename Construct, typename Initialize,
+          std::enable_if_t<
+              std::conjunction_v<
+                  std::is_empty<Construct>, std::is_empty<Initialize>,
+                  std::is_invocable<Initialize,
+                                    TargetT<std::invoke_result_t<Construct>>&>>,
+              int>>
 inline TargetT<std::invoke_result_t<Construct>>& Global(Construct construct,
                                                         Initialize initialize) {
   static global_internal::NoDestructor<TargetT<std::invoke_result_t<Construct>>>

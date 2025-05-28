@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -232,12 +231,11 @@ explicit SnappyWriter(Dest&& dest, SnappyWriterBase::Options options =
 
 using SnappyCompressOptions = SnappyWriterBase::Options;
 
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
-        int> = 0>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int> = 0>
 absl::Status SnappyCompress(
     Src&& src, Dest&& dest,
     SnappyCompressOptions options = SnappyCompressOptions());
@@ -354,12 +352,11 @@ absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
 
 }  // namespace snappy_internal
 
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
-        int>>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int>>
 inline absl::Status SnappyCompress(Src&& src, Dest&& dest,
                                    SnappyCompressOptions options) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));

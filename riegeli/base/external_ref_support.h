@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/external_data.h"
 
@@ -89,7 +88,7 @@ struct HasRiegeliSupportsExternalRefWhole : std::false_type {};
 
 template <typename T>
 struct HasRiegeliSupportsExternalRefWhole<
-    T, absl::void_t<decltype(RiegeliSupportsExternalRefWhole(
+    T, std::void_t<decltype(RiegeliSupportsExternalRefWhole(
            std::declval<PointerTypeT<T>>()))>> : std::true_type {};
 
 template <typename T, typename Enable = void>
@@ -97,15 +96,15 @@ struct HasRiegeliSupportsExternalRef : std::false_type {};
 
 template <typename T>
 struct HasRiegeliSupportsExternalRef<
-    T, absl::void_t<decltype(RiegeliSupportsExternalRef(
+    T, std::void_t<decltype(RiegeliSupportsExternalRef(
            std::declval<PointerTypeT<T>>()))>> : std::true_type {};
 
 }  // namespace external_ref_internal
 
 template <typename T>
 struct SupportsExternalRefWhole
-    : absl::conjunction<
-          absl::disjunction<
+    : std::conjunction<
+          std::disjunction<
               external_ref_internal::HasRiegeliSupportsExternalRefWhole<T>,
               external_ref_internal::HasRiegeliSupportsExternalRef<T>>,
           std::is_convertible<const T&, BytesRef>> {};

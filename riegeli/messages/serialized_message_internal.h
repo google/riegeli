@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/type_erased_ref.h"
 
@@ -52,8 +51,8 @@ struct IsInvocableWithoutContext
 
 template <typename Context, typename Action, typename... Args>
 struct IsAction
-    : absl::disjunction<IsInvocableWithContext<Context, Action, Args...>,
-                        IsInvocableWithoutContext<Action, Args...>> {};
+    : std::disjunction<IsInvocableWithContext<Context, Action, Args...>,
+                       IsInvocableWithoutContext<Action, Args...>> {};
 
 template <typename Context, typename Action, typename... Args,
           std::enable_if_t<
@@ -81,8 +80,8 @@ struct IsActionWithoutSrc : IsAction<Context, Action, Args...> {};
 
 template <typename Context, typename Action, typename... Args>
 struct IsActionWithOptionalSrc
-    : absl::disjunction<IsActionWithSrc<Context, Action, Args...>,
-                        IsActionWithoutSrc<Context, Action, Args...>> {};
+    : std::disjunction<IsActionWithSrc<Context, Action, Args...>,
+                       IsActionWithoutSrc<Context, Action, Args...>> {};
 
 template <
     typename Context, typename Action, typename... Args,
@@ -113,8 +112,8 @@ struct IsActionWithoutDest : IsAction<Context, Action, Args...> {};
 
 template <typename Context, typename Action, typename... Args>
 struct IsActionWithOptionalDest
-    : absl::disjunction<IsActionWithDest<Context, Action, Args...>,
-                        IsActionWithoutDest<Context, Action, Args...>> {};
+    : std::disjunction<IsActionWithDest<Context, Action, Args...>,
+                       IsActionWithoutDest<Context, Action, Args...>> {};
 
 template <typename Context, typename Action, typename... Args,
           std::enable_if_t<IsActionWithDest<Context, Action, Args...>::value,
@@ -143,7 +142,7 @@ struct IsActionWithRequiredSrcAndOptionalDest
 
 template <typename Context, typename Action, typename... Args>
 struct IsActionWithOptionalSrcAndDest
-    : absl::disjunction<
+    : std::disjunction<
           IsActionWithRequiredSrcAndOptionalDest<Context, Action, Args...>,
           IsActionWithOptionalDest<Context, Action, Args...>> {};
 

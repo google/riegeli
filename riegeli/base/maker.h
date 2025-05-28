@@ -24,7 +24,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
@@ -46,16 +45,16 @@ namespace riegeli {
 // `InvokerType` complements `MakerType` by extending constructors with factory
 // functions.
 template <typename... Args>
-class MakerType : public ConditionallyAssignable<absl::conjunction<
-                      absl::negation<std::is_reference<Args>>...>::value> {
+class MakerType
+    : public ConditionallyAssignable<
+          std::conjunction_v<std::negation<std::is_reference<Args>>...>> {
  public:
   // Constructs `MakerType` from `args...` convertible to `Args...`.
-  template <
-      typename... SrcArgs,
-      std::enable_if_t<
-          absl::conjunction<NotSameRef<MakerType, SrcArgs...>,
-                            std::is_convertible<SrcArgs&&, Args>...>::value,
-          int> = 0>
+  template <typename... SrcArgs,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<MakerType, SrcArgs...>,
+                                   std::is_convertible<SrcArgs&&, Args>...>,
+                int> = 0>
   /*implicit*/ MakerType(SrcArgs&&... args)
       : args_(std::forward<SrcArgs>(args)...) {}
 
@@ -196,8 +195,8 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   // it.
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<absl::negation<std::is_reference<T>>,
-                                         SupportsReset<T, Args&&...>>::value,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_reference<T>>,
+                                          SupportsReset<T, Args&&...>>,
                        int> = 0>
   friend void RiegeliReset(T& dest, MakerType&& src) {
     std::apply(
@@ -206,11 +205,11 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
         },
         std::move(src.args_));
   }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_reference<T>>,
-                                  SupportsReset<T, const Args&...>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_reference<T>>,
+                                          SupportsReset<T, const Args&...>>,
+                       int> = 0>
   friend void RiegeliReset(T& dest, const MakerType& src) {
     std::apply([&](const Args&... args) { riegeli::Reset(dest, args...); },
                src.args_);
@@ -260,17 +259,17 @@ template <typename... Args>
 // In contrast to `MakerType<Args...>`, `MakerTypeFor<T, Args...>` allows the
 // caller to deduce `T`, e.g. using `TargetT`.
 template <typename T, typename... Args>
-class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
-                         absl::negation<std::is_reference<Args>>...>::value> {
+class MakerTypeFor
+    : public ConditionallyAssignable<
+          std::conjunction_v<std::negation<std::is_reference<Args>>...>> {
  public:
   // Constructs `MakerTypeFor` from `args...` convertible to `Args...`.
-  template <
-      typename... SrcArgs,
-      std::enable_if_t<
-          absl::conjunction<NotSameRef<MakerTypeFor, SrcArgs...>,
-                            std::is_constructible<T, Args&&...>,
-                            std::is_convertible<SrcArgs&&, Args>...>::value,
-          int> = 0>
+  template <typename... SrcArgs,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<MakerTypeFor, SrcArgs...>,
+                                   std::is_constructible<T, Args&&...>,
+                                   std::is_convertible<SrcArgs&&, Args>...>,
+                int> = 0>
   /*implicit*/ MakerTypeFor(SrcArgs&&... args)
       : maker_(std::forward<SrcArgs>(args)...) {}
 
@@ -319,20 +318,20 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   // arguments and custom deleters.
   //
   // For a non-default-constructed deleter, use `UniquePtr(deleter)`.
-  template <typename Target, typename Deleter,
-            std::enable_if_t<
-                absl::conjunction<
-                    std::is_constructible<std::decay_t<T>, Args&&...>,
-                    std::is_convertible<std::decay_t<T>*, Target*>>::value,
-                int> = 0>
+  template <
+      typename Target, typename Deleter,
+      std::enable_if_t<
+          std::conjunction_v<std::is_constructible<std::decay_t<T>, Args&&...>,
+                             std::is_convertible<std::decay_t<T>*, Target*>>,
+          int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
     return std::move(*this).template UniquePtr<Deleter>();
   }
   template <typename Target, typename Deleter,
             std::enable_if_t<
-                absl::conjunction<
+                std::conjunction_v<
                     std::is_constructible<std::decay_t<T>, const Args&...>,
-                    std::is_convertible<std::decay_t<T>*, Target*>>::value,
+                    std::is_convertible<std::decay_t<T>*, Target*>>,
                 int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
     return UniquePtr<Deleter>();
@@ -448,18 +447,17 @@ class MakerTypeFor : public ConditionallyAssignable<absl::conjunction<
   // it.
   template <typename DependentT = T,
             std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_reference<DependentT>>,
-                                  SupportsReset<DependentT, Args&&...>>::value,
+                std::conjunction_v<std::negation<std::is_reference<DependentT>>,
+                                   SupportsReset<DependentT, Args&&...>>,
                 int> = 0>
   friend void RiegeliReset(T& dest, MakerTypeFor&& src) {
     riegeli::Reset(dest, std::move(src).maker());
   }
-  template <
-      typename DependentT = T,
-      std::enable_if_t<
-          absl::conjunction<absl::negation<std::is_reference<DependentT>>,
-                            SupportsReset<DependentT, const Args&...>>::value,
-          int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_reference<DependentT>>,
+                                   SupportsReset<DependentT, const Args&...>>,
+                int> = 0>
   friend void RiegeliReset(T& dest, const MakerTypeFor& src) {
     riegeli::Reset(dest, src.maker());
   }

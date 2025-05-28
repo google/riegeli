@@ -31,7 +31,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -823,12 +822,11 @@ class Chain::Block {
   // The `substr` parameter of these member functions, if present, will get the
   // `substr` parameter passed to `FromExternal()`. Having `substr` available in
   // these functions might avoid storing `substr` in the external object.
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<NotSameRef<Block, TargetT<T>>,
-                            std::is_convertible<TargetT<T>, BytesRef>>::value,
-          int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<Block, TargetT<T>>,
+                                   std::is_convertible<TargetT<T>, BytesRef>>,
+                int> = 0>
   explicit Block(T&& object);
   template <typename T>
   explicit Block(T&& object, absl::string_view substr);

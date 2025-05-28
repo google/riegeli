@@ -24,7 +24,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
@@ -321,10 +320,10 @@ class
 
   template <typename DependentT>
   struct IsAssignable
-      : absl::conjunction<
+      : std::conjunction<
             intrusive_shared_ptr_internal::HasHasUniqueOwner<DependentT>,
-            absl::disjunction<
-                absl::negation<std::has_virtual_destructor<DependentT>>,
+            std::disjunction<
+                std::negation<std::has_virtual_destructor<DependentT>>,
                 std::is_final<DependentT>>,
             std::is_move_assignable<DependentT>> {};
 

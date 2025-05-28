@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"  // IWYU pragma: keep
 
@@ -47,7 +46,7 @@ using type_identity_t = typename type_identity<T>::type;
 // qualifiers.
 template <typename T, typename Result>
 struct IsConvertibleFromResult
-    : absl::disjunction<
+    : std::disjunction<
 #if __cpp_guaranteed_copy_elision
           std::is_same<std::remove_cv_t<T>, std::remove_cv_t<Result>>,
 #endif
@@ -61,7 +60,7 @@ struct IsConvertibleFromResult
 // qualifiers.
 template <typename T, typename Result>
 struct IsConstructibleFromResult
-    : absl::disjunction<
+    : std::disjunction<
 #if __cpp_guaranteed_copy_elision
           std::is_same<std::remove_cv_t<T>, std::remove_cv_t<Result>>,
 #endif
@@ -88,7 +87,7 @@ struct SameRef<Self, Arg> : std::is_convertible<std::decay_t<Arg>*, Self*> {};
 // compatible with copying or moving interpreted as the copy or move,
 // instead of passing them to the templated constructor or assignment.
 template <typename Self, typename... Args>
-struct NotSameRef : absl::negation<SameRef<Self, Args...>> {};
+struct NotSameRef : std::negation<SameRef<Self, Args...>> {};
 
 namespace type_traits_internal {
 
@@ -223,7 +222,7 @@ struct TupleElementsSatisfy;
 
 template <typename... T, template <typename...> class Predicate>
 struct TupleElementsSatisfy<std::tuple<T...>, Predicate>
-    : absl::conjunction<Predicate<T>...> {};
+    : std::conjunction<Predicate<T>...> {};
 
 // `FilterType<Predicate, T...>::type` and
 // `FilterTypeT<Predicate, T...>` transform a parameter pack to a `std::tuple`
@@ -334,7 +333,7 @@ template <typename T, typename Enable = void>
 struct HasDereference : std::false_type {};
 
 template <typename T>
-struct HasDereference<T, absl::void_t<decltype(*std::declval<T>())>>
+struct HasDereference<T, std::void_t<decltype(*std::declval<T>())>>
     : std::true_type {};
 
 // `HasArrow<T>::value` is `true` if a value of type `T` can be dereferenced
@@ -349,7 +348,7 @@ struct HasArrow<T, std::enable_if_t<std::is_pointer_v<
     : std::true_type {};
 
 template <typename T>
-struct HasArrow<T, absl::void_t<decltype(std::declval<T>().operator->())>>
+struct HasArrow<T, std::void_t<decltype(std::declval<T>().operator->())>>
     : std::true_type {};
 
 // `IsComparableAgainstNullptr<T>::value` is `true` if a value of type `T` can
@@ -387,7 +386,7 @@ template <typename T, typename Enable = void>
 struct HasAbslStringify : std::false_type {};
 template <typename T>
 struct HasAbslStringify<
-    T, absl::void_t<decltype(AbslStringify(
+    T, std::void_t<decltype(AbslStringify(
            std::declval<type_traits_internal::UnimplementedSink&>(),
            std::declval<const T&>()))>> : std::true_type {};
 

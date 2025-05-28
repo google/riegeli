@@ -25,7 +25,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -235,16 +234,15 @@ explicit DigestingReader(Src&& src, Digester&& digester)
 // `Any<Reader*>` (maybe owned).
 //
 // The digest is converted to `DesiredDigestType` using `DigestConverter`.
-template <
-    typename DesiredDigestType = digest_converter_internal::NoConversion,
-    typename Digester, typename Src,
-    std::enable_if_t<
-        absl::conjunction<
-            TargetRefSupportsDependency<DigesterBaseHandle, Digester>,
-            TargetRefSupportsDependency<Reader*, Src>,
-            digest_converter_internal::HasDigestConverterOrNoConversion<
-                DigestOf<TargetRefT<Digester>>, DesiredDigestType>>::value,
-        int> = 0>
+template <typename DesiredDigestType = digest_converter_internal::NoConversion,
+          typename Digester, typename Src,
+          std::enable_if_t<
+              std::conjunction_v<
+                  TargetRefSupportsDependency<DigesterBaseHandle, Digester>,
+                  TargetRefSupportsDependency<Reader*, Src>,
+                  digest_converter_internal::HasDigestConverterOrNoConversion<
+                      DigestOf<TargetRefT<Digester>>, DesiredDigestType>>,
+              int> = 0>
 StatusOrMakerT<digest_converter_internal::ResolveNoConversion<
     DigestOf<TargetRefT<Digester>>, DesiredDigestType>>
 DigestFromReader(Src&& src, Digester&& digester,
@@ -384,15 +382,14 @@ bool DigestingReader<Digester, Src>::SyncImpl(SyncType sync_type) {
   return sync_ok;
 }
 
-template <
-    typename DesiredDigestType, typename Digester, typename Src,
-    std::enable_if_t<
-        absl::conjunction<
-            TargetRefSupportsDependency<DigesterBaseHandle, Digester>,
-            TargetRefSupportsDependency<Reader*, Src>,
-            digest_converter_internal::HasDigestConverterOrNoConversion<
-                DigestOf<TargetRefT<Digester>>, DesiredDigestType>>::value,
-        int>>
+template <typename DesiredDigestType, typename Digester, typename Src,
+          std::enable_if_t<
+              std::conjunction_v<
+                  TargetRefSupportsDependency<DigesterBaseHandle, Digester>,
+                  TargetRefSupportsDependency<Reader*, Src>,
+                  digest_converter_internal::HasDigestConverterOrNoConversion<
+                      DigestOf<TargetRefT<Digester>>, DesiredDigestType>>,
+              int>>
 inline StatusOrMakerT<digest_converter_internal::ResolveNoConversion<
     DigestOf<TargetRefT<Digester>>, DesiredDigestType>>
 DigestFromReader(Src&& src, Digester&& digester, Position* length_read) {

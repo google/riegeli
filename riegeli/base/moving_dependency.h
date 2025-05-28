@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
 
@@ -101,9 +100,9 @@ Mover MakeMover(Host& self, Host& that) {
 
 template <typename Mover, typename Host,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_constructible<Mover, Host&, Host&>>,
-                  std::is_constructible<Mover, Host&>>::value,
+              std::conjunction_v<
+                  std::negation<std::is_constructible<Mover, Host&, Host&>>,
+                  std::is_constructible<Mover, Host&>>,
               int> = 0>
 Mover MakeMover(Host& self, ABSL_ATTRIBUTE_UNUSED Host& that) {
   return Mover(self);
@@ -111,10 +110,10 @@ Mover MakeMover(Host& self, ABSL_ATTRIBUTE_UNUSED Host& that) {
 
 template <typename Mover, typename Host,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_constructible<Mover, Host&, Host&>>,
-                  absl::negation<std::is_constructible<Mover, Host&>>,
-                  std::is_default_constructible<Mover>>::value,
+              std::conjunction_v<
+                  std::negation<std::is_constructible<Mover, Host&, Host&>>,
+                  std::negation<std::is_constructible<Mover, Host&>>,
+                  std::is_default_constructible<Mover>>,
               int> = 0>
 Mover MakeMover(ABSL_ATTRIBUTE_UNUSED Host& self,
                 ABSL_ATTRIBUTE_UNUSED Host& that) {
@@ -127,7 +126,7 @@ struct HasDoneWithSelf : std::false_type {};
 template <typename Mover, typename Host>
 struct HasDoneWithSelf<
     Mover, Host,
-    absl::void_t<decltype(std::declval<Mover&>().Done(std::declval<Host&>()))>>
+    std::void_t<decltype(std::declval<Mover&>().Done(std::declval<Host&>()))>>
     : std::true_type {};
 
 template <typename Mover, typename Enable = void>
@@ -135,7 +134,7 @@ struct HasDoneWithoutSelf : std::false_type {};
 
 template <typename Mover>
 struct HasDoneWithoutSelf<Mover,
-                          absl::void_t<decltype(std::declval<Mover&>().Done())>>
+                          std::void_t<decltype(std::declval<Mover&>().Done())>>
     : std::true_type {};
 
 template <typename Mover, typename Host,
@@ -146,19 +145,18 @@ inline void Done(Mover& mover, Host& self) {
 
 template <typename Mover, typename Host,
           std::enable_if_t<
-              absl::conjunction<absl::negation<HasDoneWithSelf<Mover, Host>>,
-                                HasDoneWithoutSelf<Mover>>::value,
+              std::conjunction_v<std::negation<HasDoneWithSelf<Mover, Host>>,
+                                 HasDoneWithoutSelf<Mover>>,
               int> = 0>
 inline void Done(Mover& mover, ABSL_ATTRIBUTE_UNUSED Host& self) {
   mover.Done();
 }
 
-template <
-    typename Mover, typename Host,
-    std::enable_if_t<
-        absl::conjunction<absl::negation<HasDoneWithSelf<Mover, Host>>,
-                          absl::negation<HasDoneWithoutSelf<Mover>>>::value,
-        int> = 0>
+template <typename Mover, typename Host,
+          std::enable_if_t<
+              std::conjunction_v<std::negation<HasDoneWithSelf<Mover, Host>>,
+                                 std::negation<HasDoneWithoutSelf<Mover>>>,
+              int> = 0>
 inline void Done(ABSL_ATTRIBUTE_UNUSED Mover& mover,
                  ABSL_ATTRIBUTE_UNUSED Host& self) {}
 
@@ -167,7 +165,7 @@ struct HasResetImpl : std::false_type {};
 
 template <typename T, typename... Args>
 struct HasResetImpl<
-    absl::void_t<decltype(std::declval<T&>().Reset(std::declval<Args&&>()...))>,
+    std::void_t<decltype(std::declval<T&>().Reset(std::declval<Args&&>()...))>,
     T, Args...> : std::true_type {};
 
 template <typename T, typename... Args>

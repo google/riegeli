@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
@@ -144,10 +143,10 @@ explicit ArrayBackwardWriter(Closed) -> ArrayBackwardWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit ArrayBackwardWriter(Dest&& dest)
     -> ArrayBackwardWriter<std::conditional_t<
-        absl::conjunction<
-            absl::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
+        std::conjunction_v<
+            std::negation<std::is_same<std::decay_t<Dest>, absl::Span<char>>>,
             std::is_lvalue_reference<Dest>,
-            std::is_constructible<absl::Span<char>, Dest>>::value,
+            std::is_constructible<absl::Span<char>, Dest>>,
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit ArrayBackwardWriter(char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
                              size_t size)

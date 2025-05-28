@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/byte_fill.h"
@@ -80,12 +79,12 @@ class WrappingDigester {
   WrappingDigester() : base_(riegeli::Maker()) {}
 
   // Forwards constructor arguments to the `BaseDigester`.
-  template <typename... Args,
-            std::enable_if_t<
-                absl::conjunction<
-                    NotSameRef<WrappingDigester, TargetT<Args>...>,
-                    std::is_constructible<BaseDigester, Args&&...>>::value,
-                int> = 0>
+  template <
+      typename... Args,
+      std::enable_if_t<
+          std::conjunction_v<NotSameRef<WrappingDigester, TargetT<Args>...>,
+                             std::is_constructible<BaseDigester, Args&&...>>,
+          int> = 0>
   explicit WrappingDigester(Args&&... args)
       : base_(riegeli::Maker(std::forward<Args>(args)...)) {}
 
@@ -95,12 +94,12 @@ class WrappingDigester {
   WrappingDigester(WrappingDigester&& that) = default;
   WrappingDigester& operator=(WrappingDigester&& that) = default;
 
-  template <typename... Args,
-            std::enable_if_t<
-                absl::conjunction<
-                    NotSameRef<WrappingDigester, TargetT<Args>...>,
-                    std::is_constructible<BaseDigester, Args&&...>>::value,
-                int> = 0>
+  template <
+      typename... Args,
+      std::enable_if_t<
+          std::conjunction_v<NotSameRef<WrappingDigester, TargetT<Args>...>,
+                             std::is_constructible<BaseDigester, Args&&...>>,
+          int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Args&&... args) {
     base_.Reset(riegeli::Maker(std::forward<Args>(args)...));
   }
@@ -118,9 +117,9 @@ class WrappingDigester {
   template <
       typename DependentBaseDigester = BaseDigester,
       std::enable_if_t<
-          absl::conjunction<std::bool_constant<digest_converter == nullptr>,
-                            HasDigestConverter<DigestOf<DependentBaseDigester>,
-                                               DigestType>>::value,
+          std::conjunction_v<
+              std::bool_constant<digest_converter == nullptr>,
+              HasDigestConverter<DigestOf<DependentBaseDigester>, DigestType>>,
           int> = 0>
   DigestType Digest() {
     return base_.get().template Digest<DigestType>();
@@ -128,19 +127,19 @@ class WrappingDigester {
   template <
       typename DependentBaseDigester = BaseDigester,
       std::enable_if_t<
-          absl::conjunction<std::bool_constant<digest_converter != nullptr>,
-                            absl::negation<std::is_void<
-                                DigestOf<DependentBaseDigester>>>>::value,
+          std::conjunction_v<
+              std::bool_constant<digest_converter != nullptr>,
+              std::negation<std::is_void<DigestOf<DependentBaseDigester>>>>,
           int> = 0>
   DigestType Digest() {
     return digest_converter(base_.get().Digest());
   }
-  template <typename DependentBaseDigester = BaseDigester,
-            std::enable_if_t<
-                absl::conjunction<
-                    std::bool_constant<digest_converter != nullptr>,
-                    std::is_void<DigestOf<DependentBaseDigester>>>::value,
-                int> = 0>
+  template <
+      typename DependentBaseDigester = BaseDigester,
+      std::enable_if_t<
+          std::conjunction_v<std::bool_constant<digest_converter != nullptr>,
+                             std::is_void<DigestOf<DependentBaseDigester>>>,
+          int> = 0>
   DigestType Digest() {
     base_.get().Digest();
     return digest_converter();

@@ -21,7 +21,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 
@@ -80,7 +79,7 @@ template <typename Enable, typename T, typename... Args>
 struct HasRiegeliResetImpl : std::false_type {};
 
 template <typename T, typename... Args>
-struct HasRiegeliResetImpl<absl::void_t<decltype(RiegeliReset(
+struct HasRiegeliResetImpl<std::void_t<decltype(RiegeliReset(
                                std::declval<T&>(), std::declval<Args>()...))>,
                            T, Args...> : std::true_type {};
 
@@ -92,8 +91,8 @@ struct HasResetImpl : std::false_type {};
 
 template <typename T, typename... Args>
 struct HasResetImpl<
-    absl::void_t<decltype(std::declval<T&>().Reset(std::declval<Args>()...))>,
-    T, Args...> : std::true_type {};
+    std::void_t<decltype(std::declval<T&>().Reset(std::declval<Args>()...))>, T,
+    Args...> : std::true_type {};
 
 template <typename T, typename... Args>
 struct HasReset : HasResetImpl<void, T, Args...> {};
@@ -103,7 +102,7 @@ struct HasAssignmentImpl : std::false_type {};
 
 template <typename T, typename Arg>
 struct HasAssignmentImpl<
-    absl::void_t<decltype(std::declval<T&>() = std::declval<Arg>())>, T, Arg>
+    std::void_t<decltype(std::declval<T&>() = std::declval<Arg>())>, T, Arg>
     : std::true_type {};
 
 template <typename T, typename... Args>
@@ -115,11 +114,11 @@ struct HasAssignment : HasAssignmentImpl<void, T, Args...> {};
 // is supported.
 template <typename T, typename... Args>
 struct SupportsReset
-    : absl::disjunction<reset_internal::HasRiegeliReset<T, Args...>,
-                        reset_internal::HasReset<T, Args...>,
-                        reset_internal::HasAssignment<T, Args...>,
-                        absl::conjunction<std::is_constructible<T, Args...>,
-                                          std::is_move_assignable<T>>> {};
+    : std::disjunction<reset_internal::HasRiegeliReset<T, Args...>,
+                       reset_internal::HasReset<T, Args...>,
+                       reset_internal::HasAssignment<T, Args...>,
+                       std::conjunction<std::is_constructible<T, Args...>,
+                                        std::is_move_assignable<T>>> {};
 
 template <typename T, typename... Args,
           std::enable_if_t<reset_internal::HasRiegeliReset<T, Args...>::value,
@@ -130,34 +129,34 @@ inline void Reset(T& dest, Args&&... args) {
 
 template <typename T, typename... Args,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<reset_internal::HasRiegeliReset<T, Args...>>,
-                  reset_internal::HasReset<T, Args...>>::value,
+              std::conjunction_v<
+                  std::negation<reset_internal::HasRiegeliReset<T, Args...>>,
+                  reset_internal::HasReset<T, Args...>>,
               int> = 0>
 inline void Reset(T& dest, Args&&... args) {
   dest.Reset(std::forward<Args>(args)...);
 }
 
-template <typename T, typename Arg,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<reset_internal::HasRiegeliReset<T, Arg>>,
-                  absl::negation<reset_internal::HasReset<T, Arg>>,
-                  reset_internal::HasAssignment<T, Arg>>::value,
-              int> = 0>
+template <
+    typename T, typename Arg,
+    std::enable_if_t<std::conjunction_v<
+                         std::negation<reset_internal::HasRiegeliReset<T, Arg>>,
+                         std::negation<reset_internal::HasReset<T, Arg>>,
+                         reset_internal::HasAssignment<T, Arg>>,
+                     int> = 0>
 inline void Reset(T& dest, Arg&& arg) {
   dest = std::forward<Arg>(arg);
 }
 
-template <typename T, typename... Args,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<reset_internal::HasRiegeliReset<T, Args...>>,
-                  absl::negation<reset_internal::HasReset<T, Args...>>,
-                  absl::negation<reset_internal::HasAssignment<T, Args...>>,
-                  std::is_constructible<T, Args...>,
-                  std::is_move_assignable<T>>::value,
-              int> = 0>
+template <
+    typename T, typename... Args,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::negation<reset_internal::HasRiegeliReset<T, Args...>>,
+            std::negation<reset_internal::HasReset<T, Args...>>,
+            std::negation<reset_internal::HasAssignment<T, Args...>>,
+            std::is_constructible<T, Args...>, std::is_move_assignable<T>>,
+        int> = 0>
 inline void Reset(T& dest, Args&&... args) {
   dest = T(std::forward<Args>(args)...);
 }

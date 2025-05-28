@@ -140,12 +140,12 @@ class
   // `ClosingPtrType`, or an rvalue reference to it, adopts its storage instead
   // of keeping an indirection. This causes `GetIf()` to see through it.
   void Initialize();
-  template <typename Manager,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<IsAny<Handle, Manager>>,
-                    absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
-                int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<
+          std::conjunction_v<std::negation<IsAny<Handle, Manager>>,
+                             std::negation<IsAnyClosingPtr<Handle, Manager>>>,
+          int> = 0>
   void Initialize(Manager&& manager);
   template <typename Manager,
             std::enable_if_t<IsAny<Handle, Manager>::value, int> = 0>
@@ -153,12 +153,12 @@ class
   template <typename Manager,
             std::enable_if_t<IsAnyClosingPtr<Handle, Manager>::value, int> = 0>
   void Initialize(Manager&& manager);
-  template <typename Manager,
-            std::enable_if_t<
-                absl::conjunction<
-                    absl::negation<IsAny<Handle, Manager>>,
-                    absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
-                int> = 0>
+  template <
+      typename Manager,
+      std::enable_if_t<
+          std::conjunction_v<std::negation<IsAny<Handle, Manager>>,
+                             std::negation<IsAnyClosingPtr<Handle, Manager>>>,
+          int> = 0>
   void Initialize(Initializer<Manager> manager);
   template <typename Manager,
             std::enable_if_t<IsAny<Handle, Manager>::value, int> = 0>
@@ -278,19 +278,17 @@ class
   // wrapped in `ClosingPtrType`, or an rvalue reference to it, adopts its
   // storage instead of keeping an indirection. This causes `GetIf()` to see
   // through it.
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<NotSameRef<Any, TargetT<Manager>>,
-                            TargetSupportsDependency<Handle, Manager>>::value,
-          int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<Any, TargetT<Manager>>,
+                                   TargetSupportsDependency<Handle, Manager>>,
+                int> = 0>
   /*implicit*/ Any(Manager&& manager);
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<NotSameRef<Any, TargetT<Manager>>,
-                            TargetSupportsDependency<Handle, Manager>>::value,
-          int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<Any, TargetT<Manager>>,
+                                   TargetSupportsDependency<Handle, Manager>>,
+                int> = 0>
   Any& operator=(Manager&& manager);
 
   // Holds the `Dependency` specified when the `AnyInitializer` was constructed.
@@ -310,8 +308,8 @@ class
   // Assignment operator which materializes `Any` from its `Initializer`
   // except from the `Any` itself, which is handled below.
   template <typename Manager,
-            std::enable_if_t<absl::conjunction<SameRef<Any, TargetT<Manager>>,
-                                               NotSameRef<Any, Manager>>::value,
+            std::enable_if_t<std::conjunction_v<SameRef<Any, TargetT<Manager>>,
+                                                NotSameRef<Any, Manager>>,
                              int> = 0>
   Any& operator=(Manager&& manager) {
     riegeli::Reset(*this, std::forward<Manager>(manager));
@@ -439,11 +437,11 @@ class
   // indirection. This causes `GetIf()` to see through it.
   template <typename Manager,
             std::enable_if_t<
-                absl::conjunction<
+                std::conjunction_v<
                     NotSameRef<AnyRef, TargetT<Manager>>,
                     NotSameRef<Any<Handle>, TargetT<Manager>>,
-                    absl::negation<std::is_reference<TargetRefT<Manager>>>,
-                    SupportsDependency<Handle, TargetRefT<Manager>&&>>::value,
+                    std::negation<std::is_reference<TargetRefT<Manager>>>,
+                    SupportsDependency<Handle, TargetRefT<Manager>&&>>,
                 int> = 0>
   /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND,
                       TemporaryStorage<TargetRefT<Manager>>&& storage
@@ -458,14 +456,13 @@ class
   // through it.
   //
   // This constructor is separate so that it does not need `storage`.
-  template <
-      typename Manager,
-      std::enable_if_t<absl::conjunction<
-                           NotSameRef<AnyRef, TargetT<Manager>>,
-                           NotSameRef<Any<Handle>, TargetT<Manager>>,
-                           std::is_reference<TargetRefT<Manager>>,
-                           TargetRefSupportsDependency<Handle, Manager>>::value,
-                       int> = 0>
+  template <typename Manager,
+            std::enable_if_t<std::conjunction_v<
+                                 NotSameRef<AnyRef, TargetT<Manager>>,
+                                 NotSameRef<Any<Handle>, TargetT<Manager>>,
+                                 std::is_reference<TargetRefT<Manager>>,
+                                 TargetRefSupportsDependency<Handle, Manager>>,
+                             int> = 0>
   /*implicit*/ AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
   // Adopts the `Dependency` from `Any<Handle>` with no inline storage.
@@ -605,11 +602,10 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize() {
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<IsAny<Handle, Manager>>,
-                  absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
-              int>>
+          std::enable_if_t<std::conjunction_v<
+                               std::negation<IsAny<Handle, Manager>>,
+                               std::negation<IsAnyClosingPtr<Handle, Manager>>>,
+                           int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Manager&& manager) {
   Initialize<Manager>(Initializer<Manager>(std::forward<Manager>(manager)));
@@ -673,11 +669,10 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
 
 template <typename Handle, size_t inline_size, size_t inline_align>
 template <typename Manager,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<IsAny<Handle, Manager>>,
-                  absl::negation<IsAnyClosingPtr<Handle, Manager>>>::value,
-              int>>
+          std::enable_if_t<std::conjunction_v<
+                               std::negation<IsAny<Handle, Manager>>,
+                               std::negation<IsAnyClosingPtr<Handle, Manager>>>,
+                           int>>
 inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
     Initializer<Manager> manager) {
   methods_and_handle_.methods = &MethodsFor<Manager>::kMethods;
@@ -770,9 +765,9 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
     std::enable_if_t<
-        absl::conjunction<NotSameRef<Any<Handle, inline_size, inline_align>,
-                                     TargetT<Manager>>,
-                          TargetSupportsDependency<Handle, Manager>>::value,
+        std::conjunction_v<NotSameRef<Any<Handle, inline_size, inline_align>,
+                                      TargetT<Manager>>,
+                           TargetSupportsDependency<Handle, Manager>>,
         int>>
 inline Any<Handle, inline_size, inline_align>::Any(Manager&& manager) {
   this->template Initialize<TargetT<Manager>>(std::forward<Manager>(manager));
@@ -782,9 +777,9 @@ template <typename Handle, size_t inline_size, size_t inline_align>
 template <
     typename Manager,
     std::enable_if_t<
-        absl::conjunction<NotSameRef<Any<Handle, inline_size, inline_align>,
-                                     TargetT<Manager>>,
-                          TargetSupportsDependency<Handle, Manager>>::value,
+        std::conjunction_v<NotSameRef<Any<Handle, inline_size, inline_align>,
+                                      TargetT<Manager>>,
+                           TargetSupportsDependency<Handle, Manager>>,
         int>>
 inline Any<Handle, inline_size, inline_align>&
 Any<Handle, inline_size, inline_align>::operator=(Manager&& manager) {
@@ -813,14 +808,14 @@ Any<Handle, inline_size, inline_align>::operator=(Manager manager) {
 }
 
 template <typename Handle>
-template <typename Manager,
-          std::enable_if_t<
-              absl::conjunction<
-                  NotSameRef<AnyRef<Handle>, TargetT<Manager>>,
-                  NotSameRef<Any<Handle>, TargetT<Manager>>,
-                  absl::negation<std::is_reference<TargetRefT<Manager>>>,
-                  SupportsDependency<Handle, TargetRefT<Manager>&&>>::value,
-              int>>
+template <
+    typename Manager,
+    std::enable_if_t<std::conjunction_v<
+                         NotSameRef<AnyRef<Handle>, TargetT<Manager>>,
+                         NotSameRef<Any<Handle>, TargetT<Manager>>,
+                         std::negation<std::is_reference<TargetRefT<Manager>>>,
+                         SupportsDependency<Handle, TargetRefT<Manager>&&>>,
+                     int>>
 inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND,
                               TemporaryStorage<TargetRefT<Manager>>&& storage
                                   ABSL_ATTRIBUTE_LIFETIME_BOUND) {
@@ -830,14 +825,13 @@ inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND,
 }
 
 template <typename Handle>
-template <
-    typename Manager,
-    std::enable_if_t<
-        absl::conjunction<NotSameRef<AnyRef<Handle>, TargetT<Manager>>,
-                          NotSameRef<Any<Handle>, TargetT<Manager>>,
-                          std::is_reference<TargetRefT<Manager>>,
-                          TargetRefSupportsDependency<Handle, Manager>>::value,
-        int>>
+template <typename Manager,
+          std::enable_if_t<
+              std::conjunction_v<NotSameRef<AnyRef<Handle>, TargetT<Manager>>,
+                                 NotSameRef<Any<Handle>, TargetT<Manager>>,
+                                 std::is_reference<TargetRefT<Manager>>,
+                                 TargetRefSupportsDependency<Handle, Manager>>,
+              int>>
 inline AnyRef<Handle>::AnyRef(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   this->template Initialize<TargetRefT<Manager>>(
       std::forward<Manager>(manager));

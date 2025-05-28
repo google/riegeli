@@ -116,9 +116,9 @@ class DependencyManagerImpl<std::unique_ptr<T, Deleter>, ManagerStorage>
     : public DependencyBase<
 #ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
           std::conditional_t<
-              absl::conjunction<std::is_empty<Deleter>,
-                                absl::is_trivially_relocatable<
-                                    std::unique_ptr<T, Deleter>>>::value,
+              std::conjunction_v<
+                  std::is_empty<Deleter>,
+                  absl::is_trivially_relocatable<std::unique_ptr<T, Deleter>>>,
               std::unique_ptr<T, Deleter>, ManagerStorage>
 #else
           ManagerStorage
@@ -181,7 +181,7 @@ struct SupportsDependencyManagerImpl : std::false_type {};
 template <typename Manager>
 struct SupportsDependencyManagerImpl<
     Manager,
-    absl::void_t<
+    std::void_t<
         decltype(std::declval<const DependencyManagerImpl<Manager, Manager>&>()
                      .manager())>> : std::true_type {};
 
@@ -199,10 +199,10 @@ class DependencyManager;
 // `DependencyManagerImpl<Manager>` is defined: delegate to it.
 template <typename Manager>
 class DependencyManager<
-    Manager, std::enable_if_t<absl::conjunction<
-                 absl::negation<std::is_reference<Manager>>,
-                 dependency_manager_internal::SupportsDependencyManagerImpl<
-                     Manager>>::value>>
+    Manager,
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_reference<Manager>>,
+        dependency_manager_internal::SupportsDependencyManagerImpl<Manager>>>>
     : public DependencyManagerImpl<Manager, Manager> {
  public:
   using DependencyManager::DependencyManagerImpl::DependencyManagerImpl;
@@ -231,11 +231,10 @@ class DependencyManager<
 // by value.
 template <typename Manager>
 class DependencyManager<
-    Manager,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_reference<Manager>>,
-        absl::negation<dependency_manager_internal::
-                           SupportsDependencyManagerImpl<Manager>>>::value>>
+    Manager, std::enable_if_t<std::conjunction_v<
+                 std::negation<std::is_reference<Manager>>,
+                 std::negation<dependency_manager_internal::
+                                   SupportsDependencyManagerImpl<Manager>>>>>
     : public DependencyBase<Manager> {
  public:
   using DependencyManager::DependencyBase::DependencyBase;
@@ -412,10 +411,9 @@ struct DependencyManagerPtrImpl {
 // which contains a member variable of an abstract type.
 template <typename Manager>
 struct DependencyManagerPtrImpl<
-    Manager,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_reference<Manager>>,
-        absl::negation<SupportsDependencyManagerImpl<Manager>>>::value>> {
+    Manager, std::enable_if_t<std::conjunction_v<
+                 std::negation<std::is_reference<Manager>>,
+                 std::negation<SupportsDependencyManagerImpl<Manager>>>>> {
   using type = Manager*;
 };
 

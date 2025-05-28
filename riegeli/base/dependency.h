@@ -216,11 +216,11 @@ class DependencyImpl;
 template <typename T, typename Manager>
 class DependencyImpl<
     T*, Manager,
-    std::enable_if_t<absl::conjunction<
-        absl::disjunction<
+    std::enable_if_t<std::conjunction_v<
+        std::disjunction<
             std::is_pointer<DependencyManagerPtr<Manager>>,
             std::is_same<DependencyManagerPtr<Manager>, std::nullptr_t>>,
-        std::is_convertible<DependencyManagerPtr<Manager>, T*>>::value>>
+        std::is_convertible<DependencyManagerPtr<Manager>, T*>>>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
@@ -247,10 +247,10 @@ class DependencyImpl<
 template <typename T, typename Manager>
 class DependencyImpl<
     absl::Span<T>, Manager,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        std::is_constructible<absl::Span<T>, DependencyManagerRef<Manager>>>::
-                         value>> : public DependencyManager<Manager> {
+        std::is_constructible<absl::Span<T>, DependencyManagerRef<Manager>>>>>
+    : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
 
@@ -297,10 +297,10 @@ class DependencyImpl<
 template <typename T, typename Manager>
 class DependencyImpl<
     absl::Span<T>, Manager,
-    std::enable_if_t<absl::disjunction<
+    std::enable_if_t<std::disjunction_v<
         std::is_same<DependencyManagerPtr<Manager>, absl::Span<T>>,
         std::is_same<DependencyManagerPtr<Manager>,
-                     absl::Span<std::remove_const_t<T>>>>::value>>
+                     absl::Span<std::remove_const_t<T>>>>>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
@@ -324,9 +324,9 @@ class DependencyImpl<
 template <typename Manager>
 class DependencyImpl<
     absl::string_view, Manager,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        std::is_convertible<DependencyManagerRef<Manager>, BytesRef>>::value>>
+        std::is_convertible<DependencyManagerRef<Manager>, BytesRef>>>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
@@ -363,9 +363,9 @@ class DependencyImpl<
 template <typename Manager>
 class DependencyImpl<
     absl::string_view, Manager,
-    std::enable_if_t<absl::disjunction<
+    std::enable_if_t<std::disjunction_v<
         std::is_same<DependencyManagerPtr<Manager>, absl::Span<const char>>,
-        std::is_same<DependencyManagerPtr<Manager>, absl::Span<char>>>::value>>
+        std::is_same<DependencyManagerPtr<Manager>, absl::Span<char>>>>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
@@ -396,7 +396,7 @@ struct SupportsDependencyImpl : std::false_type {};
 template <typename Handle, typename Manager>
 struct SupportsDependencyImpl<
     Handle, Manager,
-    absl::void_t<
+    std::void_t<
         decltype(std::declval<const DependencyImpl<Handle, Manager>&>().get())>>
     : std::true_type {};
 
@@ -444,10 +444,10 @@ class DependencyDefault<
 template <typename Handle, typename Manager>
 class DependencyDefault<
     Handle, Manager,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<SupportsDependencyImpl<Handle, Manager>>,
+    std::enable_if_t<std::conjunction_v<
+        std::negation<SupportsDependencyImpl<Handle, Manager>>,
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        std::is_constructible<Handle, DependencyManagerRef<Manager>>>::value>>
+        std::is_constructible<Handle, DependencyManagerRef<Manager>>>>>
     : public DependencyManager<Manager> {
  public:
   using DependencyDefault::DependencyManager::DependencyManager;
@@ -493,12 +493,12 @@ class DependencyDefault<
 template <typename Handle, typename Manager>
 class DependencyDefault<
     Handle, Manager,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<SupportsDependencyImpl<Handle, Manager>>,
-        absl::negation<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
+        std::negation<SupportsDependencyImpl<Handle, Manager>>,
+        std::negation<std::conjunction<
             std::is_pointer<DependencyManagerPtr<Manager>>,
             std::is_constructible<Handle, DependencyManagerRef<Manager>>>>,
-        std::is_constructible<Handle, DependencyManagerPtr<Manager>>>::value>>
+        std::is_constructible<Handle, DependencyManagerPtr<Manager>>>>>
     : public DependencyManager<Manager> {
  public:
   using DependencyDefault::DependencyManager::DependencyManager;
@@ -540,9 +540,9 @@ class DependencyDefault<
 // `DependencyDefault<Handle, Manager, Manager&>` is defined.
 template <typename Handle, typename Manager>
 struct SupportsDependencyDefault
-    : absl::disjunction<
+    : std::disjunction<
           dependency_internal::SupportsDependencyImpl<Handle, Manager>,
-          absl::conjunction<
+          std::conjunction<
               std::is_pointer<DependencyManagerPtr<Manager>>,
               std::is_constructible<Handle, DependencyManagerRef<Manager>>>,
           std::is_constructible<Handle, DependencyManagerPtr<Manager>>> {};
@@ -586,11 +586,10 @@ class DependencyDeref<
 template <typename Handle, typename Manager>
 class DependencyDeref<
     Handle, Manager,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::is_reference<Manager>,
-        absl::negation<SupportsDependencyDefault<Handle, Manager>>,
-        SupportsDependencyDefault<Handle,
-                                  absl::remove_cvref_t<Manager>>>::value>>
+        std::negation<SupportsDependencyDefault<Handle, Manager>>,
+        SupportsDependencyDefault<Handle, absl::remove_cvref_t<Manager>>>>>
     : public DependencyDefault<Handle, absl::remove_cvref_t<Manager>> {
  public:
   using DependencyDeref::DependencyDefault::DependencyDefault;
@@ -609,11 +608,11 @@ class DependencyDeref<
 // `DependencyDeref<Handle, Manager>` is defined.
 template <typename Handle, typename Manager>
 struct SupportsDependencyDeref
-    : absl::disjunction<
+    : std::disjunction<
           SupportsDependencyDefault<Handle, Manager>,
-          absl::conjunction<std::is_reference<Manager>,
-                            SupportsDependencyDefault<
-                                Handle, absl::remove_cvref_t<Manager>>>> {};
+          std::conjunction<std::is_reference<Manager>,
+                           SupportsDependencyDefault<
+                               Handle, absl::remove_cvref_t<Manager>>>> {};
 
 }  // namespace dependency_internal
 
@@ -627,7 +626,7 @@ struct SupportsDependencyDeref
 // object.
 template <typename Handle, typename Manager>
 struct SupportsDependency
-    : absl::conjunction<
+    : std::conjunction<
           dependency_internal::SupportsDependencyDeref<Handle, Manager>
 #if !__cpp_guaranteed_copy_elision
           ,
@@ -646,7 +645,7 @@ struct SupportsDependency
 // not from an already constructed object.
 template <typename Handle, typename Manager>
 struct TargetSupportsDependency
-    : absl::conjunction<
+    : std::conjunction<
           SupportsDependency<Handle, TargetT<Manager>>,
           std::is_convertible<Manager&&, Initializer<TargetT<Manager>>>> {};
 
@@ -661,7 +660,7 @@ struct TargetSupportsDependency
 // not from an already constructed object.
 template <typename Handle, typename Manager>
 struct TargetRefSupportsDependency
-    : absl::conjunction<
+    : std::conjunction<
           SupportsDependency<Handle, TargetRefT<Manager>>,
           std::is_convertible<Manager&&, Initializer<TargetRefT<Manager>>>> {};
 
@@ -759,8 +758,8 @@ class DependencyDerived
   template <
       typename DependentBase = Base,
       std::enable_if_t<
-          absl::conjunction<absl::negation<HasDynamicIsOwning<DependentBase>>,
-                            HasStaticIsOwning<DependentBase>>::value,
+          std::conjunction_v<std::negation<HasDynamicIsOwning<DependentBase>>,
+                             HasStaticIsOwning<DependentBase>>,
           int> = 0>
   bool IsOwning() const {
     return Base::kIsOwning;

@@ -24,7 +24,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/debug.h"
 #include "riegeli/base/port.h"
 
@@ -122,7 +121,7 @@ template <typename T, typename Enable = void>
 struct HasStatus : std::false_type {};
 
 template <typename T>
-struct HasStatus<T, absl::void_t<decltype(std::declval<T>().status())>>
+struct HasStatus<T, std::void_t<decltype(std::declval<T>().status())>>
     : std::true_type {};
 
 }  // namespace assert_internal

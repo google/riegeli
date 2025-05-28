@@ -58,11 +58,10 @@ class
   // reference to `nullptr` instead of being empty.
 
   // Wraps `std::forward<T>(value)`.
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<TypeErasedRef, T>,
-                                  absl::negation<IsFunctionRef<T>>>::value,
-                int> = 0>
+  template <typename T, std::enable_if_t<
+                            std::conjunction_v<NotSameRef<TypeErasedRef, T>,
+                                               std::negation<IsFunctionRef<T>>>,
+                            int> = 0>
   explicit TypeErasedRef(T&& value ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : ptr_(const_cast<absl::remove_cvref_t<T>*>(std::addressof(value))) {}
 

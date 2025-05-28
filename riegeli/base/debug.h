@@ -28,7 +28,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/string_view.h"
@@ -45,8 +44,8 @@ struct HasRiegeliDebug : std::false_type {};
 
 template <typename T>
 struct HasRiegeliDebug<
-    T, absl::void_t<decltype(RiegeliDebug(std::declval<const T&>(),
-                                          std::declval<DebugStream&>()))>>
+    T, std::void_t<decltype(RiegeliDebug(std::declval<const T&>(),
+                                         std::declval<DebugStream&>()))>>
     : std::true_type {};
 
 template <typename T, typename Enable = void>
@@ -63,8 +62,8 @@ template <typename T, typename Enable = void>
 struct HasOperatorOutput : std::false_type {};
 
 template <typename T>
-struct HasOperatorOutput<T, absl::void_t<decltype(std::declval<std::ostream&>()
-                                                  << std::declval<T>())>>
+struct HasOperatorOutput<T, std::void_t<decltype(std::declval<std::ostream&>()
+                                                 << std::declval<T>())>>
     : std::true_type {};
 
 }  // namespace debug_internal
@@ -77,7 +76,7 @@ struct HasOperatorOutput<T, absl::void_t<decltype(std::declval<std::ostream&>()
 // syntax similar to C++ expressions.
 template <typename T>
 struct SupportsDebug
-    : absl::disjunction<
+    : std::disjunction<
           debug_internal::HasRiegeliDebug<T>, debug_internal::HasDebugString<T>,
           absl::HasAbslStringify<T>, debug_internal::HasOperatorOutput<T>> {};
 
@@ -141,8 +140,8 @@ class DebugStream {
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<absl::negation<debug_internal::HasRiegeliDebug<T>>,
-                            debug_internal::HasDebugString<T>>::value,
+          std::conjunction_v<std::negation<debug_internal::HasRiegeliDebug<T>>,
+                             debug_internal::HasDebugString<T>>,
           int> = 0>
   void Debug(const T& src) {
     Write(src.DebugString());
@@ -150,20 +149,20 @@ class DebugStream {
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<absl::negation<debug_internal::HasRiegeliDebug<T>>,
-                            absl::negation<debug_internal::HasDebugString<T>>,
-                            debug_internal::HasOperatorOutput<T>>::value,
+          std::conjunction_v<std::negation<debug_internal::HasRiegeliDebug<T>>,
+                             std::negation<debug_internal::HasDebugString<T>>,
+                             debug_internal::HasOperatorOutput<T>>,
           int> = 0>
   void Debug(const T& src) {
     *dest_ << src;
   }
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<
-                           absl::negation<debug_internal::HasRiegeliDebug<T>>,
-                           absl::negation<debug_internal::HasDebugString<T>>,
-                           absl::negation<debug_internal::HasOperatorOutput<T>>,
-                           absl::HasAbslStringify<T>>::value,
+      std::enable_if_t<std::conjunction_v<
+                           std::negation<debug_internal::HasRiegeliDebug<T>>,
+                           std::negation<debug_internal::HasDebugString<T>>,
+                           std::negation<debug_internal::HasOperatorOutput<T>>,
+                           absl::HasAbslStringify<T>>,
                        int> = 0>
   void Debug(const T& src) {
     OStreamAbslStringifySink sink(dest_);

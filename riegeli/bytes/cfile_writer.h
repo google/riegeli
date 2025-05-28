@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
@@ -379,9 +378,9 @@ class CFileWriter : public CFileWriterBase {
   //
   // This constructor is present only if `Dest` supports `Open()`.
   template <typename DependentDest = Dest,
-            std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentDest>,
-                                               std::is_default_constructible<
-                                                   DependentDest>>::value,
+            std::enable_if_t<std::conjunction_v<
+                                 CFileSupportsOpen<DependentDest>,
+                                 std::is_default_constructible<DependentDest>>,
                              int> = 0>
   explicit CFileWriter(PathRef filename, Options options = Options());
 
@@ -400,8 +399,8 @@ class CFileWriter : public CFileWriterBase {
                                           Options options = Options());
   template <
       typename DependentDest = Dest,
-      std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentDest>,
-                                         SupportsReset<DependentDest>>::value,
+      std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentDest>,
+                                          SupportsReset<DependentDest>>,
                        int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
                                           Options options = Options());
@@ -442,8 +441,8 @@ template <typename Dest>
 explicit CFileWriter(
     Dest&& dest, CFileWriterBase::Options options = CFileWriterBase::Options())
     -> CFileWriter<std::conditional_t<
-        absl::disjunction<std::is_convertible<Dest&&, FILE*>,
-                          std::is_convertible<Dest&&, PathRef>>::value,
+        std::disjunction_v<std::is_convertible<Dest&&, FILE*>,
+                           std::is_convertible<Dest&&, PathRef>>,
         OwnedCFile, TargetT<Dest>>>;
 
 // Implementation details follow.
@@ -523,12 +522,11 @@ inline CFileWriter<Dest>::CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
     : CFileWriter(riegeli::Maker(dest), std::move(options)) {}
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<
-        absl::conjunction<CFileSupportsOpen<DependentDest>,
-                          std::is_default_constructible<DependentDest>>::value,
-        int>>
+template <typename DependentDest,
+          std::enable_if_t<
+              std::conjunction_v<CFileSupportsOpen<DependentDest>,
+                                 std::is_default_constructible<DependentDest>>,
+              int>>
 inline CFileWriter<Dest>::CFileWriter(PathRef filename, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
   OpenImpl(CompactString::ForCStr(filename), std::move(options));
@@ -555,11 +553,10 @@ inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
 }
 
 template <typename Dest>
-template <
-    typename DependentDest,
-    std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentDest>,
-                                       SupportsReset<DependentDest>>::value,
-                     int>>
+template <typename DependentDest,
+          std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentDest>,
+                                              SupportsReset<DependentDest>>,
+                           int>>
 inline void CFileWriter<Dest>::Reset(PathRef filename, Options options) {
   CompactString filename_copy =
       CompactString::ForCStr(filename);  // In case it gets invalidated.

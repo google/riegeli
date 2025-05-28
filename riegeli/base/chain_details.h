@@ -32,7 +32,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -336,7 +335,7 @@ template <typename T, typename Enable = void>
 struct HasCallOperatorSubstr : std::false_type {};
 
 template <typename T>
-struct HasCallOperatorSubstr<T, absl::void_t<decltype(std::declval<T&&>()(
+struct HasCallOperatorSubstr<T, std::void_t<decltype(std::declval<T&&>()(
                                     std::declval<absl::string_view>()))>>
     : std::true_type {};
 
@@ -344,12 +343,12 @@ template <typename T, typename Enable = void>
 struct HasCallOperatorWhole : std::false_type {};
 
 template <typename T>
-struct HasCallOperatorWhole<T, absl::void_t<decltype(std::declval<T&&>()())>>
+struct HasCallOperatorWhole<T, std::void_t<decltype(std::declval<T&&>()())>>
     : std::true_type {};
 
 template <typename T>
 struct HasCallOperator
-    : absl::disjunction<HasCallOperatorSubstr<T>, HasCallOperatorWhole<T>> {};
+    : std::disjunction<HasCallOperatorSubstr<T>, HasCallOperatorWhole<T>> {};
 
 template <typename T,
           std::enable_if_t<HasCallOperatorSubstr<T>::value, int> = 0>
@@ -359,19 +358,19 @@ inline void CallOperator(T&& object, absl::string_view substr) {
 
 template <
     typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<HasCallOperatorSubstr<T>>,
-                                       HasCallOperatorWhole<T>>::value,
+    std::enable_if_t<std::conjunction_v<std::negation<HasCallOperatorSubstr<T>>,
+                                        HasCallOperatorWhole<T>>,
                      int> = 0>
 inline void CallOperator(T&& object,
                          ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
   std::forward<T>(object)();
 }
 
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<absl::negation<HasCallOperatorSubstr<T>>,
-                                absl::negation<HasCallOperatorWhole<T>>>::value,
-              int> = 0>
+template <
+    typename T,
+    std::enable_if_t<std::conjunction_v<std::negation<HasCallOperatorSubstr<T>>,
+                                        std::negation<HasCallOperatorWhole<T>>>,
+                     int> = 0>
 inline void CallOperator(ABSL_ATTRIBUTE_UNUSED T&& object,
                          ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {}
 
@@ -403,7 +402,7 @@ struct HasRiegeliDumpStructureWithSubstr : std::false_type {};
 
 template <typename T>
 struct HasRiegeliDumpStructureWithSubstr<
-    T, absl::void_t<decltype(RiegeliDumpStructure(
+    T, std::void_t<decltype(RiegeliDumpStructure(
            std::declval<const T*>(), std::declval<absl::string_view>(),
            std::declval<std::ostream&>()))>> : std::true_type {};
 
@@ -412,7 +411,7 @@ struct HasRiegeliDumpStructureWithoutData : std::false_type {};
 
 template <typename T>
 struct HasRiegeliDumpStructureWithoutData<
-    T, absl::void_t<decltype(RiegeliDumpStructure(
+    T, std::void_t<decltype(RiegeliDumpStructure(
            std::declval<const T*>(), std::declval<std::ostream&>()))>>
     : std::true_type {};
 
@@ -428,8 +427,8 @@ inline void DumpStructure(const T* object, absl::string_view substr,
 template <
     typename T,
     std::enable_if_t<
-        absl::conjunction<absl::negation<HasRiegeliDumpStructureWithSubstr<T>>,
-                          HasRiegeliDumpStructureWithoutData<T>>::value,
+        std::conjunction_v<std::negation<HasRiegeliDumpStructureWithSubstr<T>>,
+                           HasRiegeliDumpStructureWithoutData<T>>,
         int> = 0>
 inline void DumpStructure(const T* object,
                           ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
@@ -437,12 +436,12 @@ inline void DumpStructure(const T* object,
   RiegeliDumpStructure(object, dest);
 }
 
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<HasRiegeliDumpStructureWithSubstr<T>>,
-                  absl::negation<HasRiegeliDumpStructureWithoutData<T>>>::value,
-              int> = 0>
+template <
+    typename T,
+    std::enable_if_t<std::conjunction_v<
+                         std::negation<HasRiegeliDumpStructureWithSubstr<T>>,
+                         std::negation<HasRiegeliDumpStructureWithoutData<T>>>,
+                     int> = 0>
 inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED const T* object,
                           ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
                           std::ostream& dest) {
@@ -829,12 +828,11 @@ inline Chain::BlockIterator::reference Chain::BlockIterator::operator[](
   return *(*this + n);
 }
 
-template <
-    typename T,
-    std::enable_if_t<
-        absl::conjunction<NotSameRef<Chain::Block, TargetT<T>>,
-                          std::is_convertible<TargetT<T>, BytesRef>>::value,
-        int>>
+template <typename T,
+          std::enable_if_t<
+              std::conjunction_v<NotSameRef<Chain::Block, TargetT<T>>,
+                                 std::is_convertible<TargetT<T>, BytesRef>>,
+              int>>
 inline Chain::Block::Block(T&& object)
     : block_(
           ExternalMethodsFor<TargetT<T>>::NewBlock(std::forward<T>(object))) {}

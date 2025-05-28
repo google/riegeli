@@ -28,7 +28,6 @@
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -289,19 +288,19 @@ class
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
 
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<CompactString, T>,
-                                  std::is_convertible<T&&, BytesRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<CompactString, T>,
+                                          std::is_convertible<T&&, BytesRef>>,
+                       int> = 0>
   friend bool operator==(const CompactString& a, T&& b) {
     return absl::string_view(a) == BytesRef(std::forward<T>(b));
   }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<CompactString, T>,
-                                  std::is_convertible<T&&, BytesRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<CompactString, T>,
+                                          std::is_convertible<T&&, BytesRef>>,
+                       int> = 0>
   friend StrongOrdering RIEGELI_COMPARE(const CompactString& a, T&& b) {
     return riegeli::Compare(absl::string_view(a), BytesRef(std::forward<T>(b)));
   }

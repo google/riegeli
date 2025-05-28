@@ -36,7 +36,6 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -57,7 +56,7 @@ struct HasRiegeliRegisterSubobjects : std::false_type {};
 
 template <typename T>
 struct HasRiegeliRegisterSubobjects<
-    T, absl::void_t<decltype(RiegeliRegisterSubobjects(
+    T, std::void_t<decltype(RiegeliRegisterSubobjects(
            std::declval<const T*>(), std::declval<MemoryEstimator&>()))>>
     : std::true_type {};
 
@@ -77,7 +76,7 @@ class MemoryEstimator {
   // the caller might need some different way to estimate memory.
   template <typename T>
   struct RegisterSubobjectsIsGood
-      : absl::disjunction<
+      : std::disjunction<
             memory_estimator_internal::HasRiegeliRegisterSubobjects<T>,
             std::is_trivially_destructible<T>> {};
 
@@ -88,8 +87,8 @@ class MemoryEstimator {
   // This can be used to skip a loop over elements of type `T`.
   template <typename T>
   struct RegisterSubobjectsIsTrivial
-      : absl::conjunction<
-            absl::negation<
+      : std::conjunction<
+            std::negation<
                 memory_estimator_internal::HasRiegeliRegisterSubobjects<T>>,
             std::is_trivially_destructible<T>> {};
 
@@ -389,18 +388,18 @@ inline void RegisterSubobjects(const T* object,
 }
 template <typename T,
           std::enable_if_t<
-              absl::conjunction<absl::negation<HasRiegeliRegisterSubobjects<T>>,
-                                std::is_trivially_destructible<T>>::value,
+              std::conjunction_v<std::negation<HasRiegeliRegisterSubobjects<T>>,
+                                 std::is_trivially_destructible<T>>,
               int> = 0>
 inline void RegisterSubobjects(
     ABSL_ATTRIBUTE_UNUSED const T* object,
     ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<HasRiegeliRegisterSubobjects<T>>,
-                  absl::negation<std::is_trivially_destructible<T>>>::value,
-              int> = 0>
+template <
+    typename T,
+    std::enable_if_t<
+        std::conjunction_v<std::negation<HasRiegeliRegisterSubobjects<T>>,
+                           std::negation<std::is_trivially_destructible<T>>>,
+        int> = 0>
 inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
                                MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterUnknownType<T>();
@@ -442,11 +441,10 @@ inline void RiegeliRegisterSubobjects(const T (*self)[size],
   memory_estimator.RegisterSubobjects(*self + 0, *self + size);
 }
 
-template <
-    typename T, typename Deleter,
-    std::enable_if_t<absl::conjunction<absl::negation<std::is_void<T>>,
-                                       absl::negation<std::is_array<T>>>::value,
-                     int> = 0>
+template <typename T, typename Deleter,
+          std::enable_if_t<std::conjunction_v<std::negation<std::is_void<T>>,
+                                              std::negation<std::is_array<T>>>,
+                           int> = 0>
 inline void RiegeliRegisterSubobjects(const std::unique_ptr<T, Deleter>* self,
                                       MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterSubobjects<Deleter>(&self->get_deleter());
@@ -464,11 +462,10 @@ struct SharedPtrControlBlock {
 
 }  // namespace memory_estimator_internal
 
-template <
-    typename T,
-    std::enable_if_t<absl::conjunction<absl::negation<std::is_void<T>>,
-                                       absl::negation<std::is_array<T>>>::value,
-                     int> = 0>
+template <typename T,
+          std::enable_if_t<std::conjunction_v<std::negation<std::is_void<T>>,
+                                              std::negation<std::is_array<T>>>,
+                           int> = 0>
 inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
                                       MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(self->get())) {

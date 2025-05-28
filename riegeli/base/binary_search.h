@@ -21,7 +21,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "riegeli/base/compare.h"
@@ -129,7 +128,7 @@ struct IsSearchGuide<SearchGuide<OtherPos>, Pos>
 
 template <typename T, typename Pos>
 struct IsOrderingOrSearchGuide
-    : absl::disjunction<IsOrdering<T>, IsSearchGuide<T, Pos>> {};
+    : std::disjunction<IsOrdering<T>, IsSearchGuide<T, Pos>> {};
 
 template <typename T, typename Pos>
 struct IsOptionalOrderingOrSearchGuide : std::false_type {};

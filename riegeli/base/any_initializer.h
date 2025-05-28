@@ -24,7 +24,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/any_internal.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -67,12 +66,11 @@ class AnyInitializer {
   // wrapped in `ClosingPtrType`, or an rvalue reference to it, adopts its
   // storage instead of keeping an indirection. This causes `GetIf()` to see
   // through it.
-  template <
-      typename Manager,
-      std::enable_if_t<
-          absl::conjunction<NotSameRef<AnyInitializer, TargetT<Manager>>,
-                            TargetSupportsDependency<Handle, Manager>>::value,
-          int> = 0>
+  template <typename Manager,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<AnyInitializer, TargetT<Manager>>,
+                                   TargetSupportsDependency<Handle, Manager>>,
+                int> = 0>
   /*implicit*/ AnyInitializer(Manager&& manager ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : construct_(ConstructMethod<Manager>),
         context_(std::forward<Manager>(manager)) {}
@@ -99,10 +97,10 @@ class AnyInitializer {
   template <
       typename Manager,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<any_internal::IsAny<Handle, TargetT<Manager>>>,
-              absl::negation<any_internal::IsAnyClosingPtr<
-                  Handle, TargetT<Manager>>>>::value,
+          std::conjunction_v<
+              std::negation<any_internal::IsAny<Handle, TargetT<Manager>>>,
+              std::negation<
+                  any_internal::IsAnyClosingPtr<Handle, TargetT<Manager>>>>,
           int> = 0>
   static void ConstructMethod(TypeErasedRef context, Storage dest,
                               MethodsAndHandle* dest_methods_and_handle,
@@ -160,10 +158,10 @@ void AnyInitializer<Handle>::ConstructMethodEmpty(
 template <typename Handle>
 template <typename Manager,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<any_internal::IsAny<Handle, TargetT<Manager>>>,
-                  absl::negation<any_internal::IsAnyClosingPtr<
-                      Handle, TargetT<Manager>>>>::value,
+              std::conjunction_v<
+                  std::negation<any_internal::IsAny<Handle, TargetT<Manager>>>,
+                  std::negation<
+                      any_internal::IsAnyClosingPtr<Handle, TargetT<Manager>>>>,
               int>>
 void AnyInitializer<Handle>::ConstructMethod(
     TypeErasedRef context, Storage dest,

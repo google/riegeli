@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
@@ -45,10 +44,11 @@ struct SupportsCFileHandle : std::false_type {};
 
 template <typename T>
 struct SupportsCFileHandle<
-    T, std::enable_if_t<absl::conjunction<
-           absl::negation<std::is_const<T>>,
-           std::is_convertible<decltype(std::declval<const T&>().get()),
-                               FILE*>>::value>> : std::true_type {};
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_const<T>>,
+        std::is_convertible<decltype(std::declval<const T&>().get()), FILE*>>>>
+    : std::true_type {};
 
 // `CFileSupportsOpen<T>::value` is `true` if `T` supports `Open()` with the
 // signature like in `OwnedCFile`, but taking `absl::string_view filename` and
@@ -117,8 +117,8 @@ class
 
   // Creates a `CFileHandle` which refers to `target`.
   template <typename T,
-            std::enable_if_t<absl::conjunction<NotSameRef<CFileHandle, T&>,
-                                               SupportsCFileHandle<T>>::value,
+            std::enable_if_t<std::conjunction_v<NotSameRef<CFileHandle, T&>,
+                                                SupportsCFileHandle<T>>,
                              int> = 0>
   /*implicit*/ CFileHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
@@ -399,9 +399,9 @@ class
   template <
       typename OtherDeleter,
       std::enable_if_t<
-          absl::conjunction<std::is_same<Deleter, UnownedCFileDeleter>,
-                            absl::negation<std::is_same<
-                                OtherDeleter, UnownedCFileDeleter>>>::value,
+          std::conjunction_v<
+              std::is_same<Deleter, UnownedCFileDeleter>,
+              std::negation<std::is_same<OtherDeleter, UnownedCFileDeleter>>>,
           int> = 0>
   /*implicit*/ CFileBase(
       const CFileBase<OtherDeleter>& that ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -424,12 +424,12 @@ class
     SetFileKeepFilename(file);
     deleter_.set_filename(std::move(filename));
   }
-  template <typename OtherDeleter,
-            std::enable_if_t<
-                absl::disjunction<
-                    std::is_same<Deleter, UnownedCFileDeleter>,
-                    std::is_same<OtherDeleter, UnownedCFileDeleter>>::value,
-                int> = 0>
+  template <
+      typename OtherDeleter,
+      std::enable_if_t<
+          std::disjunction_v<std::is_same<Deleter, UnownedCFileDeleter>,
+                             std::is_same<OtherDeleter, UnownedCFileDeleter>>,
+          int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const CFileBase<OtherDeleter>& that) {
     SetFileKeepFilename(that.file_);
     deleter_.Reset(that.deleter_);
@@ -437,8 +437,8 @@ class
   template <
       typename OtherDeleter,
       std::enable_if_t<
-          absl::disjunction<std::is_same<OtherDeleter, UnownedCFileDeleter>,
-                            std::is_same<OtherDeleter, Deleter>>::value,
+          std::disjunction_v<std::is_same<OtherDeleter, UnownedCFileDeleter>,
+                             std::is_same<OtherDeleter, Deleter>>,
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(CFileBase<OtherDeleter>&& that) {
     SetFileKeepFilename(that.Release());

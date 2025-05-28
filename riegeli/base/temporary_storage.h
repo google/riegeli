@@ -20,7 +20,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 
 namespace riegeli {
@@ -103,9 +102,9 @@ class TemporaryStorage {
 template <typename T>
 class TemporaryStorage<
     T,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_reference<T>>, std::is_trivially_destructible<T>,
-        absl::negation<std::is_trivially_default_constructible<T>>>::value>> {
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_reference<T>>, std::is_trivially_destructible<T>,
+        std::negation<std::is_trivially_default_constructible<T>>>>> {
  public:
   TemporaryStorage() noexcept {}
 
@@ -144,9 +143,9 @@ class TemporaryStorage<
 template <typename T>
 class TemporaryStorage<
     T,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_reference<T>>, std::is_trivially_destructible<T>,
-        std::is_trivially_default_constructible<T>>::value>> {
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_reference<T>>, std::is_trivially_destructible<T>,
+        std::is_trivially_default_constructible<T>>>> {
  public:
   TemporaryStorage() = default;
 

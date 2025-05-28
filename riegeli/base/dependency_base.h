@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/reset.h"
@@ -67,11 +66,11 @@ class DependencyBase {
   template <
       typename DependentManager = Manager,
       std::enable_if_t<
-          absl::conjunction<
+          std::conjunction_v<
               std::is_convertible<decltype(RiegeliDependencySentinel(
                                       static_cast<DependentManager*>(nullptr))),
                                   Initializer<DependentManager>>,
-              std::is_move_assignable<DependentManager>>::value,
+              std::is_move_assignable<DependentManager>>,
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     Reset(RiegeliDependencySentinel(static_cast<Manager*>(nullptr)));

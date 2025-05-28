@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/compact_string.h"
@@ -276,12 +275,11 @@ class CFileReader : public CFileReaderBase {
   // If opening the file fails, `CFileReader` will be failed and closed.
   //
   // This constructor is present only if `Src` supports `Open()`.
-  template <
-      typename DependentSrc = Src,
-      std::enable_if_t<
-          absl::conjunction<CFileSupportsOpen<DependentSrc>,
-                            std::is_default_constructible<DependentSrc>>::value,
-          int> = 0>
+  template <typename DependentSrc = Src,
+            std::enable_if_t<
+                std::conjunction_v<CFileSupportsOpen<DependentSrc>,
+                                   std::is_default_constructible<DependentSrc>>,
+                int> = 0>
   explicit CFileReader(PathRef filename, Options options = Options());
 
   CFileReader(CFileReader&& that) = default;
@@ -297,11 +295,10 @@ class CFileReader : public CFileReaderBase {
       std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* src,
                                           Options options = Options());
-  template <
-      typename DependentSrc = Src,
-      std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentSrc>,
-                                         SupportsReset<DependentSrc>>::value,
-                       int> = 0>
+  template <typename DependentSrc = Src,
+            std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentSrc>,
+                                                SupportsReset<DependentSrc>>,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
                                           Options options = Options());
 
@@ -340,8 +337,8 @@ template <typename Src>
 explicit CFileReader(
     Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
     -> CFileReader<std::conditional_t<
-        absl::disjunction<std::is_convertible<Src&&, FILE*>,
-                          std::is_convertible<Src&&, PathRef>>::value,
+        std::disjunction_v<std::is_convertible<Src&&, FILE*>,
+                           std::is_convertible<Src&&, PathRef>>,
         OwnedCFile, TargetT<Src>>>;
 
 // Implementation details follow.
@@ -411,12 +408,11 @@ inline CFileReader<Src>::CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
     : CFileReader(riegeli::Maker(src), std::move(options)) {}
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<
-        absl::conjunction<CFileSupportsOpen<DependentSrc>,
-                          std::is_default_constructible<DependentSrc>>::value,
-        int>>
+template <typename DependentSrc,
+          std::enable_if_t<
+              std::conjunction_v<CFileSupportsOpen<DependentSrc>,
+                                 std::is_default_constructible<DependentSrc>>,
+              int>>
 inline CFileReader<Src>::CFileReader(PathRef filename, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(riegeli::Maker()) {
@@ -444,11 +440,10 @@ inline void CFileReader<Src>::Reset(FILE* src, Options options) {
 }
 
 template <typename Src>
-template <
-    typename DependentSrc,
-    std::enable_if_t<absl::conjunction<CFileSupportsOpen<DependentSrc>,
-                                       SupportsReset<DependentSrc>>::value,
-                     int>>
+template <typename DependentSrc,
+          std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentSrc>,
+                                              SupportsReset<DependentSrc>>,
+                           int>>
 inline void CFileReader<Src>::Reset(PathRef filename, Options options) {
   CompactString filename_copy =
       CompactString::ForCStr(filename);  // In case it gets invalidated.

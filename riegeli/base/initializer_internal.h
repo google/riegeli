@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/casts.h"
-#include "absl/meta/type_traits.h"
 
 namespace riegeli::initializer_internal {
 
@@ -92,9 +91,9 @@ struct HasClassSpecificAlignedOperatorNew<
 template <
     typename T,
     std::enable_if_t<
-        absl::conjunction<
+        std::conjunction_v<
             std::bool_constant<(alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-            HasClassSpecificAlignedOperatorNew<T>>::value,
+            HasClassSpecificAlignedOperatorNew<T>>,
         int> = 0>
 inline void* Allocate() {
   return T::operator new(sizeof(T), std::align_val_t{alignof(T)});
@@ -102,12 +101,12 @@ inline void* Allocate() {
 
 template <typename T,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::disjunction<
+              std::conjunction_v<
+                  std::disjunction<
                       std::bool_constant<(alignof(T) <=
                                           __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                      absl::negation<HasClassSpecificAlignedOperatorNew<T>>>,
-                  HasClassSpecificOperatorNew<T>>::value,
+                      std::negation<HasClassSpecificAlignedOperatorNew<T>>>,
+                  HasClassSpecificOperatorNew<T>>,
               int> = 0>
 inline void* Allocate() {
   return T::operator new(sizeof(T));
@@ -116,10 +115,10 @@ inline void* Allocate() {
 template <
     typename T,
     std::enable_if_t<
-        absl::conjunction<
+        std::conjunction_v<
             std::bool_constant<(alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-            absl::negation<HasClassSpecificAlignedOperatorNew<T>>,
-            absl::negation<HasClassSpecificOperatorNew<T>>>::value,
+            std::negation<HasClassSpecificAlignedOperatorNew<T>>,
+            std::negation<HasClassSpecificOperatorNew<T>>>,
         int> = 0>
 inline void* Allocate() {
   return operator new(sizeof(T), std::align_val_t{alignof(T)});
@@ -127,12 +126,12 @@ inline void* Allocate() {
 
 template <
     typename T,
-    std::enable_if_t<absl::conjunction<
-                         std::bool_constant<(alignof(T) <=
-                                             __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                         absl::negation<HasClassSpecificAlignedOperatorNew<T>>,
-                         absl::negation<HasClassSpecificOperatorNew<T>>>::value,
-                     int> = 0>
+    std::enable_if_t<
+        std::conjunction_v<std::bool_constant<(
+                               alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
+                           std::negation<HasClassSpecificAlignedOperatorNew<T>>,
+                           std::negation<HasClassSpecificOperatorNew<T>>>,
+        int> = 0>
 inline void* Allocate() {
   return operator new(sizeof(T));
 }

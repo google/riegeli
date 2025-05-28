@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
@@ -68,12 +67,12 @@ class StringRef : public WithCompare<StringRef> {
   // Stores `str` converted to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<
-                    NotSameRef<StringRef, T>, NotSameRef<absl::string_view, T>,
+                std::conjunction_v<NotSameRef<StringRef, T>,
+                                   NotSameRef<absl::string_view, T>,
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
-                    NotSameRef<std::string_view, T>,
+                                   NotSameRef<std::string_view, T>,
 #endif
-                    std::is_convertible<T&&, absl::string_view>>::value,
+                                   std::is_convertible<T&&, absl::string_view>>,
                 int> = 0>
   /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : str_(std::forward<T>(str)) {
@@ -84,11 +83,11 @@ class StringRef : public WithCompare<StringRef> {
   // `absl::string_view`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<
+                std::conjunction_v<
                     NotSameRef<StringRef, T>,
-                    absl::negation<std::is_convertible<T&&, absl::string_view>>,
+                    std::negation<std::is_convertible<T&&, absl::string_view>>,
                     NotSameRef<std::string_view, T>,
-                    std::is_convertible<T&&, std::string_view>>::value,
+                    std::is_convertible<T&&, std::string_view>>,
                 int> = 0>
   /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : StringRef(std::string_view(std::forward<T>(str))) {}
@@ -118,33 +117,31 @@ class StringRef : public WithCompare<StringRef> {
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
 
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              NotSameRef<StringRef, T>,
-              absl::disjunction<std::is_convertible<T&&, absl::string_view>
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<StringRef, T>,
+                    std::disjunction<std::is_convertible<T&&, absl::string_view>
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
-                                ,
-                                std::is_convertible<T&&, std::string_view>
+                                     ,
+                                     std::is_convertible<T&&, std::string_view>
 #endif
-                                >>::value,
-          int> = 0>
+                                     >>,
+                int> = 0>
   friend bool operator==(StringRef a, T&& b) {
     return a == StringRef(std::forward<T>(b));
   }
-  template <
-      typename T,
-      std::enable_if_t<
-          absl::conjunction<
-              NotSameRef<StringRef, T>,
-              absl::disjunction<std::is_convertible<T&&, absl::string_view>
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<StringRef, T>,
+                    std::disjunction<std::is_convertible<T&&, absl::string_view>
 #if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
-                                ,
-                                std::is_convertible<T&&, std::string_view>
+                                     ,
+                                     std::is_convertible<T&&, std::string_view>
 #endif
-                                >>::value,
-          int> = 0>
+                                     >>,
+                int> = 0>
   friend riegeli::StrongOrdering RIEGELI_COMPARE(StringRef a, T&& b) {
     return riegeli::Compare(a, StringRef(std::forward<T>(b)));
   }

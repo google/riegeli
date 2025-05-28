@@ -17,8 +17,7 @@
 
 #include <type_traits>
 
-#include "absl/meta/type_traits.h"
-#include "absl/strings/string_view.h"
+#include "absl/strings/string_view.h"  // IWYU pragma: keep
 #if !__cpp_impl_three_way_comparison
 #include "absl/types/compare.h"
 #endif
@@ -69,9 +68,9 @@ template <typename T, typename Enable = void>
 struct IsOrdering : std::false_type {};
 
 template <typename T>
-struct IsOrdering<T, absl::void_t<decltype(std::declval<T>() < 0),
-                                  decltype(std::declval<T>() > 0),
-                                  decltype(std::declval<T>() == 0)>>
+struct IsOrdering<T, std::void_t<decltype(std::declval<T>() < 0),
+                                 decltype(std::declval<T>() > 0),
+                                 decltype(std::declval<T>() == 0)>>
     : std::true_type {};
 
 // `IsTotalOrdering<T>::value` is `true` if values of type `T` can be assumed to
@@ -85,7 +84,7 @@ template <typename T, typename Enable = void>
 struct IsTotalOrdering : IsOrdering<T> {};
 
 template <typename T>
-struct IsTotalOrdering<T, absl::void_t<decltype(T::unordered)>>
+struct IsTotalOrdering<T, std::void_t<decltype(T::unordered)>>
     : std::false_type {};
 
 namespace compare_internal {
@@ -94,7 +93,7 @@ template <typename T, typename Enable = void>
 struct IsTotalOrderingWithEqual : std::false_type {};
 
 template <typename T>
-struct IsTotalOrderingWithEqual<T, absl::void_t<decltype(T::equal)>>
+struct IsTotalOrderingWithEqual<T, std::void_t<decltype(T::equal)>>
     : IsTotalOrdering<T> {};
 
 }  // namespace compare_internal
@@ -111,24 +110,24 @@ template <typename T, typename Enable = void>
 struct IsStrongOrdering : IsTotalOrdering<T> {};
 
 template <typename T>
-struct IsStrongOrdering<T, absl::void_t<decltype(T::equivalent)>>
+struct IsStrongOrdering<T, std::void_t<decltype(T::equivalent)>>
     : compare_internal::IsTotalOrderingWithEqual<T> {};
 
 // Converts a value indicating an ordering to `PartialOrdering`.
 
 template <typename T,
           std::enable_if_t<
-              absl::conjunction<IsOrdering<T>,
-                                std::is_convertible<T, PartialOrdering>>::value,
+              std::conjunction_v<IsOrdering<T>,
+                                 std::is_convertible<T, PartialOrdering>>,
               int> = 0>
 inline PartialOrdering AsPartialOrdering(T ordering) {
   return ordering;
 }
 
 template <typename T,
-          std::enable_if_t<absl::conjunction<IsOrdering<T>,
-                                             absl::negation<std::is_convertible<
-                                                 T, PartialOrdering>>>::value,
+          std::enable_if_t<std::conjunction_v<IsOrdering<T>,
+                                              std::negation<std::is_convertible<
+                                                  T, PartialOrdering>>>,
                            int> = 0>
 inline PartialOrdering AsPartialOrdering(T ordering) {
   return ordering < 0    ? PartialOrdering::less
@@ -139,20 +138,21 @@ inline PartialOrdering AsPartialOrdering(T ordering) {
 
 // Converts a value indicating a strong ordering to `StrongOrdering`.
 
-template <typename T,
-          std::enable_if_t<
-              absl::conjunction<IsStrongOrdering<T>,
-                                std::is_convertible<T, StrongOrdering>>::value,
-              int> = 0>
+template <
+    typename T,
+    std::enable_if_t<std::conjunction_v<IsStrongOrdering<T>,
+                                        std::is_convertible<T, StrongOrdering>>,
+                     int> = 0>
 inline StrongOrdering AsStrongOrdering(T ordering) {
   return ordering;
 }
 
-template <typename T,
-          std::enable_if_t<absl::conjunction<IsStrongOrdering<T>,
-                                             absl::negation<std::is_convertible<
-                                                 T, StrongOrdering>>>::value,
-                           int> = 0>
+template <
+    typename T,
+    std::enable_if_t<std::conjunction_v<
+                         IsStrongOrdering<T>,
+                         std::negation<std::is_convertible<T, StrongOrdering>>>,
+                     int> = 0>
 inline StrongOrdering AsStrongOrdering(T ordering) {
   return ordering < 0   ? StrongOrdering::less
          : ordering > 0 ? StrongOrdering::greater
@@ -163,23 +163,22 @@ inline StrongOrdering AsStrongOrdering(T ordering) {
 
 // Definitions of `RIEGELI_COMPARE` which in C++20 are provided automatically.
 
-template <typename A, typename B,
-          std::enable_if_t<absl::conjunction<std::is_integral<A>,
-                                             std::is_integral<B>>::value,
-                           int> = 0>
+template <
+    typename A, typename B,
+    std::enable_if_t<
+        std::conjunction_v<std::is_integral<A>, std::is_integral<B>>, int> = 0>
 inline StrongOrdering RIEGELI_COMPARE(A a, B b) {
   return a < b   ? StrongOrdering::less
          : a > b ? StrongOrdering::greater
                  : StrongOrdering::equal;
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<
-        absl::conjunction<absl::negation<absl::conjunction<
-                              std::is_integral<A>, std::is_integral<B>>>,
-                          std::is_arithmetic<A>, std::is_arithmetic<B>>::value,
-        int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<
+              std::conjunction_v<std::negation<std::conjunction<
+                                     std::is_integral<A>, std::is_integral<B>>>,
+                                 std::is_arithmetic<A>, std::is_arithmetic<B>>,
+              int> = 0>
 inline PartialOrdering RIEGELI_COMPARE(A a, B b) {
   static_assert(std::is_floating_point_v<A> || std::is_floating_point_v<B>,
                 "Arithmetic types which are not integral types "
@@ -224,9 +223,9 @@ template <typename A, typename B, typename Enable = void>
 struct HasEqual : std::false_type {};
 
 template <typename A, typename B>
-struct HasEqual<A, B,
-                absl::void_t<decltype(std::declval<const A&>() ==
-                                      std::declval<const B&>())>>
+struct HasEqual<
+    A, B,
+    std::void_t<decltype(std::declval<const A&>() == std::declval<const B&>())>>
     : std::true_type {};
 
 #endif
@@ -236,7 +235,7 @@ struct HasCompare : std::false_type {};
 
 template <typename A, typename B>
 struct HasCompare<A, B,
-                  absl::void_t<decltype(
+                  std::void_t<decltype(
 #if __cpp_impl_three_way_comparison
                       std::declval<const A&>() <=> std::declval<const B&>()
 #else
@@ -250,15 +249,15 @@ template <typename T, typename Enable = void>
 struct IsDedicatedOrdering : std::false_type {};
 
 template <typename T>
-struct IsDedicatedOrdering<
-    T, absl::void_t<decltype(T::less), decltype(T::greater)>> : std::true_type {
-};
+struct IsDedicatedOrdering<T,
+                           std::void_t<decltype(T::less), decltype(T::greater)>>
+    : std::true_type {};
 
 template <typename T, typename Enable = void>
 struct HasCompareWithLiteral0 : std::false_type {};
 
 template <typename T>
-struct HasCompareWithLiteral0<T, absl::void_t<decltype(
+struct HasCompareWithLiteral0<T, std::void_t<decltype(
 #if __cpp_impl_three_way_comparison
                                      0 <=> std::declval<T>()
 #else
@@ -285,12 +284,12 @@ inline auto Compare(const A& a, const B& b) {
 // `riegeli::Compare(0, ordering)` does not work because it does not properly
 // forward to `<=>` the property that the argument is a literal 0.
 
-template <typename Ordering,
-          std::enable_if_t<
-              absl::conjunction<
-                  compare_internal::IsDedicatedOrdering<Ordering>,
-                  compare_internal::HasCompareWithLiteral0<Ordering>>::value,
-              int> = 0>
+template <
+    typename Ordering,
+    std::enable_if_t<
+        std::conjunction_v<compare_internal::IsDedicatedOrdering<Ordering>,
+                           compare_internal::HasCompareWithLiteral0<Ordering>>,
+        int> = 0>
 inline Ordering NegateOrdering(Ordering ordering) {
 #if __cpp_impl_three_way_comparison
   return 0 <=> ordering;
@@ -299,13 +298,13 @@ inline Ordering NegateOrdering(Ordering ordering) {
 #endif
 }
 
-template <typename Ordering,
-          std::enable_if_t<
-              absl::conjunction<
-                  compare_internal::IsDedicatedOrdering<Ordering>,
-                  absl::negation<compare_internal::HasCompareWithLiteral0<
-                      Ordering>>>::value,
-              int> = 0>
+template <
+    typename Ordering,
+    std::enable_if_t<
+        std::conjunction_v<
+            compare_internal::IsDedicatedOrdering<Ordering>,
+            std::negation<compare_internal::HasCompareWithLiteral0<Ordering>>>,
+        int> = 0>
 inline Ordering NegateOrdering(Ordering ordering) {
   if (0 < ordering) return Ordering::less;
   if (0 > ordering) return Ordering::greater;
@@ -331,19 +330,19 @@ class WithEqual {
     return !(a == b);
   }
 
-  template <typename Other,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_same<Other, T>>,
-                                  compare_internal::HasEqual<T, Other>>::value,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                          compare_internal::HasEqual<T, Other>>,
+                       int> = 0>
   friend bool operator==(const Other& a, const T& b) {
     return b == a;
   }
-  template <typename Other,
-            std::enable_if_t<
-                absl::conjunction<absl::negation<std::is_same<Other, T>>,
-                                  compare_internal::HasEqual<T, Other>>::value,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                          compare_internal::HasEqual<T, Other>>,
+                       int> = 0>
   friend bool operator!=(const Other& a, const T& b) {
     return !(b == a);
   }
@@ -390,42 +389,42 @@ class WithCompare : public WithEqual<T> {
   }
 
   template <typename Other,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<std::is_same<Other, T>>,
-                                 compare_internal::HasCompare<T, Other>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
   friend auto RIEGELI_COMPARE(const Other& a, const T& b) {
     return NegateOrdering(RIEGELI_COMPARE(b, a));
   }
   template <typename Other,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<std::is_same<Other, T>>,
-                                 compare_internal::HasCompare<T, Other>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
   friend bool operator<(const Other& a, const T& b) {
     return 0 < RIEGELI_COMPARE(b, a);
   }
   template <typename Other,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<std::is_same<Other, T>>,
-                                 compare_internal::HasCompare<T, Other>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
   friend bool operator>(const Other& a, const T& b) {
     return 0 > RIEGELI_COMPARE(b, a);
   }
   template <typename Other,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<std::is_same<Other, T>>,
-                                 compare_internal::HasCompare<T, Other>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
   friend bool operator<=(const Other& a, const T& b) {
     return 0 <= RIEGELI_COMPARE(b, a);
   }
   template <typename Other,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<std::is_same<Other, T>>,
-                                 compare_internal::HasCompare<T, Other>>::value,
-                             int> = 0>
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
   friend bool operator>=(const Other& a, const T& b) {
     return 0 >= RIEGELI_COMPARE(b, a);
   }

@@ -19,7 +19,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 
 namespace riegeli {
@@ -65,12 +64,12 @@ struct IsIterableOfPairsWithAssignableValues : std::false_type {};
 template <typename Iterable, typename Key, typename Value>
 struct IsIterableOfPairsWithAssignableValues<
     Iterable, Key, Value,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::is_convertible<
             decltype(std::declval<IteratorT<Iterable>>()->first), Key>,
         std::is_assignable<
-            decltype(std::declval<IteratorT<Iterable>>()->second),
-            Value>>::value>> : std::true_type {};
+            decltype(std::declval<IteratorT<Iterable>>()->second), Value>>>>
+    : std::true_type {};
 
 // TODO: Use `typename std::iterator_traits<Iterator>::iterator_concept`
 // instead when C++20 is unconditionally available.
@@ -85,7 +84,7 @@ struct IteratorConcept {
 template <typename Iterator>
 struct IteratorConcept<
     Iterator,
-    absl::void_t<typename std::iterator_traits<Iterator>::iterator_concept>> {
+    std::void_t<typename std::iterator_traits<Iterator>::iterator_concept>> {
   using type = typename std::iterator_traits<Iterator>::iterator_concept;
 };
 
@@ -134,7 +133,7 @@ namespace iterable_internal {
 
 template <typename Iterable, typename Enable = void>
 struct IterableHasMovableElements
-    : absl::negation<
+    : std::negation<
           std::is_same<decltype(*std::declval<IteratorT<Iterable>>()),
                        decltype(*std::declval<IteratorT<const Iterable>>())>> {
 };
@@ -142,7 +141,7 @@ struct IterableHasMovableElements
 template <typename Iterable>
 struct IterableHasMovableElements<
     Iterable,
-    absl::enable_if_t<std::is_convertible_v<
+    std::enable_if_t<std::is_convertible_v<
         decltype(RiegeliHasMovableElements(static_cast<Iterable*>(nullptr))),
         bool>>>
     : std::bool_constant<RiegeliHasMovableElements(

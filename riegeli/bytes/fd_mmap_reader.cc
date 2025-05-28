@@ -63,9 +63,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#ifndef _WIN32
-#include "absl/meta/type_traits.h"
-#endif
 #include "absl/status/status.h"
 #ifndef _WIN32
 #include "absl/status/statusor.h"
@@ -139,7 +136,7 @@ struct HavePosixFadvise : std::false_type {};
 
 template <typename FirstArg>
 struct HavePosixFadvise<
-    FirstArg, absl::void_t<decltype(posix_fadvise(
+    FirstArg, std::void_t<decltype(posix_fadvise(
                   std::declval<FirstArg>(), std::declval<fd_internal::Offset>(),
                   std::declval<fd_internal::Offset>(), std::declval<int>()))>>
     : std::true_type {};

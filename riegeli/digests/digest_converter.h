@@ -46,7 +46,7 @@ struct HasDigestConverterImpl : std::false_type {};
 template <typename From, typename To>
 struct HasDigestConverterImpl<
     From, To,
-    absl::void_t<decltype(DigestConverterImpl<From, To>::Convert(
+    std::void_t<decltype(DigestConverterImpl<From, To>::Convert(
         std::declval<From>()))>> : std::true_type {};
 
 // `DigestConverterImpl<From, To>` tries to transform `From` from types with
@@ -83,9 +83,9 @@ struct DigestConverterImpl<
 template <size_t size, typename To>
 struct DigestConverterImpl<
     std::array<char, size>, To,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_constructible<To, std::array<char, size>>>,
-        HasDigestConverterImpl<std::string, To>>::value>> {
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_constructible<To, std::array<char, size>>>,
+        HasDigestConverterImpl<std::string, To>>>> {
   static To Convert(const std::array<char, size>& digest) {
     return DigestConverterImpl<std::string, To>::Convert(
         std::string(digest.data(), digest.size()));
@@ -98,10 +98,9 @@ struct DigestConverterImpl<
 template <typename To>
 struct DigestConverterImpl<
     uint32_t, To,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_constructible<To, uint32_t>>,
-        HasDigestConverterImpl<std::array<char, sizeof(uint32_t)>,
-                               To>>::value>> {
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_constructible<To, uint32_t>>,
+        HasDigestConverterImpl<std::array<char, sizeof(uint32_t)>, To>>>> {
   static To Convert(uint32_t digest) {
     std::array<char, sizeof(uint32_t)> result;
     riegeli::WriteBigEndian32(digest, result.data());
@@ -113,10 +112,9 @@ struct DigestConverterImpl<
 template <typename To>
 struct DigestConverterImpl<
     uint64_t, To,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_constructible<To, uint64_t>>,
-        HasDigestConverterImpl<std::array<char, sizeof(uint64_t)>,
-                               To>>::value>> {
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_constructible<To, uint64_t>>,
+        HasDigestConverterImpl<std::array<char, sizeof(uint64_t)>, To>>>> {
   static To Convert(uint64_t digest) {
     std::array<char, sizeof(uint64_t)> result;
     riegeli::WriteBigEndian64(digest, result.data());
@@ -128,10 +126,9 @@ struct DigestConverterImpl<
 template <typename To>
 struct DigestConverterImpl<
     absl::uint128, To,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_constructible<To, absl::uint128>>,
-        HasDigestConverterImpl<std::array<char, sizeof(absl::uint128)>,
-                               To>>::value>> {
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_constructible<To, absl::uint128>>,
+        HasDigestConverterImpl<std::array<char, sizeof(absl::uint128)>, To>>>> {
   static To Convert(absl::uint128 digest) {
     std::array<char, sizeof(absl::uint128)> result;
     riegeli::WriteBigEndian128(digest, result.data());
@@ -149,10 +146,10 @@ struct DigestConverterImpl<
 
 template <typename To>
 struct DigestConverterImpl<std::array<char, sizeof(uint32_t)>, To,
-                           std::enable_if_t<absl::conjunction<
-                               absl::negation<std::is_constructible<
+                           std::enable_if_t<std::conjunction_v<
+                               std::negation<std::is_constructible<
                                    To, std::array<char, sizeof(uint32_t)>>>,
-                               std::is_constructible<To, uint32_t>>::value>> {
+                               std::is_constructible<To, uint32_t>>>> {
   static To Convert(std::array<char, sizeof(uint32_t)> digest) {
     return To(riegeli::ReadBigEndian32(digest.data()));
   }
@@ -160,10 +157,10 @@ struct DigestConverterImpl<std::array<char, sizeof(uint32_t)>, To,
 
 template <typename To>
 struct DigestConverterImpl<std::array<char, sizeof(uint64_t)>, To,
-                           std::enable_if_t<absl::conjunction<
-                               absl::negation<std::is_constructible<
+                           std::enable_if_t<std::conjunction_v<
+                               std::negation<std::is_constructible<
                                    To, std::array<char, sizeof(uint64_t)>>>,
-                               std::is_constructible<To, uint64_t>>::value>> {
+                               std::is_constructible<To, uint64_t>>>> {
   static To Convert(std::array<char, sizeof(uint64_t)> digest) {
     return To(riegeli::ReadBigEndian64(digest.data()));
   }
@@ -173,9 +170,9 @@ template <typename To>
 struct DigestConverterImpl<
     std::array<char, sizeof(absl::uint128)>, To,
     std::enable_if_t<
-        absl::conjunction<absl::negation<std::is_constructible<
-                              To, std::array<char, sizeof(absl::uint128)>>>,
-                          std::is_constructible<To, absl::uint128>>::value>> {
+        std::conjunction_v<std::negation<std::is_constructible<
+                               To, std::array<char, sizeof(absl::uint128)>>>,
+                           std::is_constructible<To, absl::uint128>>>> {
   static To Convert(std::array<char, sizeof(absl::uint128)> digest) {
     return To(riegeli::ReadBigEndian128(digest.data()));
   }
@@ -186,10 +183,10 @@ struct DigestConverterImpl<
 template <size_t size, typename To>
 struct DigestConverterImpl<
     std::array<uint64_t, size>, To,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_constructible<To, std::array<uint64_t, size>>>,
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_constructible<To, std::array<uint64_t, size>>>,
         HasDigestConverterImpl<std::array<char, size * sizeof(uint64_t)>,
-                               To>>::value>> {
+                               To>>>> {
   static To Convert(const std::array<uint64_t, size>& digest) {
     std::array<char, size * sizeof(uint64_t)> result;
     riegeli::WriteBigEndian64s(absl::MakeConstSpan(digest.data(), size),
@@ -208,11 +205,11 @@ struct DigestConverterImpl<
 template <size_t size, typename To>
 struct DigestConverterImpl<
     std::array<char, size>, To,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::bool_constant<size % sizeof(uint64_t) == 0>,
-        absl::negation<std::is_constructible<To, std::array<char, size>>>,
+        std::negation<std::is_constructible<To, std::array<char, size>>>,
         std::is_constructible<
-            To, std::array<uint64_t, size / sizeof(uint64_t)>>>::value>> {
+            To, std::array<uint64_t, size / sizeof(uint64_t)>>>>> {
   static To Convert(const std::array<char, size>& digest) {
     std::array<uint64_t, size / sizeof(uint64_t)> result;
     riegeli::ReadBigEndian64s(
@@ -236,9 +233,9 @@ struct DigestConverter<From&, To&,
 template <typename From, typename To>
 struct DigestConverter<
     From, To,
-    std::enable_if_t<absl::conjunction<
-        absl::negation<std::is_reference<To>>,
-        HasDigestConverterImpl<absl::remove_cvref_t<From>, To>>::value>>
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_reference<To>>,
+        HasDigestConverterImpl<absl::remove_cvref_t<From>, To>>>>
     : DigestConverterImpl<absl::remove_cvref_t<From>, To> {
   static_assert(
       std::is_convertible_v<
@@ -252,27 +249,27 @@ struct DigestConverter<
 // `DigestConverter<From, To>` is defined or when `To` is `void`.
 template <typename From, typename To>
 struct HasDigestConverter
-    : absl::disjunction<
+    : std::disjunction<
           std::is_void<To>,
-          absl::conjunction<std::is_lvalue_reference<To>,
-                            std::is_lvalue_reference<From>,
-                            std::is_convertible<std::remove_reference_t<From>*,
-                                                std::remove_reference_t<To>*>>,
-          absl::conjunction<
-              absl::negation<std::is_reference<To>>,
+          std::conjunction<std::is_lvalue_reference<To>,
+                           std::is_lvalue_reference<From>,
+                           std::is_convertible<std::remove_reference_t<From>*,
+                                               std::remove_reference_t<To>*>>,
+          std::conjunction<
+              std::negation<std::is_reference<To>>,
               HasDigestConverterImpl<absl::remove_cvref_t<From>, To>>> {};
 
 // Converts a digest returned by `digest_function` to another supported type.
 //
 // The digest is passed as `digest_function` to support `void`.
 
-template <typename To, typename DigestFunction,
-          std::enable_if_t<
-              absl::conjunction<
-                  absl::negation<std::is_void<To>>,
-                  HasDigestConverter<decltype(std::declval<DigestFunction>()()),
-                                     To>>::value,
-              int> = 0>
+template <
+    typename To, typename DigestFunction,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::negation<std::is_void<To>>,
+            HasDigestConverter<decltype(std::declval<DigestFunction>()()), To>>,
+        int> = 0>
 inline To ConvertDigest(DigestFunction&& digest_function) {
   return DigestConverter<decltype(std::declval<DigestFunction>()()), To>::
       Convert(std::forward<DigestFunction>(digest_function)());

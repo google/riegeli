@@ -24,7 +24,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -270,14 +269,14 @@ explicit DigestingWriter(Digester&& digester)
 template <typename DesiredDigestType = digest_converter_internal::NoConversion,
           typename... Args,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   TargetRefSupportsDependency<DigesterBaseHandle,
                                               GetTypeFromEndT<1, Args...>>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                        IsStringifiable>,
                   digest_converter_internal::HasDigestConverterOrNoConversion<
                       DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>,
-                      DesiredDigestType>>::value,
+                      DesiredDigestType>>,
               int> = 0>
 digest_converter_internal::ResolveNoConversion<
     DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>, DesiredDigestType>
@@ -446,18 +445,18 @@ namespace digesting_writer_internal {
 
 ABSL_ATTRIBUTE_COLD absl::Status FailedStatus(DigesterBaseHandle digester);
 
-template <typename DigesterOrWriter, typename... Srcs,
-          std::enable_if_t<
-              absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
+template <
+    typename DigesterOrWriter, typename... Srcs,
+    std::enable_if_t<std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
     DigesterOrWriter&& dest, const Srcs&... srcs) {
   std::forward<DigesterOrWriter>(dest).SetWriteSizeHint(
       SaturatingAdd<Position>(riegeli::StringifiedSize(srcs)...));
 }
 
-template <typename DigesterOrWriter, typename... Srcs,
-          std::enable_if_t<
-              !absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
+template <
+    typename DigesterOrWriter, typename... Srcs,
+    std::enable_if_t<!std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
     ABSL_ATTRIBUTE_UNUSED DigesterOrWriter&& dest,
     ABSL_ATTRIBUTE_UNUSED const Srcs&... srcs) {}
@@ -467,7 +466,7 @@ struct SupportedByDigesterHandle : std::false_type {};
 
 template <typename T>
 struct SupportedByDigesterHandle<
-    T, absl::void_t<decltype(std::declval<DigesterBaseHandle&>().Write(
+    T, std::void_t<decltype(std::declval<DigesterBaseHandle&>().Write(
            std::declval<const T&>()))>> : std::true_type {};
 
 template <size_t index, typename... Srcs,
@@ -486,10 +485,9 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteTuple(
          WriteTuple<index + 1>(srcs, digester);
 }
 
-template <
-    typename DesiredDigestType, typename Digester, typename... Srcs,
-    std::enable_if_t<
-        absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
+template <typename DesiredDigestType, typename Digester, typename... Srcs,
+          std::enable_if_t<
+              std::conjunction_v<SupportedByDigesterHandle<Srcs>...>, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DependencyRef<DigesterBaseHandle, Digester> digester_dep(
@@ -509,10 +507,9 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
   return digester_dep.get().template Digest<DesiredDigestType>();
 }
 
-template <
-    typename DesiredDigestType, typename Digester, typename... Srcs,
-    std::enable_if_t<
-        !absl::conjunction<SupportedByDigesterHandle<Srcs>...>::value, int> = 0>
+template <typename DesiredDigestType, typename Digester, typename... Srcs,
+          std::enable_if_t<
+              !std::conjunction_v<SupportedByDigesterHandle<Srcs>...>, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DigestingWriter<TargetRefT<Digester>, NullWriter> writer(
@@ -529,14 +526,14 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
 
 template <typename DesiredDigestType, typename... Args,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   TargetRefSupportsDependency<DigesterBaseHandle,
                                               GetTypeFromEndT<1, Args...>>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
                                        IsStringifiable>,
                   digest_converter_internal::HasDigestConverterOrNoConversion<
                       DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>,
-                      DesiredDigestType>>::value,
+                      DesiredDigestType>>,
               int>>
 digest_converter_internal::ResolveNoConversion<
     DigestOf<TargetRefT<GetTypeFromEndT<1, Args...>>>, DesiredDigestType>

@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/type_traits.h"
 
@@ -35,8 +34,9 @@ class InvokerType;
 namespace invoker_internal {
 
 template <typename Function, typename... Args>
-class InvokerBase : public ConditionallyAssignable<absl::conjunction<
-                        absl::negation<std::is_reference<Args>>...>::value> {
+class InvokerBase
+    : public ConditionallyAssignable<
+          std::conjunction_v<std::negation<std::is_reference<Args>>...>> {
  protected:
   template <typename DependentFunction = Function>
   using Result = std::invoke_result_t<DependentFunction&&, Args&&...>;
@@ -50,10 +50,10 @@ class InvokerBase : public ConditionallyAssignable<absl::conjunction<
   template <
       typename SrcFunction, typename... SrcArgs,
       std::enable_if_t<
-          absl::conjunction<NotSameRef<InvokerBase, SrcFunction, SrcArgs...>,
-                            std::is_invocable<Function&&, Args&&...>,
-                            std::is_convertible<SrcFunction&&, Function>,
-                            std::is_convertible<SrcArgs&&, Args>...>::value,
+          std::conjunction_v<NotSameRef<InvokerBase, SrcFunction, SrcArgs...>,
+                             std::is_invocable<Function&&, Args&&...>,
+                             std::is_convertible<SrcFunction&&, Function>,
+                             std::is_convertible<SrcArgs&&, Args>...>,
           int> = 0>
   /*implicit*/ InvokerBase(SrcFunction&& function, SrcArgs&&... args)
       : function_(std::forward<SrcFunction>(function)),
@@ -140,10 +140,9 @@ class InvokerConditionalConversion : public InvokerBase<Function, Args...> {
 // const arguments.
 template <typename Function, typename... Args>
 class InvokerConditionalConversion<
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::is_invocable<Function&&, Args&&...>,
-        absl::negation<std::is_invocable<const Function&, const Args&...>>>::
-                         value>,
+        std::negation<std::is_invocable<const Function&, const Args&...>>>>,
     Function, Args...> : public InvokerBase<Function, Args...> {
  private:
   using Result =
@@ -229,11 +228,11 @@ class InvokerType
   template <
       typename Target, typename Deleter, typename DependentFunction = Function,
       std::enable_if_t<
-          absl::conjunction<
+          std::conjunction_v<
               IsConstructibleFromResult<std::decay_t<Result<DependentFunction>>,
                                         Result<DependentFunction>>,
               std::is_convertible<std::decay_t<Result<DependentFunction>>*,
-                                  Target*>>::value,
+                                  Target*>>,
           int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() && {
     return std::move(*this).template UniquePtr<Deleter>();
@@ -241,12 +240,12 @@ class InvokerType
   template <
       typename Target, typename Deleter, typename DependentFunction = Function,
       std::enable_if_t<
-          absl::conjunction<
+          std::conjunction_v<
               IsConstructibleFromResult<
                   std::decay_t<ConstResult<DependentFunction>>,
                   ConstResult<DependentFunction>>,
               std::is_convertible<std::decay_t<ConstResult<DependentFunction>>*,
-                                  Target*>>::value,
+                                  Target*>>,
           int> = 0>
   /*implicit*/ operator std::unique_ptr<Target, Deleter>() const& {
     return UniquePtr<Deleter>();
@@ -417,7 +416,7 @@ struct InvokerTargetImpl {
 };
 
 template <typename T>
-struct InvokerTargetImpl<T, absl::void_t<InvokerTargetRefT<T>>>
+struct InvokerTargetImpl<T, std::void_t<InvokerTargetRefT<T>>>
     : std::decay<InvokerTargetRefT<T>> {};
 
 }  // namespace invoker_internal

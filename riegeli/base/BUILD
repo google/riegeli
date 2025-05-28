@@ -10,7 +10,6 @@ cc_library(
     hdrs = ["type_traits.h"],
     deps = [
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/utility",
     ],
@@ -26,7 +25,6 @@ cc_library(
     name = "compare",
     hdrs = ["compare.h"],
     deps = [
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:compare",
     ],
@@ -49,7 +47,6 @@ cc_library(
     deps = [
         ":stream_utils",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:span",
@@ -67,7 +64,6 @@ cc_library(
         ":debug",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:absl_log",
-        "@com_google_absl//absl/meta:type_traits",
     ],
 )
 
@@ -83,7 +79,6 @@ cc_library(
         ":assert",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
     ],
@@ -175,7 +170,6 @@ cc_library(
     name = "reset",
     hdrs = ["reset.h"],
     deps = [
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],
@@ -209,17 +203,13 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
     ],
 )
 
 cc_library(
     name = "global",
     hdrs = ["global.h"],
-    deps = [
-        ":initializer",
-        "@com_google_absl//absl/meta:type_traits",
-    ],
+    deps = [":initializer"],
 )
 
 cc_library(
@@ -231,7 +221,6 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -245,7 +234,6 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
@@ -261,7 +249,6 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -279,7 +266,6 @@ cc_library(
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/container:node_hash_set",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],
@@ -321,7 +307,6 @@ cc_library(
         ":dependency",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
     ],
 )
 
@@ -334,7 +319,6 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/meta:type_traits",
     ],
 )
 
@@ -366,10 +350,7 @@ cc_library(
 cc_library(
     name = "iterable",
     hdrs = ["iterable.h"],
-    deps = [
-        ":dependency",
-        "@com_google_absl//absl/meta:type_traits",
-    ],
+    deps = [":dependency"],
 )
 
 cc_library(
@@ -440,7 +421,6 @@ cc_library(
         ":new_aligned",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/meta:type_traits",
     ],
 )
 
@@ -575,7 +555,6 @@ cc_library(
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -591,7 +570,6 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -602,7 +580,6 @@ cc_library(
     deps = [
         ":compare",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
@@ -652,7 +629,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/container:node_hash_map",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",

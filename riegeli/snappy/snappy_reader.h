@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -149,12 +148,11 @@ explicit SnappyReader(
 // The compressed `Reader` must support `Size()`. To supply or override this
 // size, the `Reader` can be wrapped in a `LimitingReader` with
 // `LimitingReaderBase::Options().set_exact_length(size)`.
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
-        int> = 0>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int> = 0>
 absl::Status SnappyDecompress(Src&& src, Dest&& dest);
 
 // Returns the claimed uncompressed size of Snappy-compressed data.
@@ -231,12 +229,11 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest);
 
 }  // namespace snappy_internal
 
-template <
-    typename Src, typename Dest,
-    std::enable_if_t<
-        absl::conjunction<TargetRefSupportsDependency<Reader*, Src>,
-                          TargetRefSupportsDependency<Writer*, Dest>>::value,
-        int>>
+template <typename Src, typename Dest,
+          std::enable_if_t<
+              std::conjunction_v<TargetRefSupportsDependency<Reader*, Src>,
+                                 TargetRefSupportsDependency<Writer*, Dest>>,
+              int>>
 inline absl::Status SnappyDecompress(Src&& src, Dest&& dest) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));

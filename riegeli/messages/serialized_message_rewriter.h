@@ -24,7 +24,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -171,13 +170,12 @@ class SerializedMessageRewriter {
   // would be misleadingly ignored for subsequent calls. Since distinct lambdas
   // have distinct types, distinct call sites with lambdas return references to
   // distinct objects.
-  template <
-      typename Initialize,
-      std::enable_if_t<
-          absl::conjunction<
-              std::is_empty<Initialize>,
-              std::is_invocable<Initialize, SerializedMessageRewriter&>>::value,
-          int> = 0>
+  template <typename Initialize,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_empty<Initialize>,
+                    std::is_invocable<Initialize, SerializedMessageRewriter&>>,
+                int> = 0>
   static const SerializedMessageRewriter& Global(Initialize initialize);
 
   SerializedMessageRewriter() noexcept;
@@ -288,11 +286,11 @@ class SerializedMessageRewriter {
   void OnDouble(absl::Span<const int> field_path, Action action);
   template <typename EnumType, typename Action,
             std::enable_if_t<
-                absl::conjunction<
-                    absl::disjunction<std::is_enum<EnumType>,
-                                      std::is_integral<EnumType>>,
+                std::conjunction_v<
+                    std::disjunction<std::is_enum<EnumType>,
+                                     std::is_integral<EnumType>>,
                     serialized_message_internal::IsActionWithOptionalSrcAndDest<
-                        Context, Action, EnumType>>::value,
+                        Context, Action, EnumType>>,
                 int> = 0>
   void OnEnum(absl::Span<const int> field_path, Action action);
   template <typename Action,
@@ -496,13 +494,13 @@ class SerializedMessageRewriter {
 // Implementation details follow.
 
 template <typename Context>
-template <typename Initialize,
-          std::enable_if_t<
-              absl::conjunction<
-                  std::is_empty<Initialize>,
-                  std::is_invocable<
-                      Initialize, SerializedMessageRewriter<Context>&>>::value,
-              int>>
+template <
+    typename Initialize,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_empty<Initialize>,
+            std::is_invocable<Initialize, SerializedMessageRewriter<Context>&>>,
+        int>>
 inline const SerializedMessageRewriter<Context>&
 SerializedMessageRewriter<Context>::Global(Initialize initialize) {
   return riegeli::Global([] { return SerializedMessageRewriter(); },
@@ -824,11 +822,11 @@ inline void SerializedMessageRewriter<Context>::OnDouble(
 template <typename Context>
 template <typename EnumType, typename Action,
           std::enable_if_t<
-              absl::conjunction<
-                  absl::disjunction<std::is_enum<EnumType>,
-                                    std::is_integral<EnumType>>,
+              std::conjunction_v<
+                  std::disjunction<std::is_enum<EnumType>,
+                                   std::is_integral<EnumType>>,
                   serialized_message_internal::IsActionWithOptionalSrcAndDest<
-                      Context, Action, EnumType>>::value,
+                      Context, Action, EnumType>>,
               int>>
 inline void SerializedMessageRewriter<Context>::OnEnum(
     absl::Span<const int> field_path, Action action) {

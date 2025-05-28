@@ -22,7 +22,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/string_ref.h"
@@ -78,10 +77,10 @@ class
   // Stores `str` converted to `const char*`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSameRef<CStringRef, T>,
-                                  NotSameRef<std::nullptr_t, T>,
-                                  NotSameRef<const char*, T>,
-                                  std::is_convertible<T&&, const char*>>::value,
+                std::conjunction_v<NotSameRef<CStringRef, T>,
+                                   NotSameRef<std::nullptr_t, T>,
+                                   NotSameRef<const char*, T>,
+                                   std::is_convertible<T&&, const char*>>,
                 int> = 0>
   /*implicit*/ CStringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : c_str_(std::forward<T>(str)) {}
@@ -90,10 +89,10 @@ class
   // mutable `CompactString`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<
+                std::conjunction_v<
                     NotSameRef<CStringRef, T>, NotSameRef<std::nullptr_t, T>,
-                    absl::negation<std::is_convertible<T&&, const char*>>,
-                    HasCStr<T&&>>::value,
+                    std::negation<std::is_convertible<T&&, const char*>>,
+                    HasCStr<T&&>>,
                 int> = 0>
   /*implicit*/ CStringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : c_str_(std::forward<T>(str).c_str()) {}
@@ -103,14 +102,14 @@ class
   //
   // The string is stored in a storage object passed as a default argument to
   // this constructor.
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    NotSameRef<CStringRef, T>, NotSameRef<std::nullptr_t, T>,
-                    absl::negation<std::is_convertible<T&&, const char*>>,
-                    absl::negation<HasCStr<T&&>>,
-                    std::is_convertible<T&&, StringRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<
+          std::conjunction_v<
+              NotSameRef<CStringRef, T>, NotSameRef<std::nullptr_t, T>,
+              std::negation<std::is_convertible<T&&, const char*>>,
+              std::negation<HasCStr<T&&>>, std::is_convertible<T&&, StringRef>>,
+          int> = 0>
   /*implicit*/ CStringRef(T&& str, TemporaryStorage<std::string>&& storage
                                        ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
       : CStringRef(std::move(storage).emplace(

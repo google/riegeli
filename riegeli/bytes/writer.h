@@ -28,7 +28,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -116,12 +115,12 @@ void StringifiedSize(double);
 void StringifiedSize(long double);
 template <typename Src,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   HasAbslStringify<Src>,
-                  absl::negation<std::is_convertible<Src&&, BytesRef>>,
-                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
-                  absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-                  absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+                  std::negation<std::is_convertible<Src&&, BytesRef>>,
+                  std::negation<std::is_convertible<Src&&, const Chain&>>,
+                  std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+                  std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int> = 0>
 void StringifiedSize(Src&&);
 void StringifiedSize(bool) = delete;
@@ -135,7 +134,7 @@ void StringifiedSize(char32_t) = delete;
 template <typename T, typename Enable = void>
 struct IsStringifiable : std::false_type {};
 template <typename T>
-struct IsStringifiable<T, absl::void_t<decltype(riegeli::StringifiedSize(
+struct IsStringifiable<T, std::void_t<decltype(riegeli::StringifiedSize(
                               std::declval<const T&>()))>> : std::true_type {};
 
 // `HasStringifiedSize` checks if the type has `StringifiedSize()` defined
@@ -307,12 +306,12 @@ class Writer : public Object {
   template <
       typename Src,
       std::enable_if_t<
-          absl::conjunction<
+          std::conjunction_v<
               HasAbslStringify<Src>,
-              absl::negation<std::is_convertible<Src&&, BytesRef>>,
-              absl::negation<std::is_convertible<Src&&, const Chain&>>,
-              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-              absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+              std::negation<std::is_convertible<Src&&, BytesRef>>,
+              std::negation<std::is_convertible<Src&&, const Chain&>>,
+              std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+              std::negation<std::is_convertible<Src&&, ByteFill>>>,
           int> = 0>
   bool Write(Src&& src);
 
@@ -330,8 +329,8 @@ class Writer : public Object {
   //  * `false` - failure (`!ok()`)
   template <typename... Srcs,
             std::enable_if_t<
-                absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
-                                  IsStringifiable<Srcs>...>::value,
+                std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
+                                   IsStringifiable<Srcs>...>,
                 int> = 0>
   bool Write(Srcs&&... srcs);
 
@@ -341,13 +340,13 @@ class Writer : public Object {
   // Return values:
   //  * `true`  - success
   //  * `false` - failure (`!ok()`)
-  template <typename... Srcs,
-            std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
-                             int> = 0>
+  template <
+      typename... Srcs,
+      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
   bool WriteTuple(const std::tuple<Srcs...>& srcs);
-  template <typename... Srcs,
-            std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value,
-                             int> = 0>
+  template <
+      typename... Srcs,
+      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
   bool WriteTuple(std::tuple<Srcs...>&& srcs);
 
   // Pushes buffered data to the destination.
@@ -951,12 +950,12 @@ inline bool Writer::Write(absl::uint128 src) {
 
 template <typename Src,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   HasAbslStringify<Src>,
-                  absl::negation<std::is_convertible<Src&&, BytesRef>>,
-                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
-                  absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-                  absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+                  std::negation<std::is_convertible<Src&&, BytesRef>>,
+                  std::negation<std::is_convertible<Src&&, const Chain&>>,
+                  std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+                  std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
 inline bool Writer::Write(Src&& src) {
   WriterAbslStringifySink sink(this);
@@ -964,11 +963,11 @@ inline bool Writer::Write(Src&& src) {
   return ok();
 }
 
-template <
-    typename... Srcs,
-    std::enable_if_t<absl::conjunction<std::bool_constant<sizeof...(Srcs) != 1>,
-                                       IsStringifiable<Srcs>...>::value,
-                     int>>
+template <typename... Srcs,
+          std::enable_if_t<
+              std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
+                                 IsStringifiable<Srcs>...>,
+              int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
 #if __cpp_fold_expressions
   return (Write(std::forward<Srcs>(srcs)) && ...);
@@ -977,17 +976,15 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
 #endif
 }
 
-template <
-    typename... Srcs,
-    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+template <typename... Srcs,
+          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::WriteTuple(
     const std::tuple<Srcs...>& srcs) {
   return WriteInternal<0>(srcs);
 }
 
-template <
-    typename... Srcs,
-    std::enable_if_t<absl::conjunction<IsStringifiable<Srcs>...>::value, int>>
+template <typename... Srcs,
+          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::WriteTuple(
     std::tuple<Srcs...>&& srcs) {
   return WriteInternal<0>(std::move(srcs));

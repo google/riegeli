@@ -78,7 +78,6 @@ cc_library(
         "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/bytes:resizable_writer",
-        "@com_google_absl//absl/meta:type_traits",
         "@local_config_tf//:tf_header_lib",
     ],
 )

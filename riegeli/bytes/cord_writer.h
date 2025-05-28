@@ -25,7 +25,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "riegeli/base/arithmetic.h"
@@ -304,9 +303,9 @@ template <typename Dest>
 explicit CordWriter(Dest&& dest,
                     CordWriterBase::Options options = CordWriterBase::Options())
     -> CordWriter<std::conditional_t<
-        absl::conjunction<std::is_lvalue_reference<Dest>,
-                          std::is_convertible<std::remove_reference_t<Dest>*,
-                                              const absl::Cord*>>::value,
+        std::conjunction_v<std::is_lvalue_reference<Dest>,
+                           std::is_convertible<std::remove_reference_t<Dest>*,
+                                               const absl::Cord*>>,
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit CordWriter(CordWriterBase::Options options = CordWriterBase::Options())
     -> CordWriter<absl::Cord>;

@@ -25,7 +25,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -112,11 +111,10 @@ class SerializedMessageWriter {
   absl::Status WriteSFixed64(int field_number, int64_t value);
   absl::Status WriteFloat(int field_number, float value);
   absl::Status WriteDouble(int field_number, double value);
-  template <
-      typename EnumType,
-      std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
-                                         std::is_integral<EnumType>>::value,
-                       int> = 0>
+  template <typename EnumType,
+            std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                                std::is_integral<EnumType>>,
+                             int> = 0>
   absl::Status WriteEnum(int field_number, EnumType value);
   absl::Status WriteString(int field_number, BytesRef value);
   ABSL_ATTRIBUTE_ALWAYS_INLINE
@@ -154,11 +152,10 @@ class SerializedMessageWriter {
   absl::Status WritePackedSFixed64(int64_t value);
   absl::Status WritePackedFloat(float value);
   absl::Status WritePackedDouble(double value);
-  template <
-      typename EnumType,
-      std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
-                                         std::is_integral<EnumType>>::value,
-                       int> = 0>
+  template <typename EnumType,
+            std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                                std::is_integral<EnumType>>,
+                             int> = 0>
   absl::Status WritePackedEnum(EnumType value);
 
   // Begins accumulating contents of a length-delimited field.
@@ -365,8 +362,8 @@ inline absl::Status SerializedMessageWriter::WriteDouble(int field_number,
 }
 
 template <typename EnumType,
-          std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
-                                             std::is_integral<EnumType>>::value,
+          std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                              std::is_integral<EnumType>>,
                            int>>
 inline absl::Status SerializedMessageWriter::WriteEnum(int field_number,
                                                        EnumType value) {
@@ -442,8 +439,8 @@ inline absl::Status SerializedMessageWriter::WritePackedDouble(double value) {
 }
 
 template <typename EnumType,
-          std::enable_if_t<absl::disjunction<std::is_enum<EnumType>,
-                                             std::is_integral<EnumType>>::value,
+          std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                              std::is_integral<EnumType>>,
                            int>>
 inline absl::Status SerializedMessageWriter::WritePackedEnum(EnumType value) {
   return WritePackedUInt64(static_cast<uint64_t>(value));

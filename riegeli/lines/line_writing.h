@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/writer.h"
@@ -67,20 +66,20 @@ class WriteLineOptions {
 //  * `false` - failure (`!ok()`)
 template <typename... Args,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   std::is_convertible<GetTypeFromEndT<1, Args&&...>, Writer&>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                       IsStringifiable>>::value,
+                                       IsStringifiable>>,
               int> = 0>
 bool WriteLine(Args&&... args);
 template <typename... Args,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   std::is_convertible<GetTypeFromEndT<1, Args&&...>,
                                       WriteLineOptions>,
                   std::is_convertible<GetTypeFromEndT<2, Args&&...>, Writer&>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<2, Args&&...>,
-                                       IsStringifiable>>::value,
+                                       IsStringifiable>>,
               int> = 0>
 bool WriteLine(Args&&... args);
 
@@ -115,10 +114,10 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
 
 template <typename... Args,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   std::is_convertible<GetTypeFromEndT<1, Args&&...>, Writer&>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                       IsStringifiable>>::value,
+                                       IsStringifiable>>,
               int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
   return write_line_internal::WriteLineInternal(
@@ -129,12 +128,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
 
 template <typename... Args,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   std::is_convertible<GetTypeFromEndT<1, Args&&...>,
                                       WriteLineOptions>,
                   std::is_convertible<GetTypeFromEndT<2, Args&&...>, Writer&>,
                   TupleElementsSatisfy<RemoveTypesFromEndT<2, Args&&...>,
-                                       IsStringifiable>>::value,
+                                       IsStringifiable>>,
               int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
   return write_line_internal::WriteLineInternal(

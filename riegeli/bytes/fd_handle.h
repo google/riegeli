@@ -33,7 +33,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
@@ -66,10 +65,10 @@ struct SupportsFdHandle : std::false_type {};
 
 template <typename T>
 struct SupportsFdHandle<
-    T, std::enable_if_t<absl::conjunction<
-           absl::negation<std::is_const<T>>,
-           std::is_convertible<decltype(std::declval<const T&>().get()),
-                               int>>::value>> : std::true_type {};
+    T, std::enable_if_t<std::conjunction_v<
+           std::negation<std::is_const<T>>,
+           std::is_convertible<decltype(std::declval<const T&>().get()), int>>>>
+    : std::true_type {};
 
 // `FdSupportsOpen<T>::value` is `true` if `T` supports `Open()` with the
 // signature like in `OwnedFd`, but taking `absl::string_view filename`
@@ -154,8 +153,8 @@ class
 
   // Creates an `FdHandle` which refers to `target`.
   template <typename T,
-            std::enable_if_t<absl::conjunction<NotSameRef<FdHandle, T&>,
-                                               SupportsFdHandle<T>>::value,
+            std::enable_if_t<std::conjunction_v<NotSameRef<FdHandle, T&>,
+                                                SupportsFdHandle<T>>,
                              int> = 0>
   /*implicit*/ FdHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
@@ -436,12 +435,13 @@ class
       : fd_(that.Release()), deleter_(std::move(that.deleter_)) {}
 
   // Creates an `UnownedFd` converted from any `FdBase`.
-  template <typename OtherDeleter,
-            std::enable_if_t<
-                absl::conjunction<std::is_same<Deleter, UnownedFdDeleter>,
-                                  absl::negation<std::is_same<
-                                      OtherDeleter, UnownedFdDeleter>>>::value,
-                int> = 0>
+  template <
+      typename OtherDeleter,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::is_same<Deleter, UnownedFdDeleter>,
+              std::negation<std::is_same<OtherDeleter, UnownedFdDeleter>>>,
+          int> = 0>
   /*implicit*/ FdBase(
       const FdBase<OtherDeleter>& that ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : fd_(that.fd_), deleter_(that.deleter_) {}
@@ -463,20 +463,19 @@ class
     SetFdKeepFilename(fd);
     deleter_.set_filename(std::move(filename));
   }
-  template <
-      typename OtherDeleter,
-      std::enable_if_t<absl::disjunction<
-                           std::is_same<Deleter, UnownedFdDeleter>,
-                           std::is_same<OtherDeleter, UnownedFdDeleter>>::value,
-                       int> = 0>
+  template <typename OtherDeleter,
+            std::enable_if_t<std::disjunction_v<
+                                 std::is_same<Deleter, UnownedFdDeleter>,
+                                 std::is_same<OtherDeleter, UnownedFdDeleter>>,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(const FdBase<OtherDeleter>& that) {
     SetFdKeepFilename(that.fd_);
     deleter_.Reset(that.deleter_);
   }
   template <typename OtherDeleter,
             std::enable_if_t<
-                absl::disjunction<std::is_same<OtherDeleter, UnownedFdDeleter>,
-                                  std::is_same<OtherDeleter, Deleter>>::value,
+                std::disjunction_v<std::is_same<OtherDeleter, UnownedFdDeleter>,
+                                   std::is_same<OtherDeleter, Deleter>>,
                 int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FdBase<OtherDeleter>&& that) {
     SetFdKeepFilename(that.Release());

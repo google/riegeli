@@ -21,7 +21,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/compare.h"
@@ -51,11 +50,11 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   BytesRef() = default;
 
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<BytesRef, T>,
-                                  std::is_convertible<T&&, StringRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<BytesRef, T>,
+                                          std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : StringRef(std::forward<T>(str)) {}
 
@@ -66,14 +65,14 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
 
   // Stores `str` converted to `absl::Span<const char>` and then to
   // `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<
-                    NotSameRef<BytesRef, T>,
-                    absl::negation<std::is_convertible<T&&, StringRef>>,
-                    NotSameRef<absl::Span<const char>, T>,
-                    std::is_convertible<T&&, absl::Span<const char>>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<
+          std::conjunction_v<NotSameRef<BytesRef, T>,
+                             std::negation<std::is_convertible<T&&, StringRef>>,
+                             NotSameRef<absl::Span<const char>, T>,
+                             std::is_convertible<T&&, absl::Span<const char>>>,
+          int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : BytesRef(absl::Span<const char>(std::forward<T>(str))) {}
 
@@ -87,19 +86,19 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
 
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<BytesRef, T>,
-                                  std::is_convertible<T&&, StringRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<BytesRef, T>,
+                                          std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   friend bool operator==(BytesRef a, T&& b) {
     return a == BytesRef(std::forward<T>(b));
   }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<BytesRef, T>,
-                                  std::is_convertible<T&&, StringRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<BytesRef, T>,
+                                          std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   friend riegeli::StrongOrdering RIEGELI_COMPARE(BytesRef a, T&& b) {
     return riegeli::Compare(a, BytesRef(std::forward<T>(b)));
   }

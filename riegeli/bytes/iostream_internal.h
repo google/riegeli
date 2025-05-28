@@ -20,7 +20,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 
 namespace riegeli::iostream_internal {
 
@@ -36,7 +35,7 @@ template <typename T, typename Enable = void>
 struct HasClose : std::false_type {};
 
 template <typename T>
-struct HasClose<T, absl::void_t<decltype(std::declval<T>().close())>>
+struct HasClose<T, std::void_t<decltype(std::declval<T>().close())>>
     : std::true_type {};
 
 template <typename Stream, std::enable_if_t<!HasClose<Stream>::value, int> = 0>

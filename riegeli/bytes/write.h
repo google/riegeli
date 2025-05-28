@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/dependency.h"
@@ -49,19 +48,19 @@ namespace riegeli {
 template <
     typename... Args,
     std::enable_if_t<
-        absl::conjunction<
+        std::conjunction_v<
             TargetRefSupportsDependency<Writer*, GetTypeFromEndT<1, Args...>>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
+                                 IsStringifiable>>,
         int> = 0>
 absl::Status Write(Args&&... args);
 template <
     typename... Args,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
                          TargetRefSupportsDependency<
                              BackwardWriter*, GetTypeFromEndT<1, Args...>>,
                          TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                              IsStringifiable>>::value,
+                                              IsStringifiable>>,
                      int> = 0>
 absl::Status Write(Args&&... args);
 
@@ -69,18 +68,18 @@ absl::Status Write(Args&&... args);
 
 namespace write_internal {
 
-template <typename WriterType, typename... Srcs,
-          std::enable_if_t<
-              absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
+template <
+    typename WriterType, typename... Srcs,
+    std::enable_if_t<std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
                                                           const Srcs&... srcs) {
   dest.SetWriteSizeHint(
       SaturatingAdd<Position>(riegeli::StringifiedSize(srcs)...));
 }
 
-template <typename WriterType, typename... Srcs,
-          std::enable_if_t<
-              !absl::conjunction<HasStringifiedSize<Srcs>...>::value, int> = 0>
+template <
+    typename WriterType, typename... Srcs,
+    std::enable_if_t<!std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
     ABSL_ATTRIBUTE_UNUSED WriterType& dest,
     ABSL_ATTRIBUTE_UNUSED const Srcs&... srcs) {}
@@ -132,10 +131,10 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
 template <
     typename... Args,
     std::enable_if_t<
-        absl::conjunction<
+        std::conjunction_v<
             TargetRefSupportsDependency<Writer*, GetTypeFromEndT<1, Args...>>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
+                                 IsStringifiable>>,
         int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
   return write_internal::WriteInternal(
@@ -146,11 +145,11 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
 
 template <
     typename... Args,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
                          TargetRefSupportsDependency<
                              BackwardWriter*, GetTypeFromEndT<1, Args...>>,
                          TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                              IsStringifiable>>::value,
+                                              IsStringifiable>>,
                      int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
   return write_internal::BackwardWriteInternal(

@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -150,10 +149,10 @@ class StringReader : public StringReaderBase {
 explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
-    absl::disjunction<
-        absl::conjunction<std::is_lvalue_reference<Src>,
-                          std::is_convertible<Src, absl::string_view>>,
-        std::is_convertible<Src&&, const char*>>::value,
+    std::disjunction_v<
+        std::conjunction<std::is_lvalue_reference<Src>,
+                         std::is_convertible<Src, absl::string_view>>,
+        std::is_convertible<Src&&, const char*>>,
     absl::string_view, TargetT<Src>>>;
 StringReader() -> StringReader<>;
 explicit StringReader(const char* src, size_t size) -> StringReader<>;

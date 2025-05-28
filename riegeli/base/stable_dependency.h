@@ -23,7 +23,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/type_traits.h"
@@ -188,9 +187,9 @@ class
 template <typename Handle, typename Manager>
 class StableDependency<
     Handle, Manager,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
-        std::is_default_constructible<Dependency<Handle, Manager>>>::value>>
+        std::is_default_constructible<Dependency<Handle, Manager>>>>>
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyDefault<Handle, Manager>, Handle,
           Manager> {
@@ -207,10 +206,10 @@ class StableDependency<
 template <typename Handle, typename Manager>
 class StableDependency<
     Handle, Manager,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
-        absl::negation<std::is_default_constructible<
-            Dependency<Handle, Manager>>>>::value>>
+        std::negation<
+            std::is_default_constructible<Dependency<Handle, Manager>>>>>>
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyNoDefault<Handle, Manager>,
           Handle, Manager>,

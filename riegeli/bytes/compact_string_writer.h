@@ -19,7 +19,6 @@
 
 #include <type_traits>
 
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
@@ -105,9 +104,9 @@ explicit CompactStringWriter(Dest&& dest,
                              CompactStringWriterBase::Options options =
                                  CompactStringWriterBase::Options())
     -> CompactStringWriter<std::conditional_t<
-        absl::conjunction<std::is_lvalue_reference<Dest>,
-                          std::is_convertible<std::remove_reference_t<Dest>*,
-                                              const CompactString*>>::value,
+        std::conjunction_v<std::is_lvalue_reference<Dest>,
+                           std::is_convertible<std::remove_reference_t<Dest>*,
+                                               const CompactString*>>,
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit CompactStringWriter(CompactStringWriterBase::Options options =
                                  CompactStringWriterBase::Options())

@@ -23,7 +23,6 @@
 #include <limits>
 #include <list>
 #include <memory>
-#include <type_traits>  // IWYU pragma: keep
 #include <utility>
 #include <vector>
 
@@ -33,7 +32,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
-#include "absl/meta/type_traits.h"  // IWYU pragma: keep
 #include "absl/numeric/bits.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"

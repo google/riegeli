@@ -26,7 +26,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -174,11 +173,11 @@ class AsciiLeftType {
 template <
     typename... Args,
     std::enable_if_t<
-        absl::conjunction<
+        std::conjunction_v<
             std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
+                                 IsStringifiable>>,
         int> = 0>
 inline ApplyToTupleElementsT<AsciiLeftType, RemoveTypesFromEndT<1, Args&&...>>
 AsciiLeft(Args&&... args) {
@@ -297,11 +296,11 @@ class AsciiCenterType {
 template <
     typename... Args,
     std::enable_if_t<
-        absl::conjunction<
+        std::conjunction_v<
             std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
+                                 IsStringifiable>>,
         int> = 0>
 inline ApplyToTupleElementsT<AsciiCenterType, RemoveTypesFromEndT<1, Args&&...>>
 AsciiCenter(Args&&... args) {
@@ -419,11 +418,11 @@ class AsciiRightType {
 template <
     typename... Args,
     std::enable_if_t<
-        absl::conjunction<
+        std::conjunction_v<
             std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
             TupleElementsSatisfy<RemoveTypesFromEndT<1, Args&&...>,
-                                 IsStringifiable>>::value,
+                                 IsStringifiable>>,
         int> = 0>
 inline ApplyToTupleElementsT<AsciiRightType, RemoveTypesFromEndT<1, Args&&...>>
 AsciiRight(Args&&... args) {

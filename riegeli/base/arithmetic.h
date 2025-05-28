@@ -21,7 +21,6 @@
 #include <type_traits>
 
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "riegeli/base/assert.h"
@@ -33,14 +32,14 @@ namespace riegeli {
 // `absl::uint128`.
 template <typename T>
 struct IsUnsignedInt
-    : absl::conjunction<std::is_integral<T>, std::is_unsigned<T>> {};
+    : std::conjunction<std::is_integral<T>, std::is_unsigned<T>> {};
 template <>
 struct IsUnsignedInt<absl::uint128> : std::true_type {};
 
 // `IsSignedInt<T>::value` is `true` for signed integral types, including
 // `absl::int128`.
 template <typename T>
-struct IsSignedInt : absl::conjunction<std::is_integral<T>, std::is_signed<T>> {
+struct IsSignedInt : std::conjunction<std::is_integral<T>, std::is_signed<T>> {
 };
 template <>
 struct IsSignedInt<absl::int128> : std::true_type {};
@@ -76,20 +75,18 @@ using MakeUnsignedT = typename MakeUnsigned<T>::type;
 // `IntCast<A>(value)` converts between integral types, asserting that `value`
 // fits in the target type.
 
-template <
-    typename A, typename B,
-    std::enable_if_t<
-        absl::conjunction<IsUnsignedInt<A>, IsUnsignedInt<B>>::value, int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<
+              std::conjunction_v<IsUnsignedInt<A>, IsUnsignedInt<B>>, int> = 0>
 constexpr A IntCast(B value) {
   RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsUnsignedInt<A>, IsSignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsUnsignedInt<A>, IsSignedInt<B>>,
+                           int> = 0>
 constexpr A IntCast(B value) {
   RIEGELI_ASSERT_GE(value, 0)
       << "Failed precondition of IntCast(): value out of range";
@@ -99,20 +96,18 @@ constexpr A IntCast(B value) {
   return static_cast<A>(value);
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsUnsignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsUnsignedInt<B>>,
+                           int> = 0>
 constexpr A IntCast(B value) {
   RIEGELI_ASSERT_LE(value, MakeUnsignedT<A>{std::numeric_limits<A>::max()})
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsSignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsSignedInt<B>>,
+                           int> = 0>
 constexpr A IntCast(B value) {
   RIEGELI_ASSERT_GE(value, std::numeric_limits<A>::min())
       << "Failed precondition of IntCast(): value out of range";
@@ -123,10 +118,9 @@ constexpr A IntCast(B value) {
 
 // `UnsignedCast(value)` converts `value` to the corresponding unsigned type,
 // asserting that `value` was non-negative.
-template <
-    typename T,
-    std::enable_if_t<absl::disjunction<IsSignedInt<T>, IsUnsignedInt<T>>::value,
-                     int> = 0>
+template <typename T,
+          std::enable_if_t<std::disjunction_v<IsSignedInt<T>, IsUnsignedInt<T>>,
+                           int> = 0>
 constexpr MakeUnsignedT<T> UnsignedCast(T value) {
   return IntCast<MakeUnsignedT<T>>(value);
 }
@@ -152,20 +146,19 @@ constexpr A SignedMin(A a) {
   return a;
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsSignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsSignedInt<B>>,
+                           int> = 0>
 constexpr std::common_type_t<A, B> SignedMin(A a, B b) {
   return a <= b ? a : b;
 }
 
-template <typename A, typename B, typename... Rest,
-          std::enable_if_t<
-              absl::conjunction<std::bool_constant<(sizeof...(Rest) > 0)>,
-                                IsSignedInt<A>, IsSignedInt<B>,
-                                IsSignedInt<Rest>...>::value,
-              int> = 0>
+template <
+    typename A, typename B, typename... Rest,
+    std::enable_if_t<std::conjunction_v<
+                         std::bool_constant<(sizeof...(Rest) > 0)>,
+                         IsSignedInt<A>, IsSignedInt<B>, IsSignedInt<Rest>...>,
+                     int> = 0>
 constexpr std::common_type_t<A, B, Rest...> SignedMin(A a, B b, Rest... rest) {
   return SignedMin(SignedMin(a, b), rest...);
 }
@@ -178,20 +171,19 @@ constexpr A SignedMax(A a) {
   return a;
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsSignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsSignedInt<B>>,
+                           int> = 0>
 constexpr std::common_type_t<A, B> SignedMax(A a, B b) {
   return a >= b ? a : b;
 }
 
-template <typename A, typename B, typename... Rest,
-          std::enable_if_t<
-              absl::conjunction<std::bool_constant<(sizeof...(Rest) > 0)>,
-                                IsSignedInt<A>, IsSignedInt<B>,
-                                IsSignedInt<Rest>...>::value,
-              int> = 0>
+template <
+    typename A, typename B, typename... Rest,
+    std::enable_if_t<std::conjunction_v<
+                         std::bool_constant<(sizeof...(Rest) > 0)>,
+                         IsSignedInt<A>, IsSignedInt<B>, IsSignedInt<Rest>...>,
+                     int> = 0>
 constexpr std::common_type_t<A, B, Rest...> SignedMax(A a, B b, Rest... rest) {
   return SignedMax(SignedMax(a, b), rest...);
 }
@@ -204,19 +196,18 @@ constexpr A UnsignedMin(A a) {
   return a;
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<
-        absl::conjunction<IsUnsignedInt<A>, IsUnsignedInt<B>>::value, int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<
+              std::conjunction_v<IsUnsignedInt<A>, IsUnsignedInt<B>>, int> = 0>
 constexpr IntersectionTypeT<A, B> UnsignedMin(A a, B b) {
   return static_cast<IntersectionTypeT<A, B>>(a <= b ? a : b);
 }
 
 template <typename A, typename B, typename... Rest,
           std::enable_if_t<
-              absl::conjunction<std::bool_constant<(sizeof...(Rest) > 0)>,
-                                IsUnsignedInt<A>, IsUnsignedInt<B>,
-                                IsUnsignedInt<Rest>...>::value,
+              std::conjunction_v<std::bool_constant<(sizeof...(Rest) > 0)>,
+                                 IsUnsignedInt<A>, IsUnsignedInt<B>,
+                                 IsUnsignedInt<Rest>...>,
               int> = 0>
 constexpr IntersectionTypeT<A, B, Rest...> UnsignedMin(A a, B b, Rest... rest) {
   return UnsignedMin(UnsignedMin(a, b), rest...);
@@ -230,19 +221,18 @@ constexpr A UnsignedMax(A a) {
   return a;
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<
-        absl::conjunction<IsUnsignedInt<A>, IsUnsignedInt<B>>::value, int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<
+              std::conjunction_v<IsUnsignedInt<A>, IsUnsignedInt<B>>, int> = 0>
 constexpr std::common_type_t<A, B> UnsignedMax(A a, B b) {
   return a >= b ? a : b;
 }
 
 template <typename A, typename B, typename... Rest,
           std::enable_if_t<
-              absl::conjunction<std::bool_constant<(sizeof...(Rest) > 0)>,
-                                IsUnsignedInt<A>, IsUnsignedInt<B>,
-                                IsUnsignedInt<Rest>...>::value,
+              std::conjunction_v<std::bool_constant<(sizeof...(Rest) > 0)>,
+                                 IsUnsignedInt<A>, IsUnsignedInt<B>,
+                                 IsUnsignedInt<Rest>...>,
               int> = 0>
 constexpr std::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
                                                         Rest... rest) {
@@ -253,8 +243,8 @@ constexpr std::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
 // at most `max(max_value, min_value)`, preferably `value`.
 template <
     typename Value, typename Min, typename Max,
-    std::enable_if_t<absl::conjunction<IsUnsignedInt<Value>, IsUnsignedInt<Min>,
-                                       IsUnsignedInt<Max>>::value,
+    std::enable_if_t<std::conjunction_v<IsUnsignedInt<Value>,
+                                        IsUnsignedInt<Min>, IsUnsignedInt<Max>>,
                      int> = 0>
 constexpr std::common_type_t<IntersectionTypeT<Value, Max>, Min> UnsignedClamp(
     Value value, Min min, Max max) {
@@ -264,10 +254,9 @@ constexpr std::common_type_t<IntersectionTypeT<Value, Max>, Min> UnsignedClamp(
 // `SaturatingIntCast()` converts an integer value to another integer type, or
 // returns the appropriate bound of the type if conversion would overflow.
 
-template <
-    typename A, typename B,
-    std::enable_if_t<
-        absl::conjunction<IsUnsignedInt<A>, IsUnsignedInt<B>>::value, int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<
+              std::conjunction_v<IsUnsignedInt<A>, IsUnsignedInt<B>>, int> = 0>
 constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value > std::numeric_limits<A>::max())) {
     return std::numeric_limits<A>::max();
@@ -275,10 +264,9 @@ constexpr A SaturatingIntCast(B value) {
   return static_cast<A>(value);
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsUnsignedInt<A>, IsSignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsUnsignedInt<A>, IsSignedInt<B>>,
+                           int> = 0>
 constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value < 0)) return 0;
   if (ABSL_PREDICT_FALSE(static_cast<MakeUnsignedT<B>>(value) >
@@ -288,10 +276,9 @@ constexpr A SaturatingIntCast(B value) {
   return static_cast<A>(value);
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsUnsignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsUnsignedInt<B>>,
+                           int> = 0>
 constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value >
                          MakeUnsignedT<A>{std::numeric_limits<A>::max()})) {
@@ -300,10 +287,9 @@ constexpr A SaturatingIntCast(B value) {
   return static_cast<A>(value);
 }
 
-template <
-    typename A, typename B,
-    std::enable_if_t<absl::conjunction<IsSignedInt<A>, IsSignedInt<B>>::value,
-                     int> = 0>
+template <typename A, typename B,
+          std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsSignedInt<B>>,
+                           int> = 0>
 constexpr A SaturatingIntCast(B value) {
   if (ABSL_PREDICT_FALSE(value < std::numeric_limits<A>::min())) {
     return std::numeric_limits<A>::min();
@@ -336,20 +322,19 @@ constexpr T SaturatingAdd(T a, T b) {
 }
 
 template <typename T, typename... Rest,
-          std::enable_if_t<absl::conjunction<
-                               std::bool_constant<(sizeof...(Rest) > 0)>,
-                               IsUnsignedInt<T>, IsUnsignedInt<Rest>...>::value,
-                           int> = 0>
+          std::enable_if_t<
+              std::conjunction_v<std::bool_constant<(sizeof...(Rest) > 0)>,
+                                 IsUnsignedInt<T>, IsUnsignedInt<Rest>...>,
+              int> = 0>
 constexpr T SaturatingAdd(T a, T b, Rest... rest) {
   return SaturatingAdd(SaturatingAdd(a, b), rest...);
 }
 
 // `SaturatingSub()` subtracts unsigned values, or returns 0 if subtraction
 // would underflow.
-template <
-    typename T, typename U,
-    std::enable_if_t<
-        absl::conjunction<IsUnsignedInt<T>, IsUnsignedInt<U>>::value, int> = 0>
+template <typename T, typename U,
+          std::enable_if_t<
+              std::conjunction_v<IsUnsignedInt<T>, IsUnsignedInt<U>>, int> = 0>
 constexpr T SaturatingSub(T a, U b) {
   if (ABSL_PREDICT_FALSE(b > a)) return 0;
   return a - IntCast<T>(b);
@@ -357,26 +342,24 @@ constexpr T SaturatingSub(T a, U b) {
 
 // `RoundDown()` rounds an unsigned value downwards to the nearest multiple of
 // the given power of 2.
-template <
-    size_t alignment, typename T,
-    std::enable_if_t<
-        absl::conjunction<IsUnsignedInt<T>,
-                          std::integral_constant<
-                              bool, absl::has_single_bit(alignment)>>::value,
-        int> = 0>
+template <size_t alignment, typename T,
+          std::enable_if_t<
+              std::conjunction_v<IsUnsignedInt<T>,
+                                 std::integral_constant<
+                                     bool, absl::has_single_bit(alignment)>>,
+              int> = 0>
 constexpr T RoundDown(T value) {
   return value & ~T{alignment - 1};
 }
 
 // `RoundUp()` rounds an unsigned value upwards to the nearest multiple of the
 // given power of 2.
-template <
-    size_t alignment, typename T,
-    std::enable_if_t<
-        absl::conjunction<IsUnsignedInt<T>,
-                          std::integral_constant<
-                              bool, absl::has_single_bit(alignment)>>::value,
-        int> = 0>
+template <size_t alignment, typename T,
+          std::enable_if_t<
+              std::conjunction_v<IsUnsignedInt<T>,
+                                 std::integral_constant<
+                                     bool, absl::has_single_bit(alignment)>>,
+              int> = 0>
 constexpr T RoundUp(T value) {
   return ((value - 1) | T{alignment - 1}) + 1;
 }

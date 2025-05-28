@@ -43,7 +43,6 @@
 
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -73,8 +72,8 @@ struct HasAvailableLength : std::false_type {};
 template <typename DependentFILE>
 struct HasAvailableLength<
     DependentFILE,
-    absl::void_t<decltype(std::declval<DependentFILE>()._IO_read_end -
-                          std::declval<DependentFILE>()._IO_read_ptr)>>
+    std::void_t<decltype(std::declval<DependentFILE>()._IO_read_end -
+                         std::declval<DependentFILE>()._IO_read_ptr)>>
     : std::true_type {};
 
 template <typename DependentFILE,

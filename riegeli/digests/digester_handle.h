@@ -25,7 +25,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -52,11 +51,10 @@ struct SupportsDigesterBaseHandle : std::false_type {};
 
 template <typename T>
 struct SupportsDigesterBaseHandle<
-    T, std::enable_if_t<absl::conjunction<
-           absl::negation<std::is_const<T>>,
-           std::is_void<absl::void_t<decltype(std::declval<T&>().Write(
-               std::declval<absl::string_view>()))>>>::value>>
-    : std::true_type {};
+    T, std::enable_if_t<std::conjunction_v<
+           std::negation<std::is_const<T>>,
+           std::is_void<std::void_t<decltype(std::declval<T&>().Write(
+               std::declval<absl::string_view>()))>>>>> : std::true_type {};
 
 // Type-erased pointer to a target object called a digester, which observes data
 // being read or written.
@@ -139,8 +137,8 @@ class
   // Creates a `DigesterBaseHandle` which refers to `target`.
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<NotSameRef<DigesterBaseHandle, T&>,
-                                         SupportsDigesterBaseHandle<T>>::value,
+      std::enable_if_t<std::conjunction_v<NotSameRef<DigesterBaseHandle, T&>,
+                                          SupportsDigesterBaseHandle<T>>,
                        int> = 0>
   /*implicit*/ DigesterBaseHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : methods_(&kMethods<T>), target_(target) {}
@@ -182,12 +180,12 @@ class
   template <
       typename Src,
       std::enable_if_t<
-          absl::conjunction<
+          std::conjunction_v<
               HasAbslStringify<Src>,
-              absl::negation<std::is_convertible<Src&&, BytesRef>>,
-              absl::negation<std::is_convertible<Src&&, const Chain&>>,
-              absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-              absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+              std::negation<std::is_convertible<Src&&, BytesRef>>,
+              std::negation<std::is_convertible<Src&&, const Chain&>>,
+              std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+              std::negation<std::is_convertible<Src&&, ByteFill>>>,
           int> = 0>
   bool Write(Src&& src);
 
@@ -251,7 +249,7 @@ class
 
   template <typename T>
   struct DigesterTargetHasSetWriteSizeHint<
-      T, absl::void_t<decltype(std::declval<T&>().SetWriteSizeHint(
+      T, std::void_t<decltype(std::declval<T&>().SetWriteSizeHint(
              std::declval<std::optional<Position>>()))>> : std::true_type {};
 
   template <typename T, typename Enable = void>
@@ -259,7 +257,7 @@ class
 
   template <typename T>
   struct DigesterTargetHasWriteChain<
-      T, absl::void_t<decltype(std::declval<T&>().Write(
+      T, std::void_t<decltype(std::declval<T&>().Write(
              std::declval<const Chain&>()))>> : std::true_type {};
 
   template <typename T, typename Enable = void>
@@ -267,7 +265,7 @@ class
 
   template <typename T>
   struct DigesterTargetHasWriteCord<
-      T, absl::void_t<decltype(std::declval<T&>().Write(
+      T, std::void_t<decltype(std::declval<T&>().Write(
              std::declval<const absl::Cord&>()))>> : std::true_type {};
 
   template <typename T, typename Enable = void>
@@ -275,16 +273,16 @@ class
 
   template <typename T>
   struct DigesterTargetHasWriteByteFill<
-      T, absl::void_t<decltype(std::declval<T&>().Write(
-             std::declval<ByteFill>()))>> : std::true_type {};
+      T,
+      std::void_t<decltype(std::declval<T&>().Write(std::declval<ByteFill>()))>>
+      : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasClose : std::false_type {};
 
   template <typename T>
   struct DigesterTargetHasClose<
-      T, absl::void_t<decltype(std::declval<T&>().Close())>> : std::true_type {
-  };
+      T, std::void_t<decltype(std::declval<T&>().Close())>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasStatus : std::false_type {};
@@ -485,7 +483,7 @@ struct DigestOfDigesterTarget {
 
 template <typename T>
 struct DigestOfDigesterTarget<
-    T, absl::void_t<decltype(std::declval<T&>().Digest())>> {
+    T, std::void_t<decltype(std::declval<T&>().Digest())>> {
   using type = decltype(std::declval<T&>().Digest());
 };
 
@@ -500,11 +498,11 @@ struct SupportsDigesterHandle : std::false_type {};
 template <typename T, typename DigestType>
 struct SupportsDigesterHandle<
     T, DigestType,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         SupportsDigesterBaseHandle<T>,
         HasDigestConverter<
             typename digester_handle_internal::DigestOfDigesterTarget<T>::type,
-            DigestType>>::value>> : std::true_type {};
+            DigestType>>>> : std::true_type {};
 
 // `DigesterHandle<DigestType>` extends `DigesterBaseHandle` with `Digest()`
 // returning some data of type `DigestType` called a digest, e.g. a checksum.
@@ -541,8 +539,8 @@ class DigesterHandle : public DigesterBaseHandle {
   // Creates a `DigesterHandle` which refers to `target`.
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<NotSameRef<DigesterHandle, T&>,
-                                  SupportsDigesterHandle<T, DigestType>>::value,
+                std::conjunction_v<NotSameRef<DigesterHandle, T&>,
+                                   SupportsDigesterHandle<T, DigestType>>,
                 int> = 0>
   /*implicit*/ DigesterHandle(T& target ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : DigesterBaseHandle(&kMethods<T>, TypeErasedRef(target)) {}
@@ -569,7 +567,7 @@ class DigesterHandle : public DigesterBaseHandle {
 
   template <typename T>
   struct DigesterTargetHasDigest<
-      T, absl::void_t<decltype(std::declval<T&>().Digest())>> : std::true_type {
+      T, std::void_t<decltype(std::declval<T&>().Digest())>> : std::true_type {
   };
 
   template <typename DependentDigestType = DigestType,
@@ -591,8 +589,8 @@ class DigesterHandle : public DigesterBaseHandle {
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<absl::negation<DigesterTargetHasDigest<T>>,
-                                  std::is_void<DigestType>>::value,
+                std::conjunction_v<std::negation<DigesterTargetHasDigest<T>>,
+                                   std::is_void<DigestType>>,
                 int> = 0>
   static DigestType DigestMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {}
 
@@ -649,9 +647,9 @@ explicit DigesterHandle(T& target) -> DigesterHandle<
 template <typename Manager>
 class DependencyImpl<
     DigesterBaseHandle, Manager,
-    std::enable_if_t<absl::conjunction<
+    std::enable_if_t<std::conjunction_v<
         std::is_pointer<DependencyManagerPtr<Manager>>,
-        SupportsDigesterBaseHandle<DependencyManagerRef<Manager>>>::value>>
+        SupportsDigesterBaseHandle<DependencyManagerRef<Manager>>>>>
     : public DependencyManager<Manager> {
  public:
   using DependencyImpl::DependencyManager::DependencyManager;
@@ -713,12 +711,12 @@ class DigesterBaseHandle::DigesterAbslStringifySink {
 
 template <typename Src,
           std::enable_if_t<
-              absl::conjunction<
+              std::conjunction_v<
                   HasAbslStringify<Src>,
-                  absl::negation<std::is_convertible<Src&&, BytesRef>>,
-                  absl::negation<std::is_convertible<Src&&, const Chain&>>,
-                  absl::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-                  absl::negation<std::is_convertible<Src&&, ByteFill>>>::value,
+                  std::negation<std::is_convertible<Src&&, BytesRef>>,
+                  std::negation<std::is_convertible<Src&&, const Chain&>>,
+                  std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
+                  std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
 inline bool DigesterBaseHandle::Write(Src&& src) {
   DigesterAbslStringifySink sink(*this);

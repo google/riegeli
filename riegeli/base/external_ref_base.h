@@ -247,7 +247,7 @@ class ExternalRef {
   struct HasCallOperatorSubstr : std::false_type {};
 
   template <typename T>
-  struct HasCallOperatorSubstr<T, absl::void_t<decltype(std::declval<T&&>()(
+  struct HasCallOperatorSubstr<T, std::void_t<decltype(std::declval<T&&>()(
                                       std::declval<absl::string_view>()))>>
       : std::true_type {};
 
@@ -255,12 +255,12 @@ class ExternalRef {
   struct HasCallOperatorWhole : std::false_type {};
 
   template <typename T>
-  struct HasCallOperatorWhole<T, absl::void_t<decltype(std::declval<T&&>()())>>
+  struct HasCallOperatorWhole<T, std::void_t<decltype(std::declval<T&&>()())>>
       : std::true_type {};
 
   template <typename T>
   struct HasCallOperator
-      : absl::disjunction<HasCallOperatorSubstr<T>, HasCallOperatorWhole<T>> {};
+      : std::disjunction<HasCallOperatorSubstr<T>, HasCallOperatorWhole<T>> {};
 
   template <typename T,
             std::enable_if_t<HasCallOperatorSubstr<T>::value, int> = 0>
@@ -270,18 +270,18 @@ class ExternalRef {
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<absl::negation<HasCallOperatorSubstr<T>>,
-                                  HasCallOperatorWhole<T>>::value,
+                std::conjunction_v<std::negation<HasCallOperatorSubstr<T>>,
+                                   HasCallOperatorWhole<T>>,
                 int> = 0>
   static void CallOperatorWhole(T&& object) {
     std::forward<T>(object)();
   }
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<absl::negation<HasCallOperator<T>>,
-                                         HasCallOperatorSubstr<
-                                             absl::remove_cvref_t<T>>>::value,
-                       int> = 0>
+      std::enable_if_t<
+          std::conjunction_v<std::negation<HasCallOperator<T>>,
+                             HasCallOperatorSubstr<absl::remove_cvref_t<T>>>,
+          int> = 0>
   static void CallOperatorWhole(T&& object) {
     absl::remove_cvref_t<T> copy(object);
     const absl::string_view data = BytesRef(copy);
@@ -290,10 +290,10 @@ class ExternalRef {
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasCallOperator<T>>,
-              absl::negation<HasCallOperatorSubstr<absl::remove_cvref_t<T>>>,
-              HasCallOperatorWhole<absl::remove_cvref_t<T>>>::value,
+          std::conjunction_v<
+              std::negation<HasCallOperator<T>>,
+              std::negation<HasCallOperatorSubstr<absl::remove_cvref_t<T>>>,
+              HasCallOperatorWhole<absl::remove_cvref_t<T>>>,
           int> = 0>
   static void CallOperatorWhole(T&& object) {
     (absl::remove_cvref_t<T>(object))();
@@ -310,8 +310,8 @@ class ExternalRef {
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<absl::negation<HasCallOperatorSubstr<T>>,
-                                  HasCallOperatorWhole<T>>::value,
+                std::conjunction_v<std::negation<HasCallOperatorSubstr<T>>,
+                                   HasCallOperatorWhole<T>>,
                 int> = 0>
   static void CallOperatorSubstr(
       T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
@@ -319,10 +319,10 @@ class ExternalRef {
   }
   template <
       typename T,
-      std::enable_if_t<absl::conjunction<absl::negation<HasCallOperator<T>>,
-                                         HasCallOperatorSubstr<
-                                             absl::remove_cvref_t<T>>>::value,
-                       int> = 0>
+      std::enable_if_t<
+          std::conjunction_v<std::negation<HasCallOperator<T>>,
+                             HasCallOperatorSubstr<absl::remove_cvref_t<T>>>,
+          int> = 0>
   static void CallOperatorSubstr(
       T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
     absl::remove_cvref_t<T> copy(object);
@@ -332,10 +332,10 @@ class ExternalRef {
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasCallOperator<T>>,
-              absl::negation<HasCallOperatorSubstr<absl::remove_cvref_t<T>>>,
-              HasCallOperatorWhole<absl::remove_cvref_t<T>>>::value,
+          std::conjunction_v<
+              std::negation<HasCallOperator<T>>,
+              std::negation<HasCallOperatorSubstr<absl::remove_cvref_t<T>>>,
+              HasCallOperatorWhole<absl::remove_cvref_t<T>>>,
           int> = 0>
   static void CallOperatorSubstr(
       T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
@@ -384,7 +384,7 @@ class ExternalRef {
   template <typename T, typename Callback>
   struct HasRiegeliExternalDelegateWhole<
       T, Callback,
-      absl::void_t<decltype(RiegeliExternalDelegate(
+      std::void_t<decltype(RiegeliExternalDelegate(
           std::declval<external_ref_internal::PointerTypeT<T>>(),
           std::declval<Callback>()))>> : std::true_type {};
 
@@ -394,15 +394,15 @@ class ExternalRef {
   template <typename T, typename Callback>
   struct HasRiegeliExternalDelegateSubstr<
       T, Callback,
-      absl::void_t<decltype(RiegeliExternalDelegate(
+      std::void_t<decltype(RiegeliExternalDelegate(
           std::declval<external_ref_internal::PointerTypeT<T>>(),
           std::declval<absl::string_view>(), std::declval<Callback>()))>>
       : std::true_type {};
 
   template <typename T, typename Callback>
   struct HasExternalDelegateWhole
-      : absl::disjunction<HasRiegeliExternalDelegateWhole<T, Callback>,
-                          HasRiegeliExternalDelegateSubstr<T, Callback>> {};
+      : std::disjunction<HasRiegeliExternalDelegateWhole<T, Callback>,
+                         HasRiegeliExternalDelegateSubstr<T, Callback>> {};
 
   template <typename T, typename Callback,
             std::enable_if_t<
@@ -411,13 +411,12 @@ class ExternalRef {
     RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)),
                             std::forward<Callback>(delegate_to));
   }
-  template <
-      typename T, typename Callback,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasRiegeliExternalDelegateWhole<T, Callback>>,
-              HasRiegeliExternalDelegateSubstr<T, Callback>>::value,
-          int> = 0>
+  template <typename T, typename Callback,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::negation<HasRiegeliExternalDelegateWhole<T, Callback>>,
+                    HasRiegeliExternalDelegateSubstr<T, Callback>>,
+                int> = 0>
   static void ExternalDelegateWhole(T&& object, Callback&& delegate_to) {
     const absl::string_view data = BytesRef(object);
     RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)), data,
@@ -433,13 +432,12 @@ class ExternalRef {
     RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)),
                             std::forward<Callback>(delegate_to));
   }
-  template <
-      typename T, typename Callback,
-      std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasRiegeliExternalDelegateWhole<T, Callback>>,
-              HasRiegeliExternalDelegateSubstr<T, Callback>>::value,
-          int> = 0>
+  template <typename T, typename Callback,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::negation<HasRiegeliExternalDelegateWhole<T, Callback>>,
+                    HasRiegeliExternalDelegateSubstr<T, Callback>>,
+                int> = 0>
   static void ExternalDelegateWhole(T&& object, absl::string_view data,
                                     Callback&& delegate_to) {
     RiegeliExternalDelegate(ExternalRef::Pointer(std::forward<T>(object)), data,
@@ -448,8 +446,8 @@ class ExternalRef {
 
   template <typename T, typename Callback>
   struct HasExternalDelegateSubstr
-      : absl::disjunction<HasRiegeliExternalDelegateSubstr<T, Callback>,
-                          HasRiegeliExternalDelegateWhole<T, Callback>> {};
+      : std::disjunction<HasRiegeliExternalDelegateSubstr<T, Callback>,
+                         HasRiegeliExternalDelegateWhole<T, Callback>> {};
 
   template <typename T, typename Callback,
             std::enable_if_t<
@@ -462,9 +460,9 @@ class ExternalRef {
   template <
       typename T, typename Callback,
       std::enable_if_t<
-          absl::conjunction<
-              absl::negation<HasRiegeliExternalDelegateSubstr<T, Callback>>,
-              HasRiegeliExternalDelegateWhole<T, Callback>>::value,
+          std::conjunction_v<
+              std::negation<HasRiegeliExternalDelegateSubstr<T, Callback>>,
+              HasRiegeliExternalDelegateWhole<T, Callback>>,
           int> = 0>
   static void ExternalDelegateSubstr(
       T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
@@ -496,8 +494,8 @@ class ExternalRef {
 
   template <typename T>
   struct HasToChainBlockWhole
-      : absl::disjunction<HasRiegeliToChainBlockWhole<T>,
-                          HasRiegeliToChainBlockSubstr<T>> {};
+      : std::disjunction<HasRiegeliToChainBlockWhole<T>,
+                         HasRiegeliToChainBlockSubstr<T>> {};
 
   template <typename T,
             std::enable_if_t<HasRiegeliToChainBlockWhole<T>::value, int> = 0>
@@ -505,9 +503,9 @@ class ExternalRef {
     return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)));
   }
   template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<HasRiegeliToChainBlockWhole<T>>,
-                                 HasRiegeliToChainBlockSubstr<T>>::value,
+            std::enable_if_t<std::conjunction_v<
+                                 std::negation<HasRiegeliToChainBlockWhole<T>>,
+                                 HasRiegeliToChainBlockSubstr<T>>,
                              int> = 0>
   static Chain::Block ToChainBlockWhole(T&& object) {
     const absl::string_view data = BytesRef(object);
@@ -522,9 +520,9 @@ class ExternalRef {
     return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)));
   }
   template <typename T,
-            std::enable_if_t<absl::conjunction<
-                                 absl::negation<HasRiegeliToChainBlockWhole<T>>,
-                                 HasRiegeliToChainBlockSubstr<T>>::value,
+            std::enable_if_t<std::conjunction_v<
+                                 std::negation<HasRiegeliToChainBlockWhole<T>>,
+                                 HasRiegeliToChainBlockSubstr<T>>,
                              int> = 0>
   static Chain::Block ToChainBlockWhole(T&& object, absl::string_view data) {
     return RiegeliToChainBlock(ExternalRef::Pointer(std::forward<T>(object)),
@@ -594,42 +592,39 @@ class ExternalRef {
       use_chain_block_(context_, ExternalRef::ToChainBlockWhole(
                                      std::forward<T>(object), data));
     }
-    template <
-        typename DependentT = T,
-        std::enable_if_t<
-            absl::conjunction<
-                absl::negation<HasToChainBlockWhole<DependentT>>,
-                HasToChainBlockWhole<absl::remove_cvref_t<DependentT>>>::value,
-            int> = 0>
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  std::conjunction_v<
+                      std::negation<HasToChainBlockWhole<DependentT>>,
+                      HasToChainBlockWhole<absl::remove_cvref_t<DependentT>>>,
+                  int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
       use_chain_block_(context_, ExternalRef::ToChainBlockWhole(
                                      absl::remove_cvref_t<T>(object)));
     }
     template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<HasToChainBlockWhole<
-                          absl::remove_cvref_t<DependentT>>>,
-                      HasExternalDelegateWhole<
-                          DependentT, ConverterToChainBlockWhole>>::value,
-                  int> = 0>
+              std::enable_if_t<std::conjunction_v<
+                                   std::negation<HasToChainBlockWhole<
+                                       absl::remove_cvref_t<DependentT>>>,
+                                   HasExternalDelegateWhole<
+                                       DependentT, ConverterToChainBlockWhole>>,
+                               int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
                                                absl::string_view data) && {
       ExternalRef::ExternalDelegateWhole(std::forward<T>(object), data,
                                          std::move(*this));
     }
-    template <
-        typename DependentT = T,
-        std::enable_if_t<
-            absl::conjunction<
-                absl::negation<
-                    HasToChainBlockWhole<absl::remove_cvref_t<DependentT>>>,
-                absl::negation<HasExternalDelegateWhole<
-                    DependentT, ConverterToChainBlockWhole>>,
-                HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
-                                         ConverterToChainBlockWhole>>::value,
-            int> = 0>
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  std::conjunction_v<
+                      std::negation<HasToChainBlockWhole<
+                          absl::remove_cvref_t<DependentT>>>,
+                      std::negation<HasExternalDelegateWhole<
+                          DependentT, ConverterToChainBlockWhole>>,
+                      HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
+                                               ConverterToChainBlockWhole>>,
+                  int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
       ExternalRef::ExternalDelegateWhole(absl::remove_cvref_t<T>(object),
@@ -637,11 +632,11 @@ class ExternalRef {
     }
     template <typename DependentT = T,
               std::enable_if_t<
-                  absl::conjunction<absl::negation<HasToChainBlockWhole<
-                                        absl::remove_cvref_t<DependentT>>>,
-                                    absl::negation<HasExternalDelegateWhole<
-                                        absl::remove_cvref_t<DependentT>,
-                                        ConverterToChainBlockWhole>>>::value,
+                  std::conjunction_v<std::negation<HasToChainBlockWhole<
+                                         absl::remove_cvref_t<DependentT>>>,
+                                     std::negation<HasExternalDelegateWhole<
+                                         absl::remove_cvref_t<DependentT>,
+                                         ConverterToChainBlockWhole>>>,
                   int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
@@ -703,25 +698,24 @@ class ExternalRef {
       use_chain_block_(context_, ExternalRef::ToChainBlockSubstr(
                                      std::forward<T>(object), substr_));
     }
-    template <
-        typename DependentT = T,
-        std::enable_if_t<
-            absl::conjunction<
-                absl::negation<HasToChainBlockSubstr<DependentT>>,
-                HasToChainBlockSubstr<absl::remove_cvref_t<DependentT>>>::value,
-            int> = 0>
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  std::conjunction_v<
+                      std::negation<HasToChainBlockSubstr<DependentT>>,
+                      HasToChainBlockSubstr<absl::remove_cvref_t<DependentT>>>,
+                  int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       use_chain_block_(context_, ExternalRef::ToChainBlockSubstr(
                                      absl::remove_cvref_t<T>(object), substr_));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<HasToChainBlockSubstr<
-                          absl::remove_cvref_t<DependentT>>>,
-                      HasExternalDelegateSubstr<
-                          DependentT, ConverterToChainBlockSubstr>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            std::conjunction_v<std::negation<HasToChainBlockSubstr<
+                                   absl::remove_cvref_t<DependentT>>>,
+                               HasExternalDelegateSubstr<
+                                   DependentT, ConverterToChainBlockSubstr>>,
+            int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       ExternalRef::ExternalDelegateSubstr(std::forward<T>(object), substr_,
                                           std::move(*this));
@@ -729,13 +723,13 @@ class ExternalRef {
     template <
         typename DependentT = T,
         std::enable_if_t<
-            absl::conjunction<
-                absl::negation<
+            std::conjunction_v<
+                std::negation<
                     HasToChainBlockSubstr<absl::remove_cvref_t<DependentT>>>,
-                absl::negation<HasExternalDelegateSubstr<
+                std::negation<HasExternalDelegateSubstr<
                     DependentT, ConverterToChainBlockSubstr>>,
                 HasExternalDelegateSubstr<absl::remove_cvref_t<DependentT>,
-                                          ConverterToChainBlockSubstr>>::value,
+                                          ConverterToChainBlockSubstr>>,
             int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       ExternalRef::ExternalDelegateSubstr(absl::remove_cvref_t<T>(object),
@@ -743,11 +737,11 @@ class ExternalRef {
     }
     template <typename DependentT = T,
               std::enable_if_t<
-                  absl::conjunction<absl::negation<HasToChainBlockSubstr<
-                                        absl::remove_cvref_t<DependentT>>>,
-                                    absl::negation<HasExternalDelegateSubstr<
-                                        absl::remove_cvref_t<DependentT>,
-                                        ConverterToChainBlockSubstr>>>::value,
+                  std::conjunction_v<std::negation<HasToChainBlockSubstr<
+                                         absl::remove_cvref_t<DependentT>>>,
+                                     std::negation<HasExternalDelegateSubstr<
+                                         absl::remove_cvref_t<DependentT>,
+                                         ConverterToChainBlockSubstr>>>,
                   int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       use_chain_block_(context_,
@@ -829,7 +823,7 @@ class ExternalRef {
 
   template <typename T>
   struct HasToCordWhole
-      : absl::disjunction<HasRiegeliToCordWhole<T>, HasRiegeliToCordSubstr<T>> {
+      : std::disjunction<HasRiegeliToCordWhole<T>, HasRiegeliToCordSubstr<T>> {
   };
 
   template <typename T,
@@ -839,8 +833,8 @@ class ExternalRef {
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<absl::negation<HasRiegeliToCordWhole<T>>,
-                                  HasRiegeliToCordSubstr<T>>::value,
+                std::conjunction_v<std::negation<HasRiegeliToCordWhole<T>>,
+                                   HasRiegeliToCordSubstr<T>>,
                 int> = 0>
   static absl::Cord ToCordWhole(T&& object) {
     const absl::string_view data = BytesRef(object);
@@ -855,8 +849,8 @@ class ExternalRef {
   }
   template <typename T,
             std::enable_if_t<
-                absl::conjunction<absl::negation<HasRiegeliToCordWhole<T>>,
-                                  HasRiegeliToCordSubstr<T>>::value,
+                std::conjunction_v<std::negation<HasRiegeliToCordWhole<T>>,
+                                   HasRiegeliToCordSubstr<T>>,
                 int> = 0>
   static absl::Cord ToCordWhole(T&& object, absl::string_view data) {
     return RiegeliToCord(ExternalRef::Pointer(std::forward<T>(object)), data);
@@ -922,12 +916,12 @@ class ExternalRef {
       use_cord_(context_,
                 ExternalRef::ToCordWhole(std::forward<T>(object), data));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<HasToCordWhole<DependentT>>,
-                      HasToCordWhole<absl::remove_cvref_t<DependentT>>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<std::conjunction_v<
+                             std::negation<HasToCordWhole<DependentT>>,
+                             HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                         int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
       use_cord_(context_, ExternalRef::ToCordWhole(absl::remove_cvref_t<T>(
@@ -936,26 +930,25 @@ class ExternalRef {
     template <
         typename DependentT = T,
         std::enable_if_t<
-            absl::conjunction<absl::negation<HasToCordWhole<
-                                  absl::remove_cvref_t<DependentT>>>,
-                              HasExternalDelegateWhole<
-                                  DependentT, ConverterToCordWhole>>::value,
+            std::conjunction_v<
+                std::negation<HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                HasExternalDelegateWhole<DependentT, ConverterToCordWhole>>,
             int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
                                                absl::string_view data) && {
       ExternalRef::ExternalDelegateWhole(std::forward<T>(object), data,
                                          std::move(*this));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<
-                          HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
-                      absl::negation<HasExternalDelegateWhole<
-                          DependentT, ConverterToCordWhole>>,
-                      HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
-                                               ConverterToCordWhole>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            std::conjunction_v<
+                std::negation<HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                std::negation<
+                    HasExternalDelegateWhole<DependentT, ConverterToCordWhole>>,
+                HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
+                                         ConverterToCordWhole>>,
+            int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
       ExternalRef::ExternalDelegateWhole(absl::remove_cvref_t<T>(object),
@@ -964,12 +957,11 @@ class ExternalRef {
     template <
         typename DependentT = T,
         std::enable_if_t<
-            absl::conjunction<
-                absl::negation<
-                    HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
-                absl::negation<HasExternalDelegateWhole<
+            std::conjunction_v<
+                std::negation<HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                std::negation<HasExternalDelegateWhole<
                     absl::remove_cvref_t<DependentT>, ConverterToCordWhole>>,
-                SupportsExternalRefSubstr<std::decay_t<DependentT>>>::value,
+                SupportsExternalRefSubstr<std::decay_t<DependentT>>>,
             int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
                                                absl::string_view data) && {
@@ -982,13 +974,12 @@ class ExternalRef {
     template <
         typename DependentT = T,
         std::enable_if_t<
-            absl::conjunction<
-                absl::negation<
-                    HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
-                absl::negation<HasExternalDelegateWhole<
+            std::conjunction_v<
+                std::negation<HasToCordWhole<absl::remove_cvref_t<DependentT>>>,
+                std::negation<HasExternalDelegateWhole<
                     absl::remove_cvref_t<DependentT>, ConverterToCordWhole>>,
-                absl::negation<SupportsExternalRefSubstr<
-                    std::decay_t<DependentT>>>>::value,
+                std::negation<
+                    SupportsExternalRefSubstr<std::decay_t<DependentT>>>>,
             int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
@@ -1052,12 +1043,12 @@ class ExternalRef {
       use_cord_(context_,
                 ExternalRef::ToCordSubstr(std::forward<T>(object), substr_));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<HasToCordSubstr<DependentT>>,
-                      HasToCordSubstr<absl::remove_cvref_t<DependentT>>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<std::conjunction_v<
+                             std::negation<HasToCordSubstr<DependentT>>,
+                             HasToCordSubstr<absl::remove_cvref_t<DependentT>>>,
+                         int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       use_cord_(context_, ExternalRef::ToCordSubstr(
                               absl::remove_cvref_t<T>(object), substr_));
@@ -1065,10 +1056,10 @@ class ExternalRef {
     template <
         typename DependentT = T,
         std::enable_if_t<
-            absl::conjunction<absl::negation<HasToCordSubstr<
-                                  absl::remove_cvref_t<DependentT>>>,
-                              HasExternalDelegateSubstr<
-                                  DependentT, ConverterToCordSubstr>>::value,
+            std::conjunction_v<
+                std::negation<
+                    HasToCordSubstr<absl::remove_cvref_t<DependentT>>>,
+                HasExternalDelegateSubstr<DependentT, ConverterToCordSubstr>>,
             int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       ExternalRef::ExternalDelegateSubstr(std::forward<T>(object), substr_,
@@ -1077,26 +1068,27 @@ class ExternalRef {
     template <
         typename DependentT = T,
         std::enable_if_t<
-            absl::conjunction<
-                absl::negation<
+            std::conjunction_v<
+                std::negation<
                     HasToCordSubstr<absl::remove_cvref_t<DependentT>>>,
-                absl::negation<HasExternalDelegateSubstr<
-                    DependentT, ConverterToCordSubstr>>,
+                std::negation<HasExternalDelegateSubstr<DependentT,
+                                                        ConverterToCordSubstr>>,
                 HasExternalDelegateSubstr<absl::remove_cvref_t<DependentT>,
-                                          ConverterToCordSubstr>>::value,
+                                          ConverterToCordSubstr>>,
             int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       ExternalRef::ExternalDelegateSubstr(absl::remove_cvref_t<T>(object),
                                           substr_, std::move(*this));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<absl::negation<HasToCordSubstr<
-                                        absl::remove_cvref_t<DependentT>>>,
-                                    absl::negation<HasExternalDelegateSubstr<
-                                        absl::remove_cvref_t<DependentT>,
-                                        ConverterToCordSubstr>>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            std::conjunction_v<
+                std::negation<
+                    HasToCordSubstr<absl::remove_cvref_t<DependentT>>>,
+                std::negation<HasExternalDelegateSubstr<
+                    absl::remove_cvref_t<DependentT>, ConverterToCordSubstr>>>,
+            int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       use_cord_(context_, absl::MakeCordFromExternal(
                               substr_, ObjectForCordSubstr<std::decay_t<T>>(
@@ -1194,8 +1186,8 @@ class ExternalRef {
 
   template <typename T>
   struct HasToExternalDataSubstr
-      : absl::disjunction<HasRiegeliToExternalDataSubstr<T>,
-                          HasRiegeliToExternalStorage<T>> {};
+      : std::disjunction<HasRiegeliToExternalDataSubstr<T>,
+                         HasRiegeliToExternalStorage<T>> {};
 
   template <typename T,
             std::enable_if_t<HasRiegeliToExternalDataSubstr<T>::value, int> = 0>
@@ -1208,8 +1200,8 @@ class ExternalRef {
   template <
       typename T,
       std::enable_if_t<
-          absl::disjunction<absl::negation<HasRiegeliToExternalDataSubstr<T>>,
-                            HasRiegeliToExternalStorage<T>>::value,
+          std::disjunction_v<std::negation<HasRiegeliToExternalDataSubstr<T>>,
+                             HasRiegeliToExternalStorage<T>>,
           int> = 0>
   static ExternalData ToExternalDataSubstr(T&& object,
                                            absl::string_view substr) {
@@ -1220,8 +1212,8 @@ class ExternalRef {
 
   template <typename T>
   struct HasToExternalDataWhole
-      : absl::disjunction<HasRiegeliToExternalDataWhole<T>,
-                          HasToExternalDataSubstr<T>> {};
+      : std::disjunction<HasRiegeliToExternalDataWhole<T>,
+                         HasToExternalDataSubstr<T>> {};
 
   template <typename T,
             std::enable_if_t<HasRiegeliToExternalDataWhole<T>::value, int> = 0>
@@ -1231,8 +1223,8 @@ class ExternalRef {
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<absl::negation<HasRiegeliToExternalDataWhole<T>>,
-                            HasToExternalDataSubstr<T>>::value,
+          std::conjunction_v<std::negation<HasRiegeliToExternalDataWhole<T>>,
+                             HasToExternalDataSubstr<T>>,
           int> = 0>
   static ExternalData ToExternalDataWhole(T&& object) {
     const absl::string_view data = BytesRef(object);
@@ -1248,8 +1240,8 @@ class ExternalRef {
   template <
       typename T,
       std::enable_if_t<
-          absl::conjunction<absl::negation<HasRiegeliToExternalDataWhole<T>>,
-                            HasToExternalDataSubstr<T>>::value,
+          std::conjunction_v<std::negation<HasRiegeliToExternalDataWhole<T>>,
+                             HasToExternalDataSubstr<T>>,
           int> = 0>
   static ExternalData ToExternalDataWhole(T&& object, absl::string_view data) {
     return ExternalRef::ToExternalDataSubstr(std::forward<T>(object), data);
@@ -1303,42 +1295,40 @@ class ExternalRef {
       use_external_data_(context_, ExternalRef::ToExternalDataWhole(
                                        std::forward<T>(object), data));
     }
-    template <
-        typename DependentT = T,
-        std::enable_if_t<absl::conjunction<
-                             absl::negation<HasToExternalDataWhole<DependentT>>,
-                             HasToExternalDataWhole<
-                                 absl::remove_cvref_t<DependentT>>>::value,
-                         int> = 0>
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  std::conjunction_v<
+                      std::negation<HasToExternalDataWhole<DependentT>>,
+                      HasToExternalDataWhole<absl::remove_cvref_t<DependentT>>>,
+                  int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
       use_external_data_(context_, ExternalRef::ToExternalDataWhole(
                                        absl::remove_cvref_t<T>(object)));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<HasToExternalDataWhole<
-                          absl::remove_cvref_t<DependentT>>>,
-                      HasExternalDelegateWhole<
-                          DependentT, ConverterToExternalDataWhole>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            std::conjunction_v<std::negation<HasToExternalDataWhole<
+                                   absl::remove_cvref_t<DependentT>>>,
+                               HasExternalDelegateWhole<
+                                   DependentT, ConverterToExternalDataWhole>>,
+            int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object,
                                                absl::string_view data) && {
       ExternalRef::ExternalDelegateWhole(std::forward<T>(object), data,
                                          std::move(*this));
     }
-    template <
-        typename DependentT = T,
-        std::enable_if_t<
-            absl::conjunction<
-                absl::negation<
-                    HasToExternalDataWhole<absl::remove_cvref_t<DependentT>>>,
-                absl::negation<HasExternalDelegateWhole<
-                    DependentT, ConverterToExternalDataWhole>>,
-                HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
-                                         ConverterToExternalDataWhole>>::value,
-            int> = 0>
+    template <typename DependentT = T,
+              std::enable_if_t<
+                  std::conjunction_v<
+                      std::negation<HasToExternalDataWhole<
+                          absl::remove_cvref_t<DependentT>>>,
+                      std::negation<HasExternalDelegateWhole<
+                          DependentT, ConverterToExternalDataWhole>>,
+                      HasExternalDelegateWhole<absl::remove_cvref_t<DependentT>,
+                                               ConverterToExternalDataWhole>>,
+                  int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(
         T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) && {
       ExternalRef::ExternalDelegateWhole(absl::remove_cvref_t<T>(object),
@@ -1346,11 +1336,11 @@ class ExternalRef {
     }
     template <typename DependentT = T,
               std::enable_if_t<
-                  absl::conjunction<absl::negation<HasToExternalDataWhole<
-                                        absl::remove_cvref_t<DependentT>>>,
-                                    absl::negation<HasExternalDelegateWhole<
-                                        absl::remove_cvref_t<DependentT>,
-                                        ConverterToExternalDataWhole>>>::value,
+                  std::conjunction_v<std::negation<HasToExternalDataWhole<
+                                         absl::remove_cvref_t<DependentT>>>,
+                                     std::negation<HasExternalDelegateWhole<
+                                         absl::remove_cvref_t<DependentT>,
+                                         ConverterToExternalDataWhole>>>,
                   int> = 0>
     void Callback(T&& object, ABSL_ATTRIBUTE_UNUSED absl::string_view data) {
       auto* const storage =
@@ -1420,26 +1410,26 @@ class ExternalRef {
       use_external_data_(context_, ExternalRef::ToExternalDataSubstr(
                                        std::forward<T>(object), substr_));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<HasToExternalDataSubstr<DependentT>>,
-                      HasToExternalDataSubstr<
-                          absl::remove_cvref_t<DependentT>>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            std::conjunction_v<
+                std::negation<HasToExternalDataSubstr<DependentT>>,
+                HasToExternalDataSubstr<absl::remove_cvref_t<DependentT>>>,
+            int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       use_external_data_(context_,
                          ExternalRef::ToExternalDataSubstr(
                              absl::remove_cvref_t<T>(object), substr_));
     }
-    template <typename DependentT = T,
-              std::enable_if_t<
-                  absl::conjunction<
-                      absl::negation<HasToExternalDataSubstr<
-                          absl::remove_cvref_t<DependentT>>>,
-                      HasExternalDelegateSubstr<
-                          DependentT, ConverterToExternalDataSubstr>>::value,
-                  int> = 0>
+    template <
+        typename DependentT = T,
+        std::enable_if_t<
+            std::conjunction_v<std::negation<HasToExternalDataSubstr<
+                                   absl::remove_cvref_t<DependentT>>>,
+                               HasExternalDelegateSubstr<
+                                   DependentT, ConverterToExternalDataSubstr>>,
+            int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       ExternalRef::ExternalDelegateSubstr(std::forward<T>(object), substr_,
                                           std::move(*this));
@@ -1447,13 +1437,13 @@ class ExternalRef {
     template <
         typename DependentT = T,
         std::enable_if_t<
-            absl::conjunction<absl::negation<HasToExternalDataSubstr<
-                                  absl::remove_cvref_t<DependentT>>>,
-                              absl::negation<HasExternalDelegateSubstr<
-                                  DependentT, ConverterToExternalDataSubstr>>,
-                              HasExternalDelegateSubstr<
-                                  absl::remove_cvref_t<DependentT>,
-                                  ConverterToExternalDataSubstr>>::value,
+            std::conjunction_v<
+                std::negation<
+                    HasToExternalDataSubstr<absl::remove_cvref_t<DependentT>>>,
+                std::negation<HasExternalDelegateSubstr<
+                    DependentT, ConverterToExternalDataSubstr>>,
+                HasExternalDelegateSubstr<absl::remove_cvref_t<DependentT>,
+                                          ConverterToExternalDataSubstr>>,
             int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       ExternalRef::ExternalDelegateSubstr(absl::remove_cvref_t<T>(object),
@@ -1461,11 +1451,11 @@ class ExternalRef {
     }
     template <typename DependentT = T,
               std::enable_if_t<
-                  absl::conjunction<absl::negation<HasToExternalDataSubstr<
-                                        absl::remove_cvref_t<DependentT>>>,
-                                    absl::negation<HasExternalDelegateSubstr<
-                                        absl::remove_cvref_t<DependentT>,
-                                        ConverterToExternalDataSubstr>>>::value,
+                  std::conjunction_v<std::negation<HasToExternalDataSubstr<
+                                         absl::remove_cvref_t<DependentT>>>,
+                                     std::negation<HasExternalDelegateSubstr<
+                                         absl::remove_cvref_t<DependentT>,
+                                         ConverterToExternalDataSubstr>>>,
                   int> = 0>
     ABSL_ATTRIBUTE_ALWAYS_INLINE void Callback(T&& object) && {
       use_external_data_(

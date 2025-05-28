@@ -19,7 +19,6 @@
 
 #include <type_traits>
 
-#include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -118,10 +117,9 @@ template <typename Dest>
 explicit TStringWriter(Dest&& dest, TStringWriterBase::Options options =
                                         TStringWriterBase::Options())
     -> TStringWriter<std::conditional_t<
-        absl::conjunction<
-            std::is_lvalue_reference<Dest>,
-            std::is_convertible<std::remove_reference_t<Dest>*,
-                                const ::tensorflow::tstring*>>::value,
+        std::conjunction_v<std::is_lvalue_reference<Dest>,
+                           std::is_convertible<std::remove_reference_t<Dest>*,
+                                               const ::tensorflow::tstring*>>,
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit TStringWriter(
     TStringWriterBase::Options options = TStringWriterBase::Options())

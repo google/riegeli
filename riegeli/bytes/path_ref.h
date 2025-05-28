@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/string_ref.h"
@@ -64,11 +63,11 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   PathRef() = default;
 
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<PathRef, T>,
-                                  std::is_convertible<T&&, StringRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<PathRef, T>,
+                                          std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : StringRef(std::forward<T>(str)) {}
 
@@ -118,19 +117,19 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
 
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<PathRef, T>,
-                                  std::is_convertible<T&&, StringRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<PathRef, T>,
+                                          std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   friend bool operator==(PathRef a, T&& b) {
     return a == PathRef(std::forward<T>(b));
   }
-  template <typename T,
-            std::enable_if_t<
-                absl::conjunction<NotSameRef<PathRef, T>,
-                                  std::is_convertible<T&&, StringRef>>::value,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<NotSameRef<PathRef, T>,
+                                          std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   friend riegeli::StrongOrdering RIEGELI_COMPARE(PathRef a, T&& b) {
     return riegeli::Compare(a, PathRef(std::forward<T>(b)));
   }

@@ -27,7 +27,6 @@
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -273,13 +272,12 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // would be misleadingly ignored for subsequent calls. Since distinct lambdas
   // have distinct types, distinct call sites with lambdas return references to
   // distinct objects.
-  template <
-      typename Initialize,
-      std::enable_if_t<
-          absl::conjunction<
-              std::is_empty<Initialize>,
-              std::is_invocable<Initialize, SerializedMessageReader&>>::value,
-          int> = 0>
+  template <typename Initialize,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_empty<Initialize>,
+                    std::is_invocable<Initialize, SerializedMessageReader&>>,
+                int> = 0>
   static const SerializedMessageReader& Global(Initialize initialize);
 
   SerializedMessageReader() = default;
@@ -385,11 +383,11 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   void OnDouble(absl::Span<const int> field_path, Action action);
   template <
       typename EnumType, typename Action,
-      std::enable_if_t<absl::conjunction<
-                           absl::disjunction<std::is_enum<EnumType>,
-                                             std::is_integral<EnumType>>,
+      std::enable_if_t<std::conjunction_v<
+                           std::disjunction<std::is_enum<EnumType>,
+                                            std::is_integral<EnumType>>,
                            serialized_message_internal::IsActionWithOptionalSrc<
-                               Context, Action, EnumType>>::value,
+                               Context, Action, EnumType>>,
                        int> = 0>
   void OnEnum(absl::Span<const int> field_path, Action action);
   template <
@@ -600,9 +598,9 @@ template <typename Context>
 template <
     typename Initialize,
     std::enable_if_t<
-        absl::conjunction<std::is_empty<Initialize>,
-                          std::is_invocable<Initialize, SerializedMessageReader<
-                                                            Context>&>>::value,
+        std::conjunction_v<
+            std::is_empty<Initialize>,
+            std::is_invocable<Initialize, SerializedMessageReader<Context>&>>,
         int>>
 inline const SerializedMessageReader<Context>&
 SerializedMessageReader<Context>::Global(Initialize initialize) {
@@ -821,10 +819,10 @@ template <typename Context>
 template <
     typename EnumType, typename Action,
     std::enable_if_t<
-        absl::conjunction<absl::disjunction<std::is_enum<EnumType>,
+        std::conjunction_v<std::disjunction<std::is_enum<EnumType>,
                                             std::is_integral<EnumType>>,
-                          serialized_message_internal::IsActionWithOptionalSrc<
-                              Context, Action, EnumType>>::value,
+                           serialized_message_internal::IsActionWithOptionalSrc<
+                               Context, Action, EnumType>>,
         int>>
 inline void SerializedMessageReader<Context>::OnEnum(
     absl::Span<const int> field_path, Action action) {
