@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -24,7 +25,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -165,13 +165,13 @@ bool PrefixLimitingWriterBase::SeekSlow(Position new_pos) {
   return seek_ok;
 }
 
-absl::optional<Position> PrefixLimitingWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> PrefixLimitingWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  const absl::optional<Position> size = dest.Size();
+  const std::optional<Position> size = dest.Size();
   MakeBuffer(dest);
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return std::nullopt;
   return SaturatingSub(*size, base_pos_);
 }
 

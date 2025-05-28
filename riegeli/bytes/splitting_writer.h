@@ -17,12 +17,13 @@
 
 #include <stddef.h>
 
+#include <optional>
+
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
@@ -47,7 +48,7 @@ class SplittingWriterBase : public PushableWriter {
   void Reset();
 
   void DoneBehindScratch() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
 
   // Returns the shard `Writer`.
   virtual Writer* ShardWriter() ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
@@ -62,7 +63,7 @@ class SplittingWriterBase : public PushableWriter {
   //
   // Return values:
   //  * size limit      - success (`ok()`, `shard_is_open()`)
-  //  * `absl::nullopt` - failure (`!ok()`)
+  //  * `std::nullopt` - failure (`!ok()`)
   //
   // When the size limit would be exceeded, the shard is closed and a new shard
   // is opened.
@@ -70,7 +71,7 @@ class SplittingWriterBase : public PushableWriter {
   // `OpenShardImpl()` must be overridden but should not be called directly
   // because it does not synchronize buffer pointers of `*ShardWriter()` with
   // `*this`. See `OpenShard()` for that.
-  virtual absl::optional<Position> OpenShardImpl() = 0;
+  virtual std::optional<Position> OpenShardImpl() = 0;
 
   // Closes `shard()`. If `shard()` is a temporary destination for shard data,
   // moves it to the final destination.
@@ -168,7 +169,7 @@ class SplittingWriterBase : public PushableWriter {
   template <typename SrcReader, typename Src>
   bool WriteInternal(Src&& src);
 
-  absl::optional<Position> size_hint_;
+  std::optional<Position> size_hint_;
 
   // The limit of `pos()` for data written to the current shard.
   Position shard_pos_limit_ = 0;
@@ -241,13 +242,13 @@ inline SplittingWriterBase& SplittingWriterBase::operator=(
 
 inline void SplittingWriterBase::Reset(Closed) {
   PushableWriter::Reset(kClosed);
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   shard_pos_limit_ = 0;
 }
 
 inline void SplittingWriterBase::Reset() {
   PushableWriter::Reset();
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   shard_pos_limit_ = 0;
 }
 

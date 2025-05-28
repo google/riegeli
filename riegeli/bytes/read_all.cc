@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -26,7 +27,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -46,8 +46,8 @@ ABSL_ATTRIBUTE_COLD absl::Status MaxLengthExceeded(Reader& src,
 absl::Status ReadAllImpl(Reader& src, absl::string_view& dest,
                          size_t max_length) {
   if (src.SupportsSize()) {
-    const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+    const std::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
       dest = absl::string_view();
       return src.status();
     }
@@ -80,8 +80,8 @@ absl::Status ReadAllImpl(Reader& src, absl::string_view& dest,
 absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
                                   size_t max_length) {
   if (src.SupportsSize()) {
-    const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+    const std::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_length, dest))) {
@@ -135,8 +135,8 @@ absl::Status ReadAndAppendAllImpl(Reader& src, Chain& dest, size_t max_length) {
   max_length =
       UnsignedMin(max_length, std::numeric_limits<size_t>::max() - dest.size());
   if (src.SupportsSize()) {
-    const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+    const std::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_length, dest))) {
@@ -169,8 +169,8 @@ absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
   max_length =
       UnsignedMin(max_length, std::numeric_limits<size_t>::max() - dest.size());
   if (src.SupportsSize()) {
-    const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+    const std::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!src.ReadAndAppend(max_length, dest))) {

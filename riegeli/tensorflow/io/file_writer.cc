@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -27,7 +28,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -144,7 +144,7 @@ inline bool FileWriterBase::SyncBuffer() {
 }
 
 void FileWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
 }
 

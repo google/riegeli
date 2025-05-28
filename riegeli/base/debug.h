@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <ios>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -31,7 +32,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/stream_utils.h"
 
 namespace riegeli {
@@ -279,13 +279,13 @@ void RiegeliDebug(const std::shared_ptr<T>& src, DebugStream& dest) {
   dest.Debug(src.get());
 }
 
-// `absl::optional` values are written as "nullopt" when absent, or as the
+// `std::optional` values are written as "nullopt" when absent, or as the
 // underlying data wrapped in braces when present.
-void RiegeliDebug(absl::nullopt_t src, DebugStream& dest);
+void RiegeliDebug(std::nullopt_t src, DebugStream& dest);
 template <typename T, std::enable_if_t<SupportsDebug<T>::value, int> = 0>
-void RiegeliDebug(const absl::optional<T>& src, DebugStream& dest) {
-  if (src == absl::nullopt) {
-    dest.Debug(absl::nullopt);
+void RiegeliDebug(const std::optional<T>& src, DebugStream& dest) {
+  if (src == std::nullopt) {
+    dest.Debug(std::nullopt);
   } else {
     dest.Write('{');
     dest.Debug(*src);

@@ -19,13 +19,13 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -313,7 +313,7 @@ bool RecognizeZlib(Reader& src,
 // `ZlibWriterBase::Header::kGzip`) modulo 4G. The compressed stream must not
 // have anything appended.
 //
-// Returns `absl::nullopt` on failure. If the data are not Gzip-compressed, or
+// Returns `std::nullopt` on failure. If the data are not Gzip-compressed, or
 // have something appended, then this is generally not detected and the returned
 // value will be meaningless. If the data were longer than 4G, then only the
 // lowest 32 bits are returned.
@@ -321,7 +321,7 @@ bool RecognizeZlib(Reader& src,
 // The current position of `src` is unchanged.
 //
 // Precondition: `src.SupportsRandomAccess()`
-absl::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src);
+std::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src);
 
 // Implementation details follow.
 

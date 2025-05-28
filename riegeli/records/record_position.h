@@ -22,12 +22,12 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/shared_ptr.h"
@@ -138,7 +138,7 @@ class
  public:
   struct PadToBlockBoundary {};
   using Action =
-      absl::variant<std::shared_future<ChunkHeader>, PadToBlockBoundary>;
+      std::variant<std::shared_future<ChunkHeader>, PadToBlockBoundary>;
 
   constexpr FutureChunkBegin() = default;
 

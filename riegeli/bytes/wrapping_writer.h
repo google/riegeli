@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -24,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -78,7 +78,7 @@ class WrappingWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteSlow(ByteFill src) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
@@ -136,7 +136,7 @@ class WrappingWriter : public WrappingWriterBase {
 
  protected:
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -229,7 +229,7 @@ void WrappingWriter<Dest>::Done() {
 
 template <typename Dest>
 void WrappingWriter<Dest>::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   if (dest_.IsOwning()) {
     SyncBuffer(*dest_);
     dest_->SetWriteSizeHint(write_size_hint);

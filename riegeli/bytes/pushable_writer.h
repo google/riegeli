@@ -18,13 +18,13 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -136,7 +136,7 @@ class PushableWriter : public Writer {
   virtual bool WriteBehindScratch(ByteFill src);
   virtual bool FlushBehindScratch(FlushType flush_type);
   virtual bool SeekBehindScratch(Position new_pos);
-  virtual absl::optional<Position> SizeBehindScratch();
+  virtual std::optional<Position> SizeBehindScratch();
   virtual bool TruncateBehindScratch(Position new_size);
   virtual Reader* ReadModeBehindScratch(Position initial_pos);
 
@@ -150,7 +150,7 @@ class PushableWriter : public Writer {
   bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 

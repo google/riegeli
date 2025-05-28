@@ -54,6 +54,7 @@
 #include <cerrno>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <ostream>
 #ifndef _WIN32
 #include <type_traits>
@@ -71,7 +72,6 @@
 #endif
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -208,7 +208,7 @@ void FdMMapReaderBase::Initialize(int src, Options&& options) {
 
 void FdMMapReaderBase::InitializePos(int src, Options&& options) {
   Position initial_pos;
-  if (options.independent_pos() != absl::nullopt) {
+  if (options.independent_pos() != std::nullopt) {
     initial_pos = *options.independent_pos();
   } else {
     const fd_internal::Offset file_pos = fd_internal::LSeek(src, 0, SEEK_CUR);
@@ -226,12 +226,12 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
   }
   Position base_pos = 0;
   Position length = IntCast<Position>(stat_info.st_size);
-  if (options.max_length() != absl::nullopt) {
+  if (options.max_length() != std::nullopt) {
     base_pos = initial_pos;
     length =
         UnsignedMin(SaturatingSub(length, initial_pos), *options.max_length());
   }
-  if (options.independent_pos() == absl::nullopt) base_pos_to_sync_ = base_pos;
+  if (options.independent_pos() == std::nullopt) base_pos_to_sync_ = base_pos;
   if (length == 0) {
     // The `Chain` to read from was not known in `FdMMapReaderBase` constructor.
     // Set it now to empty.
@@ -297,7 +297,7 @@ void FdMMapReaderBase::InitializePos(int src, Options&& options) {
       ExternalRef(riegeli::Maker<MMapBlock>(static_cast<const char*>(addr)),
                   absl::string_view(static_cast<const char*>(addr) + rounding,
                                     IntCast<size_t>(length)))));
-  if (options.max_length() == absl::nullopt) Seek(initial_pos);
+  if (options.max_length() == std::nullopt) Seek(initial_pos);
 }
 
 void FdMMapReaderBase::Done() {
@@ -347,7 +347,7 @@ void FdMMapReaderBase::SetReadAllHintImpl(bool read_all_hint) {
 bool FdMMapReaderBase::SyncImpl(SyncType sync_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const int src = SrcFd();
-  if (base_pos_to_sync_ != absl::nullopt) {
+  if (base_pos_to_sync_ != std::nullopt) {
     if (ABSL_PREDICT_FALSE(
             fd_internal::LSeek(
                 src, IntCast<fd_internal::Offset>(*base_pos_to_sync_ + pos()),

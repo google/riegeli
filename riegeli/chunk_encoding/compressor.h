@@ -16,10 +16,10 @@
 #define RIEGELI_CHUNK_ENCODING_COMPRESSOR_H_
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -36,42 +36,42 @@ class Compressor : public Object {
    public:
     TuningOptions() noexcept {}
 
-    // Exact uncompressed size, or `absl::nullopt` if unknown. This may improve
+    // Exact uncompressed size, or `std::nullopt` if unknown. This may improve
     // compression density and performance, and may cause the size to be stored
     // in the compressed stream header.
     //
     // If the pledged size turns out to not match reality, compression may fail.
     //
-    // Default: `absl::nullopt`.
-    TuningOptions& set_pledged_size(absl::optional<Position> pledged_size) &
+    // Default: `std::nullopt`.
+    TuningOptions& set_pledged_size(std::optional<Position> pledged_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       pledged_size_ = pledged_size;
       return *this;
     }
-    TuningOptions&& set_pledged_size(absl::optional<Position> pledged_size) &&
+    TuningOptions&& set_pledged_size(std::optional<Position> pledged_size) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_pledged_size(pledged_size));
     }
-    absl::optional<Position> pledged_size() const { return pledged_size_; }
+    std::optional<Position> pledged_size() const { return pledged_size_; }
 
-    // Expected uncompressed size, or `absl::nullopt` if unknown. This may
+    // Expected uncompressed size, or `std::nullopt` if unknown. This may
     // improve compression density and performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
     //
-    // `pledged_size()`, if not `absl::nullopt`, overrides `size_hint()`.
+    // `pledged_size()`, if not `std::nullopt`, overrides `size_hint()`.
     //
-    // Default: `absl::nullopt`.
-    TuningOptions& set_size_hint(absl::optional<Position> size_hint) &
+    // Default: `std::nullopt`.
+    TuningOptions& set_size_hint(std::optional<Position> size_hint) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       size_hint_ = size_hint;
       return *this;
     }
-    TuningOptions&& set_size_hint(absl::optional<Position> size_hint) &&
+    TuningOptions&& set_size_hint(std::optional<Position> size_hint) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_size_hint(size_hint));
     }
-    absl::optional<Position> size_hint() const { return size_hint_; }
+    std::optional<Position> size_hint() const { return size_hint_; }
 
     // Options for a global `RecyclingPool` of compression contexts.
     //
@@ -96,8 +96,8 @@ class Compressor : public Object {
     }
 
    private:
-    absl::optional<Position> pledged_size_;
-    absl::optional<Position> size_hint_;
+    std::optional<Position> pledged_size_;
+    std::optional<Position> size_hint_;
     RecyclingPoolOptions recycling_pool_options_;
   };
 

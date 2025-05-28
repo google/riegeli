@@ -26,6 +26,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -33,7 +34,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -49,7 +49,7 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
   PythonLock::AssertHeld();
   Py_INCREF(dest);
   dest_.reset(dest);
-  if (options.assumed_pos() != absl::nullopt) {
+  if (options.assumed_pos() != std::nullopt) {
     set_start_pos(*options.assumed_pos());
     // `supports_random_access_` is left as `false`.
     random_access_status_ = Global([] {
@@ -85,9 +85,9 @@ PythonWriter::PythonWriter(PyObject* dest, Options options)
       FailOperation("tell()");
       return;
     }
-    const absl::optional<Position> file_pos =
+    const std::optional<Position> file_pos =
         PositionFromPython(tell_result.get());
-    if (ABSL_PREDICT_FALSE(file_pos == absl::nullopt)) {
+    if (ABSL_PREDICT_FALSE(file_pos == std::nullopt)) {
       FailOperation("PositionFromPython() after tell()");
       return;
     }
@@ -189,9 +189,9 @@ bool PythonWriter::WriteInternal(absl::string_view src) {
         length_written = length_to_write;
       } else {
         // `io.IOBase.write()` returns the length written.
-        const absl::optional<size_t> length_written_opt =
+        const std::optional<size_t> length_written_opt =
             SizeFromPython(write_result.get());
-        if (ABSL_PREDICT_FALSE(length_written_opt == absl::nullopt)) {
+        if (ABSL_PREDICT_FALSE(length_written_opt == std::nullopt)) {
           return FailOperation("SizeFromPython() after write()");
         }
         length_written = *length_written_opt;
@@ -241,8 +241,8 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
   PythonLock lock;
   if (new_pos > start_pos()) {
     // Seeking forwards.
-    const absl::optional<Position> size = SizeInternal();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+    const std::optional<Position> size = SizeInternal();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return false;
     if (ABSL_PREDICT_FALSE(new_pos > *size)) {
       // File ends.
       set_start_pos(*size);
@@ -263,7 +263,7 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
   return true;
 }
 
-inline absl::optional<Position> PythonWriter::SizeInternal() {
+inline std::optional<Position> PythonWriter::SizeInternal() {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of PythonWriter::SizeInternal()";
   RIEGELI_ASSERT(PythonWriter::SupportsRandomAccess())
@@ -277,12 +277,12 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
   const PythonPtr file_pos = PositionToPython(0);
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     FailOperation("PositionToPython()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   const PythonPtr whence = IntToPython(2);  // `io.SEEK_END`
   if (ABSL_PREDICT_FALSE(whence == nullptr)) {
     FailOperation("IntToPython()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   static constexpr Identifier id_seek("seek");
   PythonPtr result(PyObject_CallMethodObjArgs(
@@ -300,39 +300,39 @@ inline absl::optional<Position> PythonWriter::SizeInternal() {
   }
   if (ABSL_PREDICT_FALSE(result == nullptr)) {
     FailOperation(operation);
-    return absl::nullopt;
+    return std::nullopt;
   }
-  const absl::optional<Position> size = PositionFromPython(result.get());
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+  const std::optional<Position> size = PositionFromPython(result.get());
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
     FailOperation(absl::StrCat("PositionFromPython() after ", operation));
-    return absl::nullopt;
+    return std::nullopt;
   }
   return *size;
 }
 
-absl::optional<Position> PythonWriter::SizeBehindBuffer() {
+std::optional<Position> PythonWriter::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!PythonWriter::SupportsRandomAccess())) {
     if (ok()) Fail(random_access_status_);
-    return absl::nullopt;
+    return std::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   PythonLock lock;
-  const absl::optional<Position> size = SizeInternal();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  const std::optional<Position> size = SizeInternal();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return std::nullopt;
   const PythonPtr file_pos = PositionToPython(start_pos());
   if (ABSL_PREDICT_FALSE(file_pos == nullptr)) {
     FailOperation("PositionToPython()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   static constexpr Identifier id_seek("seek");
   const PythonPtr seek_result(PyObject_CallMethodObjArgs(
       dest_.get(), id_seek.get(), file_pos.get(), nullptr));
   if (ABSL_PREDICT_FALSE(seek_result == nullptr)) {
     FailOperation("seek()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   return *size;
 }
@@ -347,8 +347,8 @@ bool PythonWriter::TruncateBehindBuffer(Position new_size) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   PythonLock lock;
-  const absl::optional<Position> size = SizeInternal();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+  const std::optional<Position> size = SizeInternal();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return false;
   if (ABSL_PREDICT_FALSE(new_size > *size)) {
     // File ends.
     set_start_pos(*size);

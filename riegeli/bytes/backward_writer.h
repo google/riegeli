@@ -20,6 +20,7 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -31,7 +32,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -60,7 +60,7 @@ class BackwardWriter : public Object {
   // The implementation in this class adds an assertion.
   bool Close();
 
-  // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
+  // If `write_size_hint` is not `std::nullopt`, hints that this amount of data
   // will be written sequentially from the current position, then `Close()` will
   // be called.
   //
@@ -75,7 +75,7 @@ class BackwardWriter : public Object {
   //
   // `SetWriteSizeHint()` is usually be called from the same abstraction layer
   // which later calls `Close()`.
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint);
+  void SetWriteSizeHint(std::optional<Position> write_size_hint);
 
   // Ensures that enough space is available in the buffer: if less than
   // `min_length` of space is available, pushes previously written data to the
@@ -351,7 +351,7 @@ class BackwardWriter : public Object {
 
   // Implementation of `SetWriteSizeHint()`.
   virtual void SetWriteSizeHintImpl(
-      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
+      ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
 
   // Implementation of the slow part of `Push()`.
   //
@@ -523,7 +523,7 @@ inline void BackwardWriter::Done() {
 }
 
 inline void BackwardWriter::SetWriteSizeHint(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   AssertInitialized(cursor(), start_to_cursor());
   SetWriteSizeHintImpl(write_size_hint);
 }

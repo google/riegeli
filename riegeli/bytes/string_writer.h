@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -25,7 +26,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -95,7 +95,7 @@ class StringWriterBase : public Writer {
   bool uses_secondary_buffer() const { return !secondary_buffer_.empty(); }
 
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(ExternalRef src) override;
@@ -106,7 +106,7 @@ class StringWriterBase : public Writer {
   bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 

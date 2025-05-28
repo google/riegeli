@@ -18,6 +18,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -213,13 +213,13 @@ bool PrefixLimitingReaderBase::SupportsSize() {
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> PrefixLimitingReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> PrefixLimitingReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const absl::optional<Position> size = src.Size();
+  const std::optional<Position> size = src.Size();
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return std::nullopt;
   return SaturatingSub(*size, base_pos_);
 }
 

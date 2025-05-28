@@ -20,6 +20,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -29,7 +30,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -280,7 +280,7 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     ::tensorflow::RandomAccessFile* const src = SrcFile();
     size_t length_to_read = length;
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
       length_to_read = UnsignedMin(length_to_read, *exact_size() - limit_pos());
     }
@@ -531,7 +531,7 @@ inline bool FileReaderBase::CopyUsingPush(Position length,
          "nothing to copy";
   do {
     size_t length_to_read = SaturatingIntCast<size_t>(length);
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
       length_to_read = UnsignedMin(length_to_read, *exact_size() - limit_pos());
     }
@@ -585,7 +585,7 @@ bool FileReaderBase::ReadOrPullSomeSlow(
     SyncBuffer();
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     ::tensorflow::RandomAccessFile* const src = SrcFile();
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
       max_length = UnsignedMin(max_length, *exact_size() - limit_pos());
     }
@@ -625,7 +625,7 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   if (new_pos > limit_pos()) {
     // Seeking forwards.
     uint64_t file_size;
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       file_size = IntCast<uint64_t>(*exact_size());
     } else {
       if (const absl::Status status =
@@ -647,19 +647,19 @@ bool FileReaderBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> FileReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (exact_size() != absl::nullopt) return *exact_size();
+std::optional<Position> FileReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
+  if (exact_size() != std::nullopt) return *exact_size();
   if (ABSL_PREDICT_FALSE(!FileReaderBase::SupportsRandomAccess())) {
     Fail(NoRandomAccessStatus());
-    return absl::nullopt;
+    return std::nullopt;
   }
   uint64_t file_size;
   if (const absl::Status status =
           file_system_->GetFileSize(filename_, &file_size);
       ABSL_PREDICT_FALSE(!status.ok())) {
     FailOperation(status, "FileSystem::GetFileSize()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (!growing_source_) set_exact_size(Position{file_size});
   return Position{file_size};

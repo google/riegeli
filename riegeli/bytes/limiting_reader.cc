@@ -18,6 +18,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -280,17 +280,17 @@ bool LimitingReaderBase::SupportsSize() {
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> LimitingReaderBase::SizeImpl() {
+std::optional<Position> LimitingReaderBase::SizeImpl() {
   RIEGELI_ASSERT_LE(pos(), max_pos_)
       << "Failed invariant of LimitingReaderBase: "
          "position already exceeds its limit";
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   if (exact_) return max_pos_;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const absl::optional<Position> size = src.Size();
+  const std::optional<Position> size = src.Size();
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return std::nullopt;
   return UnsignedMin(*size, max_pos_);
 }
 

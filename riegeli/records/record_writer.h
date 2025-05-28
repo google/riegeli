@@ -20,16 +20,16 @@
 
 #include <future>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
-#include "absl/types/variant.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/assert.h"
@@ -208,33 +208,33 @@ class RecordWriterBase : public Object {
     // between compression density and memory usage (higher = better density but
     // more memory).
     //
-    // Special value `absl::nullopt` means to keep the default (Brotli: 22,
+    // Special value `std::nullopt` means to keep the default (Brotli: 22,
     // Zstd: derived from compression level and chunk size).
     //
-    // For Uncompressed and Snappy, `window_log` must be `absl::nullopt`.
+    // For Uncompressed and Snappy, `window_log` must be `std::nullopt`.
     //
-    // For Brotli, `window_log` must be `absl::nullopt` or between
+    // For Brotli, `window_log` must be `std::nullopt` or between
     // `BrotliWriterBase::Options::kMinWindowLog` (10) and
     // `BrotliWriterBase::Options::kMaxWindowLog` (30).
     //
-    // For Zstd, `window_log` must be `absl::nullopt` or between
+    // For Zstd, `window_log` must be `std::nullopt` or between
     // `ZstdWriterBase::Options::kMinWindowLog` (10) and
     // `ZstdWriterBase::Options::kMaxWindowLog` (30 in 32-bit build,
     // 31 in 64-bit build).
     //
-    // Default: `absl::nullopt`.
+    // Default: `std::nullopt`.
     static constexpr int kMinWindowLog = CompressorOptions::kMinWindowLog;
     static constexpr int kMaxWindowLog = CompressorOptions::kMaxWindowLog;
-    Options& set_window_log(absl::optional<int> window_log) &
+    Options& set_window_log(std::optional<int> window_log) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       compressor_options_.set_window_log(window_log);
       return *this;
     }
-    Options&& set_window_log(absl::optional<int> window_log) &&
+    Options&& set_window_log(std::optional<int> window_log) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
-    absl::optional<int> window_log() const {
+    std::optional<int> window_log() const {
       return compressor_options_.window_log();
     }
 
@@ -254,13 +254,13 @@ class RecordWriterBase : public Object {
     // allows to read pieces of the file independently with finer granularity,
     // and reduces memory usage of both writer and reader.
     //
-    // Special value `absl::nullopt` means to keep the default
+    // Special value `std::nullopt` means to keep the default
     // (compressed: 1M, uncompressed: 4k).
     //
-    // Default: `absl::nullopt`.
-    Options& set_chunk_size(absl::optional<uint64_t> chunk_size) &
+    // Default: `std::nullopt`.
+    Options& set_chunk_size(std::optional<uint64_t> chunk_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      if (chunk_size != absl::nullopt) {
+      if (chunk_size != std::nullopt) {
         RIEGELI_ASSERT_GT(*chunk_size, 0u)
             << "Failed precondition of "
                "RecordWriterBase::Options::set_chunk_size(): "
@@ -269,13 +269,13 @@ class RecordWriterBase : public Object {
       chunk_size_ = chunk_size;
       return *this;
     }
-    Options&& set_chunk_size(absl::optional<uint64_t> chunk_size) &&
+    Options&& set_chunk_size(std::optional<uint64_t> chunk_size) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_chunk_size(chunk_size));
     }
-    absl::optional<uint64_t> chunk_size() const { return chunk_size_; }
+    std::optional<uint64_t> chunk_size() const { return chunk_size_; }
     uint64_t effective_chunk_size() const {
-      if (chunk_size_ == absl::nullopt) {
+      if (chunk_size_ == std::nullopt) {
         return compression_type() == CompressionType::kNone ? uint64_t{4} << 10
                                                             : uint64_t{1} << 20;
       }
@@ -313,7 +313,7 @@ class RecordWriterBase : public Object {
     }
     double bucket_fraction() const { return bucket_fraction_; }
 
-    // If not `absl::nullopt`, sets file metadata to be written at the
+    // If not `std::nullopt`, sets file metadata to be written at the
     // beginning.
     //
     // Metadata are written only when the file is written from the beginning,
@@ -321,23 +321,23 @@ class RecordWriterBase : public Object {
     //
     // Record type in metadata can be conveniently set by `SetRecordType()`.
     //
-    // Default: `absl::nullopt`.
+    // Default: `std::nullopt`.
     Options& set_metadata(
-        Initializer<absl::optional<RecordsMetadata>> metadata) &
+        Initializer<std::optional<RecordsMetadata>> metadata) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(metadata_, std::move(metadata));
-      serialized_metadata_ = absl::nullopt;
+      serialized_metadata_ = std::nullopt;
       return *this;
     }
     Options&& set_metadata(
-        Initializer<absl::optional<RecordsMetadata>> metadata) &&
+        Initializer<std::optional<RecordsMetadata>> metadata) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_metadata(std::move(metadata)));
     }
-    absl::optional<RecordsMetadata>& metadata() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    std::optional<RecordsMetadata>& metadata() ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return metadata_;
     }
-    const absl::optional<RecordsMetadata>& metadata() const
+    const std::optional<RecordsMetadata>& metadata() const
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return metadata_;
     }
@@ -346,21 +346,21 @@ class RecordWriterBase : public Object {
     //
     // This is faster if the caller has metadata already serialized.
     Options& set_serialized_metadata(
-        Initializer<absl::optional<Chain>> serialized_metadata) &
+        Initializer<std::optional<Chain>> serialized_metadata) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      metadata_ = absl::nullopt;
+      metadata_ = std::nullopt;
       riegeli::Reset(serialized_metadata_, std::move(serialized_metadata));
       return *this;
     }
     Options&& set_serialized_metadata(
-        Initializer<absl::optional<Chain>> serialized_metadata) &&
+        Initializer<std::optional<Chain>> serialized_metadata) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_serialized_metadata(std::move(serialized_metadata)));
     }
-    absl::optional<Chain>& serialized_metadata() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    std::optional<Chain>& serialized_metadata() ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return serialized_metadata_;
     }
-    const absl::optional<Chain>& serialized_metadata() const
+    const std::optional<Chain>& serialized_metadata() const
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return serialized_metadata_;
     }
@@ -443,10 +443,10 @@ class RecordWriterBase : public Object {
    private:
     bool transpose_ = false;
     CompressorOptions compressor_options_;
-    absl::optional<uint64_t> chunk_size_;
+    std::optional<uint64_t> chunk_size_;
     double bucket_fraction_ = 1.0;
-    absl::optional<RecordsMetadata> metadata_;
-    absl::optional<Chain> serialized_metadata_;
+    std::optional<RecordsMetadata> metadata_;
+    std::optional<Chain> serialized_metadata_;
     Padding pad_to_block_boundary_ = Padding::kFalse;
     int parallelism_ = 0;
     RecyclingPoolOptions recycling_pool_options_;
@@ -536,7 +536,7 @@ class RecordWriterBase : public Object {
 
   // Returns `true` if calling `LastPos()` is valid.
   bool last_record_is_valid() const {
-    return !absl::holds_alternative<LastRecordIsInvalid>(last_record_);
+    return !std::holds_alternative<LastRecordIsInvalid>(last_record_);
   }
 
   // Returns a position of the next record (or the end of file if there is no
@@ -604,7 +604,7 @@ class RecordWriterBase : public Object {
 
   uint64_t desired_chunk_size_ = 0;
   uint64_t chunk_size_so_far_ = 0;
-  absl::variant<LastRecordIsInvalid, LastRecordIsValid, LastRecordIsValidAt>
+  std::variant<LastRecordIsInvalid, LastRecordIsValid, LastRecordIsValidAt>
       last_record_ = LastRecordIsInvalid();
   // Invariant: if `is_open()` then `worker_ != nullptr`.
   std::unique_ptr<Worker> worker_;

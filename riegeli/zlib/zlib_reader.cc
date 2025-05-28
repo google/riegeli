@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -26,7 +27,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
@@ -366,21 +366,21 @@ bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
   }
 }
 
-absl::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src) {
+std::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src) {
   RIEGELI_ASSERT(src.SupportsRandomAccess())
       << "Failed precondition of GzipUncompressedSizeModulo4G(): "
          "Reader does not support random access";
-  const absl::optional<Position> compressed_size = src.Size();
-  if (ABSL_PREDICT_FALSE(compressed_size == absl::nullopt ||
+  const std::optional<Position> compressed_size = src.Size();
+  if (ABSL_PREDICT_FALSE(compressed_size == std::nullopt ||
                          *compressed_size < 20)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   const Position pos_before = src.pos();
   uint32_t uncompressed_size;
   if (ABSL_PREDICT_FALSE(!src.Seek(*compressed_size - sizeof(uint32_t)) ||
                          !ReadLittleEndian32(src, uncompressed_size) ||
                          !src.Seek(pos_before))) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return uncompressed_size;
 }

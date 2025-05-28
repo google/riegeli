@@ -18,12 +18,12 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "lz4.h"
 #include "lz4frame.h"
 #include "riegeli/base/assert.h"
@@ -264,11 +264,11 @@ bool RecognizeLz4(Reader& src,
 
 // Returns the claimed uncompressed size of Lz4-compressed data.
 //
-// Returns `absl::nullopt` if the size was not stored or on failure. The size is
-// stored if `Lz4WriterBase::Options::pledged_size() != absl::nullopt`.
+// Returns `std::nullopt` if the size was not stored or on failure. The size is
+// stored if `Lz4WriterBase::Options::pledged_size() != std::nullopt`.
 //
 // The current position of `src` is unchanged.
-absl::optional<Position> Lz4UncompressedSize(
+std::optional<Position> Lz4UncompressedSize(
     Reader& src, const RecyclingPoolOptions& recycling_pool_options =
                      RecyclingPoolOptions());
 

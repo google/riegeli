@@ -17,11 +17,11 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -59,8 +59,7 @@ inline bool NullWriter::MakeBuffer(size_t min_length,
   return true;
 }
 
-void NullWriter::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+void NullWriter::SetWriteSizeHintImpl(std::optional<Position> write_size_hint) {
   buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
 }
 
@@ -167,8 +166,8 @@ bool NullWriter::SeekSlow(Position new_pos) {
   return MakeBuffer();
 }
 
-absl::optional<Position> NullWriter::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> NullWriter::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   return UnsignedMax(pos(), written_size_);
 }
 

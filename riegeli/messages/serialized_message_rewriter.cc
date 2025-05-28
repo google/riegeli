@@ -16,11 +16,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -118,8 +118,8 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
         if (ABSL_PREDICT_FALSE(!dest.Push(kMaxLengthVarint64))) {
           return dest.status();
         }
-        const absl::optional<size_t> length = CopyVarint64(src, dest.cursor());
-        if (ABSL_PREDICT_FALSE(length == absl::nullopt)) {
+        const std::optional<size_t> length = CopyVarint64(src, dest.cursor());
+        if (ABSL_PREDICT_FALSE(length == std::nullopt)) {
           return src.StatusOrAnnotate(
               absl::InvalidArgumentError("Could not read a varint field"));
         }

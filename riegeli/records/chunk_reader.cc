@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -24,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -555,11 +555,11 @@ bool DefaultChunkReaderBase::SeekToChunk(Position new_pos) {
   }
 }
 
-absl::optional<Position> DefaultChunkReaderBase::Size() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> DefaultChunkReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Reader& src = *SrcReader();
-  const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+  const std::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
     FailWithoutAnnotation(src.status());
   }
   return size;

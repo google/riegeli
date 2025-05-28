@@ -20,6 +20,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -27,7 +28,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
@@ -233,9 +233,9 @@ class TransposeEncoder : public ChunkEncoder {
   };
 
   // Add `buffer` to `bucket_compressor.writer()`.
-  // If `new_uncompressed_bucket_size` is not `absl::nullopt`, flush the current
+  // If `new_uncompressed_bucket_size` is not `std::nullopt`, flush the current
   // bucket to `data_writer` first and create a new bucket of that size.
-  bool AddBuffer(absl::optional<size_t> new_uncompressed_bucket_size,
+  bool AddBuffer(std::optional<size_t> new_uncompressed_bucket_size,
                  const Chain& buffer,
                  chunk_encoding_internal::Compressor& bucket_compressor,
                  Writer& data_writer,

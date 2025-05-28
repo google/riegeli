@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -27,7 +28,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/utility/utility.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -232,7 +232,7 @@ class DigestingWriter : public DigestingWriterBase {
   bool WriteToDigester(absl::string_view src) override {
     return digester_.get().Write(src);
   }
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -416,7 +416,7 @@ void DigestingWriter<Digester, Dest>::Done() {
 
 template <typename Digester, typename Dest>
 void DigestingWriter<Digester, Dest>::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   if (dest_.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return;
     dest_->SetWriteSizeHint(write_size_hint);
@@ -424,10 +424,10 @@ void DigestingWriter<Digester, Dest>::SetWriteSizeHintImpl(
     MakeBuffer(*dest_);
   } else if (digester_.IsOwning()) {
     digester_.get().SetWriteSizeHint(
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(Position{start_to_cursor()},
-                                                *write_size_hint)));
+        write_size_hint == std::nullopt
+            ? std::nullopt
+            : std::make_optional(SaturatingAdd(Position{start_to_cursor()},
+                                               *write_size_hint)));
   }
 }
 

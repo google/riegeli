@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -24,7 +25,6 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -159,10 +159,10 @@ absl::Status SnappyDecompress(Src&& src, Dest&& dest);
 
 // Returns the claimed uncompressed size of Snappy-compressed data.
 //
-// Returns `absl::nullopt` on failure.
+// Returns `std::nullopt` on failure.
 //
 // The current position of `src` is unchanged.
-absl::optional<size_t> SnappyUncompressedSize(Reader& src);
+std::optional<size_t> SnappyUncompressedSize(Reader& src);
 
 // Implementation details follow.
 

@@ -17,8 +17,9 @@
 
 #include <stddef.h>
 
+#include <optional>
+
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/types.h"
 
@@ -41,9 +42,8 @@ inline constexpr size_t kMaxBytesToCopy = 255;
 // If `pos` did not pass `size_hint` yet, returns the remaining length instead
 // of `base_length`.
 inline Position ApplySizeHint(Position base_length,
-                              absl::optional<Position> size_hint,
-                              Position pos) {
-  if (size_hint != absl::nullopt && pos <= *size_hint) return *size_hint - pos;
+                              std::optional<Position> size_hint, Position pos) {
+  if (size_hint != std::nullopt && pos <= *size_hint) return *size_hint - pos;
   return base_length;
 }
 

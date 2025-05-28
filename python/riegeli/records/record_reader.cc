@@ -24,12 +24,12 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_reader.h"
 #include "python/riegeli/records/record_position.h"
@@ -163,52 +163,52 @@ void SetExceptionFromRecordReader(PyRecordReaderObject* self) {
   SetRiegeliError(self->record_reader->status());
 }
 
-absl::optional<int> VerifyFieldNumber(long field_number_value) {
+std::optional<int> VerifyFieldNumber(long field_number_value) {
   static_assert(Field::kExistenceOnly == 0,
                 "VerifyFieldNumber() assumes that Field::kExistenceOnly == 0");
   if (ABSL_PREDICT_FALSE(field_number_value < Field::kExistenceOnly ||
                          field_number_value > (1 << 29) - 1)) {
     PyErr_Format(PyExc_OverflowError, "Field number out of range: %ld",
                  field_number_value);
-    return absl::nullopt;
+    return std::nullopt;
   }
   return IntCast<int>(field_number_value);
 }
 
-absl::optional<int> FieldNumberFromPython(PyObject* object) {
+std::optional<int> FieldNumberFromPython(PyObject* object) {
   if (ABSL_PREDICT_FALSE(!PyLong_Check(object))) {
     PyErr_Format(PyExc_TypeError, "Expected int, not %s",
                  Py_TYPE(object)->tp_name);
-    return absl::nullopt;
+    return std::nullopt;
   }
   const long field_number_value = PyLong_AsLong(object);
   if (ABSL_PREDICT_FALSE(field_number_value == -1) && PyErr_Occurred()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return VerifyFieldNumber(field_number_value);
 }
 
-absl::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
+std::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
   FieldProjection field_projection;
   const PythonPtr field_iter(PyObject_GetIter(object));
-  if (ABSL_PREDICT_FALSE(field_iter == nullptr)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(field_iter == nullptr)) return std::nullopt;
   while (const PythonPtr field_object{PyIter_Next(field_iter.get())}) {
     Field field;
     const PythonPtr field_number_iter(PyObject_GetIter(field_object.get()));
-    if (ABSL_PREDICT_FALSE(field_number_iter == nullptr)) return absl::nullopt;
+    if (ABSL_PREDICT_FALSE(field_number_iter == nullptr)) return std::nullopt;
     while (const PythonPtr field_number_object{
         PyIter_Next(field_number_iter.get())}) {
-      const absl::optional<int> field_number =
+      const std::optional<int> field_number =
           FieldNumberFromPython(field_number_object.get());
-      if (ABSL_PREDICT_FALSE(field_number == absl::nullopt)) {
-        return absl::nullopt;
+      if (ABSL_PREDICT_FALSE(field_number == std::nullopt)) {
+        return std::nullopt;
       }
       field.AddFieldNumber(*field_number);
     }
-    if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return absl::nullopt;
+    if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return std::nullopt;
     field_projection.AddField(std::move(field));
   }
-  if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return std::nullopt;
   return field_projection;
 }
 
@@ -285,9 +285,9 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
     python_reader_options.set_owns_src(owns_src_is_true != 0);
   }
   if (assumed_pos_arg != nullptr && assumed_pos_arg != Py_None) {
-    const absl::optional<Position> assumed_pos =
+    const std::optional<Position> assumed_pos =
         PositionFromPython(assumed_pos_arg);
-    if (ABSL_PREDICT_FALSE(assumed_pos == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(assumed_pos == std::nullopt)) return -1;
     python_reader_options.set_assumed_pos(*assumed_pos);
   }
   if (buffer_size_arg != nullptr && buffer_size_arg != Py_None) {
@@ -295,23 +295,23 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
     max_buffer_size_arg = buffer_size_arg;
   }
   if (min_buffer_size_arg != nullptr) {
-    const absl::optional<size_t> min_buffer_size =
+    const std::optional<size_t> min_buffer_size =
         SizeFromPython(min_buffer_size_arg);
-    if (ABSL_PREDICT_FALSE(min_buffer_size == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(min_buffer_size == std::nullopt)) return -1;
     python_reader_options.set_min_buffer_size(*min_buffer_size);
   }
   if (max_buffer_size_arg != nullptr) {
-    const absl::optional<size_t> max_buffer_size =
+    const std::optional<size_t> max_buffer_size =
         SizeFromPython(max_buffer_size_arg);
-    if (ABSL_PREDICT_FALSE(max_buffer_size == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(max_buffer_size == std::nullopt)) return -1;
     python_reader_options.set_max_buffer_size(*max_buffer_size);
   }
 
   RecordReaderBase::Options record_reader_options;
   if (field_projection_arg != nullptr && field_projection_arg != Py_None) {
-    absl::optional<FieldProjection> field_projection =
+    std::optional<FieldProjection> field_projection =
         FieldProjectionFromPython(field_projection_arg);
-    if (ABSL_PREDICT_FALSE(field_projection == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(field_projection == std::nullopt)) return -1;
     record_reader_options.set_field_projection(*std::move(field_projection));
   }
   if (recovery_arg != nullptr && recovery_arg != Py_None) {
@@ -634,12 +634,12 @@ static PyObject* RecordReaderSetFieldProjection(PyRecordReaderObject* self,
           &field_projection_arg))) {
     return nullptr;
   }
-  absl::optional<FieldProjection> field_projection;
+  std::optional<FieldProjection> field_projection;
   if (field_projection_arg == Py_None) {
     field_projection = FieldProjection::All();
   } else {
     field_projection = FieldProjectionFromPython(field_projection_arg);
-    if (ABSL_PREDICT_FALSE(field_projection == absl::nullopt)) return nullptr;
+    if (ABSL_PREDICT_FALSE(field_projection == std::nullopt)) return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const bool set_field_projection_ok = PythonUnlocked([&] {
@@ -688,9 +688,9 @@ static PyObject* RecordReaderSeek(PyRecordReaderObject* self, PyObject* args,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!kRecordPositionApi.Verify())) return nullptr;
-  const absl::optional<RecordPosition> pos =
+  const std::optional<RecordPosition> pos =
       kRecordPositionApi->RecordPositionFromPython(pos_arg);
-  if (ABSL_PREDICT_FALSE(pos == absl::nullopt)) return nullptr;
+  if (ABSL_PREDICT_FALSE(pos == std::nullopt)) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const bool seek_ok =
       PythonUnlocked([&] { return self->record_reader->Seek(*pos); });
@@ -710,8 +710,8 @@ static PyObject* RecordReaderSeekNumeric(PyRecordReaderObject* self,
           &pos_arg))) {
     return nullptr;
   }
-  const absl::optional<Position> pos = PositionFromPython(pos_arg);
-  if (ABSL_PREDICT_FALSE(pos == absl::nullopt)) return nullptr;
+  const std::optional<Position> pos = PositionFromPython(pos_arg);
+  if (ABSL_PREDICT_FALSE(pos == std::nullopt)) return nullptr;
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
   const bool seek_ok =
       PythonUnlocked([&] { return self->record_reader->Seek(*pos); });
@@ -739,9 +739,9 @@ static PyObject* RecordReaderSeekBack(PyRecordReaderObject* self,
 
 static PyObject* RecordReaderSize(PyRecordReaderObject* self, PyObject* args) {
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  const absl::optional<Position> size =
+  const std::optional<Position> size =
       PythonUnlocked([&] { return self->record_reader->Size(); });
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
     SetExceptionFromRecordReader(self);
     return nullptr;
   }
@@ -757,28 +757,28 @@ static PyObject* RecordReaderSearch(PyRecordReaderObject* self, PyObject* args,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  absl::optional<Exception> test_exception;
-  const absl::optional<PartialOrdering> result = PythonUnlocked([&] {
+  std::optional<Exception> test_exception;
+  const std::optional<PartialOrdering> result = PythonUnlocked([&] {
     return self->record_reader->Search(
-        [&](RecordReaderBase&) -> absl::optional<PartialOrdering> {
+        [&](RecordReaderBase&) -> std::optional<PartialOrdering> {
           PythonLock lock;
           const PythonPtr test_result(
               PyObject_CallFunctionObjArgs(test_arg, self, nullptr));
           if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
-          const absl::optional<PartialOrdering> ordering =
+          const std::optional<PartialOrdering> ordering =
               PartialOrderingFromPython(test_result.get());
-          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+          if (ABSL_PREDICT_FALSE(ordering == std::nullopt)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
           return *ordering;
         });
   });
-  if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
-    if (test_exception != absl::nullopt) {
+  if (ABSL_PREDICT_FALSE(result == std::nullopt)) {
+    if (test_exception != std::nullopt) {
       test_exception->Restore();
     } else {
       SetExceptionFromRecordReader(self);
@@ -798,33 +798,33 @@ static PyObject* RecordReaderSearchForRecord(PyRecordReaderObject* self,
     return nullptr;
   }
   if (ABSL_PREDICT_FALSE(!self->record_reader.Verify())) return nullptr;
-  absl::optional<Exception> test_exception;
-  const absl::optional<PartialOrdering> result = PythonUnlocked([&] {
+  std::optional<Exception> test_exception;
+  const std::optional<PartialOrdering> result = PythonUnlocked([&] {
     return self->record_reader->Search<Chain>(
-        [&](const Chain& record) -> absl::optional<PartialOrdering> {
+        [&](const Chain& record) -> std::optional<PartialOrdering> {
           PythonLock lock;
           const PythonPtr record_object = ChainToPython(record);
           if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
           const PythonPtr test_result(PyObject_CallFunctionObjArgs(
               test_arg, record_object.get(), nullptr));
           if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
-          const absl::optional<PartialOrdering> ordering =
+          const std::optional<PartialOrdering> ordering =
               PartialOrderingFromPython(test_result.get());
-          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+          if (ABSL_PREDICT_FALSE(ordering == std::nullopt)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
           return *ordering;
         });
   });
-  if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
-    if (test_exception != absl::nullopt) {
+  if (ABSL_PREDICT_FALSE(result == std::nullopt)) {
+    if (test_exception != std::nullopt) {
       test_exception->Restore();
       if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
         PyErr_Clear();
@@ -857,16 +857,16 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
   // calling `test()`. Save it here to call it explicitly in `test()`.
   std::function<bool(const SkippedRegion&, RecordReaderBase&)> recovery =
       self->record_reader->recovery();
-  absl::optional<Exception> test_exception;
-  const absl::optional<PartialOrdering> result = PythonUnlocked([&] {
+  std::optional<Exception> test_exception;
+  const std::optional<PartialOrdering> result = PythonUnlocked([&] {
     return self->record_reader->Search<absl::string_view>(
-        [&](absl::string_view record) -> absl::optional<PartialOrdering> {
+        [&](absl::string_view record) -> std::optional<PartialOrdering> {
           PythonLock lock;
           MemoryView memory_view;
           PyObject* const record_object = memory_view.ToPython(record);
           if (ABSL_PREDICT_FALSE(record_object == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
           // message = message_type.FromString(record)
           static constexpr Identifier id_FromString("FromString");
@@ -878,7 +878,7 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
               const Exception exception = Exception::Fetch();
               if (ABSL_PREDICT_FALSE(!memory_view.Release())) {
                 test_exception.emplace(Exception::Fetch());
-                return absl::nullopt;
+                return std::nullopt;
               }
               if (recovery(
                       SkippedRegion(self->record_reader->last_pos().numeric(),
@@ -889,35 +889,35 @@ static PyObject* RecordReaderSearchForMessage(PyRecordReaderObject* self,
                 return PartialOrdering::unordered;
               }
               if (ABSL_PREDICT_FALSE(self->recovery_exception.has_value())) {
-                return absl::nullopt;
+                return std::nullopt;
               }
               // Cancel the search.
               PyErr_SetNone(PyExc_StopIteration);
             }
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
           if (ABSL_PREDICT_FALSE(!memory_view.Release())) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
           const PythonPtr test_result(
               PyObject_CallFunctionObjArgs(test_arg, message.get(), nullptr));
           if (ABSL_PREDICT_FALSE(test_result == nullptr)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
-          const absl::optional<PartialOrdering> ordering =
+          const std::optional<PartialOrdering> ordering =
               PartialOrderingFromPython(test_result.get());
-          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
+          if (ABSL_PREDICT_FALSE(ordering == std::nullopt)) {
             test_exception.emplace(Exception::Fetch());
-            return absl::nullopt;
+            return std::nullopt;
           }
           return *ordering;
         });
   });
-  if (ABSL_PREDICT_FALSE(result == absl::nullopt)) {
-    if (test_exception != absl::nullopt) {
+  if (ABSL_PREDICT_FALSE(result == std::nullopt)) {
+    if (test_exception != std::nullopt) {
       test_exception->Restore();
       if (PyErr_ExceptionMatches(PyExc_StopIteration)) {
         PyErr_Clear();

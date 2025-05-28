@@ -22,13 +22,13 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "lz4frame.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -180,7 +180,7 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
   }
   LZ4F_decompressOptions_t decompress_options{};
   size_t effective_min_length = min_length;
-  if (!growing_source_ && exact_size() != absl::nullopt &&
+  if (!growing_source_ && exact_size() != std::nullopt &&
       max_length >= SaturatingSub(*exact_size(), limit_pos())) {
     // Avoid a memory copy from an internal buffer of the Lz4 engine to `dest`
     // by promising to decompress all remaining data to `dest`.
@@ -361,14 +361,14 @@ bool RecognizeLz4(Reader& src,
   return lz4_internal::GetFrameInfo(src, frame_info, recycling_pool_options);
 }
 
-absl::optional<Position> Lz4UncompressedSize(
+std::optional<Position> Lz4UncompressedSize(
     Reader& src, const RecyclingPoolOptions& recycling_pool_options) {
   LZ4F_frameInfo_t frame_info;
   if (!lz4_internal::GetFrameInfo(src, frame_info, recycling_pool_options)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (frame_info.contentSize > 0) return frame_info.contentSize;
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace riegeli

@@ -17,12 +17,12 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
@@ -101,9 +101,9 @@ class HadoopSnappyWriterBase : public PushableWriter {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool PushBehindScratch(size_t recommended_length) override;
-  bool FlushBehindScratch(FlushType flush_type);
+  bool FlushBehindScratch(FlushType flush_type) override;
   Reader* ReadModeBehindScratch(Position initial_pos) override;
 
  private:
@@ -116,7 +116,7 @@ class HadoopSnappyWriterBase : public PushableWriter {
   bool PushInternal(Writer& dest);
 
   int compression_level_ = Options::kDefaultCompressionLevel;
-  absl::optional<Position> size_hint_;
+  std::optional<Position> size_hint_;
   Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
@@ -214,7 +214,7 @@ inline HadoopSnappyWriterBase& HadoopSnappyWriterBase::operator=(
 inline void HadoopSnappyWriterBase::Reset(Closed) {
   PushableWriter::Reset(kClosed);
   compression_level_ = Options::kDefaultCompressionLevel;
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   initial_compressed_pos_ = 0;
   uncompressed_ = Buffer();
   associated_reader_.Reset();
@@ -223,7 +223,7 @@ inline void HadoopSnappyWriterBase::Reset(Closed) {
 inline void HadoopSnappyWriterBase::Reset() {
   PushableWriter::Reset();
   compression_level_ = Options::kDefaultCompressionLevel;
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   initial_compressed_pos_ = 0;
   associated_reader_.Reset();
 }

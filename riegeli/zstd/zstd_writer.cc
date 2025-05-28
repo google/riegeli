@@ -22,13 +22,13 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/recycling_pool.h"
@@ -43,7 +43,7 @@
 namespace riegeli {
 
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
-                                absl::optional<int> window_log,
+                                std::optional<int> window_log,
                                 bool store_checksum) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
@@ -80,7 +80,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (window_log != absl::nullopt) {
+  if (window_log != std::nullopt) {
     const size_t result = ZSTD_CCtx_setParameter(compressor_.get(),
                                                  ZSTD_c_windowLog, *window_log);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
@@ -100,7 +100,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (pledged_size_ != absl::nullopt) {
+  if (pledged_size_ != std::nullopt) {
     BufferedWriter::SetWriteSizeHintImpl(*pledged_size_);
     const size_t result = ZSTD_CCtx_setPledgedSrcSize(
         compressor_.get(), IntCast<unsigned long long>(*pledged_size_));
@@ -163,13 +163,13 @@ absl::Status ZstdWriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 void ZstdWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   BufferedWriter::SetWriteSizeHintImpl(write_size_hint);
   if (ABSL_PREDICT_FALSE(!ok()) || compressor_ == nullptr) return;
   // Ignore failure if compression already started.
   ZSTD_CCtx_setParameter(
       compressor_.get(), ZSTD_c_srcSizeHint,
-      write_size_hint == absl::nullopt
+      write_size_hint == std::nullopt
           ? 0
           : SaturatingIntCast<int>(SaturatingAdd(pos(), *write_size_hint)));
 }
@@ -192,7 +192,7 @@ inline bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  if (pledged_size_ != absl::nullopt) {
+  if (pledged_size_ != std::nullopt) {
     const Position next_pos = start_pos() + src.size();
     if (compressor_ == nullptr) {
       if (ABSL_PREDICT_FALSE(!src.empty())) {

@@ -17,12 +17,12 @@
 #include <stdint.h>
 
 #include <cstddef>
+#include <optional>
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 
 namespace riegeli {
@@ -252,8 +252,7 @@ void RiegeliDebug(ABSL_ATTRIBUTE_UNUSED std::nullptr_t src, DebugStream& dest) {
   dest.Write("nullptr");
 }
 
-void RiegeliDebug(ABSL_ATTRIBUTE_UNUSED absl::nullopt_t src,
-                  DebugStream& dest) {
+void RiegeliDebug(ABSL_ATTRIBUTE_UNUSED std::nullopt_t src, DebugStream& dest) {
   dest.Write("nullopt");
 }
 

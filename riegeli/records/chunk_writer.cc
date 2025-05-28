@@ -17,12 +17,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
@@ -92,8 +92,8 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
                                                  Position chunk_begin,
                                                  Position chunk_end,
                                                  Writer& dest) {
-  const absl::optional<Position> size = src.Size();
-  RIEGELI_ASSERT(size != absl::nullopt) << src.status();
+  const std::optional<Position> size = src.Size();
+  RIEGELI_ASSERT(size != std::nullopt) << src.status();
   RIEGELI_ASSERT_EQ(src.pos(), 0u) << "Non-zero section reader position";
   while (src.pos() < *size) {
     if (records_internal::IsBlockBoundary(pos())) {

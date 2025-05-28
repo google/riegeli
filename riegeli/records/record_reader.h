@@ -20,6 +20,7 @@
 #include <functional>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -29,7 +30,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
@@ -149,7 +149,7 @@ class RecordReaderBase : public Object {
     //                     `false`
     //  * `Seek()` - returns the result of the recovery function
     //  * `Search()` - skips invalid regions if the recovery function returns
-    //                 `true`, returns `absl::nullopt` if the recovery function
+    //                 `true`, returns `std::nullopt` if the recovery function
     //                 returns `false`
     //
     // Default: `nullptr`.
@@ -369,8 +369,8 @@ class RecordReaderBase : public Object {
   // Returns the size of the file in bytes, i.e. the position corresponding to
   // its end.
   //
-  // Returns `absl::nullopt` on failure (`!ok()`).
-  absl::optional<Position> Size();
+  // Returns `std::nullopt` on failure (`!ok()`).
+  std::optional<Position> Size();
 
   // Searches the file for a desired record, or for a desired position between
   // records, given that it is possible to determine whether a given record is
@@ -379,10 +379,10 @@ class RecordReaderBase : public Object {
   // The current position before calling `Search()` does not matter.
   //
   // The `test` function takes `*this` as a parameter, seeked to some record,
-  // and returns `absl::nullopt` or an ordering (a value comparable with literal
+  // and returns `std::nullopt` or an ordering (a value comparable with literal
   // 0, such as `{Partial,Strong}Ordering`,
   // `{std,absl}::{partial,weak,strong}_ordering`, or `int`):
-  //  * `absl::nullopt` - Cancel the search.
+  //  * `std::nullopt` - Cancel the search.
   //  * `less`          - The current record is before the desired position.
   //  * `equivalent`    - The current record is desired, searching can stop.
   //  * `greater`       - The current record is after the desired position.
@@ -399,7 +399,7 @@ class RecordReaderBase : public Object {
   //    even if there are no `equivalent` records.
   //
   // Return values:
-  //  * `absl::nullopt` - Reading failed (`!ok()`)
+  //  * `std::nullopt` - Reading failed (`!ok()`)
   //                      or the search was cancelled (`ok()`).
   //  * `equivalent`    - There is some `equivalent` record,
   //                      and `Search()` points to some such record.
@@ -433,16 +433,16 @@ class RecordReaderBase : public Object {
   // (`RecordReaderBase::Options::recovery()`) can be set, but `Recover()`
   // resumes only simple operations and is not applicable here.
   template <typename Test>
-  absl::optional<PartialOrdering> Search(Test&& test);
+  std::optional<PartialOrdering> Search(Test&& test);
 
   // A variant of `Search()` which reads a record before calling `test()`,
   // instead of letting `test()` read the record.
   //
   // The `Record` type must be supported by `ReadRecord()`. The `test` function
   // takes `Record&` or `const Record&` as a parameter, and returns
-  // `absl::nullopt` or an ordering.
+  // `std::nullopt` or an ordering.
   template <typename Record, typename Test>
-  absl::optional<PartialOrdering> Search(Test&& test);
+  std::optional<PartialOrdering> Search(Test&& test);
 
  protected:
   enum class Recoverable {
@@ -525,9 +525,9 @@ class RecordReaderBase : public Object {
   // Precondition: `ok()`
   bool ReadChunk();
 
-  absl::optional<PartialOrdering> SearchImpl(
+  std::optional<PartialOrdering> SearchImpl(
       absl::FunctionRef<
-          absl::optional<PartialOrdering>(RecordReaderBase& reader)>
+          std::optional<PartialOrdering>(RecordReaderBase& reader)>
           test);
 };
 
@@ -688,32 +688,31 @@ inline RecordPosition RecordReaderBase::pos() const {
 namespace record_reader_internal {
 
 template <typename T>
-inline absl::optional<PartialOrdering> AsOptionalPartialOrdering(
-    T test_result) {
+inline std::optional<PartialOrdering> AsOptionalPartialOrdering(T test_result) {
   return AsPartialOrdering(test_result);
 }
 
 template <typename T>
-inline absl::optional<PartialOrdering> AsOptionalPartialOrdering(
-    absl::optional<T> test_result) {
-  if (test_result == absl::nullopt) return absl::nullopt;
+inline std::optional<PartialOrdering> AsOptionalPartialOrdering(
+    std::optional<T> test_result) {
+  if (test_result == std::nullopt) return std::nullopt;
   return AsPartialOrdering(*test_result);
 }
 
 }  // namespace record_reader_internal
 
 template <typename Test>
-absl::optional<PartialOrdering> RecordReaderBase::Search(Test&& test) {
+std::optional<PartialOrdering> RecordReaderBase::Search(Test&& test) {
   return SearchImpl([&](RecordReaderBase& self) {
     return record_reader_internal::AsOptionalPartialOrdering(test(self));
   });
 }
 
 template <typename Record, typename Test>
-absl::optional<PartialOrdering> RecordReaderBase::Search(Test&& test) {
+std::optional<PartialOrdering> RecordReaderBase::Search(Test&& test) {
   Record record;
   return SearchImpl(
-      [&](RecordReaderBase& self) -> absl::optional<PartialOrdering> {
+      [&](RecordReaderBase& self) -> std::optional<PartialOrdering> {
         if (ABSL_PREDICT_FALSE(!self.ReadRecord(record))) {
           return PartialOrdering::unordered;
         }

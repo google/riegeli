@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -31,7 +32,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
@@ -65,9 +65,9 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
     // Total number of elements decoded so far. The size is calculated as a side
     // effect of structural validation; calling `size()` later would be slower.
     size_t cumulative_size = 0;
-    // If not `absl::nullopt`, the last element in the last decoded set.
+    // If not `std::nullopt`, the last element in the last decoded set.
     // Meaningful only if `DecodeOptions::validate()`.
-    absl::optional<CompactString> last;
+    std::optional<CompactString> last;
   };
 
   // Options for `Decode()`.

@@ -15,12 +15,12 @@
 #ifndef RIEGELI_CHUNK_ENCODING_COMPRESSOR_OPTIONS_H_
 #define RIEGELI_CHUNK_ENCODING_COMPRESSOR_OPTIONS_H_
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/brotli/brotli_writer.h"
@@ -162,30 +162,30 @@ class CompressorOptions {
   // between compression density and memory usage (higher = better density but
   // more memory).
   //
-  // Special value `absl::nullopt` means to keep the default (Brotli: 22,
+  // Special value `std::nullopt` means to keep the default (Brotli: 22,
   // Zstd: derived from compression level and chunk size).
   //
-  // For Uncompressed and Snappy, `window_log` must be `absl::nullopt`.
+  // For Uncompressed and Snappy, `window_log` must be `std::nullopt`.
   //
-  // For Brotli, `window_log` must be `absl::nullopt` or between
+  // For Brotli, `window_log` must be `std::nullopt` or between
   // `BrotliWriterBase::Options::kMinWindowLog` (10) and
   // `BrotliWriterBase::Options::kMaxWindowLog` (30).
   //
-  // For Zstd, `window_log` must be `absl::nullopt` or between
+  // For Zstd, `window_log` must be `std::nullopt` or between
   // `ZstdWriterBase::Options::kMinWindowLog` (10) and
   // `ZstdWriterBase::Options::kMaxWindowLog` (30 in 32-bit build,
   // 31 in 64-bit build).
   //
-  // Default: `absl::nullopt`.
+  // Default: `std::nullopt`.
   static constexpr int kMinWindowLog =
       SignedMin(BrotliWriterBase::Options::kMinWindowLog,
                 ZstdWriterBase::Options::kMinWindowLog);
   static constexpr int kMaxWindowLog =
       SignedMax(BrotliWriterBase::Options::kMaxWindowLog,
                 ZstdWriterBase::Options::kMaxWindowLog);
-  CompressorOptions& set_window_log(absl::optional<int> window_log) &
+  CompressorOptions& set_window_log(std::optional<int> window_log) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    if (window_log != absl::nullopt) {
+    if (window_log != std::nullopt) {
       RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
              "window log out of range";
@@ -196,11 +196,11 @@ class CompressorOptions {
     window_log_ = window_log;
     return *this;
   }
-  CompressorOptions&& set_window_log(absl::optional<int> window_log) &&
+  CompressorOptions&& set_window_log(std::optional<int> window_log) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_window_log(window_log));
   }
-  absl::optional<int> window_log() const { return window_log_; }
+  std::optional<int> window_log() const { return window_log_; }
 
   // Returns `window_log()` translated for `BrotliWriter`.
   //
@@ -210,7 +210,7 @@ class CompressorOptions {
   // Returns `window_log()` translated for `ZstdWriter`.
   //
   // Precondition: `compression_type() == CompressionType::kZstd`
-  absl::optional<int> zstd_window_log() const;
+  std::optional<int> zstd_window_log() const;
 
   // The implementation of the Brotli encoder to use. Experimental, meant for
   // evaluation. Prefer to keep the default.
@@ -237,7 +237,7 @@ class CompressorOptions {
  private:
   CompressionType compression_type_ = CompressionType::kBrotli;
   int compression_level_ = kDefaultBrotli;
-  absl::optional<int> window_log_;
+  std::optional<int> window_log_;
   BrotliEncoder brotli_encoder_ = BrotliEncoder::kRBrotliOrCBrotli;
 };
 

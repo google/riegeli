@@ -23,6 +23,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <new>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -37,7 +38,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
@@ -386,11 +386,11 @@ class CsvHeader : public WithEqual<CsvHeader> {
   bool contains(absl::string_view name) const;
 
   // Returns the position of `name` in the sequence of field names, or
-  // `absl::nullopt` if `name` is not present.
+  // `std::nullopt` if `name` is not present.
   //
   // This can be used together with `CsvRecord::fields()` to look up the same
   // field in multiple `CsvRecord`s sharing a `CsvHeader`.
-  absl::optional<size_t> IndexOf(absl::string_view name) const;
+  std::optional<size_t> IndexOf(absl::string_view name) const;
 
   // Compares the sequence of field names. Does not compare the normalizer.
   friend bool operator==(const CsvHeader& a, const CsvHeader& b) {

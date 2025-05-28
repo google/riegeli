@@ -17,12 +17,12 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
@@ -68,7 +68,7 @@ class NullWriter : public Writer {
 
  protected:
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(absl::string_view src) override;
@@ -77,7 +77,7 @@ class NullWriter : public Writer {
   bool WriteSlow(const absl::Cord& src) override;
   bool WriteSlow(ByteFill src) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
 
  private:

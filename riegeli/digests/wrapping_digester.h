@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -24,7 +25,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -105,7 +105,7 @@ class WrappingDigester {
     base_.Reset(riegeli::Maker(std::forward<Args>(args)...));
   }
 
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) {
+  void SetWriteSizeHint(std::optional<Position> write_size_hint) {
     if (base_.IsOwning()) base_.get().SetWriteSizeHint(write_size_hint);
   }
 

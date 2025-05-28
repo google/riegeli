@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -27,7 +28,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -123,26 +123,26 @@ class CFileReaderBase : public BufferedReader {
     // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
     // not exist.
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current `FILE` position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the `FILE` supports
     // random access.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current `FILE`
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current `FILE`
     // position. Random access is not supported.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // If `true`, supports reading up to the end of the file, then retrying when
     // the file has grown. This disables caching the file size.
@@ -165,7 +165,7 @@ class CFileReaderBase : public BufferedReader {
 #else
     std::string mode_ = "rbN";
 #endif
-    absl::optional<Position> assumed_pos_;
+    std::optional<Position> assumed_pos_;
     bool growing_source_ = false;
   };
 
@@ -218,7 +218,7 @@ class CFileReaderBase : public BufferedReader {
   absl::Status AnnotateStatusImpl(absl::Status status) override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
 
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);
@@ -227,7 +227,7 @@ class CFileReaderBase : public BufferedReader {
   bool supports_random_access_ = false;
   absl::Status random_access_status_;
 #ifdef _WIN32
-  absl::optional<int> original_mode_;
+  std::optional<int> original_mode_;
 #endif
 
   // Invariant:
@@ -237,7 +237,7 @@ class CFileReaderBase : public BufferedReader {
 // A `Reader` which reads from a `FILE`.
 //
 // `CFileReader` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the `FILE` supports random
+// `Options::assumed_pos() == std::nullopt` and the `FILE` supports random
 // access (this is checked by calling `ftell()` and `fseek(SEEK_END)`).
 //
 // The `Src` template parameter specifies the type of the object providing and
@@ -381,7 +381,7 @@ inline void CFileReaderBase::Reset(Closed) {
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
 }
 
@@ -392,7 +392,7 @@ inline void CFileReaderBase::Reset(BufferOptions buffer_options,
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
 }
 

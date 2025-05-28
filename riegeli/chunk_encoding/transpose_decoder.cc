@@ -21,6 +21,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -31,7 +32,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -921,10 +921,10 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
 
   uint32_t bucket_index = 0;
   first_buffer_indices.push_back(0);
-  absl::optional<uint64_t> remaining_bucket_size =
+  std::optional<uint64_t> remaining_bucket_size =
       chunk_encoding_internal::UncompressedSize(
           context.buckets[0].compressed_data, context.compression_type);
-  if (ABSL_PREDICT_FALSE(remaining_bucket_size == absl::nullopt)) {
+  if (ABSL_PREDICT_FALSE(remaining_bucket_size == std::nullopt)) {
     return Fail(absl::InvalidArgumentError("Reading uncompressed size failed"));
   }
   for (uint32_t buffer_index = 0; buffer_index < num_buffers; ++buffer_index) {
@@ -950,7 +950,7 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
       remaining_bucket_size = chunk_encoding_internal::UncompressedSize(
           context.buckets[bucket_index].compressed_data,
           context.compression_type);
-      if (ABSL_PREDICT_FALSE(remaining_bucket_size == absl::nullopt)) {
+      if (ABSL_PREDICT_FALSE(remaining_bucket_size == std::nullopt)) {
         return Fail(
             absl::InvalidArgumentError("Reading uncompressed size failed"));
       }
@@ -1251,9 +1251,9 @@ struct TransposeDecoder::DecodingState {
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool StringCallback() {
     node->buffer->Pull(kMaxLengthVarint32);
     uint32_t length;
-    const absl::optional<const char*> cursor =
+    const std::optional<const char*> cursor =
         ReadVarint32(node->buffer->cursor(), node->buffer->limit(), length);
-    if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) {
+    if (ABSL_PREDICT_FALSE(cursor == std::nullopt)) {
       return decoder->Fail(node->buffer->StatusOrAnnotate(
           InvalidArgumentError("Reading string length failed")));
     }
@@ -1543,7 +1543,7 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         uint32_t tag;
         RIEGELI_EVAL_ASSERT(ReadVarint32(elem->tag_data,
                                          elem->tag_data + kMaxLengthVarint32,
-                                         tag) != absl::nullopt)
+                                         tag) != std::nullopt)
             << "Invalid tag";
         const absl::flat_hash_map<std::pair<uint32_t, int>,
                                   Context::IncludedField>::const_iterator iter =
@@ -1573,7 +1573,7 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       uint32_t tag;
       RIEGELI_EVAL_ASSERT(ReadVarint32(node.tag_data,
                                        node.tag_data + kMaxLengthVarint32,
-                                       tag) != absl::nullopt)
+                                       tag) != std::nullopt)
           << "Invalid tag";
       const absl::flat_hash_map<std::pair<uint32_t, int>,
                                 Context::IncludedField>::const_iterator iter =

@@ -18,13 +18,13 @@
 
 #include <array>
 #include <cstring>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/debug.h"
@@ -42,19 +42,19 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
   // Set `header_` early, so that `header()` is valid even in case of a failure,
   // and because `WriteRecord(const CsvRecord&)` uses this as a precondition.
   bool write_header = false;
-  if (options.header() != absl::nullopt) {
-    RIEGELI_ASSERT(options.assumed_header() == absl::nullopt)
+  if (options.header() != std::nullopt) {
+    RIEGELI_ASSERT(options.assumed_header() == std::nullopt)
         << "Failed precondition of CsvWriter: "
            "header() and assumed_header() both set";
     has_header_ = true;
     write_header = true;
     header_ = *std::move(options.header());
-  } else if (options.assumed_header() != absl::nullopt) {
+  } else if (options.assumed_header() != std::nullopt) {
     has_header_ = true;
     header_ = *std::move(options.assumed_header());
   }
 
-  if (options.comment() != absl::nullopt &&
+  if (options.comment() != std::nullopt &&
       ABSL_PREDICT_FALSE(*options.comment() == '\n' ||
                          *options.comment() == '\r')) {
     Fail(absl::InvalidArgumentError(
@@ -75,7 +75,7 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
                      riegeli::Debug(options.field_separator()))));
     return;
   }
-  if (options.quote() != absl::nullopt) {
+  if (options.quote() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(*options.quote() == '\n' ||
                            *options.quote() == '\r')) {
       Fail(absl::InvalidArgumentError(
@@ -99,11 +99,11 @@ void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
 
   quotes_needed_['\n'] = true;
   quotes_needed_['\r'] = true;
-  if (options.comment() != absl::nullopt) {
+  if (options.comment() != std::nullopt) {
     quotes_needed_[static_cast<unsigned char>(*options.comment())] = true;
   }
   quotes_needed_[static_cast<unsigned char>(options.field_separator())] = true;
-  if (options.quote() != absl::nullopt) {
+  if (options.quote() != std::nullopt) {
     quotes_needed_[static_cast<unsigned char>(*options.quote())] = true;
   }
   newline_ = options.newline();
@@ -138,7 +138,7 @@ absl::Status CsvWriterBase::AnnotateOverDest(absl::Status status) {
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
                                        size_t already_scanned) {
-  RIEGELI_ASSERT_NE(quote_, absl::nullopt)
+  RIEGELI_ASSERT_NE(quote_, std::nullopt)
       << "Failed precondition of CsvWriterBase::WriteQuoted(): "
          "quote character not available";
   if (ABSL_PREDICT_FALSE(!dest.Write(*quote_))) {
@@ -169,7 +169,7 @@ inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
 }
 
 bool CsvWriterBase::WriteQuotes(Writer& dest) {
-  if (quote_ == absl::nullopt) return true;
+  if (quote_ == std::nullopt) return true;
   if (ABSL_PREDICT_FALSE(!dest.Write(*quote_) || !dest.Write(*quote_))) {
     return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
   }
@@ -191,7 +191,7 @@ bool CsvWriterBase::WriteFirstField(Writer& dest, absl::string_view field) {
                                          (field.size() == 2
                                               ? field_separator_ == kUtf8Bom[2]
                                               : field[2] == kUtf8Bom[2]))) &&
-      quote_ != absl::nullopt) {
+      quote_ != std::nullopt) {
     return WriteQuoted(dest, field, 0);
   }
   return WriteField(dest, field);
@@ -200,7 +200,7 @@ bool CsvWriterBase::WriteFirstField(Writer& dest, absl::string_view field) {
 bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
   for (size_t i = 0; i < field.size(); ++i) {
     if (quotes_needed_[static_cast<unsigned char>(field[i])]) {
-      if (ABSL_PREDICT_FALSE(quote_ == absl::nullopt)) {
+      if (ABSL_PREDICT_FALSE(quote_ == std::nullopt)) {
         return Fail(absl::InvalidArgumentError(
             absl::StrCat("If quoting is turned off, special characters inside "
                          "fields are not "

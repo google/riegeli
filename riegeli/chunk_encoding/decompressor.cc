@@ -17,8 +17,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
+
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -26,13 +27,13 @@
 
 namespace riegeli::chunk_encoding_internal {
 
-absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
-                                          CompressionType compression_type) {
+std::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
+                                         CompressionType compression_type) {
   if (compression_type == CompressionType::kNone) return compressed_data.size();
   ChainReader<> compressed_data_reader(&compressed_data);
   uint64_t size;
   if (ABSL_PREDICT_FALSE(!ReadVarint64(compressed_data_reader, size))) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return size;
 }

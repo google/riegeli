@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -23,7 +24,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -227,14 +227,14 @@ bool LimitingWriterBase::SeekSlow(Position new_pos) {
   return seek_ok && pos_to_seek == new_pos;
 }
 
-absl::optional<Position> LimitingWriterBase::SizeImpl() {
+std::optional<Position> LimitingWriterBase::SizeImpl() {
   RIEGELI_ASSERT_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Writer& dest = *DestWriter();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return absl::nullopt;
-  const absl::optional<Position> size = dest.Size();
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(dest))) return std::nullopt;
+  const std::optional<Position> size = dest.Size();
   MakeBuffer(dest);
   return size;
 }

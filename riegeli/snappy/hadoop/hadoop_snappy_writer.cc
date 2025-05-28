@@ -18,12 +18,12 @@
 #include <stdint.h>
 
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -73,9 +73,9 @@ absl::Status HadoopSnappyWriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 void HadoopSnappyWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
-  if (write_size_hint == absl::nullopt) {
-    size_hint_ = absl::nullopt;
+    std::optional<Position> write_size_hint) {
+  if (write_size_hint == std::nullopt) {
+    size_hint_ = std::nullopt;
   } else {
     size_hint_ = SaturatingAdd(pos(), *write_size_hint);
   }

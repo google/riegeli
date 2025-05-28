@@ -21,6 +21,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -30,7 +31,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -458,11 +458,11 @@ class Reader : public Object {
 
   // Returns the size of the source, i.e. the position corresponding to its end.
   //
-  // Returns `absl::nullopt` on failure (`!ok()`).
+  // Returns `std::nullopt` on failure (`!ok()`).
   //
   // `Size()` is supported if `SupportsRandomAccess()` or `SupportsSize()` is
   // `true`.
-  absl::optional<Position> Size();
+  std::optional<Position> Size();
 
   // Returns `true` if this `Reader` supports `NewReader()`.
   virtual bool SupportsNewReader() { return false; }
@@ -655,7 +655,7 @@ class Reader : public Object {
   // Implementation of `Size()`.
   //
   // By default fails.
-  virtual absl::optional<Position> SizeImpl();
+  virtual std::optional<Position> SizeImpl();
 
   virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos);
 
@@ -1133,7 +1133,7 @@ inline bool Reader::Skip(Position length, Position* length_skipped) {
   return true;
 }
 
-inline absl::optional<Position> Reader::Size() { return SizeImpl(); }
+inline std::optional<Position> Reader::Size() { return SizeImpl(); }
 
 }  // namespace riegeli
 

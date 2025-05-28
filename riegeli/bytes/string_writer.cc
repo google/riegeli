@@ -18,12 +18,12 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -93,8 +93,8 @@ inline void StringWriterBase::MakeSecondaryBuffer(size_t min_length,
 }
 
 void StringWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
-  if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
+    std::optional<Position> write_size_hint) {
+  if (write_size_hint == std::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
   std::string& dest = *DestString();
   RIEGELI_ASSERT_EQ(UnsignedMax(limit_pos(), written_size_),
                     dest.size() + secondary_buffer_.size())
@@ -425,8 +425,8 @@ bool StringWriterBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> StringWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> StringWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   return used_size();
 }
 

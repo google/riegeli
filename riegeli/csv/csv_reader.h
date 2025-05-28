@@ -22,6 +22,7 @@
 #include <functional>
 #include <initializer_list>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,7 +31,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -57,7 +57,7 @@ class CsvReaderBase : public Object {
    public:
     Options() noexcept {}
 
-    // If not `absl::nullopt`, automatically reads field names from the first
+    // If not `std::nullopt`, automatically reads field names from the first
     // record, specifies how field names are normalized, and verifies that all
     // required fields are present (in any order).
     //
@@ -73,67 +73,66 @@ class CsvReaderBase : public Object {
     //
     // `required_header()` and `assumed_header()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_required_header(
-        Initializer<absl::optional<CsvHeader>> header) &
+    // Default: `std::nullopt`.
+    Options& set_required_header(Initializer<std::optional<CsvHeader>> header) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(required_header_, std::move(header));
       return *this;
     }
     Options&& set_required_header(
-        Initializer<absl::optional<CsvHeader>> header) &&
+        Initializer<std::optional<CsvHeader>> header) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_required_header(std::move(header)));
     }
     Options& set_required_header(
         std::initializer_list<absl::string_view> names) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      return set_required_header(Initializer<absl::optional<CsvHeader>>(names));
+      return set_required_header(Initializer<std::optional<CsvHeader>>(names));
     }
     Options&& set_required_header(
         std::initializer_list<absl::string_view> names) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_required_header(names));
     }
-    absl::optional<CsvHeader>& required_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    std::optional<CsvHeader>& required_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return required_header_;
     }
-    const absl::optional<CsvHeader>& required_header() const
+    const std::optional<CsvHeader>& required_header() const
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return required_header_;
     }
 
-    // If not `absl::nullopt`, a header is not read from the file, but
+    // If not `std::nullopt`, a header is not read from the file, but
     // `ReadRecord(CsvRecord&)` is supported as if this header was present as
     // the first record.
     //
     // `required_header()` and `assumed_header()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_header(Initializer<absl::optional<CsvHeader>> header) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_header(Initializer<std::optional<CsvHeader>> header) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(assumed_header_, std::move(header));
       return *this;
     }
     Options&& set_assumed_header(
-        Initializer<absl::optional<CsvHeader>> header) &&
+        Initializer<std::optional<CsvHeader>> header) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(std::move(header)));
     }
     Options& set_assumed_header(
         std::initializer_list<absl::string_view> names) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      return set_assumed_header(Initializer<absl::optional<CsvHeader>>(names));
+      return set_assumed_header(Initializer<std::optional<CsvHeader>>(names));
     }
     Options&& set_assumed_header(
         std::initializer_list<absl::string_view> names) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(names));
     }
-    absl::optional<CsvHeader>& assumed_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    std::optional<CsvHeader>& assumed_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return assumed_header_;
     }
-    const absl::optional<CsvHeader>& assumed_header() const
+    const std::optional<CsvHeader>& assumed_header() const
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return assumed_header_;
     }
@@ -175,22 +174,22 @@ class CsvReaderBase : public Object {
 
     // Comment character.
     //
-    // If not `absl::nullopt`, a line beginning with this character is skipped.
+    // If not `std::nullopt`, a line beginning with this character is skipped.
     // This is not covered by RFC4180.
     //
     // Often used: '#'.
     //
-    // Default: `absl::nullopt`.
-    Options& set_comment(absl::optional<char> comment) &
+    // Default: `std::nullopt`.
+    Options& set_comment(std::optional<char> comment) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       comment_ = comment;
       return *this;
     }
-    Options&& set_comment(absl::optional<char> comment) &&
+    Options&& set_comment(std::optional<char> comment) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_comment(comment));
     }
-    absl::optional<char> comment() const { return comment_; }
+    std::optional<char> comment() const { return comment_; }
 
     // Field separator.
     //
@@ -215,43 +214,43 @@ class CsvReaderBase : public Object {
     // To express a quote itself inside a field, it must be written twice when
     // the field is quoted, or preceded by an escape character.
     //
-    // If `quote()` and `escape()` are both `absl::nullopt`, special characters
+    // If `quote()` and `escape()` are both `std::nullopt`, special characters
     // inside fields are not expressible.
     //
     // Default: '"'.
-    Options& set_quote(absl::optional<char> quote) &
+    Options& set_quote(std::optional<char> quote) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       quote_ = quote;
       return *this;
     }
-    Options&& set_quote(absl::optional<char> quote) &&
+    Options&& set_quote(std::optional<char> quote) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_quote(quote));
     }
-    absl::optional<char> quote() const { return quote_; }
+    std::optional<char> quote() const { return quote_; }
 
     // Escape character.
     //
-    // If not `absl::nullopt`, a character preceded by escape is treated
+    // If not `std::nullopt`, a character preceded by escape is treated
     // literally instead of possibly having a special meaning. This allows
     // expressing special characters inside a field: LF, CR, comment character,
     // field separator, or escape character itself. This is not covered by
     // RFC4180.
     //
-    // If `quote()` and `escape()` are both `absl::nullopt`, special characters
+    // If `quote()` and `escape()` are both `std::nullopt`, special characters
     // inside fields are not expressible.
     //
-    // Default: `absl::nullopt`.
-    Options& set_escape(absl::optional<char> escape) &
+    // Default: `std::nullopt`.
+    Options& set_escape(std::optional<char> escape) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       escape_ = escape;
       return *this;
     }
-    Options&& set_escape(absl::optional<char> escape) &&
+    Options&& set_escape(std::optional<char> escape) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_escape(escape));
     }
-    absl::optional<char> escape() const { return escape_; }
+    std::optional<char> escape() const { return escape_; }
 
     // Expected maximum number of fields.
     //
@@ -303,7 +302,7 @@ class CsvReaderBase : public Object {
     // `false`, reading ends as if the end of source was encountered.
     //
     // Recovery is not applicable to reading the header with
-    // `Options::required_header() != absl::nullopt`.
+    // `Options::required_header() != std::nullopt`.
     //
     // Calling `ReadRecord()` may cause the recovery function to be called (in
     // the same thread).
@@ -332,14 +331,14 @@ class CsvReaderBase : public Object {
     }
 
    private:
-    absl::optional<CsvHeader> required_header_;
-    absl::optional<CsvHeader> assumed_header_;
+    std::optional<CsvHeader> required_header_;
+    std::optional<CsvHeader> assumed_header_;
     bool preserve_utf8_bom_ = false;
     bool skip_empty_lines_ = false;
-    absl::optional<char> comment_;
+    std::optional<char> comment_;
     char field_separator_ = ',';
-    absl::optional<char> quote_ = '"';
-    absl::optional<char> escape_;
+    std::optional<char> quote_ = '"';
+    std::optional<char> escape_;
     size_t max_num_fields_ = std::numeric_limits<size_t>::max();
     size_t max_field_length_ = std::numeric_limits<size_t>::max();
     std::function<bool(absl::Status, CsvReaderBase&)> recovery_;
@@ -358,8 +357,8 @@ class CsvReaderBase : public Object {
   }
 
   // Returns `true` if reading the header was requested or assumed, i.e.
-  // `Options::required_header() != absl::nullopt ||
-  //  Options::assumed_header() != absl::nullopt`.
+  // `Options::required_header() != std::nullopt ||
+  //  Options::assumed_header() != std::nullopt`.
   //
   // In this case `ReadRecord(CsvRecord&)` is supported. Otherwise no particular
   // header is assumed, and only `ReadRecord(std::vector<std::string>&)` is
@@ -386,8 +385,8 @@ class CsvReaderBase : public Object {
   // been verified in the `header()`.
   //
   // Precondition:
-  //   `has_header()`, i.e. `Options::required_header() != absl::nullopt ||
-  //                         Options::assumed_hedaer() != absl::nullopt`
+  //   `has_header()`, i.e. `Options::required_header() != std::nullopt ||
+  //                         Options::assumed_hedaer() != std::nullopt`
   //
   // Return values:
   //  * `true`                 - success (`record` is set)
@@ -417,7 +416,7 @@ class CsvReaderBase : public Object {
   // The index of the most recently read record, starting from 0.
   //
   // The record count does not include any header read with
-  // `Options::required_header() != absl::nullopt`.
+  // `Options::required_header() != std::nullopt`.
   //
   // `last_record_index()` is unchanged by `Close()`.
   //
@@ -427,7 +426,7 @@ class CsvReaderBase : public Object {
   // The index of the next record, starting from 0.
   //
   // The record count does not include any header read with
-  // `Options::required_header() != absl::nullopt`.
+  // `Options::required_header() != std::nullopt`.
   //
   // `record_index()` is unchanged by `Close()`.
   uint64_t record_index() const { return record_index_; }
@@ -602,7 +601,7 @@ explicit CsvReader(Src&& src,
 //
 // A record terminator must not be present in the string.
 //
-// Precondition: `options.required_header() == absl::nullopt`
+// Precondition: `options.required_header() == std::nullopt`
 absl::Status ReadCsvRecordFromString(
     absl::string_view src, std::vector<std::string>& record,
     CsvReaderBase::Options options = CsvReaderBase::Options());

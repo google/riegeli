@@ -17,8 +17,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
+
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli::varint_internal {
@@ -27,9 +28,9 @@ namespace {
 
 template <bool canonical>
 inline bool ReadVarint32Fast(Reader& src, uint32_t& dest) {
-  const absl::optional<const char*> cursor =
+  const std::optional<const char*> cursor =
       ReadVarint32(src.cursor(), src.limit(), dest);
-  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return false;
+  if (ABSL_PREDICT_FALSE(cursor == std::nullopt)) return false;
   if (canonical && ABSL_PREDICT_FALSE((*cursor)[-1] == 0)) return false;
   src.set_cursor(*cursor);
   return true;
@@ -37,9 +38,9 @@ inline bool ReadVarint32Fast(Reader& src, uint32_t& dest) {
 
 template <bool canonical>
 inline bool ReadVarint64Fast(Reader& src, uint64_t& dest) {
-  const absl::optional<const char*> cursor =
+  const std::optional<const char*> cursor =
       ReadVarint64(src.cursor(), src.limit(), dest);
-  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return false;
+  if (ABSL_PREDICT_FALSE(cursor == std::nullopt)) return false;
   if (canonical && ABSL_PREDICT_FALSE((*cursor)[-1] == 0)) return false;
   src.set_cursor(*cursor);
   return true;
@@ -148,12 +149,12 @@ template bool ReadVarint32Slow<true>(Reader& src, uint32_t& dest);
 template bool ReadVarint64Slow<false>(Reader& src, uint64_t& dest);
 template bool ReadVarint64Slow<true>(Reader& src, uint64_t& dest);
 
-absl::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
-                                             uint32_t acc, uint32_t& dest) {
+std::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
+                                            uint32_t acc, uint32_t& dest) {
   uint8_t byte;
   size_t shift = kReadVarintSlowThreshold;
   do {
-    if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
+    if (ABSL_PREDICT_FALSE(src == limit)) return std::nullopt;
     byte = static_cast<uint8_t>(*src++);
     acc += (uint32_t{byte} - 1) << shift;
     shift += 7;
@@ -163,7 +164,7 @@ absl::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
               byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
         // The representation is longer than `kMaxLengthVarint32`
         // or the represented value does not fit in `uint32_t`.
-        return absl::nullopt;
+        return std::nullopt;
       }
       break;
     }
@@ -172,12 +173,12 @@ absl::optional<const char*> ReadVarint32Slow(const char* src, const char* limit,
   return src;
 }
 
-absl::optional<const char*> ReadVarint64Slow(const char* src, const char* limit,
-                                             uint64_t acc, uint64_t& dest) {
+std::optional<const char*> ReadVarint64Slow(const char* src, const char* limit,
+                                            uint64_t acc, uint64_t& dest) {
   uint8_t byte;
   size_t shift = kReadVarintSlowThreshold;
   do {
-    if (ABSL_PREDICT_FALSE(src == limit)) return absl::nullopt;
+    if (ABSL_PREDICT_FALSE(src == limit)) return std::nullopt;
     byte = static_cast<uint8_t>(*src++);
     acc += (uint64_t{byte} - 1) << shift;
     shift += 7;
@@ -187,7 +188,7 @@ absl::optional<const char*> ReadVarint64Slow(const char* src, const char* limit,
               byte >= uint8_t{1} << (64 - (kMaxLengthVarint64 - 1) * 7))) {
         // The representation is longer than `kMaxLengthVarint64`
         // or the represented value does not fit in `uint64_t`.
-        return absl::nullopt;
+        return std::nullopt;
       }
       break;
     }

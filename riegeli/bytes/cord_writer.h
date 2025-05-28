@@ -20,6 +20,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -27,7 +28,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -148,7 +148,7 @@ class CordWriterBase : public Writer {
   void Initialize(absl::Cord* dest, bool append);
 
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
   bool WriteSlow(ExternalRef src) override;
@@ -159,7 +159,7 @@ class CordWriterBase : public Writer {
   bool WriteSlow(ByteFill src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
@@ -197,7 +197,7 @@ class CordWriterBase : public Writer {
   // the whole `*tail_`.
   void ShrinkTail(size_t length);
 
-  absl::optional<Position> size_hint_;
+  std::optional<Position> size_hint_;
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
   uint32_t max_block_size_ =
@@ -343,7 +343,7 @@ inline CordWriterBase& CordWriterBase::operator=(
 
 inline void CordWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   min_block_size_ = uint32_t{kDefaultMinBlockSize};
   max_block_size_ =
       uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
@@ -355,7 +355,7 @@ inline void CordWriterBase::Reset(Closed) {
 
 inline void CordWriterBase::Reset(const Options& options) {
   Writer::Reset();
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   min_block_size_ = IntCast<uint32_t>(options.min_block_size());
   max_block_size_ = IntCast<uint32_t>(options.max_block_size());
   if (tail_ != nullptr) tail_->Clear();

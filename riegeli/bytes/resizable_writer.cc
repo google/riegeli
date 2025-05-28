@@ -18,11 +18,11 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -59,8 +59,8 @@ inline void ResizableWriterBase::MakeSecondaryBuffer(
 }
 
 void ResizableWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
-  if (write_size_hint == absl::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
+    std::optional<Position> write_size_hint) {
+  if (write_size_hint == std::nullopt || ABSL_PREDICT_FALSE(!ok())) return;
   const size_t size_hint =
       UnsignedMax(SaturatingAdd(IntCast<size_t>(pos()),
                                 SaturatingIntCast<size_t>(*write_size_hint)),
@@ -312,8 +312,8 @@ bool ResizableWriterBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> ResizableWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> ResizableWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   return used_size();
 }
 

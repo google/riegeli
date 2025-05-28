@@ -20,12 +20,12 @@
 #include <ios>
 #include <iosfwd>
 #include <limits>
+#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
@@ -63,28 +63,28 @@ class WriterStreambuf::BufferSync {
   WriterStreambuf* streambuf_;
 };
 
-absl::optional<Position> WriterStreambuf::MoveBegin() {
+std::optional<Position> WriterStreambuf::MoveBegin() {
   // In a closed `WriterOstream`, `WriterOstream::writer_ != nullptr`
   // does not imply `WriterStreambuf::writer_ != nullptr`, because
   // `WriterOstream::streambuf_` can be left uninitialized.
-  if (writer_ == nullptr) return absl::nullopt;
+  if (writer_ == nullptr) return std::nullopt;
   if (reader_ != nullptr) {
     reader_->set_cursor(gptr());
     return reader_->pos();
   } else {
     writer_->set_cursor(pptr());
-    return absl::nullopt;
+    return std::nullopt;
   }
 }
 
 void WriterStreambuf::MoveEnd(Writer* dest,
-                              absl::optional<Position> reader_pos) {
+                              std::optional<Position> reader_pos) {
   // In a closed `WriterOStream`, `WriterOStream::writer_ != nullptr`
   // does not imply `WriterStreambuf::writer_ != nullptr`, because
   // `WriterOStream::streambuf_` can be left uninitialized.
   if (writer_ == nullptr) return;
   writer_ = dest;
-  if (reader_pos != absl::nullopt) {
+  if (reader_pos != std::nullopt) {
     reader_ = writer_->ReadMode(*reader_pos);
     if (ABSL_PREDICT_FALSE(reader_ == nullptr)) {
       FailWriter();
@@ -325,14 +325,14 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       }
       break;
     case std::ios_base::end: {
-      absl::optional<Position> size;
+      std::optional<Position> size;
       if (reader_ != nullptr) {
         if (ABSL_PREDICT_FALSE(!reader_->SupportsSize())) {
           // Indicate that `seekoff(std::ios_base::end)` is not supported.
           return std::streampos(std::streamoff{-1});
         }
         size = reader_->Size();
-        if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+        if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
           FailReader();
           return std::streampos(std::streamoff{-1});
         }
@@ -342,7 +342,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
           return std::streampos(std::streamoff{-1});
         }
         size = writer_->Size();
-        if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+        if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
           FailWriter();
           return std::streampos(std::streamoff{-1});
         }

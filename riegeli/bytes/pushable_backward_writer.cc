@@ -18,6 +18,7 @@
 
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -232,8 +232,8 @@ bool PushableBackwardWriter::WriteBehindScratch(const absl::Cord& src) {
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Cord): "
          "scratch used";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     return Write(*flat);
   }
   if (src.size() <= available()) {

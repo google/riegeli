@@ -18,11 +18,11 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -72,7 +72,7 @@ inline bool BufferedWriter::SyncBuffer() {
 }
 
 void BufferedWriter::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   buffer_sizer_.set_write_size_hint(pos(), write_size_hint);
 }
 
@@ -114,12 +114,12 @@ bool BufferedWriter::SeekBehindBuffer(Position new_pos) {
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 
-absl::optional<Position> BufferedWriter::SizeBehindBuffer() {
+std::optional<Position> BufferedWriter::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   Fail(absl::UnimplementedError("Writer::Size() not supported"));
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 bool BufferedWriter::TruncateBehindBuffer(Position new_size) {
@@ -191,11 +191,11 @@ bool BufferedWriter::SeekSlow(Position new_pos) {
   return result;
 }
 
-absl::optional<Position> BufferedWriter::SizeImpl() {
+std::optional<Position> BufferedWriter::SizeImpl() {
   buffer_sizer_.EndRun(start_pos() + UnsignedMax(start_to_cursor(), written_));
-  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return absl::nullopt;
-  const absl::optional<Position> size = SizeBehindBuffer();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!SyncBuffer())) return std::nullopt;
+  const std::optional<Position> size = SizeBehindBuffer();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return std::nullopt;
   buffer_sizer_.BeginRun(start_pos());
   return *size;
 }

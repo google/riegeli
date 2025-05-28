@@ -20,12 +20,12 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/initializer.h"
@@ -40,7 +40,7 @@ class WriterCFileOptions {
  public:
   WriterCFileOptions() noexcept {}
 
-  // If `absl::nullopt`, `fflush()` pushes data buffered in the `FILE` to the
+  // If `std::nullopt`, `fflush()` pushes data buffered in the `FILE` to the
   // `Writer`, but does not call `Writer::Flush()`. There is no way to trigger
   // `Writer::Flush()` from the `FILE`.
   //
@@ -52,20 +52,20 @@ class WriterCFileOptions {
   // There is no way for `WriterCFile()` to distinguish `fflush()` from the
   // `FILE` buffer being full, hence this option.
   //
-  // Default: `absl::nullopt`.
-  WriterCFileOptions& set_flush_type(absl::optional<FlushType> flush_type) &
+  // Default: `std::nullopt`.
+  WriterCFileOptions& set_flush_type(std::optional<FlushType> flush_type) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     flush_type_ = flush_type;
     return *this;
   }
-  WriterCFileOptions&& set_flush_type(absl::optional<FlushType> flush_type) &&
+  WriterCFileOptions&& set_flush_type(std::optional<FlushType> flush_type) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_flush_type(flush_type));
   }
-  absl::optional<FlushType> flush_type() const { return flush_type_; }
+  std::optional<FlushType> flush_type() const { return flush_type_; }
 
  private:
-  absl::optional<FlushType> flush_type_;
+  std::optional<FlushType> flush_type_;
 };
 
 // A `FILE` which writes data to a `Writer`.
@@ -113,13 +113,13 @@ class WriterCFileCookieBase {
 
   // Use `int64_t` instead of `off64_t` to avoid a dependency on
   // `#define _GNU_SOURCE` in a header.
-  absl::optional<int64_t> Seek(int64_t offset, int whence);
+  std::optional<int64_t> Seek(int64_t offset, int whence);
 
   // Returns 0 on success, or `errno` value on failure.
   virtual int Close() = 0;
 
  protected:
-  explicit WriterCFileCookieBase(absl::optional<FlushType> flush_type) noexcept
+  explicit WriterCFileCookieBase(std::optional<FlushType> flush_type) noexcept
       : flush_type_(flush_type) {}
 
   WriterCFileCookieBase(const WriterCFileCookieBase&) = delete;
@@ -129,7 +129,7 @@ class WriterCFileCookieBase {
 
   void Initialize(Writer* writer);
 
-  absl::optional<FlushType> flush_type_;
+  std::optional<FlushType> flush_type_;
   // If `nullptr`, `*DestWriter()` was used last time. If not `nullptr`,
   // `*reader_` was used last time.
   Reader* reader_ = nullptr;
@@ -139,7 +139,7 @@ template <typename Dest>
 class WriterCFileCookie : public WriterCFileCookieBase {
  public:
   explicit WriterCFileCookie(Initializer<Dest> dest,
-                             absl::optional<FlushType> flush_type)
+                             std::optional<FlushType> flush_type)
       : WriterCFileCookieBase(flush_type), dest_(std::move(dest)) {
     Initialize(dest_.get());
   }

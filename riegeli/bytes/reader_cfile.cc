@@ -26,10 +26,10 @@
 
 #include <cerrno>
 #include <limits>
+#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
@@ -51,15 +51,15 @@ inline ssize_t ReaderCFileCookieBase::Read(char* dest, size_t length) {
   return IntCast<ssize_t>(length_read);
 }
 
-inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
-                                                           int whence) {
+inline std::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
+                                                          int whence) {
   Reader& reader = *SrcReader();
   Position new_pos;
   switch (whence) {
     case SEEK_SET:
       if (ABSL_PREDICT_FALSE(offset < 0)) {
         errno = EINVAL;
-        return absl::nullopt;
+        return std::nullopt;
       }
       new_pos = IntCast<Position>(offset);
       break;
@@ -68,13 +68,13 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
       if (offset < 0) {
         if (ABSL_PREDICT_FALSE(NegatingUnsignedCast(offset) > new_pos)) {
           errno = EINVAL;
-          return absl::nullopt;
+          return std::nullopt;
         }
         new_pos -= NegatingUnsignedCast(offset);
         if (ABSL_PREDICT_FALSE(new_pos >
                                Position{std::numeric_limits<int64_t>::max()})) {
           errno = EINVAL;
-          return absl::nullopt;
+          return std::nullopt;
         }
       } else {
         if (ABSL_PREDICT_FALSE(
@@ -82,7 +82,7 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
                 IntCast<Position>(offset) >
                     Position{std::numeric_limits<int64_t>::max()} - new_pos)) {
           errno = EINVAL;
-          return absl::nullopt;
+          return std::nullopt;
         }
         new_pos += IntCast<Position>(offset);
       }
@@ -91,23 +91,23 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
       if (ABSL_PREDICT_FALSE(!reader.SupportsSize())) {
         // Indicate that `fseek(SEEK_END)` is not supported.
         errno = ESPIPE;
-        return absl::nullopt;
+        return std::nullopt;
       }
-      const absl::optional<Position> size = reader.Size();
-      if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      const std::optional<Position> size = reader.Size();
+      if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
         errno = StatusCodeToErrno(reader.status().code());
-        return absl::nullopt;
+        return std::nullopt;
       }
       if (ABSL_PREDICT_FALSE(offset > 0 ||
                              NegatingUnsignedCast(offset) > *size)) {
         errno = EINVAL;
-        return absl::nullopt;
+        return std::nullopt;
       }
       new_pos = *size - NegatingUnsignedCast(offset);
       if (ABSL_PREDICT_FALSE(new_pos >
                              Position{std::numeric_limits<int64_t>::max()})) {
         errno = EINVAL;
-        return absl::nullopt;
+        return std::nullopt;
       }
     } break;
     default:
@@ -118,7 +118,7 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
   } else if (ABSL_PREDICT_FALSE(!reader.SupportsRewind())) {
     // Indicate that `fseek()` is not supported.
     errno = ESPIPE;
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(!reader.Seek(new_pos))) {
     if (ABSL_PREDICT_FALSE(!reader.ok())) {
@@ -126,7 +126,7 @@ inline absl::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
     } else {
       errno = EINVAL;
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
   return IntCast<int64_t>(new_pos);
 }
@@ -141,10 +141,10 @@ static ssize_t ReaderCFileRead(void* cookie, char* buf, size_t size) {
 }
 
 static int ReaderCFileSeek(void* cookie, off64_t* offset, int whence) {
-  const absl::optional<int64_t> new_pos =
+  const std::optional<int64_t> new_pos =
       static_cast<ReaderCFileCookieBase*>(cookie)->Seek(
           IntCast<int64_t>(*offset), whence);
-  if (ABSL_PREDICT_FALSE(new_pos == absl::nullopt)) {
+  if (ABSL_PREDICT_FALSE(new_pos == std::nullopt)) {
     *offset = -1;
     return -1;
   }

@@ -20,12 +20,12 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/crc/crc32c.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/byte_fill.h"
 
@@ -81,14 +81,14 @@ inline void Crc32cDigester::Write(absl::string_view src) {
 }
 
 inline void Crc32cDigester::Write(const absl::Cord& src) {
-  if (const absl::optional<uint32_t> src_crc = src.ExpectedChecksum();
-      src_crc != absl::nullopt) {
+  if (const std::optional<uint32_t> src_crc = src.ExpectedChecksum();
+      src_crc != std::nullopt) {
     crc_ = static_cast<uint32_t>(absl::ConcatCrc32c(
         absl::crc32c_t{crc_}, absl::crc32c_t{*src_crc}, src.size()));
     return;
   }
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     crc_ =
         static_cast<uint32_t>(absl::ExtendCrc32c(absl::crc32c_t{crc_}, *flat));
     return;

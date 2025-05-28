@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -26,7 +27,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -112,8 +112,8 @@ bool Writer::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     return Write(*flat);
   }
   for (const absl::string_view fragment : src.Chunks()) {
@@ -160,9 +160,9 @@ bool Writer::SeekSlow(Position new_pos) {
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 
-absl::optional<Position> Writer::SizeImpl() {
+std::optional<Position> Writer::SizeImpl() {
   Fail(absl::UnimplementedError("Writer::Size() not supported"));
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 bool Writer::TruncateImpl(Position new_size) {

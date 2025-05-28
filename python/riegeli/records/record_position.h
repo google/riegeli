@@ -22,7 +22,8 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
-#include "absl/types/optional.h"
+#include <optional>
+
 #include "python/riegeli/base/utils.h"
 #include "riegeli/records/record_position.h"
 
@@ -36,7 +37,7 @@ namespace riegeli::python {
 
 struct RecordPositionApi {
   PythonPtr (*RecordPositionToPython)(FutureRecordPosition value);
-  absl::optional<RecordPosition> (*RecordPositionFromPython)(PyObject* object);
+  std::optional<RecordPosition> (*RecordPositionFromPython)(PyObject* object);
 };
 
 inline constexpr const char* kRecordPositionCapsuleName =

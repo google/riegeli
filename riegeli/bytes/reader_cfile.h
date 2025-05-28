@@ -20,12 +20,12 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
@@ -74,7 +74,7 @@ class ReaderCFileCookieBase {
 
   // Use `int64_t` instead of `off64_t` to avoid a dependency on
   // `#define _GNU_SOURCE` in a header.
-  absl::optional<int64_t> Seek(int64_t offset, int whence);
+  std::optional<int64_t> Seek(int64_t offset, int whence);
 
   // Returns 0 on success, or `errno` value on failure.
   virtual int Close() = 0;

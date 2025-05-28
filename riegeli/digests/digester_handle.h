@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <cstddef>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -29,7 +30,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/bytes_ref.h"
@@ -67,7 +67,7 @@ struct SupportsDigesterBaseHandle<
 //   // All of the following methods returning `bool` return `true` on success.
 //   // They may also return `void` which is treated as `true`.
 //
-//   // If `write_size_hint` is not `absl::nullopt`, hints that this amount of
+//   // If `write_size_hint` is not `std::nullopt`, hints that this amount of
 //   // data will be written from the current position. This may improve
 //   // performance and memory usage.
 //   //
@@ -75,7 +75,7 @@ struct SupportsDigesterBaseHandle<
 //   // if `write_size_hint` is slightly too large than slightly too small.
 //   //
 //   // Optional. If absent, does nothing.
-//   void SetWriteSizeHint(absl::optional<Position> write_size_hint);
+//   void SetWriteSizeHint(std::optional<Position> write_size_hint);
 //
 //   // Called with consecutive fragments of data.
 //   //
@@ -152,13 +152,13 @@ class
     return a.target() == nullptr;
   }
 
-  // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
+  // If `write_size_hint` is not `std::nullopt`, hints that this amount of data
   // will be written from the current position. This may improve performance and
   // memory usage.
   //
   // If the hint turns out to not match reality, nothing breaks. It is better if
   // `write_size_hint` is slightly too large than slightly too small.
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint) {
+  void SetWriteSizeHint(std::optional<Position> write_size_hint) {
     methods_->set_write_size_hint(target_, write_size_hint);
   }
 
@@ -252,7 +252,7 @@ class
   template <typename T>
   struct DigesterTargetHasSetWriteSizeHint<
       T, absl::void_t<decltype(std::declval<T&>().SetWriteSizeHint(
-             std::declval<absl::optional<Position>>()))>> : std::true_type {};
+             std::declval<std::optional<Position>>()))>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasWriteChain : std::false_type {};
@@ -297,7 +297,7 @@ class
 
   static void SetWriteSizeHintMethodDefault(
       ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
+      ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
 
   static bool WriteMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
                                  ABSL_ATTRIBUTE_UNUSED absl::string_view src) {
@@ -335,7 +335,7 @@ class
       typename T,
       std::enable_if_t<DigesterTargetHasSetWriteSizeHint<T>::value, int> = 0>
   static void SetWriteSizeHintMethod(TypeErasedRef target,
-                                     absl::optional<Position> write_size_hint) {
+                                     std::optional<Position> write_size_hint) {
     target.Cast<T&>().SetWriteSizeHint(write_size_hint);
   }
   template <
@@ -343,7 +343,7 @@ class
       std::enable_if_t<!DigesterTargetHasSetWriteSizeHint<T>::value, int> = 0>
   static void SetWriteSizeHintMethod(
       ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
+      ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
 
   template <typename T>
   static auto RawWriteMethod(TypeErasedRef target, absl::string_view src) {
@@ -437,7 +437,7 @@ class
  protected:
   struct Methods {
     void (*set_write_size_hint)(TypeErasedRef target,
-                                absl::optional<Position> write_size_hint);
+                                std::optional<Position> write_size_hint);
     bool (*write)(TypeErasedRef target, absl::string_view src);
     bool (*write_chain)(TypeErasedRef target, const Chain& src);
     bool (*write_cord)(TypeErasedRef target, const absl::Cord& src);

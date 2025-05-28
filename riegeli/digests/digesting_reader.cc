@@ -18,6 +18,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -26,7 +27,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -201,11 +201,11 @@ bool DigestingReaderBase::SupportsSize() {
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> DigestingReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> DigestingReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Reader& src = *SrcReader();
-  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return absl::nullopt;
-  const absl::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return std::nullopt;
+  const std::optional<Position> size = src.Size();
   MakeBuffer(src);
   return size;
 }

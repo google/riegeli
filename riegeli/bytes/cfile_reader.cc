@@ -37,6 +37,7 @@
 
 #include <cerrno>
 #include <limits>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -46,7 +47,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
@@ -118,7 +118,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "random_access_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, absl::nullopt)
+  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "original_mode_ not reset";
 #endif
@@ -141,7 +141,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
     }
     original_mode_ = original_mode;
   }
-  if (options.assumed_pos() == absl::nullopt) {
+  if (options.assumed_pos() == std::nullopt) {
     if (text_mode == 0) {
       const int fd = _fileno(src);
       if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -162,7 +162,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
     if (text_mode != _O_BINARY) options.set_assumed_pos(0);
   }
 #endif  // _WIN32
-  if (options.assumed_pos() != absl::nullopt) {
+  if (options.assumed_pos() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *options.assumed_pos() >
             Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
@@ -263,7 +263,7 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
 void CFileReaderBase::Done() {
   BufferedReader::Done();
 #ifdef _WIN32
-  if (original_mode_ != absl::nullopt) {
+  if (original_mode_ != std::nullopt) {
     FILE* const src = SrcFile();
     const int fd = _fileno(src);
     if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -354,7 +354,7 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
   FILE* const src = SrcFile();
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(new_pos > *exact_size())) {
         // File ends.
         if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
@@ -389,28 +389,28 @@ bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> CFileReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (exact_size() != absl::nullopt) return *exact_size();
+std::optional<Position> CFileReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
+  if (exact_size() != std::nullopt) return *exact_size();
   if (ABSL_PREDICT_FALSE(!CFileReaderBase::SupportsRandomAccess())) {
     Fail(random_access_status_);
-    return absl::nullopt;
+    return std::nullopt;
   }
   FILE* const src = SrcFile();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(src, 0, SEEK_END)) != 0) {
     FailOperation(cfile_internal::kFSeekFunctionName);
-    return absl::nullopt;
+    return std::nullopt;
   }
   const cfile_internal::Offset file_size = cfile_internal::FTell(src);
   if (ABSL_PREDICT_FALSE(file_size < 0)) {
     FailOperation(cfile_internal::kFTellFunctionName);
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
                              src, IntCast<cfile_internal::Offset>(limit_pos()),
                              SEEK_SET) != 0)) {
     FailOperation(cfile_internal::kFSeekFunctionName);
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (!growing_source_) set_exact_size(IntCast<Position>(file_size));
   return IntCast<Position>(file_size);

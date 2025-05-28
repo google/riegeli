@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <string>
 #include <utility>
@@ -31,7 +32,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -264,8 +264,8 @@ inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
   RIEGELI_ASSERT_OK(record)
       << "Failed precondition of TransposeEncoder::AddRecordInternal()";
   const Position pos_before = record.pos();
-  absl::optional<Position> size = record.Size();
-  RIEGELI_ASSERT(size != absl::nullopt) << record.status();
+  std::optional<Position> size = record.Size();
+  RIEGELI_ASSERT(size != std::nullopt) << record.status();
   RIEGELI_ASSERT_LE(pos_before, *size)
       << "Current position after the end of record";
   *size -= pos_before;
@@ -356,9 +356,9 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
           uint64_t value[2];
           static_assert(sizeof(value) >= kMaxLengthVarint64,
                         "value too small to hold a varint64");
-          const absl::optional<size_t> value_length =
+          const std::optional<size_t> value_length =
               CopyVarint64(limited_record, reinterpret_cast<char*>(value));
-          RIEGELI_ASSERT(value_length != absl::nullopt)
+          RIEGELI_ASSERT(value_length != std::nullopt)
               << "Invalid varint: " << limited_record.status();
           if (reinterpret_cast<const unsigned char*>(value)[0] <=
               kMaxVarintInline) {
@@ -468,12 +468,12 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
 }
 
 inline bool TransposeEncoder::AddBuffer(
-    absl::optional<size_t> new_uncompressed_bucket_size, const Chain& buffer,
+    std::optional<size_t> new_uncompressed_bucket_size, const Chain& buffer,
     chunk_encoding_internal::Compressor& bucket_compressor, Writer& data_writer,
     std::vector<size_t>& compressed_bucket_sizes,
     std::vector<size_t>& buffer_sizes) {
   buffer_sizes.push_back(buffer.size());
-  if (new_uncompressed_bucket_size != absl::nullopt) {
+  if (new_uncompressed_bucket_size != std::nullopt) {
     if (bucket_compressor.writer().pos() > 0) {
       const Position pos_before = data_writer.pos();
       if (ABSL_PREDICT_FALSE(!bucket_compressor.EncodeAndClose(data_writer))) {
@@ -556,7 +556,7 @@ inline bool TransposeEncoder::WriteBuffers(
 
     current_bucket_size = 0;
     for (const BufferWithMetadata& buffer : buffers) {
-      absl::optional<size_t> new_uncompressed_bucket_size;
+      std::optional<size_t> new_uncompressed_bucket_size;
       if (current_bucket_size == 0) {
         RIEGELI_ASSERT(!uncompressed_bucket_sizes.empty())
             << "Bucket sizes and buffer sizes do not match";
@@ -806,7 +806,7 @@ inline bool TransposeEncoder::WriteTransitions(
   // needed for optimal `max_transition == 63`.
   constexpr size_t kWriteBufSize = 32;
   uint8_t write[kWriteBufSize];
-  absl::optional<uint8_t> last_transition;
+  std::optional<uint8_t> last_transition;
   // Go through all transitions and encode them.
   for (uint32_t i = IntCast<uint32_t>(encoded_tags_.size() - 1); i > 0; --i) {
     // There are multiple options how transition may be encoded:
@@ -853,11 +853,11 @@ inline bool TransposeEncoder::WriteTransitions(
           write[--write_start] = IntCast<uint8_t>(pos - current_base);
 
           for (size_t j = write_start; j < kWriteBufSize; ++j) {
-            if (write[j] == 0 && last_transition != absl::nullopt &&
+            if (write[j] == 0 && last_transition != std::nullopt &&
                 (*last_transition & 3) < 3) {
               ++*last_transition;
             } else {
-              if (last_transition != absl::nullopt) {
+              if (last_transition != std::nullopt) {
                 if (ABSL_PREDICT_FALSE(
                         !transitions_writer.WriteByte(*last_transition))) {
                   return Fail(transitions_writer.status());
@@ -895,11 +895,11 @@ inline bool TransposeEncoder::WriteTransitions(
       RIEGELI_ASSERT_NE(write_start, 0u) << "Write buffer overflow";
       write[--write_start] = IntCast<uint8_t>(pos - current_base);
       for (size_t j = write_start; j < kWriteBufSize; ++j) {
-        if (write[j] == 0 && last_transition != absl::nullopt &&
+        if (write[j] == 0 && last_transition != std::nullopt &&
             (*last_transition & 3) < 3) {
           ++*last_transition;
         } else {
-          if (last_transition != absl::nullopt) {
+          if (last_transition != std::nullopt) {
             if (ABSL_PREDICT_FALSE(
                     !transitions_writer.WriteByte(*last_transition))) {
               return Fail(transitions_writer.status());
@@ -916,7 +916,7 @@ inline bool TransposeEncoder::WriteTransitions(
     prev_etag = tag;
     current_base = tags_list_[prev_etag].base;
   }
-  if (last_transition != absl::nullopt) {
+  if (last_transition != std::nullopt) {
     if (ABSL_PREDICT_FALSE(!transitions_writer.WriteByte(*last_transition))) {
       return Fail(transitions_writer.status());
     }

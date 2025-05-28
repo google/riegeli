@@ -22,8 +22,10 @@
 #include <future>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -35,8 +37,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/optional.h"
-#include "absl/types/variant.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message_lite.h"
@@ -118,7 +118,7 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   options_parser.AddOption(
       "chunk_size",
       ValueParser::Or(
-          ValueParser::Enum({{"auto", absl::nullopt}}, &chunk_size_),
+          ValueParser::Enum({{"auto", std::nullopt}}, &chunk_size_),
           ValueParser::And(
               ValueParser::Bytes(1, std::numeric_limits<uint64_t>::max(),
                                  &chunk_size),
@@ -294,7 +294,7 @@ inline bool RecordWriterBase::Worker::EncodeMetadata(Chunk& chunk) {
       TransposeEncoder::TuningOptions().set_recycling_pool_options(
           options_.recycling_pool_options()));
   if (ABSL_PREDICT_FALSE(
-          options_.metadata() != absl::nullopt
+          options_.metadata() != std::nullopt
               ? !transpose_encoder.AddRecord(*options_.metadata())
               : !transpose_encoder.AddRecord(
                     *options_.serialized_metadata()))) {
@@ -414,8 +414,8 @@ bool RecordWriterBase::SerialWorker::WriteSignature() {
 
 bool RecordWriterBase::SerialWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (options_.metadata() == absl::nullopt &&
-      options_.serialized_metadata() == absl::nullopt) {
+  if (options_.metadata() == std::nullopt &&
+      options_.serialized_metadata() == std::nullopt) {
     return true;
   }
   Chunk chunk;
@@ -528,8 +528,8 @@ class RecordWriterBase::ParallelWorker : public Worker {
     std::promise<absl::Status> done;
   };
   using ChunkWriterRequest =
-      absl::variant<DoneRequest, AnnotateStatusRequest, WriteChunkRequest,
-                    PadToBlockBoundaryRequest, FlushRequest>;
+      std::variant<DoneRequest, AnnotateStatusRequest, WriteChunkRequest,
+                   PadToBlockBoundaryRequest, FlushRequest>;
 
   bool HasCapacityForRequest() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   records_internal::FutureChunkBegin ChunkBegin() const;
@@ -604,7 +604,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
           &chunk_writer_requests_));
       ChunkWriterRequest& request = chunk_writer_requests_.front();
       mutex_.Unlock();
-      if (ABSL_PREDICT_FALSE(!absl::visit(Visitor{this}, request))) return;
+      if (ABSL_PREDICT_FALSE(!std::visit(Visitor{this}, request))) return;
       mutex_.Lock();
       chunk_writer_requests_.pop_front();
       pos_before_chunks_ = chunk_writer_->pos();
@@ -680,8 +680,8 @@ bool RecordWriterBase::ParallelWorker::WriteSignature() {
 
 bool RecordWriterBase::ParallelWorker::WriteMetadata() {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (options_.metadata() == absl::nullopt &&
-      options_.serialized_metadata() == absl::nullopt) {
+  if (options_.metadata() == std::nullopt &&
+      options_.serialized_metadata() == std::nullopt) {
     return true;
   }
   ChunkPromises* const chunk_promises = new ChunkPromises();
@@ -772,7 +772,7 @@ RecordWriterBase::ParallelWorker::ChunkBegin() const {
   absl::MutexLock lock(&mutex_);
   visitor.actions.reserve(chunk_writer_requests_.size());
   for (const ChunkWriterRequest& request : chunk_writer_requests_) {
-    absl::visit(visitor, request);
+    std::visit(visitor, request);
   }
   return records_internal::FutureChunkBegin(pos_before_chunks_,
                                             std::move(visitor.actions));
@@ -869,7 +869,7 @@ void RecordWriterBase::Done() {
     return;
   }
   if (chunk_size_so_far_ > 0) {
-    if (absl::holds_alternative<LastRecordIsValid>(last_record_)) {
+    if (std::holds_alternative<LastRecordIsValid>(last_record_)) {
       last_record_ = LastRecordIsValidAt{worker_->LastPos()};
     }
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
@@ -981,7 +981,7 @@ inline bool RecordWriterBase::WriteRecordImpl(size_t size, Args&&... args) {
 bool RecordWriterBase::Flush(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (chunk_size_so_far_ > 0) {
-    if (absl::holds_alternative<LastRecordIsValid>(last_record_)) {
+    if (std::holds_alternative<LastRecordIsValid>(last_record_)) {
       last_record_ = LastRecordIsValidAt{worker_->LastPos()};
     }
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
@@ -1011,7 +1011,7 @@ RecordWriterBase::FutureStatus RecordWriterBase::FutureFlush(
     return promise.get_future();
   }
   if (chunk_size_so_far_ > 0) {
-    if (absl::holds_alternative<LastRecordIsValid>(last_record_)) {
+    if (std::holds_alternative<LastRecordIsValid>(last_record_)) {
       last_record_ = LastRecordIsValidAt{worker_->LastPos()};
     }
     if (ABSL_PREDICT_FALSE(!worker_->CloseChunk())) {
@@ -1047,7 +1047,7 @@ FutureRecordPosition RecordWriterBase::LastPos() const {
       << "Failed precondition of RecordWriterBase::LastPos(): "
          "no record was recently written";
   if (const LastRecordIsValidAt* const last_record_at_pos =
-          absl::get_if<LastRecordIsValidAt>(&last_record_);
+          std::get_if<LastRecordIsValidAt>(&last_record_);
       last_record_at_pos != nullptr) {
     return last_record_at_pos->pos;
   }

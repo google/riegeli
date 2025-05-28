@@ -18,12 +18,12 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -70,36 +70,36 @@ class CordReaderBase : public PullableReader {
   bool CopyBehindScratch(Position length, Writer& dest) override;
   bool CopyBehindScratch(size_t length, BackwardWriter& dest) override;
   bool SeekBehindScratch(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
   // Invariant:
   //   if `!is_open()` or
   //      `*SrcCord()` is flat with size at most `kMaxBytesToCopy`
-  //       then `iter_ == absl::nullopt`
-  //       else `iter_ != absl::nullopt` and
+  //       then `iter_ == std::nullopt`
+  //       else `iter_ != std::nullopt` and
   //            `*iter_` reads from `*SrcCord()`
-  absl::optional<absl::Cord::CharIterator> iter_;
+  std::optional<absl::Cord::CharIterator> iter_;
 
  private:
   // Moves `*iter_` to account for data which have been read from the buffer.
   //
-  // Precondition: `iter_ != absl::nullopt`
+  // Precondition: `iter_ != std::nullopt`
   void SyncBuffer();
 
   // Sets buffer pointers to `absl::Cord::ChunkRemaining(*iter_)`,
   // or to `nullptr` if `*iter_ == src.char_end()`.
   //
-  // Precondition: `iter_ != absl::nullopt`
+  // Precondition: `iter_ != std::nullopt`
   void MakeBuffer(const absl::Cord& src);
 
-  // Invariants if `iter_ == absl::nullopt` and `is_open()`:
+  // Invariants if `iter_ == std::nullopt` and `is_open()`:
   //   scratch is not used
   //   `start() == SrcCord()->TryFlat()->data()`
   //   `start_to_limit() == SrcCord()->TryFlat()->size()`
   //   `start_pos() == 0`
   //
-  // Invariants if `iter_ != absl::nullopt` and scratch is not used:
+  // Invariants if `iter_ != std::nullopt` and scratch is not used:
   //   `start() == (*iter_ == SrcCord()->char_end()
   //                    ? nullptr
   //                    : absl::Cord::ChunkRemaining(*iter_).data())`
@@ -166,29 +166,29 @@ explicit CordReader(Src&& src) -> CordReader<TargetT<Src>>;
 
 inline CordReaderBase::CordReaderBase(CordReaderBase&& that) noexcept
     : PullableReader(static_cast<PullableReader&&>(that)),
-      iter_(std::exchange(that.iter_, absl::nullopt)) {}
+      iter_(std::exchange(that.iter_, std::nullopt)) {}
 
 inline CordReaderBase& CordReaderBase::operator=(
     CordReaderBase&& that) noexcept {
   PullableReader::operator=(static_cast<PullableReader&&>(that));
-  iter_ = std::exchange(that.iter_, absl::nullopt);
+  iter_ = std::exchange(that.iter_, std::nullopt);
   return *this;
 }
 
 inline void CordReaderBase::Reset(Closed) {
   PullableReader::Reset(kClosed);
-  iter_ = absl::nullopt;
+  iter_ = std::nullopt;
 }
 
 inline void CordReaderBase::Reset() {
   PullableReader::Reset();
-  iter_ = absl::nullopt;
+  iter_ = std::nullopt;
 }
 
 inline void CordReaderBase::Initialize(const absl::Cord* src) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of CordReader: null Cord pointer";
-  if (const absl::optional<absl::string_view> flat = src->TryFlat()) {
+  if (const std::optional<absl::string_view> flat = src->TryFlat()) {
     if (flat->size() <= kMaxBytesToCopy) {
       set_buffer(flat->data(), flat->size());
       move_limit_pos(available());
@@ -200,7 +200,7 @@ inline void CordReaderBase::Initialize(const absl::Cord* src) {
 }
 
 inline void CordReaderBase::MakeBuffer(const absl::Cord& src) {
-  RIEGELI_ASSERT(iter_ != absl::nullopt)
+  RIEGELI_ASSERT(iter_ != std::nullopt)
       << "Failed precondition of CordReaderBase::MakeBuffer(): "
          "no Cord iterator";
   if (*iter_ == src.char_end()) {
@@ -223,10 +223,10 @@ class CordReader<Src>::Mover {
         position_(IntCast<size_t>(self.start_pos())),
         start_to_cursor_(self.start_to_cursor()) {
 #if RIEGELI_DEBUG
-    if (self.iter_ == absl::nullopt) {
+    if (self.iter_ == std::nullopt) {
       if (uses_buffer_) {
-        const absl::optional<absl::string_view> flat = that.src_->TryFlat();
-        RIEGELI_ASSERT(flat != absl::nullopt)
+        const std::optional<absl::string_view> flat = that.src_->TryFlat();
+        RIEGELI_ASSERT(flat != std::nullopt)
             << "CordReader source changed unexpectedly";
         RIEGELI_ASSERT_EQ(flat->data(), self.start())
             << "CordReader source changed unexpectedly";
@@ -252,10 +252,10 @@ class CordReader<Src>::Mover {
   }
 
   void Done(CordReader& self) {
-    if (self.iter_ == absl::nullopt) {
+    if (self.iter_ == std::nullopt) {
       if (uses_buffer_) {
-        const absl::optional<absl::string_view> flat = self.src_->TryFlat();
-        RIEGELI_ASSERT(flat != absl::nullopt)
+        const std::optional<absl::string_view> flat = self.src_->TryFlat();
+        RIEGELI_ASSERT(flat != std::nullopt)
             << "CordReader source changed unexpectedly";
         self.set_buffer(flat->data(), flat->size(), start_to_cursor_);
       }

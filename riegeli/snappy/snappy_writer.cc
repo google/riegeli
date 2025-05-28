@@ -19,13 +19,13 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -61,7 +61,7 @@ void SnappyWriterBase::Done() {
 
 inline size_t SnappyWriterBase::MaxBytesToCopy() const {
   const size_t max_bytes_to_copy = ~IntCast<size_t>(pos()) & (kBlockSize - 1);
-  if (options_.size_hint() != absl::nullopt &&
+  if (options_.size_hint() != std::nullopt &&
       IntCast<size_t>(pos()) < *options_.size_hint()) {
     return UnsignedMin(*options_.size_hint() - IntCast<size_t>(pos()) - 1,
                        max_bytes_to_copy);
@@ -99,9 +99,9 @@ absl::Status SnappyWriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 void SnappyWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
-  if (write_size_hint == absl::nullopt) {
-    options_.set_size_hint(absl::nullopt);
+    std::optional<Position> write_size_hint) {
+  if (write_size_hint == std::nullopt) {
+    options_.set_size_hint(std::nullopt);
   } else {
     options_.set_size_hint(
         SaturatingIntCast<size_t>(SaturatingAdd(pos(), *write_size_hint)));
@@ -262,8 +262,8 @@ namespace snappy_internal {
 
 absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
                                 SnappyCompressOptions options) {
-  const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+  const std::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
   if (ABSL_PREDICT_FALSE(*size > std::numeric_limits<uint32_t>::max())) {
     return absl::ResourceExhaustedError(absl::StrCat(
         "Uncompressed data too large for snappy compression: ", *size, " > ",

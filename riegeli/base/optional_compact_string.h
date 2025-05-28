@@ -33,7 +33,7 @@
 
 namespace riegeli {
 
-// Similar to `absl::optional<CompactString>`, but takes up the same amount of
+// Similar to `std::optional<CompactString>`, but takes up the same amount of
 // space as `CompactString`.
 //
 // `OptionalCompactString` is either null or stores data equivalent to a

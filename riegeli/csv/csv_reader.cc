@@ -18,6 +18,7 @@
 
 #include <array>
 #include <functional>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,7 +27,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -46,16 +46,16 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
       << "Failed precondition of CsvReader: null Reader pointer";
   // Set `has_header_` before early returns because `ReadRecord(CsvRecord&)`
   // uses this as a precondition.
-  if (options.required_header() != absl::nullopt ||
-      options.assumed_header() != absl::nullopt) {
-    RIEGELI_ASSERT(options.required_header() == absl::nullopt ||
-                   options.assumed_header() == absl::nullopt)
+  if (options.required_header() != std::nullopt ||
+      options.assumed_header() != std::nullopt) {
+    RIEGELI_ASSERT(options.required_header() == std::nullopt ||
+                   options.assumed_header() == std::nullopt)
         << "Failed precondition of CsvReader: "
            "required_header() and assumed_header() both set";
     has_header_ = true;
   }
 
-  if (options.comment() != absl::nullopt &&
+  if (options.comment() != std::nullopt &&
       ABSL_PREDICT_FALSE(*options.comment() == '\n' ||
                          *options.comment() == '\r')) {
     Fail(absl::InvalidArgumentError(
@@ -76,7 +76,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
                      riegeli::Debug(options.field_separator()))));
     return;
   }
-  if (options.quote() != absl::nullopt) {
+  if (options.quote() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(*options.quote() == '\n' ||
                            *options.quote() == '\r')) {
       Fail(absl::InvalidArgumentError(
@@ -97,7 +97,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
       return;
     }
   }
-  if (options.escape() != absl::nullopt) {
+  if (options.escape() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(*options.escape() == '\n' ||
                            *options.escape() == '\r')) {
       Fail(absl::InvalidArgumentError(
@@ -127,17 +127,17 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
 
   char_classes_['\n'] = CharClass::kLf;
   char_classes_['\r'] = CharClass::kCr;
-  if (options.comment() != absl::nullopt) {
+  if (options.comment() != std::nullopt) {
     char_classes_[static_cast<unsigned char>(*options.comment())] =
         CharClass::kComment;
   }
   char_classes_[static_cast<unsigned char>(options.field_separator())] =
       CharClass::kFieldSeparator;
-  if (options.quote() != absl::nullopt) {
+  if (options.quote() != std::nullopt) {
     char_classes_[static_cast<unsigned char>(*options.quote())] =
         CharClass::kQuote;
   }
-  if (options.escape() != absl::nullopt) {
+  if (options.escape() != std::nullopt) {
     char_classes_[static_cast<unsigned char>(*options.escape())] =
         CharClass::kEscape;
   }
@@ -154,7 +154,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
 
   // Recovery is not applicable to reading the header. Hence `recovery_` is set
   // after reading the header.
-  if (options.required_header() != absl::nullopt) {
+  if (options.required_header() != std::nullopt) {
     std::vector<std::string> header;
     if (ABSL_PREDICT_FALSE(!ReadRecord(header))) {
       Fail(absl::InvalidArgumentError("Empty CSV file"));
@@ -195,7 +195,7 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
         }
       }
     }
-  } else if (options.assumed_header() != absl::nullopt) {
+  } else if (options.assumed_header() != std::nullopt) {
     header_ = *std::move(options.assumed_header());
   }
 
@@ -689,7 +689,7 @@ bool CsvReaderBase::HasNextRecord() {
 absl::Status ReadCsvRecordFromString(absl::string_view src,
                                      std::vector<std::string>& record,
                                      CsvReaderBase::Options options) {
-  RIEGELI_ASSERT(options.required_header() == absl::nullopt)
+  RIEGELI_ASSERT(options.required_header() == std::nullopt)
       << "Failed precondition of ReadCsvRecordFromString(): "
          "CsvReaderBase::Options::required_header() != nullopt not applicable";
   CsvReader<StringReader<>> csv_reader(riegeli::Maker(src), std::move(options));

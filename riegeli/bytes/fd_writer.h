@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #endif
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -29,7 +30,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
@@ -286,32 +286,32 @@ class FdWriterBase : public BufferedWriter {
     }
     OwnedFd::Permissions permissions() const { return permissions_; }
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current fd position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the fd supports random
     // access. On Windows binary mode is also required.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current fd
-    // position. Random access is not supported.
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current fd position.
+    // Random access is not supported.
     //
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // If `absl::nullopt`, `FdWriter` writes at the current fd position.
+    // If `std::nullopt`, `FdWriter` writes at the current fd position.
     //
-    // If not `absl::nullopt`, `FdWriter` writes starting from this position.
+    // If not `std::nullopt`, `FdWriter` writes starting from this position.
     // The current fd position is not disturbed except on Windows, where seeking
     // and writing is nevertheless atomic. This is useful for multiple writers
     // concurrently writing to disjoint regions of the same file. The fd must
@@ -323,19 +323,17 @@ class FdWriterBase : public BufferedWriter {
     // If the original open mode of the fd includes `O_APPEND` then
     // `independent_pos()` must not be set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_independent_pos(absl::optional<Position> independent_pos) &
+    // Default: `std::nullopt`.
+    Options& set_independent_pos(std::optional<Position> independent_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       independent_pos_ = independent_pos;
       return *this;
     }
-    Options&& set_independent_pos(absl::optional<Position> independent_pos) &&
+    Options&& set_independent_pos(std::optional<Position> independent_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_independent_pos(independent_pos));
     }
-    absl::optional<Position> independent_pos() const {
-      return independent_pos_;
-    }
+    std::optional<Position> independent_pos() const { return independent_pos_; }
 
    private:
 #ifndef _WIN32
@@ -345,8 +343,8 @@ class FdWriterBase : public BufferedWriter {
         _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY | fd_internal::kCloseOnExec;
 #endif
     OwnedFd::Permissions permissions_ = OwnedFd::kDefaultPermissions;
-    absl::optional<Position> assumed_pos_;
-    absl::optional<Position> independent_pos_;
+    std::optional<Position> assumed_pos_;
+    std::optional<Position> independent_pos_;
   };
 
   // Returns the `FdHandle` being written to. Unchanged by `Close()`.
@@ -398,7 +396,7 @@ class FdWriterBase : public BufferedWriter {
   bool FlushImpl(FlushType flush_type) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeBehindBuffer() override;
+  std::optional<Position> SizeBehindBuffer() override;
   bool TruncateBehindBuffer(Position new_size) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
@@ -436,7 +434,7 @@ class FdWriterBase : public BufferedWriter {
   absl::Status random_access_status_;
   absl::Status read_mode_status_;
 #ifdef _WIN32
-  absl::optional<int> original_mode_;
+  std::optional<int> original_mode_;
 #endif
 
   AssociatedReader<FdReader<UnownedFd>> associated_reader_;
@@ -451,41 +449,41 @@ class FdWriterBase : public BufferedWriter {
 #ifndef _WIN32
 //  * `fcntl()`     - for the constructor from fd
 //  * `close()`     - if the fd is owned
-//  * `write()`     - if `Options::independent_pos() == absl::nullopt`
-//  * `pwrite()`    - if `Options::independent_pos() != absl::nullopt`
+//  * `write()`     - if `Options::independent_pos() == std::nullopt`
+//  * `pwrite()`    - if `Options::independent_pos() != std::nullopt`
 //  * `lseek()`     - for `Seek()`, `Size()`, or `Truncate()`,
-//                    if `Options::independent_pos() == absl::nullopt`
+//                    if `Options::independent_pos() == std::nullopt`
 //  * `fstat()`     - for `Seek()`, `Size()`, or `Truncate()`
 //  * `fsync()`     - for `Flush(FlushType::kFromMachine)`
 //  * `ftruncate()` - for `Truncate()`
 //  * `read()`      - for `ReadMode()`
-//                    if `Options::independent_pos() == absl::nullopt`
+//                    if `Options::independent_pos() == std::nullopt`
 //                    (fd must be opened with `O_RDWR`)
 //  * `pread()`     - for `ReadMode()`
-//                    if `Options::independent_pos() != absl::nullopt`
+//                    if `Options::independent_pos() != std::nullopt`
 //                    (fd must be opened with `O_RDWR`)
 #else
 //  * `_close()`    - if the fd is owned
-//  * `_write()`    - if `Options::independent_pos() == absl::nullopt`
+//  * `_write()`    - if `Options::independent_pos() == std::nullopt`
 //  * `_get_osfhandle()`, `WriteFile()` with `OVERLAPPED*`
-//                  - if `Options::independent_pos() != absl::nullopt`
+//                  - if `Options::independent_pos() != std::nullopt`
 //  * `_lseeki64()` - for `Seek()`, `Size()`, or `Truncate(),
-//                    if `Options::independent_pos() == absl::nullopt`
+//                    if `Options::independent_pos() == std::nullopt`
 //  * `_fstat64()`  - for `Seek()`, `Size()`, or `Truncate(),
 //  * `_commit()`   - for `Flush(FlushType::kFromMachine)`
 //  * `_chsize_s()` - for `Truncate()`
 //  * `_read()`     - for `ReadMode()`
-//                    if `Options::independent_pos() == absl::nullopt`
+//                    if `Options::independent_pos() == std::nullopt`
 //                    (fd must be opened with `_O_RDWR`)
 //  * `_get_osfhandle()`, `ReadFile()` with `OVERLAPPED*`
 //                  - for `ReadMode()`
-//                    if `Options::independent_pos() != absl::nullopt`
+//                    if `Options::independent_pos() != std::nullopt`
 //                    (fd must be opened with `_O_RDWR`)
 #endif
 //
 // `FdWriter` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the fd supports random access
-// (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
+// `Options::assumed_pos() == std::nullopt` and the fd supports random access
+// (this is assumed if `Options::independent_pos() != std::nullopt`, otherwise
 // this is checked by calling `lseek(SEEK_END)`, or `_lseeki64()` on Windows).
 // On Windows binary mode is also required.
 //
@@ -502,7 +500,7 @@ class FdWriterBase : public BufferedWriter {
 // of the type of the first constructor argument.
 //
 // Until the `FdWriter` is closed or no longer used, the fd must not be closed.
-// Additionally, if `Options::independent_pos() == absl::nullopt`
+// Additionally, if `Options::independent_pos() == std::nullopt`
 // (or unconditionally on Windows), the fd should not have its position changed,
 // except that if random access is not used, careful interleaving of multiple
 // writers is possible: `Flush()` is needed before switching to another writer,
@@ -669,7 +667,7 @@ inline void FdWriterBase::Reset(Closed) {
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
   associated_reader_.Reset();
   read_mode_ = false;
@@ -683,7 +681,7 @@ inline void FdWriterBase::Reset(BufferOptions buffer_options) {
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
   associated_reader_.Reset();
   read_mode_ = false;

@@ -29,12 +29,12 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/recycling_pool.h"
@@ -118,7 +118,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
       return;
     }
   }
-  if (exact_size() == absl::nullopt) set_exact_size(ZstdUncompressedSize(src));
+  if (exact_size() == std::nullopt) set_exact_size(ZstdUncompressedSize(src));
   just_initialized_ = true;
 }
 
@@ -166,12 +166,12 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal()";
   Reader& src = *SrcReader();
   truncated_ = false;
-  if (just_initialized_ && exact_size() == absl::nullopt) {
+  if (just_initialized_ && exact_size() == std::nullopt) {
     // Try again in case the source has grown.
     set_exact_size(ZstdUncompressedSize(src));
   }
   size_t effective_min_length = min_length;
-  if (just_initialized_ && !growing_source_ && exact_size() != absl::nullopt &&
+  if (just_initialized_ && !growing_source_ && exact_size() != std::nullopt &&
       max_length >= *exact_size()) {
     // Avoid a memory copy from an internal buffer of the Zstd engine to `dest`
     // by promising to decompress all remaining data to `dest`.
@@ -340,17 +340,17 @@ bool RecognizeZstd(Reader& src) {
   return GetFrameHeader(src, header);
 }
 
-absl::optional<Position> ZstdUncompressedSize(Reader& src) {
+std::optional<Position> ZstdUncompressedSize(Reader& src) {
   ZSTD_frameHeader header;
-  if (ABSL_PREDICT_FALSE(!GetFrameHeader(src, header))) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!GetFrameHeader(src, header))) return std::nullopt;
   if (header.frameType == ZSTD_skippableFrame) return 0;
-  if (header.frameContentSize == ZSTD_CONTENTSIZE_UNKNOWN) return absl::nullopt;
+  if (header.frameContentSize == ZSTD_CONTENTSIZE_UNKNOWN) return std::nullopt;
   return IntCast<Position>(header.frameContentSize);
 }
 
-absl::optional<uint32_t> ZstdDictId(Reader& src) {
+std::optional<uint32_t> ZstdDictId(Reader& src) {
   ZSTD_frameHeader header;
-  if (ABSL_PREDICT_FALSE(!GetFrameHeader(src, header))) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!GetFrameHeader(src, header))) return std::nullopt;
   return IntCast<uint32_t>(header.dictID);
 }
 

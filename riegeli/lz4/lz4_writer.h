@@ -17,13 +17,13 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "lz4frame.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -159,30 +159,30 @@ class Lz4WriterBase : public BufferedWriter {
     }
     bool store_block_checksum() const { return store_block_checksum_; }
 
-    // Exact uncompressed size, or `absl::nullopt` if unknown. This may improve
+    // Exact uncompressed size, or `std::nullopt` if unknown. This may improve
     // compression density and performance, and causes the size to be stored in
     // the compressed stream header.
     //
     // If the pledged size turns out to not match reality, compression fails.
     //
-    // Default: `absl::nullopt`.
-    Options& set_pledged_size(absl::optional<Position> pledged_size) &
+    // Default: `std::nullopt`.
+    Options& set_pledged_size(std::optional<Position> pledged_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       pledged_size_ = pledged_size;
       return *this;
     }
-    Options&& set_pledged_size(absl::optional<Position> pledged_size) &&
+    Options&& set_pledged_size(std::optional<Position> pledged_size) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_pledged_size(pledged_size));
     }
-    absl::optional<Position> pledged_size() const { return pledged_size_; }
+    std::optional<Position> pledged_size() const { return pledged_size_; }
 
     // If `false`, `Lz4Writer` lets the destination choose buffer sizes
     // (at least the maximum possible compressed size of a block size though).
     //
     // If `true`, `Lz4Writer` tries to compress all data in one step:
     //
-    //  * Flattens uncompressed data if `pledged_size()` is not `absl::nullopt`.
+    //  * Flattens uncompressed data if `pledged_size()` is not `std::nullopt`.
     //
     //  * Asks the destination for a flat buffer with the maximum possible
     //    compressed size for each flat piece of uncompressed data.
@@ -203,10 +203,10 @@ class Lz4WriterBase : public BufferedWriter {
 
     // Returns effective `BufferOptions` as overridden by other options:
     // If `reserve_max_size()` is `true` and `pledged_size()` is not
-    // `absl::nullopt`, then `pledged_size()` overrides `buffer_size()`.
+    // `std::nullopt`, then `pledged_size()` overrides `buffer_size()`.
     BufferOptions effective_buffer_options() const {
       BufferOptions options = buffer_options();
-      if (reserve_max_size() && pledged_size() != absl::nullopt) {
+      if (reserve_max_size() && pledged_size() != std::nullopt) {
         options.set_buffer_size(
             UnsignedMax(SaturatingIntCast<size_t>(*pledged_size()), size_t{1}));
       }
@@ -241,7 +241,7 @@ class Lz4WriterBase : public BufferedWriter {
     Lz4Dictionary dictionary_;
     bool store_content_checksum_ = false;
     bool store_block_checksum_ = false;
-    absl::optional<Position> pledged_size_;
+    std::optional<Position> pledged_size_;
     bool reserve_max_size_ = false;
     RecyclingPoolOptions recycling_pool_options_;
   };
@@ -256,7 +256,7 @@ class Lz4WriterBase : public BufferedWriter {
 
   explicit Lz4WriterBase(BufferOptions buffer_options,
                          Lz4Dictionary&& dictionary,
-                         absl::optional<Position> pledged_size,
+                         std::optional<Position> pledged_size,
                          bool reserve_max_size,
                          const RecyclingPoolOptions& recycling_pool_options);
 
@@ -265,7 +265,7 @@ class Lz4WriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, Lz4Dictionary&& dictionary,
-             absl::optional<Position> pledged_size, bool reserve_max_size,
+             std::optional<Position> pledged_size, bool reserve_max_size,
              const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Writer* dest, int compression_level, int window_log,
                   bool store_content_checksum, bool store_block_checksum);
@@ -291,7 +291,7 @@ class Lz4WriterBase : public BufferedWriter {
   bool DoneCompression(Writer& dest);
 
   Lz4Dictionary dictionary_;
-  absl::optional<Position> pledged_size_;
+  std::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
   RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
@@ -371,7 +371,7 @@ explicit Lz4Writer(Dest&& dest,
 
 inline Lz4WriterBase::Lz4WriterBase(
     BufferOptions buffer_options, Lz4Dictionary&& dictionary,
-    absl::optional<Position> pledged_size, bool reserve_max_size,
+    std::optional<Position> pledged_size, bool reserve_max_size,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedWriter(buffer_options),
       dictionary_(std::move(dictionary)),
@@ -409,7 +409,7 @@ inline Lz4WriterBase& Lz4WriterBase::operator=(Lz4WriterBase&& that) noexcept {
 
 inline void Lz4WriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
-  pledged_size_ = absl::nullopt;
+  pledged_size_ = std::nullopt;
   reserve_max_size_ = false;
   recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
@@ -423,7 +423,7 @@ inline void Lz4WriterBase::Reset(Closed) {
 
 inline void Lz4WriterBase::Reset(
     BufferOptions buffer_options, Lz4Dictionary&& dictionary,
-    absl::optional<Position> pledged_size, bool reserve_max_size,
+    std::optional<Position> pledged_size, bool reserve_max_size,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   pledged_size_ = pledged_size;

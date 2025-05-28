@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,6 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
@@ -277,8 +277,8 @@ void DescribeFile(absl::string_view filename, Writer& report) {
   WriteLine("  filename: \"", absl::Utf8SafeCEscape(filename), '"', report);
   DefaultChunkReader<FdReader<>> chunk_reader(riegeli::Maker(filename));
   if (chunk_reader.SupportsRandomAccess()) {
-    const absl::optional<Position> size = chunk_reader.Size();
-    if (size != absl::nullopt) WriteLine("  file_size: ", *size, report);
+    const std::optional<Position> size = chunk_reader.Size();
+    if (size != std::nullopt) WriteLine("  file_size: ", *size, report);
   }
   TextPrintOptions print_options;
   print_options.printer().SetInitialIndentLevel(2);

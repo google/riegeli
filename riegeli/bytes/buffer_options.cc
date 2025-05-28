@@ -16,8 +16,9 @@
 
 #include <stddef.h>
 
+#include <optional>
+
 #include "absl/numeric/bits.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -39,7 +40,7 @@ namespace {
 inline size_t ApplySizeHintAndRoundPos(Position base_length, size_t min_length,
                                        size_t recommended_length,
                                        size_t max_length,
-                                       absl::optional<Position> size_hint,
+                                       std::optional<Position> size_hint,
                                        Position pos, bool single_run) {
   if (single_run) base_length = ApplySizeHint(base_length, size_hint, pos);
   const size_t length_for_rounding = UnsignedMin(
@@ -68,7 +69,7 @@ size_t ReadBufferSizer::BufferLength(Position pos, size_t min_length,
                   buffer_options_.min_buffer_size()),
       min_length, recommended_length, buffer_options_.max_buffer_size(),
       exact_size(), pos, read_all_hint_);
-  if (exact_size() != absl::nullopt) {
+  if (exact_size() != std::nullopt) {
     return UnsignedMin(length, SaturatingSub(*exact_size(), pos));
   }
   return length;
@@ -84,7 +85,7 @@ size_t WriteBufferSizer::BufferLength(Position pos, size_t min_length,
                   buffer_options_.min_buffer_size()),
       min_length, recommended_length, buffer_options_.max_buffer_size(),
       size_hint(), pos, buffer_length_from_last_run_ == 0);
-  if (size_hint() != absl::nullopt && pos <= *size_hint()) {
+  if (size_hint() != std::nullopt && pos <= *size_hint()) {
     return UnsignedClamp(length, min_length, *size_hint() - pos);
   }
   return length;

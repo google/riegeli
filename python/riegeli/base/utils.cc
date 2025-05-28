@@ -27,6 +27,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -35,7 +36,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -315,11 +315,11 @@ PythonPtr ChainToPython(const Chain& value) {
   return bytes;
 }
 
-absl::optional<Chain> ChainFromPython(PyObject* object) {
+std::optional<Chain> ChainFromPython(PyObject* object) {
   Py_buffer buffer;
   if (ABSL_PREDICT_FALSE(PyObject_GetBuffer(object, &buffer, PyBUF_CONTIG_RO) <
                          0)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   Chain result(absl::string_view(static_cast<const char*>(buffer.buf),
                                  IntCast<size_t>(buffer.len)));
@@ -337,20 +337,20 @@ PythonPtr SizeToPython(size_t value) {
       PyLong_FromUnsignedLongLong(IntCast<unsigned long long>(value)));
 }
 
-absl::optional<size_t> SizeFromPython(PyObject* object) {
+std::optional<size_t> SizeFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
-  if (ABSL_PREDICT_FALSE(index == nullptr)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(index == nullptr)) return std::nullopt;
   RIEGELI_ASSERT(PyLong_Check(index.get()))
       << "PyNumber_Index() returned an unexpected type: "
       << Py_TYPE(index.get())->tp_name;
   unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());
   if (ABSL_PREDICT_FALSE(index_value == static_cast<unsigned long long>(-1)) &&
       PyErr_Occurred()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(index_value > std::numeric_limits<size_t>::max())) {
     PyErr_Format(PyExc_OverflowError, "Size out of range: %llu", index_value);
-    return absl::nullopt;
+    return std::nullopt;
   }
   return IntCast<size_t>(index_value);
 }
@@ -366,21 +366,21 @@ PythonPtr PositionToPython(Position value) {
       PyLong_FromUnsignedLongLong(IntCast<unsigned long long>(value)));
 }
 
-absl::optional<Position> PositionFromPython(PyObject* object) {
+std::optional<Position> PositionFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
-  if (ABSL_PREDICT_FALSE(index == nullptr)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(index == nullptr)) return std::nullopt;
   RIEGELI_ASSERT(PyLong_Check(index.get()))
       << "PyNumber_Index() returned an unexpected type: "
       << Py_TYPE(index.get())->tp_name;
   const unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());
   if (ABSL_PREDICT_FALSE(index_value == static_cast<unsigned long long>(-1)) &&
       PyErr_Occurred()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(index_value > std::numeric_limits<Position>::max())) {
     PyErr_Format(PyExc_OverflowError, "Position out of range: %llu",
                  index_value);
-    return absl::nullopt;
+    return std::nullopt;
   }
   return IntCast<Position>(index_value);
 }
@@ -392,11 +392,11 @@ PythonPtr PartialOrderingToPython(PartialOrdering ordering) {
   return PythonPtr(PyLong_FromLong(ordering < 0 ? -1 : ordering == 0 ? 0 : 1));
 }
 
-absl::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object) {
+std::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object) {
   if (object == Py_None) return PartialOrdering::unordered;
   const long long_value = PyLong_AsLong(object);
   if (ABSL_PREDICT_FALSE(long_value == -1) && PyErr_Occurred()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return riegeli::Compare(long_value, 0);
 }

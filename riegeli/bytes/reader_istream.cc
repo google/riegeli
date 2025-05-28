@@ -20,9 +20,9 @@
 #include <ios>
 #include <iosfwd>
 #include <limits>
+#include <optional>
 
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
@@ -148,8 +148,8 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
         // Indicate that `seekoff(std::ios_base::end)` is not supported.
         return std::streampos(std::streamoff{-1});
       }
-      const absl::optional<Position> size = reader_->Size();
-      if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      const std::optional<Position> size = reader_->Size();
+      if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
         Fail();
         return std::streampos(std::streamoff{-1});
       }

@@ -17,10 +17,10 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -89,7 +89,7 @@ inline void Compressor::Initialize() {
 }
 
 inline void Compressor::SetWriteSizeHint() {
-  writer_->SetWriteSizeHint(tuning_options_.pledged_size() != absl::nullopt
+  writer_->SetWriteSizeHint(tuning_options_.pledged_size() != std::nullopt
                                 ? tuning_options_.pledged_size()
                                 : tuning_options_.size_hint());
 }

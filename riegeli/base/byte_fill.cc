@@ -22,13 +22,13 @@
 #include <limits>
 #include <ostream>
 #include <utility>
+#include <variant>
 
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -82,7 +82,7 @@ void ByteFill::LargeBlock::DumpStructure(absl::string_view substr,
 ByteFill::Blocks::Blocks(Position size, char fill) {
   if (size == 0) return;
   if (fill == '\0') {
-    RIEGELI_ASSERT(absl::holds_alternative<ZeroBlock>(block_));
+    RIEGELI_ASSERT(std::holds_alternative<ZeroBlock>(block_));
     num_blocks_ = (size - 1) / ZeroBlock::kSize + 1;
     non_last_block_size_ = uint32_t{ZeroBlock::kSize};
     last_block_size_ =

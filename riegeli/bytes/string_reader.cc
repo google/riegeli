@@ -17,9 +17,9 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 
 #include "absl/base/optimization.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -45,8 +45,8 @@ bool StringReaderBase::SeekSlow(Position new_pos) {
   return false;
 }
 
-absl::optional<Position> StringReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> StringReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   return limit_pos();
 }
 

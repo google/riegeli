@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -26,7 +27,6 @@
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -52,21 +52,21 @@ class LimitingReaderBase : public Reader {
 
     // The limit expressed as an absolute position.
     //
-    // `absl::nullopt` means no limit, unless `max_length()` is set.
+    // `std::nullopt` means no limit, unless `max_length()` is set.
     //
     // `max_pos()` and `max_length()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_max_pos(absl::optional<Position> max_pos) &
+    // Default: `std::nullopt`.
+    Options& set_max_pos(std::optional<Position> max_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_pos_ = max_pos;
       return *this;
     }
-    Options&& set_max_pos(absl::optional<Position> max_pos) &&
+    Options&& set_max_pos(std::optional<Position> max_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_pos(max_pos));
     }
-    absl::optional<Position> max_pos() const { return max_pos_; }
+    std::optional<Position> max_pos() const { return max_pos_; }
 
     // A shortcut for `set_max_pos(pos)` with `set_exact(true)`.
     Options& set_exact_pos(Position exact_pos) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -79,21 +79,21 @@ class LimitingReaderBase : public Reader {
 
     // The limit expressed as a length relative to the current position.
     //
-    // `absl::nullopt` means no limit, unless `max_pos()` is set.
+    // `std::nullopt` means no limit, unless `max_pos()` is set.
     //
     // `max_pos()` and `max_length()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_max_length(absl::optional<Position> max_length) &
+    // Default: `std::nullopt`.
+    Options& set_max_length(std::optional<Position> max_length) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_length_ = max_length;
       return *this;
     }
-    Options&& set_max_length(absl::optional<Position> max_length) &&
+    Options&& set_max_length(std::optional<Position> max_length) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_length(max_length));
     }
-    absl::optional<Position> max_length() const { return max_length_; }
+    std::optional<Position> max_length() const { return max_length_; }
 
     // A shortcut for `set_max_length(length)` with `set_exact(true)`.
     Options& set_exact_length(Position exact_length) &
@@ -144,8 +144,8 @@ class LimitingReaderBase : public Reader {
     bool fail_if_longer() const { return fail_if_longer_; }
 
    private:
-    absl::optional<Position> max_pos_;
-    absl::optional<Position> max_length_;
+    std::optional<Position> max_pos_;
+    std::optional<Position> max_length_;
     bool exact_ = false;
     bool fail_if_longer_ = false;
   };
@@ -254,7 +254,7 @@ class LimitingReaderBase : public Reader {
                           absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
@@ -439,16 +439,16 @@ inline void LimitingReaderBase::Reset(bool exact, bool fail_if_longer) {
 inline void LimitingReaderBase::Initialize(Reader* src, Options&& options) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of LimitingReader: null Reader pointer";
-  RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
-                 options.max_length() == absl::nullopt)
+  RIEGELI_ASSERT(options.max_pos() == std::nullopt ||
+                 options.max_length() == std::nullopt)
       << "Failed precondition of LimitingReader: "
          "Options::max_pos() and Options::max_length() are both set";
   set_buffer(src->start(), src->start_to_limit(), src->start_to_cursor());
   set_limit_pos(src->limit_pos());
   if (ABSL_PREDICT_FALSE(!src->ok())) FailWithoutAnnotation(src->status());
-  if (options.max_pos() != absl::nullopt) {
+  if (options.max_pos() != std::nullopt) {
     set_max_pos(*options.max_pos());
-  } else if (options.max_length() != absl::nullopt) {
+  } else if (options.max_length() != std::nullopt) {
     set_max_length(*options.max_length());
   } else {
     clear_limit();
@@ -587,17 +587,17 @@ inline ScopedLimiter::ScopedLimiter(
       old_max_pos_(reader_->max_pos()),
       old_exact_(reader_->exact()),
       fail_if_longer_(options.fail_if_longer()) {
-  RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
-                 options.max_length() == absl::nullopt)
+  RIEGELI_ASSERT(options.max_pos() == std::nullopt ||
+                 options.max_length() == std::nullopt)
       << "Failed precondition of ScopedLimiter: "
          "Options::max_pos() and Options::max_length() are both set";
-  if (options.max_pos() != absl::nullopt) {
+  if (options.max_pos() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(*options.max_pos() > reader_->max_pos())) {
       if (options.exact()) reader_->FailNotEnoughEarly(*options.max_pos());
     } else {
       reader_->set_max_pos(*options.max_pos());
     }
-  } else if (options.max_length() != absl::nullopt) {
+  } else if (options.max_length() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(*options.max_length() >
                            std::numeric_limits<Position>::max() -
                                reader_->pos())) {

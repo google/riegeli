@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,7 +26,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/records/record_position.h"
@@ -150,7 +150,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
           bool* end_of_sequence) override ABSL_LOCKS_EXCLUDED(mu_) {
         absl::MutexLock lock(&mu_);
         for (;;) {
-          if (reader_ != absl::nullopt) {
+          if (reader_ != std::nullopt) {
             // We are currently processing a file, so try to read the next
             // record.
             ::tensorflow::Tensor result_tensor(::tensorflow::cpu_allocator(),
@@ -208,7 +208,7 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
         RETURN_IF_ERROR(
             writer->WriteScalar(full_name("current_file_index"),
                                 IntCast<int64_t>(current_file_index_)));
-        if (reader_ != absl::nullopt) {
+        if (reader_ != std::nullopt) {
           RETURN_IF_ERROR(writer->WriteScalar(full_name("current_pos"),
                                               reader_->pos().ToBytes()));
         }
@@ -269,12 +269,12 @@ class RiegeliDatasetOp : public ::tensorflow::data::DatasetOpKernel {
       // Invariants:
       //   `current_file_index_ <= dataset()->filenames_.size()`
       //   if `current_file_index_ == dataset()->filenames_.size()` then
-      //       `reader_ == absl::nullopt`
+      //       `reader_ == std::nullopt`
 
       absl::Mutex mu_;
       size_t current_file_index_ ABSL_GUARDED_BY(mu_) = 0;
-      // `absl::nullopt` means not open yet.
-      absl::optional<RecordReader<tensorflow::FileReader<>>> reader_
+      // `std::nullopt` means not open yet.
+      std::optional<RecordReader<tensorflow::FileReader<>>> reader_
           ABSL_GUARDED_BY(mu_);
     };
 

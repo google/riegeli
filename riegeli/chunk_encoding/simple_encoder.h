@@ -18,12 +18,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
@@ -55,22 +55,22 @@ class SimpleEncoder : public ChunkEncoder {
    public:
     TuningOptions() noexcept {}
 
-    // Expected uncompressed size of concatenated values, or `absl::nullopt` if
+    // Expected uncompressed size of concatenated values, or `std::nullopt` if
     // unknown. This may improve compression density and performance.
     //
     // If the size hint turns out to not match reality, nothing breaks.
     //
-    // Default: `absl::nullopt`.
-    TuningOptions& set_size_hint(absl::optional<Position> size_hint) &
+    // Default: `std::nullopt`.
+    TuningOptions& set_size_hint(std::optional<Position> size_hint) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       size_hint_ = size_hint;
       return *this;
     }
-    TuningOptions&& set_size_hint(absl::optional<Position> size_hint) &&
+    TuningOptions&& set_size_hint(std::optional<Position> size_hint) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_size_hint(size_hint));
     }
-    absl::optional<Position> size_hint() const { return size_hint_; }
+    std::optional<Position> size_hint() const { return size_hint_; }
 
     // Options for a global `RecyclingPool` of compression contexts.
     //
@@ -95,7 +95,7 @@ class SimpleEncoder : public ChunkEncoder {
     }
 
    private:
-    absl::optional<Position> size_hint_;
+    std::optional<Position> size_hint_;
     RecyclingPoolOptions recycling_pool_options_;
   };
 

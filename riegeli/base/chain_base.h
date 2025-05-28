@@ -24,6 +24,7 @@
 #include <functional>
 #include <iosfwd>
 #include <limits>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -33,7 +34,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -82,13 +82,13 @@ class Chain : public WithCompare<Chain> {
    public:
     Options() noexcept {}
 
-    // Expected final size, or `absl::nullopt` if unknown. This may improve
+    // Expected final size, or `std::nullopt` if unknown. This may improve
     // performance and memory usage.
     //
     // If the size hint turns out to not match reality, nothing breaks.
-    Options& set_size_hint(absl::optional<size_t> size_hint) &
+    Options& set_size_hint(std::optional<size_t> size_hint) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      if (size_hint == absl::nullopt) {
+      if (size_hint == std::nullopt) {
         size_hint_ = std::numeric_limits<size_t>::max();
       } else {
         size_hint_ =
@@ -96,13 +96,13 @@ class Chain : public WithCompare<Chain> {
       }
       return *this;
     }
-    Options&& set_size_hint(absl::optional<size_t> size_hint) &&
+    Options&& set_size_hint(std::optional<size_t> size_hint) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_size_hint(size_hint));
     }
-    absl::optional<size_t> size_hint() const {
+    std::optional<size_t> size_hint() const {
       if (size_hint_ == std::numeric_limits<size_t>::max()) {
-        return absl::nullopt;
+        return std::nullopt;
       } else {
         return size_hint_;
       }
@@ -155,7 +155,7 @@ class Chain : public WithCompare<Chain> {
     }
 
    private:
-    // `absl::nullopt` is encoded as `std::numeric_limits<size_t>::max()` to
+    // `std::nullopt` is encoded as `std::numeric_limits<size_t>::max()` to
     // reduce object size.
     size_t size_hint_ = std::numeric_limits<size_t>::max();
     // Use `uint32_t` instead of `size_t` to reduce the object size.
@@ -176,7 +176,7 @@ class Chain : public WithCompare<Chain> {
   static constexpr size_t kMaxBytesToCopyToEmpty = kMaxShortDataSize;
 
   size_t MaxBytesToCopy(Options options = Options()) const {
-    if (options.size_hint() != absl::nullopt && size() < *options.size_hint()) {
+    if (options.size_hint() != std::nullopt && size() < *options.size_hint()) {
       return UnsignedClamp(*options.size_hint() - size() - 1,
                            kMaxBytesToCopyToEmpty, kMaxBytesToCopy);
     }
@@ -247,8 +247,8 @@ class Chain : public WithCompare<Chain> {
   explicit operator absl::Cord() &&;
 
   // If the `Chain` contents are flat, returns them, otherwise returns
-  // `absl::nullopt`.
-  absl::optional<absl::string_view> TryFlat() const
+  // `std::nullopt`.
+  std::optional<absl::string_view> TryFlat() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // If the `Chain` contents are not flat, flattens them in place. Returns flat

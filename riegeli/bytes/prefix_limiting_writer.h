@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -24,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
@@ -53,22 +53,22 @@ class PrefixLimitingWriterBase : public Writer {
     // The base position of the original `Writer`. It must be at least as large
     // as the initial position.
     //
-    // `absl::nullopt` means the current position.
+    // `std::nullopt` means the current position.
     //
-    // Default: `absl::nullopt`.
-    Options& set_base_pos(absl::optional<Position> base_pos) &
+    // Default: `std::nullopt`.
+    Options& set_base_pos(std::optional<Position> base_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(absl::optional<Position> base_pos) &&
+    Options&& set_base_pos(std::optional<Position> base_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_base_pos(base_pos));
     }
-    absl::optional<Position> base_pos() const { return base_pos_; }
+    std::optional<Position> base_pos() const { return base_pos_; }
 
    private:
-    absl::optional<Position> base_pos_;
+    std::optional<Position> base_pos_;
   };
 
   // Returns the original `Writer`. Unchanged by `Close()`.
@@ -89,7 +89,7 @@ class PrefixLimitingWriterBase : public Writer {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(Writer* dest, absl::optional<Position> base_pos);
+  void Initialize(Writer* dest, std::optional<Position> base_pos);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   // Sets cursor of `dest` to cursor of `*this`.
@@ -112,7 +112,7 @@ class PrefixLimitingWriterBase : public Writer {
   bool WriteSlow(absl::Cord&& src) override;
   bool WriteSlow(ByteFill src) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   bool TruncateImpl(Position new_size) override;
   Reader* ReadModeImpl(Position initial_pos) override;
 
@@ -183,7 +183,7 @@ class PrefixLimitingWriter : public PrefixLimitingWriterBase {
 
  protected:
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -230,10 +230,10 @@ inline void PrefixLimitingWriterBase::Reset() {
 }
 
 inline void PrefixLimitingWriterBase::Initialize(
-    Writer* dest, absl::optional<Position> base_pos) {
+    Writer* dest, std::optional<Position> base_pos) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of PrefixLimitingWriter: null Writer pointer";
-  if (base_pos == absl::nullopt) {
+  if (base_pos == std::nullopt) {
     base_pos_ = dest->pos();
   } else {
     RIEGELI_ASSERT_LE(*base_pos, dest->pos())
@@ -311,13 +311,13 @@ void PrefixLimitingWriter<Dest>::Done() {
 
 template <typename Dest>
 void PrefixLimitingWriter<Dest>::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   if (dest_.IsOwning()) {
     SyncBuffer(*dest_);
     dest_->SetWriteSizeHint(
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(base_pos(), *write_size_hint)));
+        write_size_hint == std::nullopt
+            ? std::nullopt
+            : std::make_optional(SaturatingAdd(base_pos(), *write_size_hint)));
     MakeBuffer(*dest_);
   }
 }

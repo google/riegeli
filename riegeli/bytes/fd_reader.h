@@ -19,6 +19,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -27,7 +28,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -129,32 +129,32 @@ class FdReaderBase : public BufferedReader {
     // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
     // not exist.
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current fd position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the fd supports random
     // access. On Windows binary mode is also required.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current fd
-    // position. Random access is not supported.
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current fd position.
+    // Random access is not supported.
     //
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
-    // If `absl::nullopt`, `FdReader` reads at the current fd position.
+    // If `std::nullopt`, `FdReader` reads at the current fd position.
     //
-    // If not `absl::nullopt`, `FdReader` reads starting from this position.
+    // If not `std::nullopt`, `FdReader` reads starting from this position.
     // The current fd position is not disturbed except on Windows, where seeking
     // and reading is nevertheless atomic. This is useful for multiple readers
     // concurrently reading from the same fd. The fd must support `pread()`
@@ -163,19 +163,17 @@ class FdReaderBase : public BufferedReader {
     //
     // `assumed_pos()` and `independent_pos()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_independent_pos(absl::optional<Position> independent_pos) &
+    // Default: `std::nullopt`.
+    Options& set_independent_pos(std::optional<Position> independent_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       independent_pos_ = independent_pos;
       return *this;
     }
-    Options&& set_independent_pos(absl::optional<Position> independent_pos) &&
+    Options&& set_independent_pos(std::optional<Position> independent_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_independent_pos(independent_pos));
     }
-    absl::optional<Position> independent_pos() const {
-      return independent_pos_;
-    }
+    std::optional<Position> independent_pos() const { return independent_pos_; }
 
     // If `true`, supports reading up to the end of the file, then retrying when
     // the file has grown. This disables caching the file size.
@@ -198,8 +196,8 @@ class FdReaderBase : public BufferedReader {
 #else
     int mode_ = _O_RDONLY | _O_BINARY | fd_internal::kCloseOnExec;
 #endif
-    absl::optional<Position> assumed_pos_;
-    absl::optional<Position> independent_pos_;
+    std::optional<Position> assumed_pos_;
+    std::optional<Position> independent_pos_;
     bool growing_source_ = false;
   };
 
@@ -268,7 +266,7 @@ class FdReaderBase : public BufferedReader {
   bool CopyInternal(Position length, Writer& dest) override;
 #endif
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
@@ -281,7 +279,7 @@ class FdReaderBase : public BufferedReader {
   bool supports_random_access_ = false;
   absl::Status random_access_status_;
 #ifdef _WIN32
-  absl::optional<int> original_mode_;
+  std::optional<int> original_mode_;
 #endif
 
   // Invariant: `limit_pos() <= std::numeric_limits<fd_internal::Offset>::max()`
@@ -292,30 +290,30 @@ class FdReaderBase : public BufferedReader {
 // The fd must support:
 #ifndef _WIN32
 //  * `close()` - if the fd is owned
-//  * `read()`  - if `Options::independent_pos() == absl::nullopt`
-//  * `pread()` - if `Options::independent_pos() != absl::nullopt`,
+//  * `read()`  - if `Options::independent_pos() == std::nullopt`
+//  * `pread()` - if `Options::independent_pos() != std::nullopt`,
 //                or for `NewReader()`
 //  * `lseek()` - for `Seek()` or `Size()`
-//                if `Options::independent_pos() == absl::nullopt`
+//                if `Options::independent_pos() == std::nullopt`
 //  * `fstat()` - for `Seek()` or `Size()`
 #else
 //  * `_close()`    - if the fd is owned
-//  * `_read()`     - if `Options::independent_pos() == absl::nullopt`
+//  * `_read()`     - if `Options::independent_pos() == std::nullopt`
 //  * `_get_osfhandle()`, `ReadFile()` with `OVERLAPPED*`
-//                  - if `Options::independent_pos() != absl::nullopt`
+//                  - if `Options::independent_pos() != std::nullopt`
 //  * `_lseeki64()` - for `Seek()` or `Size()`
-//                    if `Options::independent_pos() == absl::nullopt`
+//                    if `Options::independent_pos() == std::nullopt`
 //  * `_fstat64()`  - for `Seek()` or `Size()`
 #endif
 //
 // `FdReader` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the fd supports random access
-// (this is assumed if `Options::independent_pos() != absl::nullopt`, otherwise
+// `Options::assumed_pos() == std::nullopt` and the fd supports random access
+// (this is assumed if `Options::independent_pos() != std::nullopt`, otherwise
 // this is checked by calling `lseek(SEEK_END)`, or `_lseeki64()` on Windows).
 // On Windows binary mode is also required.
 //
 // `FdReader` supports `NewReader()` if it supports random access. On Windows
-// `independent_pos() != absl::nullopt` is also required.
+// `independent_pos() != std::nullopt` is also required.
 //
 // The `Src` template parameter specifies the type of the object providing and
 // possibly owning the fd being read from. `Src` must support
@@ -330,7 +328,7 @@ class FdReaderBase : public BufferedReader {
 // have an unpredictable amount of extra data consumed because of buffering.
 //
 // Until the `FdReader` is closed or no longer used, the fd must not be closed.
-// Additionally, if `Options::independent_pos() == absl::nullopt`
+// Additionally, if `Options::independent_pos() == std::nullopt`
 // (or unconditionally on Windows), the fd must not have its position changed.
 template <typename Src = OwnedFd>
 class FdReader : public FdReaderBase {
@@ -488,7 +486,7 @@ inline void FdReaderBase::Reset(Closed) {
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
 }
 
@@ -500,7 +498,7 @@ inline void FdReaderBase::Reset(BufferOptions buffer_options,
   supports_random_access_ = false;
   random_access_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
 }
 

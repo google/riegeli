@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 
 #include "absl/base/attributes.h"
@@ -26,7 +27,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/message_lite.h"
@@ -90,8 +90,8 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
       src.SupportsSize()) {
-    const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+    const std::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
     src.Pull();
     if (src.limit_pos() == *size && src.available() <= kMaxBytesToCopy) {
       // The data are flat. `ParsePartialFromArray()` is faster than
@@ -208,8 +208,8 @@ absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
       src.size() <= kMaxBytesToCopy) {
-    if (const absl::optional<absl::string_view> flat = src.TryFlat();
-        flat != absl::nullopt) {
+    if (const std::optional<absl::string_view> flat = src.TryFlat();
+        flat != std::nullopt) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
       if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
@@ -245,8 +245,8 @@ absl::Status ParseMessage(const absl::Cord& src,
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
       src.size() <= kMaxBytesToCopy) {
-    if (const absl::optional<absl::string_view> flat = src.TryFlat();
-        flat != absl::nullopt) {
+    if (const std::optional<absl::string_view> flat = src.TryFlat();
+        flat != std::nullopt) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
       if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(

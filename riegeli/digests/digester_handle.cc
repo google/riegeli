@@ -16,10 +16,11 @@
 
 #include <stddef.h>
 
+#include <optional>
+
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -51,8 +52,8 @@ void DigesterBaseHandle::WriteChainFallback(
 bool DigesterBaseHandle::WriteCordFallback(
     TypeErasedRef target, const absl::Cord& src,
     bool (*write)(TypeErasedRef target, absl::string_view src)) {
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     return write(target, *flat);
   }
   for (const absl::string_view fragment : src.Chunks()) {
@@ -64,8 +65,8 @@ bool DigesterBaseHandle::WriteCordFallback(
 void DigesterBaseHandle::WriteCordFallback(
     TypeErasedRef target, const absl::Cord& src,
     void (*write)(TypeErasedRef target, absl::string_view src)) {
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     write(target, *flat);
     return;
   }

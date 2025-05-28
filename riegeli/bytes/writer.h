@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -32,7 +33,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -173,7 +173,7 @@ class Writer : public Object {
   // The implementation in this class adds an assertion.
   bool Close();
 
-  // If `write_size_hint` is not `absl::nullopt`, hints that this amount of data
+  // If `write_size_hint` is not `std::nullopt`, hints that this amount of data
   // will be written sequentially from the current position, then `Close()` will
   // be called.
   //
@@ -188,7 +188,7 @@ class Writer : public Object {
   //
   // `SetWriteSizeHint()` is usually be called from the same abstraction layer
   // which later calls `Close()`.
-  void SetWriteSizeHint(absl::optional<Position> write_size_hint);
+  void SetWriteSizeHint(std::optional<Position> write_size_hint);
 
   // Ensures that enough space is available in the buffer: if less than
   // `min_length` of space is available, pushes previously written data to the
@@ -417,10 +417,10 @@ class Writer : public Object {
   // Returns the size of the destination, i.e. the position corresponding to its
   // end.
   //
-  // Returns `absl::nullopt` on failure (`!ok()`).
+  // Returns `std::nullopt` on failure (`!ok()`).
   //
   // `Size()` is supported if `SupportsRandomAccess()` is `true`.
-  absl::optional<Position> Size();
+  std::optional<Position> Size();
 
   // Returns `true` if this `Writer` supports `Truncate()`.
   virtual bool SupportsTruncate() { return SupportsRandomAccess(); }
@@ -509,7 +509,7 @@ class Writer : public Object {
 
   // Implementation of `SetWriteSizeHint()`.
   virtual void SetWriteSizeHintImpl(
-      ABSL_ATTRIBUTE_UNUSED absl::optional<Position> write_size_hint) {}
+      ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
 
   // Implementation of the slow part of `Push()`.
   //
@@ -577,7 +577,7 @@ class Writer : public Object {
   // Implementation of `Size()`.
   //
   // By default fails.
-  virtual absl::optional<Position> SizeImpl();
+  virtual std::optional<Position> SizeImpl();
 
   // Implementation of `Truncate()`.
   //
@@ -740,7 +740,7 @@ inline void Writer::Done() {
   set_buffer();
 }
 
-inline void Writer::SetWriteSizeHint(absl::optional<Position> write_size_hint) {
+inline void Writer::SetWriteSizeHint(std::optional<Position> write_size_hint) {
   AssertInitialized(start(), start_to_cursor());
   SetWriteSizeHintImpl(write_size_hint);
 }
@@ -1029,7 +1029,7 @@ inline bool Writer::Seek(Position new_pos) {
   return SeekSlow(new_pos);
 }
 
-inline absl::optional<Position> Writer::Size() {
+inline std::optional<Position> Writer::Size() {
   AssertInitialized(start(), start_to_cursor());
   return SizeImpl();
 }

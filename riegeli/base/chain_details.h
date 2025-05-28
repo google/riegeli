@@ -25,6 +25,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -33,7 +34,6 @@
 #include "absl/base/optimization.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -1093,7 +1093,7 @@ inline Chain::Blocks Chain::blocks() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return Blocks(this);
 }
 
-inline absl::optional<absl::string_view> Chain::TryFlat() const
+inline std::optional<absl::string_view> Chain::TryFlat() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   switch (end_ - begin_) {
     case 0:
@@ -1101,7 +1101,7 @@ inline absl::optional<absl::string_view> Chain::TryFlat() const
     case 1:
       return *front();
     default:
-      return absl::nullopt;
+      return std::nullopt;
   }
 }
 
@@ -1168,8 +1168,8 @@ HashState Chain::HashValue(HashState hash_state) const {
   // 1. AbslInternalPiecewiseCombiner
   // 2. WeaklyMixedInteger
   // Reimplement this in terms of the public Abseil API.
-  if (const absl::optional<absl::string_view> flat = TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = TryFlat();
+      flat != std::nullopt) {
     return HashState::combine(std::move(hash_state), *flat);
   }
   typename HashState::AbslInternalPiecewiseCombiner combiner;

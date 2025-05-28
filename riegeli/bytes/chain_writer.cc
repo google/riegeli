@@ -18,12 +18,12 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -142,9 +142,9 @@ inline void ChainWriterBase::ShrinkTail(size_t length) {
 }
 
 void ChainWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
-  if (write_size_hint == absl::nullopt) {
-    options_.set_size_hint(absl::nullopt);
+    std::optional<Position> write_size_hint) {
+  if (write_size_hint == std::nullopt) {
+    options_.set_size_hint(std::nullopt);
   } else {
     options_.set_size_hint(
         SaturatingIntCast<size_t>(SaturatingAdd(pos(), *write_size_hint)));
@@ -347,8 +347,8 @@ bool ChainWriterBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> ChainWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> ChainWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Chain& dest = *DestChain();
   RIEGELI_ASSERT_LE(limit_pos(), dest.size())
       << "ChainWriter destination changed unexpectedly";

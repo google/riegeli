@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
@@ -49,21 +49,21 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
     // The limit expressed as an absolute position.
     //
-    // `absl::nullopt` means no limit, unless `max_length()` is set.
+    // `std::nullopt` means no limit, unless `max_length()` is set.
     //
     // `max_pos()` and `max_length()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_max_pos(absl::optional<Position> max_pos) &
+    // Default: `std::nullopt`.
+    Options& set_max_pos(std::optional<Position> max_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_pos_ = max_pos;
       return *this;
     }
-    Options&& set_max_pos(absl::optional<Position> max_pos) &&
+    Options&& set_max_pos(std::optional<Position> max_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_pos(max_pos));
     }
-    absl::optional<Position> max_pos() const { return max_pos_; }
+    std::optional<Position> max_pos() const { return max_pos_; }
 
     // A shortcut for `set_max_pos(pos)` with `set_exact(true)`.
     Options& set_exact_pos(Position exact_pos) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -76,21 +76,21 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
     // The limit expressed as a length relative to the current position.
     //
-    // `absl::nullopt` means no limit, unless `max_pos()` is set.
+    // `std::nullopt` means no limit, unless `max_pos()` is set.
     //
     // `max_pos()` and `max_length()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_max_length(absl::optional<Position> max_length) &
+    // Default: `std::nullopt`.
+    Options& set_max_length(std::optional<Position> max_length) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_length_ = max_length;
       return *this;
     }
-    Options&& set_max_length(absl::optional<Position> max_length) &&
+    Options&& set_max_length(std::optional<Position> max_length) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_length(max_length));
     }
-    absl::optional<Position> max_length() const { return max_length_; }
+    std::optional<Position> max_length() const { return max_length_; }
 
     // A shortcut for `set_max_length(length)` with `set_exact(true)`.
     Options& set_exact_length(Position exact_length) &
@@ -120,8 +120,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
     bool exact() const { return exact_; }
 
    private:
-    absl::optional<Position> max_pos_;
-    absl::optional<Position> max_length_;
+    std::optional<Position> max_pos_;
+    std::optional<Position> max_length_;
     bool exact_ = false;
   };
 
@@ -260,7 +260,7 @@ class LimitingBackwardWriter : public LimitingBackwardWriterBase {
 
  protected:
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -315,21 +315,21 @@ inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of LimitingBackwardWriter: "
          "null BackwardWriter pointer";
-  RIEGELI_ASSERT(options.max_pos() == absl::nullopt ||
-                 options.max_length() == absl::nullopt)
+  RIEGELI_ASSERT(options.max_pos() == std::nullopt ||
+                 options.max_length() == std::nullopt)
       << "Failed precondition of LimitingBackwardWriter: "
          "Options::max_pos() and Options::max_length() are both set";
   if (is_owning && exact()) {
-    if (options.max_pos() != absl::nullopt) {
+    if (options.max_pos() != std::nullopt) {
       dest->SetWriteSizeHint(SaturatingSub(*options.max_pos(), dest->pos()));
-    } else if (options.max_length() != absl::nullopt) {
+    } else if (options.max_length() != std::nullopt) {
       dest->SetWriteSizeHint(options.max_length());
     }
   }
   MakeBuffer(*dest);
-  if (options.max_pos() != absl::nullopt) {
+  if (options.max_pos() != std::nullopt) {
     set_max_pos(*options.max_pos());
-  } else if (options.max_length() != absl::nullopt) {
+  } else if (options.max_length() != std::nullopt) {
     set_max_length(*options.max_length());
   } else {
     clear_limit();
@@ -423,13 +423,13 @@ void LimitingBackwardWriter<Dest>::Done() {
 
 template <typename Dest>
 void LimitingBackwardWriter<Dest>::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   if (dest_.IsOwning() && !exact()) {
     if (ABSL_PREDICT_FALSE(!SyncBuffer(*dest_))) return;
     dest_->SetWriteSizeHint(
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(UnsignedMin(*write_size_hint, max_length())));
+        write_size_hint == std::nullopt
+            ? std::nullopt
+            : std::make_optional(UnsignedMin(*write_size_hint, max_length())));
     MakeBuffer(*dest_);
   }
 }

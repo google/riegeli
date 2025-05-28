@@ -20,13 +20,13 @@
 #include <ios>
 #include <istream>
 #include <limits>
+#include <optional>
 #include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
@@ -36,7 +36,7 @@
 namespace riegeli {
 
 void IStreamReaderBase::Initialize(std::istream* src,
-                                   absl::optional<Position> assumed_pos) {
+                                   std::optional<Position> assumed_pos) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of IStreamReader: null stream pointer";
   RIEGELI_ASSERT(!supports_random_access_)
@@ -54,7 +54,7 @@ void IStreamReaderBase::Initialize(std::istream* src,
   // A sticky `std::ios_base::eofbit` breaks future operations like
   // `std::istream::peek()` and `std::istream::tellg()`.
   src->clear(src->rdstate() & ~std::ios_base::eofbit);
-  if (assumed_pos != absl::nullopt) {
+  if (assumed_pos != std::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
             Position{std::numeric_limits<std::streamoff>::max()})) {
@@ -272,7 +272,7 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
   errno = 0;
   if (new_pos > limit_pos()) {
     // Seeking forwards.
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(new_pos > *exact_size())) {
         // Stream ends.
         src.seekg(IntCast<std::streamoff>(*exact_size()), std::ios_base::beg);
@@ -305,29 +305,29 @@ bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> IStreamReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (exact_size() != absl::nullopt) return *exact_size();
+std::optional<Position> IStreamReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
+  if (exact_size() != std::nullopt) return *exact_size();
   if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SupportsRandomAccess())) {
     Fail(random_access_status_);
-    return absl::nullopt;
+    return std::nullopt;
   }
   std::istream& src = *SrcStream();
   errno = 0;
   src.seekg(0, std::ios_base::end);
   if (ABSL_PREDICT_FALSE(src.fail())) {
     FailOperation("istream::seekg()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   const std::streamoff stream_size = src.tellg();
   if (ABSL_PREDICT_FALSE(stream_size < 0)) {
     FailOperation("istream::tellg()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   src.seekg(IntCast<std::streamoff>(limit_pos()), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(src.fail())) {
     FailOperation("istream::seekg()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (!growing_source_) set_exact_size(IntCast<Position>(stream_size));
   return IntCast<Position>(stream_size);

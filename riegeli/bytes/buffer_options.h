@@ -18,11 +18,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
@@ -219,10 +219,10 @@ class ReadBufferSizer {
   //
   // Also, if not `absl::nullptr`, this causes a smaller buffer size to be used
   // when reaching `*exact_size()`.
-  void set_exact_size(absl::optional<Position> exact_size) {
+  void set_exact_size(std::optional<Position> exact_size) {
     exact_size_ = exact_size;
   }
-  absl::optional<Position> exact_size() const { return exact_size_; }
+  std::optional<Position> exact_size() const { return exact_size_; }
 
   // Called at the beginning of a run.
   //
@@ -262,7 +262,7 @@ class ReadBufferSizer {
   // Buffer size recommended by the previous run.
   size_t buffer_length_from_last_run_ = 0;
   bool read_all_hint_ = false;
-  absl::optional<Position> exact_size_;
+  std::optional<Position> exact_size_;
 };
 
 // Recommends an adaptive buffer length based on the access pattern of a
@@ -301,14 +301,14 @@ class WriteBufferSizer {
   // reaching `*size_hint()`, and a smaller buffer size to be used when reaching
   // `*size_hint()`.
   void set_write_size_hint(Position pos,
-                           absl::optional<Position> write_size_hint) {
-    if (write_size_hint == absl::nullopt) {
-      size_hint_ = absl::nullopt;
+                           std::optional<Position> write_size_hint) {
+    if (write_size_hint == std::nullopt) {
+      size_hint_ = std::nullopt;
     } else {
       size_hint_ = SaturatingAdd(pos, *write_size_hint);
     }
   }
-  absl::optional<Position> size_hint() const { return size_hint_; }
+  std::optional<Position> size_hint() const { return size_hint_; }
 
   // Called at the beginning of a run.
   //
@@ -343,7 +343,7 @@ class WriteBufferSizer {
   Position base_pos_ = 0;
   // Buffer size recommended by the previous run.
   size_t buffer_length_from_last_run_ = 0;
-  absl::optional<Position> size_hint_;
+  std::optional<Position> size_hint_;
 };
 
 // Implementation details follow.
@@ -356,7 +356,7 @@ inline void ReadBufferSizer::Reset() {
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
   read_all_hint_ = false;
-  exact_size_ = absl::nullopt;
+  exact_size_ = std::nullopt;
 }
 
 inline void ReadBufferSizer::Reset(BufferOptions buffer_options) {
@@ -364,7 +364,7 @@ inline void ReadBufferSizer::Reset(BufferOptions buffer_options) {
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
   read_all_hint_ = false;
-  exact_size_ = absl::nullopt;
+  exact_size_ = std::nullopt;
 }
 
 inline void ReadBufferSizer::EndRun(Position pos) {
@@ -386,14 +386,14 @@ inline void WriteBufferSizer::Reset() {
   buffer_options_ = BufferOptions();
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
 }
 
 inline void WriteBufferSizer::Reset(BufferOptions buffer_options) {
   buffer_options_ = buffer_options;
   base_pos_ = 0;
   buffer_length_from_last_run_ = 0;
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
 }
 
 inline void WriteBufferSizer::EndRun(Position pos) {

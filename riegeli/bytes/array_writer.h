@@ -17,13 +17,13 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -76,7 +76,7 @@ class ArrayWriterBase : public PushableWriter {
   bool WriteBehindScratch(absl::string_view src) override;
   bool FlushBehindScratch(FlushType flush_type) override;
   bool SeekBehindScratch(Position new_pos) override;
-  absl::optional<Position> SizeBehindScratch() override;
+  std::optional<Position> SizeBehindScratch() override;
   bool TruncateBehindScratch(Position new_size) override;
   Reader* ReadModeBehindScratch(Position initial_pos) override;
 

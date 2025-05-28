@@ -18,13 +18,13 @@
 #include <ios>
 #include <iosfwd>
 #include <istream>
+#include <optional>
 #include <streambuf>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -50,8 +50,8 @@ class WriterStreambuf : public std::streambuf {
   WriterStreambuf& operator=(WriterStreambuf&& that) noexcept;
 
   void Initialize(Writer* dest);
-  absl::optional<Position> MoveBegin();
-  void MoveEnd(Writer* dest, absl::optional<Position> reader_pos);
+  std::optional<Position> MoveBegin();
+  void MoveEnd(Writer* dest, std::optional<Position> reader_pos);
   void Done();
 
   bool ok() const { return state_.ok(); }
@@ -324,7 +324,7 @@ class WriterOStream<Dest>::Mover {
   }
 
  private:
-  absl::optional<Position> reader_pos_;
+  std::optional<Position> reader_pos_;
 };
 
 template <typename Dest>

@@ -16,9 +16,10 @@
 
 #include <stdint.h>
 
+#include <optional>
+
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "highwayhash/hh_types.h"
 #include "highwayhash/highwayhash_target.h"
 #include "highwayhash/instruction_sets.h"
@@ -45,8 +46,8 @@ uint64_t Hash(absl::string_view data) {
 }
 
 uint64_t Hash(const Chain& data) {
-  if (const absl::optional<absl::string_view> flat = data.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = data.TryFlat();
+      flat != std::nullopt) {
     return Hash(*flat);
   }
   absl::InlinedVector<highwayhash::StringView, 16> fragments;

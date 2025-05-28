@@ -16,13 +16,13 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -44,8 +44,8 @@ ABSL_ATTRIBUTE_COLD absl::Status MaxLengthExceeded(Reader& src,
 absl::Status CopyAllImpl(Reader& src, Writer& dest, Position max_length,
                          bool set_write_size_hint) {
   if (src.SupportsSize()) {
-    const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+    const std::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (set_write_size_hint) dest.SetWriteSizeHint(max_length);
@@ -101,8 +101,8 @@ absl::Status CopyAllImpl(Reader& src, Writer& dest, Position max_length,
 absl::Status CopyAllImpl(Reader& src, BackwardWriter& dest, size_t max_length,
                          bool set_write_size_hint) {
   if (src.SupportsSize()) {
-    const absl::optional<Position> size = src.Size();
-    if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+    const std::optional<Position> size = src.Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
     const Position remaining = SaturatingSub(*size, src.pos());
     if (ABSL_PREDICT_FALSE(remaining > max_length)) {
       if (ABSL_PREDICT_FALSE(!src.Skip(max_length))) {

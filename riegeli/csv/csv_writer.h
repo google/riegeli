@@ -21,6 +21,7 @@
 #include <array>
 #include <initializer_list>
 #include <limits>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -29,7 +30,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -61,7 +61,7 @@ class CsvWriterBase : public Object {
    public:
     Options() noexcept {}
 
-    // If not `absl::nullopt`, sets field names, and automatically writes them
+    // If not `std::nullopt`, sets field names, and automatically writes them
     // as the first record.
     //
     // In this case `WriteRecord(CsvRecord)` is supported. Otherwise no
@@ -73,63 +73,63 @@ class CsvWriterBase : public Object {
     // consisting of one empty field, or will be skipped if
     // `CsvReaderBase::Options::skip_empty_lines()`.
     //
-    // Default: `absl::nullopt`.
-    Options& set_header(Initializer<absl::optional<CsvHeader>> header) &
+    // Default: `std::nullopt`.
+    Options& set_header(Initializer<std::optional<CsvHeader>> header) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(header_, std::move(header));
       return *this;
     }
-    Options&& set_header(Initializer<absl::optional<CsvHeader>> header) &&
+    Options&& set_header(Initializer<std::optional<CsvHeader>> header) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_header(std::move(header)));
     }
     Options& set_header(std::initializer_list<absl::string_view> names) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      return set_header(Initializer<absl::optional<CsvHeader>>(names));
+      return set_header(Initializer<std::optional<CsvHeader>>(names));
     }
     Options&& set_header(std::initializer_list<absl::string_view> names) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_header(names));
     }
-    absl::optional<CsvHeader>& header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    std::optional<CsvHeader>& header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return header_;
     }
-    const absl::optional<CsvHeader>& header() const
+    const std::optional<CsvHeader>& header() const
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return header_;
     }
 
-    // If not `absl::nullopt`, a header is not written to the file, but
+    // If not `std::nullopt`, a header is not written to the file, but
     // `WriteRecord(CsvRecord&)` is supported as if this header was written as
     // the first record.
     //
     // `header()` and `assumed_header()` must not be both set.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_header(Initializer<absl::optional<CsvHeader>> header) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_header(Initializer<std::optional<CsvHeader>> header) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(assumed_header_, std::move(header));
       return *this;
     }
     Options&& set_assumed_header(
-        Initializer<absl::optional<CsvHeader>> header) &&
+        Initializer<std::optional<CsvHeader>> header) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(std::move(header)));
     }
     Options& set_assumed_header(
         std::initializer_list<absl::string_view> names) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      return set_assumed_header(Initializer<absl::optional<CsvHeader>>(names));
+      return set_assumed_header(Initializer<std::optional<CsvHeader>>(names));
     }
     Options&& set_assumed_header(
         std::initializer_list<absl::string_view> names) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_header(names));
     }
-    absl::optional<CsvHeader>& assumed_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    std::optional<CsvHeader>& assumed_header() ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return assumed_header_;
     }
-    const absl::optional<CsvHeader>& assumed_header() const
+    const std::optional<CsvHeader>& assumed_header() const
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return assumed_header_;
     }
@@ -173,22 +173,22 @@ class CsvWriterBase : public Object {
 
     // Comment character.
     //
-    // If not `absl::nullopt`, fields containing this character will be quoted.
+    // If not `std::nullopt`, fields containing this character will be quoted.
     // This is not covered by RFC4180.
     //
     // Often used: '#'.
     //
-    // Default: `absl::nullopt`.
-    Options& set_comment(absl::optional<char> comment) &
+    // Default: `std::nullopt`.
+    Options& set_comment(std::optional<char> comment) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       comment_ = comment;
       return *this;
     }
-    Options&& set_comment(absl::optional<char> comment) &&
+    Options&& set_comment(std::optional<char> comment) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_comment(comment));
     }
-    absl::optional<char> comment() const { return comment_; }
+    std::optional<char> comment() const { return comment_; }
 
     // Field separator.
     //
@@ -215,7 +215,7 @@ class CsvWriterBase : public Object {
     // Quotes are also used for unambiguous interpretation of a record
     // consisting of a single empty field or beginning with UTF-8 BOM.
     //
-    // If `absl::nullopt`, special characters inside fields are not expressible,
+    // If `std::nullopt`, special characters inside fields are not expressible,
     // and `CsvWriter` fails if they are encountered, except that potential
     // ambiguities above skip quoting instead. In this case, reading a record
     // consisting of a single empty field is incompatible with
@@ -224,32 +224,32 @@ class CsvWriterBase : public Object {
     // `CsvReaderBase::Options::set_preserve_utf8_bom()`.
     //
     // Default: '"'.
-    Options& set_quote(absl::optional<char> quote) &
+    Options& set_quote(std::optional<char> quote) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       quote_ = quote;
       return *this;
     }
-    Options&& set_quote(absl::optional<char> quote) &&
+    Options&& set_quote(std::optional<char> quote) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_quote(quote));
     }
-    absl::optional<char> quote() const { return quote_; }
+    std::optional<char> quote() const { return quote_; }
 
    private:
-    absl::optional<CsvHeader> header_;
-    absl::optional<CsvHeader> assumed_header_;
+    std::optional<CsvHeader> header_;
+    std::optional<CsvHeader> assumed_header_;
     bool write_utf8_bom_ = false;
     WriteNewline newline_ = WriteNewline::kNative;
-    absl::optional<char> comment_;
+    std::optional<char> comment_;
     char field_separator_ = ',';
-    absl::optional<char> quote_ = '"';
+    std::optional<char> quote_ = '"';
   };
 
   // Returns the byte `Writer` being written to. Unchanged by `Close()`.
   virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   // Returns `true` if writing the header was requested, i.e. if
-  // `Options::header() != absl::nullopt`.
+  // `Options::header() != std::nullopt`.
   //
   // In this case `WriteRecord(CsvRecord)` is supported. Otherwise no particular
   // header is assumed, and only `WriteRecord()` from a sequence of fields is
@@ -272,7 +272,7 @@ class CsvWriterBase : public Object {
   // `CsvReaderBase::Options::skip_empty_lines()`.
   //
   // Preconditions:
-  //  * `has_header()`, i.e. `Options::header() != absl::nullopt`
+  //  * `has_header()`, i.e. `Options::header() != std::nullopt`
   //  * `record.header() == header()`
   //
   // Return values:
@@ -360,7 +360,7 @@ class CsvWriterBase : public Object {
       quotes_needed_{};
   WriteNewline newline_ = WriteNewline::kNative;
   char field_separator_ = '\0';
-  absl::optional<char> quote_;
+  std::optional<char> quote_;
   uint64_t record_index_ = 0;
 };
 
@@ -461,8 +461,8 @@ explicit CsvWriter(Dest&& dest,
 // e.g. `std::vector<std::string>`.
 //
 // Preconditions:
-//  * `options.header() == absl::nullopt`
-//  * if `options.quote() == absl::nullopt`, fields do not include inexpressible
+//  * `options.header() == std::nullopt`
+//  * if `options.quote() == std::nullopt`, fields do not include inexpressible
 //    characters: LF, CR, comment character, field separator.
 template <
     typename Record,
@@ -619,9 +619,9 @@ template <typename Record,
           std::enable_if_t<IsIterableOf<Record, absl::string_view>::value, int>>
 std::string WriteCsvRecordToString(const Record& record,
                                    CsvWriterBase::Options options) {
-  RIEGELI_ASSERT(options.header() == absl::nullopt)
+  RIEGELI_ASSERT(options.header() == std::nullopt)
       << "Failed precondition of WriteCsvRecordToString(): "
-         "options.header() != absl::nullopt not applicable";
+         "options.header() != std::nullopt not applicable";
   std::string dest;
   CsvWriter<StringWriter<>> csv_writer(riegeli::Maker(&dest),
                                        std::move(options));

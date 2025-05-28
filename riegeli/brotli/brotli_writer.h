@@ -16,13 +16,13 @@
 #define RIEGELI_BROTLI_BROTLI_WRITER_H_
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "brotli/encode.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -172,7 +172,7 @@ class BrotliWriterBase : public BufferedWriter {
   void Done() override;
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool WriteInternal(absl::string_view src) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;

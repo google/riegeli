@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -24,7 +25,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -168,18 +168,18 @@ bool PositionShiftingWriterBase::SeekSlow(Position new_pos) {
   return MakeBuffer(dest) && seek_ok;
 }
 
-absl::optional<Position> PositionShiftingWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> PositionShiftingWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  const absl::optional<Position> size = dest.Size();
-  if (ABSL_PREDICT_FALSE(!MakeBuffer(dest) || size == absl::nullopt)) {
-    return absl::nullopt;
+  const std::optional<Position> size = dest.Size();
+  if (ABSL_PREDICT_FALSE(!MakeBuffer(dest) || size == std::nullopt)) {
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(*size >
                          std::numeric_limits<Position>::max() - base_pos_)) {
     FailOverflow();
-    return absl::nullopt;
+    return std::nullopt;
   }
   return *size + base_pos_;
 }

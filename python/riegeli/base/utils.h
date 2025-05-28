@@ -26,6 +26,7 @@
 
 #include <memory>
 #include <new>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -33,7 +34,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -120,9 +120,9 @@ using PythonPtrLocking = std::unique_ptr<PyObject, LockingDeleter>;
 // Allows a C++ object to be safely embedded in a Python object allocated with
 // `PyType_GenericAlloc()`.
 //
-// `PythonWrapped<T>` is similar to `absl::optional<T>`, but:
+// `PythonWrapped<T>` is similar to `std::optional<T>`, but:
 //  * `PythonWrapped<T>` is POD.
-//  * `PythonWrapped<T>` supports only a subset of `absl::optional<T>` API.
+//  * `PythonWrapped<T>` supports only a subset of `std::optional<T>` API.
 //  * `PythonWrapped<T>` filled with zero bytes is valid and absent
 //    (`PyType_GenericAlloc()` fills the Python object with zero bytes).
 //  * `PythonWrapped<T>` should be explicitly `reset()` in the implementation of
@@ -523,8 +523,8 @@ PythonPtr ChainToPython(const Chain& value);
 // Converts a Python `bytes`-like object to C++ `Chain`, using the buffer
 // protocol.
 //
-// Returns `absl::nullopt` on failure (with Python exception set).
-absl::optional<Chain> ChainFromPython(PyObject* object);
+// Returns `std::nullopt` on failure (with Python exception set).
+std::optional<Chain> ChainFromPython(PyObject* object);
 
 // Converts C++ `size_t` to a Python `int` object.
 //
@@ -534,8 +534,8 @@ PythonPtr SizeToPython(size_t value);
 // Converts a Python object to C++ `size_t`. Valid Python objects are the same
 // as for slicing: `int` or objects supporting `__index__()`.
 //
-// Returns `absl::nullopt` on failure (with Python exception set).
-absl::optional<size_t> SizeFromPython(PyObject* object);
+// Returns `std::nullopt` on failure (with Python exception set).
+std::optional<size_t> SizeFromPython(PyObject* object);
 
 // Converts C++ `Position` to a Python `int` object.
 //
@@ -545,8 +545,8 @@ PythonPtr PositionToPython(Position value);
 // Converts a Python object to C++ `Position`. Valid Python objects are the same
 // as for slicing: `int` or objects supporting `__index__()`.
 //
-// Returns `absl::nullopt` on failure (with Python exception set).
-absl::optional<Position> PositionFromPython(PyObject* object);
+// Returns `std::nullopt` on failure (with Python exception set).
+std::optional<Position> PositionFromPython(PyObject* object);
 
 // Converts C++ `PartialOrdering` to a Python `None` (for `unordered`) or `int`
 // object (-1 for `less`, 0 for `equivalent`, or 1 for `greater`).
@@ -557,8 +557,8 @@ PythonPtr PartialOrderingToPython(PartialOrdering ordering);
 // Converts a Python object to C++ `PartialOrdering`. Valid Python objects are
 // `int` (compared with 0) or `None`.
 //
-// Returns `absl::nullopt` on failure (with Python exception set).
-absl::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object);
+// Returns `std::nullopt` on failure (with Python exception set).
+std::optional<PartialOrdering> PartialOrderingFromPython(PyObject* object);
 
 // Implementation details follow.
 

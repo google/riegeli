@@ -19,13 +19,13 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -51,7 +51,7 @@ void CordWriterBase::Done() {
 }
 
 inline size_t CordWriterBase::MaxBytesToCopy() const {
-  if (size_hint_ != absl::nullopt && pos() < *size_hint_) {
+  if (size_hint_ != std::nullopt && pos() < *size_hint_) {
     return UnsignedClamp(*size_hint_ - pos() - 1,
                          cord_internal::kMaxBytesToCopyToEmptyCord,
                          cord_internal::kMaxBytesToCopyToNonEmptyCord);
@@ -143,9 +143,9 @@ inline void CordWriterBase::ShrinkTail(size_t length) {
 }
 
 void CordWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   if (write_size_hint == size_hint_) {
-    size_hint_ = absl::nullopt;
+    size_hint_ = std::nullopt;
   } else {
     size_hint_ = SaturatingAdd(pos(), *write_size_hint);
   }
@@ -163,7 +163,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
     ExtractTail(dest);
   } else if (pos() == 0) {
     Position needed_length = UnsignedMax(min_length, recommended_length);
-    if (size_hint_ != absl::nullopt) {
+    if (size_hint_ != std::nullopt) {
       needed_length = UnsignedMax(needed_length, *size_hint_);
     }
     if (needed_length <= cord_buffer_.capacity()) {
@@ -424,8 +424,8 @@ bool CordWriterBase::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> CordWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> CordWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   absl::Cord& dest = *DestCord();
   RIEGELI_ASSERT_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";

@@ -19,6 +19,7 @@
 #include <ios>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -28,7 +29,6 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -53,7 +53,7 @@ namespace riegeli {
 namespace {
 
 // Stores an `absl::Cord` which must be flat, i.e.
-// `src.TryFlat() != absl::nullopt`.
+// `src.TryFlat() != std::nullopt`.
 //
 // This design relies on the fact that moving a flat `absl::Cord` results in a
 // flat `absl::Cord`.
@@ -82,20 +82,20 @@ class FlatCordBlock {
   }
 
  private:
-  // Invariant: `src_.TryFlat() != absl::nullopt`
+  // Invariant: `src_.TryFlat() != std::nullopt`
   absl::Cord src_;
 };
 
 inline FlatCordBlock::FlatCordBlock(Initializer<absl::Cord> src)
     : src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.TryFlat() != absl::nullopt)
+  RIEGELI_ASSERT(src_.TryFlat() != std::nullopt)
       << "Failed precondition of FlatCordBlock::FlatCordBlock(): "
          "Cord is not flat";
 }
 
 inline FlatCordBlock::operator absl::string_view() const {
-  if (const absl::optional<absl::string_view> flat = src_.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src_.TryFlat();
+      flat != std::nullopt) {
     return *flat;
   }
   RIEGELI_ASSUME_UNREACHABLE()
@@ -493,8 +493,8 @@ inline void Chain::Initialize(absl::Cord&& src) {
 
 template <typename CordRef>
 inline void Chain::InitializeFromCord(CordRef&& src) {
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     if (flat->size() <= kMaxBytesToCopyToEmpty) {
       Initialize(*flat);
     } else {
@@ -1180,7 +1180,7 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
       // `size_hint` is larger, because data will likely need to be copied later
       // to a real block.
       if (recommended_length <= kMaxShortDataSize - size_ &&
-          (options.size_hint() == absl::nullopt ||
+          (options.size_hint() == std::nullopt ||
            *options.size_hint() <= kMaxShortDataSize)) {
         // Append the new space to short data.
         EnsureHasHere();
@@ -1268,7 +1268,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
       // `size_hint` is larger, because data will likely need to be copied later
       // to a real block.
       if (recommended_length <= kMaxShortDataSize - size_ &&
-          (options.size_hint() == absl::nullopt ||
+          (options.size_hint() == std::nullopt ||
            *options.size_hint() <= kMaxShortDataSize)) {
         // Prepend the new space to short data.
         EnsureHasHere();
@@ -1572,8 +1572,8 @@ void Chain::Append(absl::Cord&& src, Options options) {
 
 template <typename CordRef>
 void Chain::AppendCord(CordRef&& src, Options options) {
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     if (flat->size() <= MaxBytesToCopy(options)) {
       Append(*flat, options);
     } else {
@@ -1853,8 +1853,8 @@ void Chain::Prepend(absl::Cord&& src, Options options) {
 template <typename CordRef>
 inline void Chain::PrependCord(CordRef&& src, Options options) {
   if (src.size() <= MaxBytesToCopy(options)) {
-    if (const absl::optional<absl::string_view> flat = src.TryFlat();
-        flat != absl::nullopt) {
+    if (const std::optional<absl::string_view> flat = src.TryFlat();
+        flat != std::nullopt) {
       Prepend(*flat, options);
       return;
     }

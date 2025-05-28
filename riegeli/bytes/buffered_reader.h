@@ -17,11 +17,11 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/sized_shared_buffer.h"
@@ -47,7 +47,7 @@ class BufferedReader : public Reader {
   // also in some other cases.
   bool ToleratesReadingAhead() override { return read_all_hint(); }
 
-  bool SupportsSize() override { return exact_size() != absl::nullopt; }
+  bool SupportsSize() override { return exact_size() != std::nullopt; }
 
  protected:
   // Creates a closed `BufferedReader`.
@@ -87,10 +87,10 @@ class BufferedReader : public Reader {
   //
   // Also, if not `absl::nullptr`, this causes a smaller buffer size to be used
   // when reaching `*exact_size()`.
-  void set_exact_size(absl::optional<Position> exact_size) {
+  void set_exact_size(std::optional<Position> exact_size) {
     buffer_sizer_.set_exact_size(exact_size);
   }
-  absl::optional<Position> exact_size() const {
+  std::optional<Position> exact_size() const {
     return buffer_sizer_.exact_size();
   }
 
@@ -171,7 +171,7 @@ class BufferedReader : public Reader {
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
 
   // Reuses `buffer_` as `reader.buffer_` if `reader.pos()` falls inside.
   void ShareBufferTo(BufferedReader& reader) const;

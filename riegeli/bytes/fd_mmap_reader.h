@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -27,7 +28,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
@@ -96,46 +96,44 @@ class FdMMapReaderBase : public ChainReader<Chain> {
       return (mode_ & fd_internal::kCloseOnExec) == 0;
     }
 
-    // If `absl::nullopt`, `FdMMapReader` reads starting from the current fd
+    // If `std::nullopt`, `FdMMapReader` reads starting from the current fd
     // position. The `FdMMapReader` position is synchronized back to the fd by
     // `Close()` and `Sync()`.
     //
-    // If not `absl::nullopt`, `FdMMapReader` reads starting from this position,
+    // If not `std::nullopt`, `FdMMapReader` reads starting from this position,
     // without disturbing the current fd position. This is useful for multiple
     // readers concurrently reading from the same fd.
     //
-    // Default: `absl::nullopt`.
-    Options& set_independent_pos(absl::optional<Position> independent_pos) &
+    // Default: `std::nullopt`.
+    Options& set_independent_pos(std::optional<Position> independent_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       independent_pos_ = independent_pos;
       return *this;
     }
-    Options&& set_independent_pos(absl::optional<Position> independent_pos) &&
+    Options&& set_independent_pos(std::optional<Position> independent_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_independent_pos(independent_pos));
     }
-    absl::optional<Position> independent_pos() const {
-      return independent_pos_;
-    }
+    std::optional<Position> independent_pos() const { return independent_pos_; }
 
-    // If `absl::nullopt`, the whole file is mapped into memory. `pos()`
+    // If `std::nullopt`, the whole file is mapped into memory. `pos()`
     // corresponds to original file positions.
     //
-    // If not `absl::nullopt`, only the range of this length starting from the
+    // If not `std::nullopt`, only the range of this length starting from the
     // current position or `independent_pos()` is mapped into memory, or the
     // remaining part of the file if that is shorter. `pos()` starts from 0.
     //
-    // Default: `absl::nullopt`.
-    Options& set_max_length(absl::optional<Position> max_length) &
+    // Default: `std::nullopt`.
+    Options& set_max_length(std::optional<Position> max_length) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_length_ = max_length;
       return *this;
     }
-    Options&& set_max_length(absl::optional<Position> max_length) &&
+    Options&& set_max_length(std::optional<Position> max_length) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_max_length(max_length));
     }
-    absl::optional<Position> max_length() const { return max_length_; }
+    std::optional<Position> max_length() const { return max_length_; }
 
     // Sets `max_length()` to the remaining part of the file.
     Options& set_remaining_length() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -152,8 +150,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 #else
     int mode_ = _O_RDONLY | _O_BINARY | fd_internal::kCloseOnExec;
 #endif
-    absl::optional<Position> independent_pos_;
-    absl::optional<Position> max_length_;
+    std::optional<Position> independent_pos_;
+    std::optional<Position> max_length_;
   };
 
   // Returns the `FdHandle` being read from. Unchanged by `Close()`.
@@ -204,7 +202,7 @@ class FdMMapReaderBase : public ChainReader<Chain> {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  absl::optional<Position> base_pos_to_sync_;
+  std::optional<Position> base_pos_to_sync_;
 };
 
 // A `Reader` which reads from a file descriptor by mapping the whole file to
@@ -215,12 +213,12 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 //  * `close()` - if the fd is owned
 //  * `fstat()`
 //  * `mmap()`
-//  * `lseek()` - if `Options::independent_pos() == absl::nullopt`
+//  * `lseek()` - if `Options::independent_pos() == std::nullopt`
 #else
 //  * `_close()`    - if the fd is owned
 //  * `_fstat64()`
 //  * `_get_osfhandle()`, `CreateFileMappingW()`, `MapViewOfFile()`
-//  * `_lseeki64()` - if `Options::independent_pos() == absl::nullopt`
+//  * `_lseeki64()` - if `Options::independent_pos() == std::nullopt`
 #endif
 //
 // `FdMMapReader` supports random access and `NewReader()`.
@@ -380,14 +378,14 @@ inline FdMMapReaderBase& FdMMapReaderBase::operator=(
 
 inline void FdMMapReaderBase::Reset(Closed) {
   ChainReader::Reset(kClosed);
-  base_pos_to_sync_ = absl::nullopt;
+  base_pos_to_sync_ = std::nullopt;
 }
 
 inline void FdMMapReaderBase::Reset() {
   // The `Chain` to read from is not known yet. `ChainReader` will be reset in
   // `Initialize()` to read from the `Chain` when it is known.
   ChainReader::Reset(kClosed);
-  base_pos_to_sync_ = absl::nullopt;
+  base_pos_to_sync_ = std::nullopt;
 }
 
 template <typename Src>

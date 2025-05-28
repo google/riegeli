@@ -23,12 +23,12 @@
 #include <iterator>
 #include <limits>
 #include <utility>
+#include <variant>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -452,7 +452,7 @@ class ByteFill::Blocks {
   //  * When `block_` is `SmallBlock`: `small_block.data()`
   //  * When `block_` is `LargeBlock`: `large_block.data()`
   const char* data_ = nullptr;
-  absl::variant<ZeroBlock, SmallBlock, LargeBlock> block_;
+  std::variant<ZeroBlock, SmallBlock, LargeBlock> block_;
 };
 
 // Implementation details follow.
@@ -562,7 +562,7 @@ inline ByteFill::Blocks::Blocks(Blocks&& that) noexcept
       last_block_size_(that.last_block_size_),
       data_(that.data_),
       block_(std::move(that.block_)) {
-  if (SmallBlock* const small_block = absl::get_if<SmallBlock>(&block_);
+  if (SmallBlock* const small_block = std::get_if<SmallBlock>(&block_);
       small_block != nullptr) {
     data_ = small_block->data();
   }
@@ -585,7 +585,7 @@ inline void ByteFill::Blocks::ExternalDelegate(absl::string_view substr,
     absl::string_view substr;
     Callback&& delegate_to;
   };
-  absl::visit(Visitor{substr, std::forward<Callback>(delegate_to)}, block_);
+  std::visit(Visitor{substr, std::forward<Callback>(delegate_to)}, block_);
 }
 
 inline ByteFill::Blocks ByteFill::blocks() const {

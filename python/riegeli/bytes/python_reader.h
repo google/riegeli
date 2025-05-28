@@ -24,12 +24,12 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -51,7 +51,7 @@ namespace riegeli::python {
 //  * `tell()`           - for `Seek()` or `Size()`
 //
 // `PythonReader` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// `Options::assumed_pos() == std::nullopt` and the stream supports random
 // access (this is checked by calling `seekable()`).
 //
 // Warning: if random access is not supported and the stream is not owned,
@@ -75,30 +75,30 @@ class PythonReader : public BufferedReader {
     }
     bool owns_src() const { return owns_src_; }
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current stream position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the stream supports
     // random access.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current stream
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current stream
     // position. Random access is not supported.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
     bool owns_src_ = false;
-    absl::optional<Position> assumed_pos_;
+    std::optional<Position> assumed_pos_;
   };
 
   // Creates a closed `PythonReader`.
@@ -130,11 +130,11 @@ class PythonReader : public BufferedReader {
   void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  absl::optional<Position> SizeInternal();
+  std::optional<Position> SizeInternal();
 
   PythonPtrLocking src_;
   bool owns_src_ = false;

@@ -22,12 +22,12 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -48,7 +48,7 @@ namespace riegeli::python {
 //  * `truncate()`       - for `Truncate()`
 //
 // `PythonWriter` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// `Options::assumed_pos() == std::nullopt` and the stream supports random
 // access (this is checked by calling `seekable()`).
 class PythonWriter : public BufferedWriter {
  public:
@@ -70,30 +70,30 @@ class PythonWriter : public BufferedWriter {
     }
     bool owns_dest() const { return owns_dest_; }
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current stream position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the stream supports
     // random access.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current stream
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current stream
     // position. Random access is not supported.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
     bool owns_dest_ = false;
-    absl::optional<Position> assumed_pos_;
+    std::optional<Position> assumed_pos_;
   };
 
   // Creates a closed `PythonWriter`.
@@ -122,12 +122,12 @@ class PythonWriter : public BufferedWriter {
   bool WriteInternal(absl::string_view src) override;
   bool FlushImpl(FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeBehindBuffer() override;
+  std::optional<Position> SizeBehindBuffer() override;
   bool TruncateBehindBuffer(Position new_size) override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
-  absl::optional<Position> SizeInternal();
+  std::optional<Position> SizeInternal();
 
   PythonPtrLocking dest_;
   bool owns_dest_ = false;

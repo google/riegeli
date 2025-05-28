@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -28,7 +29,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -166,7 +166,7 @@ class FileReaderBase : public Reader {
                           absl::FunctionRef<char*(size_t&)> get_dest) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
@@ -174,10 +174,10 @@ class FileReaderBase : public Reader {
                                          absl::string_view operation);
   ABSL_ATTRIBUTE_COLD static absl::Status NoRandomAccessStatus();
 
-  void set_exact_size(absl::optional<Position> exact_size) {
+  void set_exact_size(std::optional<Position> exact_size) {
     buffer_sizer_.set_exact_size(exact_size);
   }
-  absl::optional<Position> exact_size() const {
+  std::optional<Position> exact_size() const {
     return buffer_sizer_.exact_size();
   }
 

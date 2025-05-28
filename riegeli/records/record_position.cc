@@ -22,13 +22,13 @@
 #include <ostream>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/types.h"
@@ -138,7 +138,7 @@ void FutureChunkBegin::Unresolved::Resolve() const {
     Position pos;
   };
   Visitor visitor{pos_before_chunks_};
-  for (const Action& action : actions_) absl::visit(visitor, action);
+  for (const Action& action : actions_) std::visit(visitor, action);
   pos_before_chunks_ = visitor.pos;
   actions_ = std::vector<Action>();
 }

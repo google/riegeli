@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -24,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
@@ -53,22 +53,22 @@ class PrefixLimitingBackwardWriterBase : public BackwardWriter {
     // The base position of the original `BackwardWriter`. It must be at least
     // as large as the initial position.
     //
-    // `absl::nullopt` means the current position.
+    // `std::nullopt` means the current position.
     //
-    // Default: `absl::nullopt`.
-    Options& set_base_pos(absl::optional<Position> base_pos) &
+    // Default: `std::nullopt`.
+    Options& set_base_pos(std::optional<Position> base_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(absl::optional<Position> base_pos) &&
+    Options&& set_base_pos(std::optional<Position> base_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_base_pos(base_pos));
     }
-    absl::optional<Position> base_pos() const { return base_pos_; }
+    std::optional<Position> base_pos() const { return base_pos_; }
 
    private:
-    absl::optional<Position> base_pos_;
+    std::optional<Position> base_pos_;
   };
 
   // Returns the original `BackwardWriter`. Unchanged by `Close()`.
@@ -88,7 +88,7 @@ class PrefixLimitingBackwardWriterBase : public BackwardWriter {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(BackwardWriter* dest, absl::optional<Position> base_pos);
+  void Initialize(BackwardWriter* dest, std::optional<Position> base_pos);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   // Sets cursor of `dest` to cursor of `*this`.
@@ -180,7 +180,7 @@ class PrefixLimitingBackwardWriter : public PrefixLimitingBackwardWriterBase {
 
  protected:
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool FlushImpl(FlushType flush_type) override;
 
  private:
@@ -224,11 +224,11 @@ inline void PrefixLimitingBackwardWriterBase::Reset() {
 }
 
 inline void PrefixLimitingBackwardWriterBase::Initialize(
-    BackwardWriter* dest, absl::optional<Position> base_pos) {
+    BackwardWriter* dest, std::optional<Position> base_pos) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of PrefixLimitingBackwardWriter: "
          "null BackwardWriter pointer";
-  if (base_pos == absl::nullopt) {
+  if (base_pos == std::nullopt) {
     base_pos_ = dest->pos();
   } else {
     RIEGELI_ASSERT_LE(*base_pos, dest->pos())
@@ -308,13 +308,13 @@ void PrefixLimitingBackwardWriter<Dest>::Done() {
 
 template <typename Dest>
 void PrefixLimitingBackwardWriter<Dest>::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   if (dest_.IsOwning()) {
     SyncBuffer(*dest_);
     dest_->SetWriteSizeHint(
-        write_size_hint == absl::nullopt
-            ? absl::nullopt
-            : absl::make_optional(SaturatingAdd(base_pos(), *write_size_hint)));
+        write_size_hint == std::nullopt
+            ? std::nullopt
+            : std::make_optional(SaturatingAdd(base_pos(), *write_size_hint)));
     MakeBuffer(*dest_);
   }
 }

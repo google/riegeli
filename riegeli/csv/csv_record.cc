@@ -19,6 +19,7 @@
 #include <cstring>
 #include <functional>
 #include <initializer_list>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -33,7 +34,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -268,14 +268,14 @@ bool CsvHeader::contains(absl::string_view name) const {
   return iter != payload_->name_to_index.cend();
 }
 
-absl::optional<size_t> CsvHeader::IndexOf(absl::string_view name) const {
-  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return absl::nullopt;
+std::optional<size_t> CsvHeader::IndexOf(absl::string_view name) const {
+  if (ABSL_PREDICT_FALSE(payload_ == nullptr)) return std::nullopt;
   const absl::flat_hash_map<std::string, size_t>::const_iterator iter =
       payload_->normalizer == nullptr
           ? payload_->name_to_index.find(name)
           : payload_->name_to_index.find(payload_->normalizer(name));
   if (ABSL_PREDICT_FALSE(iter == payload_->name_to_index.cend())) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return iter->second;
 }

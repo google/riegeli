@@ -20,12 +20,14 @@
 #include <array>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <typeindex>
 #include <typeinfo>  // IWYU pragma: keep
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -37,8 +39,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
-#include "absl/types/variant.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/estimated_allocated_size.h"
 
@@ -181,8 +181,8 @@ class MemoryEstimator {
   //  * `std::shared_ptr<T>`
   //  * `std::basic_string<Char, Traits, Alloc>` (`Alloc` is ignored)
   //  * `absl::Cord`
-  //  * `absl::optional<T>`
-  //  * `absl::variant<T...>`
+  //  * `std::optional<T>`
+  //  * `std::variant<T...>`
   //  * `std::pair<T, U>`
   //  * `std::tuple<T...>`
   //  * `std::array<T, size>`
@@ -520,9 +520,9 @@ inline void RiegeliRegisterSubobjects(const absl::Cord* self,
 }
 
 template <typename T>
-inline void RiegeliRegisterSubobjects(const absl::optional<T>* self,
+inline void RiegeliRegisterSubobjects(const std::optional<T>* self,
                                       MemoryEstimator& memory_estimator) {
-  if (*self != absl::nullopt) memory_estimator.RegisterSubobjects(&**self);
+  if (*self != std::nullopt) memory_estimator.RegisterSubobjects(&**self);
 }
 
 namespace memory_estimator_internal {
@@ -539,9 +539,9 @@ struct RegisterSubobjectsVisitor {
 }  // namespace memory_estimator_internal
 
 template <typename... T>
-inline void RiegeliRegisterSubobjects(const absl::variant<T...>* self,
+inline void RiegeliRegisterSubobjects(const std::variant<T...>* self,
                                       MemoryEstimator& memory_estimator) {
-  absl::visit(
+  std::visit(
       memory_estimator_internal::RegisterSubobjectsVisitor{memory_estimator},
       *self);
 }

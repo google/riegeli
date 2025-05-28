@@ -17,11 +17,11 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -53,9 +53,9 @@ inline void ChainBackwardWriterBase::MakeBuffer(Chain& dest, size_t min_length,
 }
 
 void ChainBackwardWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
-  if (write_size_hint == absl::nullopt) {
-    options_.set_size_hint(absl::nullopt);
+    std::optional<Position> write_size_hint) {
+  if (write_size_hint == std::nullopt) {
+    options_.set_size_hint(std::nullopt);
   } else {
     options_.set_size_hint(
         SaturatingIntCast<size_t>(SaturatingAdd(pos(), *write_size_hint)));

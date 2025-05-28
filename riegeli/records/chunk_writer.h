@@ -16,13 +16,13 @@
 #define RIEGELI_RECORDS_CHUNK_WRITER_H_
 
 #include <limits>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -127,22 +127,22 @@ class DefaultChunkWriterBase : public ChunkWriter {
     // This can be used to prepare a file fragment which can be appended to the
     // target file at the given position.
     //
-    // `absl::nullopt` means `DestWriter()->pos()`.
+    // `std::nullopt` means `DestWriter()->pos()`.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
-    absl::optional<Position> assumed_pos_;
+    std::optional<Position> assumed_pos_;
   };
 
   // Returns the Riegeli/records file being written to. Unchanged by `Close()`.

@@ -20,6 +20,7 @@
 #include <ios>
 #include <istream>
 #include <limits>
+#include <optional>
 #include <ostream>
 #include <string>
 
@@ -27,7 +28,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
@@ -40,7 +40,7 @@
 namespace riegeli {
 
 void OStreamWriterBase::Initialize(std::ostream* dest,
-                                   absl::optional<Position> assumed_pos,
+                                   std::optional<Position> assumed_pos,
                                    bool assumed_append) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of OStreamWriter: null stream pointer";
@@ -62,7 +62,7 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
     FailOperation("ostream::ostream()");
     return;
   }
-  if (assumed_pos != absl::nullopt) {
+  if (assumed_pos != std::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *assumed_pos >
             Position{std::numeric_limits<std::streamoff>::max()})) {
@@ -272,32 +272,32 @@ bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
+std::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!OStreamWriterBase::SupportsRandomAccess())) {
     if (ok()) Fail(random_access_status_);
-    return absl::nullopt;
+    return std::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   read_mode_ = false;
   std::ostream& dest = *DestStream();
   errno = 0;
   dest.seekp(0, std::ios_base::end);
   if (ABSL_PREDICT_FALSE(dest.fail())) {
     FailOperation("ostream::seekp()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   const std::streamoff stream_size = dest.tellp();
   if (ABSL_PREDICT_FALSE(stream_size < 0)) {
     FailOperation("ostream::tellp()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   dest.seekp(IntCast<std::streamoff>(start_pos()), std::ios_base::beg);
   if (ABSL_PREDICT_FALSE(dest.fail())) {
     FailOperation("ostream::seekp()");
-    return absl::nullopt;
+    return std::nullopt;
   }
   return IntCast<Position>(stream_size);
 }

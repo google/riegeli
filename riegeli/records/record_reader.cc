@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,7 +30,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/descriptor.pb.h"
 #include "google/protobuf/message.h"
@@ -520,11 +520,11 @@ bool RecordReaderBase::SeekBack() {
   return false;
 }
 
-absl::optional<Position> RecordReaderBase::Size() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> RecordReaderBase::Size() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   ChunkReader& src = *SrcChunkReader();
-  const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+  const std::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
     FailWithoutAnnotation(AnnotateOverSrc(src.status()));
   }
   return size;
@@ -540,13 +540,13 @@ class RecordReaderBase::ChunkSearchTraits {
 
   bool Empty(Position low, Position high) const { return low >= high; }
 
-  absl::optional<Position> Middle(Position low, Position high) const {
-    if (low >= high) return absl::nullopt;
+  std::optional<Position> Middle(Position low, Position high) const {
+    if (low >= high) return std::nullopt;
     ChunkReader& src = *self_->SrcChunkReader();
     if (ABSL_PREDICT_FALSE(!src.SeekToChunkBefore(low + (high - low) / 2))) {
       if (!self_->FailSeeking(src)) {
         // There was a failure or unexpected end of file. Cancel the search.
-        return absl::nullopt;
+        return std::nullopt;
       }
       if (src.pos() >= high) {
         // Skipped region after the middle ends after `high`. Find the next
@@ -555,7 +555,7 @@ class RecordReaderBase::ChunkSearchTraits {
           if (!self_->FailSeeking(src) || src.pos() >= high) {
             // There was a failure or unexpected end of file, or the whole range
             // is skipped. Cancel the search.
-            return absl::nullopt;
+            return std::nullopt;
           }
         }
       }
@@ -567,16 +567,16 @@ class RecordReaderBase::ChunkSearchTraits {
   RecordReaderBase* self_;
 };
 
-absl::optional<PartialOrdering> RecordReaderBase::SearchImpl(
-    absl::FunctionRef<absl::optional<PartialOrdering>(RecordReaderBase& reader)>
+std::optional<PartialOrdering> RecordReaderBase::SearchImpl(
+    absl::FunctionRef<std::optional<PartialOrdering>(RecordReaderBase& reader)>
         test) {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   last_record_is_valid_ = false;
   ChunkReader& src = *SrcChunkReader();
-  const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+  const std::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
     FailWithoutAnnotation(AnnotateOverSrc(src.status()));
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   struct ChunkSuffix {
@@ -584,19 +584,19 @@ absl::optional<PartialOrdering> RecordReaderBase::SearchImpl(
     uint64_t record_index;
     uint64_t num_records;
   };
-  absl::optional<ChunkSuffix> less_found;
+  std::optional<ChunkSuffix> less_found;
   uint64_t greater_record_index = 0;
-  absl::optional<SearchResult<Position>> greater_chunk_begin = BinarySearch(
+  std::optional<SearchResult<Position>> greater_chunk_begin = BinarySearch(
       0, *size,
-      [&](Position chunk_begin) -> absl::optional<SearchGuide<Position>> {
+      [&](Position chunk_begin) -> std::optional<SearchGuide<Position>> {
         if (ABSL_PREDICT_FALSE(!src.Seek(chunk_begin))) {
-          if (!FailSeeking(src)) return absl::nullopt;
+          if (!FailSeeking(src)) return std::nullopt;
           // Declare the skipped region unordered.
           return SearchGuide<Position>(PartialOrdering::unordered, src.pos());
         }
         if (ABSL_PREDICT_FALSE(!ReadChunk())) {
           if (!TryRecovery()) {
-            if (!ok()) return absl::nullopt;
+            if (!ok()) return std::nullopt;
             // The chunk is truncated. Continue the search before the chunk.
             greater_record_index = 0;
             return SearchGuide<Position>(PartialOrdering::greater, chunk_begin);
@@ -613,22 +613,22 @@ absl::optional<PartialOrdering> RecordReaderBase::SearchImpl(
              ++record_index) {
           if (ABSL_PREDICT_FALSE(
                   !Seek(RecordPosition(chunk_begin, record_index)))) {
-            return absl::nullopt;
+            return std::nullopt;
           }
           std::function<bool(const SkippedRegion&, RecordReaderBase&)>
               recovery = std::exchange(recovery_, nullptr);
-          const absl::optional<PartialOrdering> ordering = test(*this);
+          const std::optional<PartialOrdering> ordering = test(*this);
           recovery_ = std::move(recovery);
           if (ABSL_PREDICT_FALSE(!ok())) {
             // Reading the record made the `RecordReader` not OK, probably
             // because a message could not be parsed (or `test()` did something
             // unusual).
-            if (!TryRecovery()) return absl::nullopt;
+            if (!TryRecovery()) return std::nullopt;
             // Declare the skipped record unordered.
             continue;
           }
-          if (ABSL_PREDICT_FALSE(ordering == absl::nullopt)) {
-            return absl::nullopt;
+          if (ABSL_PREDICT_FALSE(ordering == std::nullopt)) {
+            return std::nullopt;
           }
           if (*ordering < 0) {
             less_found =
@@ -645,34 +645,34 @@ absl::optional<PartialOrdering> RecordReaderBase::SearchImpl(
       },
       ChunkSearchTraits(this));
 
-  if (ABSL_PREDICT_FALSE(greater_chunk_begin == absl::nullopt)) {
-    return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(greater_chunk_begin == std::nullopt)) {
+    return std::nullopt;
   }
-  if (greater_chunk_begin->ordering != 0 && less_found != absl::nullopt) {
-    const absl::optional<SearchResult<uint64_t>> less_record_index =
+  if (greater_chunk_begin->ordering != 0 && less_found != std::nullopt) {
+    const std::optional<SearchResult<uint64_t>> less_record_index =
         BinarySearch(
             less_found->record_index, less_found->num_records,
-            [&](uint64_t record_index) -> absl::optional<PartialOrdering> {
+            [&](uint64_t record_index) -> std::optional<PartialOrdering> {
               if (ABSL_PREDICT_FALSE(!Seek(
                       RecordPosition(less_found->chunk_begin, record_index)))) {
-                return absl::nullopt;
+                return std::nullopt;
               }
               std::function<bool(const SkippedRegion&, RecordReaderBase&)>
                   recovery = std::exchange(recovery_, nullptr);
-              const absl::optional<PartialOrdering> ordering = test(*this);
+              const std::optional<PartialOrdering> ordering = test(*this);
               recovery_ = std::move(recovery);
               if (ABSL_PREDICT_FALSE(!ok())) {
                 // Reading the record made the `RecordReader` not OK, probably
                 // because a message could not be parsed (or `test()` did
                 // something unusual).
-                if (!TryRecovery()) return absl::nullopt;
+                if (!TryRecovery()) return std::nullopt;
                 // Declare the skipped record unordered.
                 return PartialOrdering::unordered;
               }
               return ordering;
             });
-    if (ABSL_PREDICT_FALSE(less_record_index == absl::nullopt)) {
-      return absl::nullopt;
+    if (ABSL_PREDICT_FALSE(less_record_index == std::nullopt)) {
+      return std::nullopt;
     }
     if (less_record_index->ordering >= 0) {
       greater_chunk_begin->ordering = less_record_index->ordering;
@@ -683,7 +683,7 @@ absl::optional<PartialOrdering> RecordReaderBase::SearchImpl(
   if (ABSL_PREDICT_FALSE(!Seek(
           RecordPosition(greater_chunk_begin->found, greater_record_index)))) {
     Fail(absl::DataLossError("Riegeli/records file got truncated"));
-    return absl::nullopt;
+    return std::nullopt;
   }
   return greater_chunk_begin->ordering;
 }

@@ -22,13 +22,13 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "lz4frame.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -89,7 +89,7 @@ void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
                                                    ? LZ4F_contentChecksumEnabled
                                                    : LZ4F_noContentChecksum;
   preferences_.frameInfo.contentSize =
-      pledged_size_ != absl::nullopt
+      pledged_size_ != std::nullopt
           ? IntCast<unsigned long long>(*pledged_size_)
           : 0;
   preferences_.frameInfo.dictID = dictionary_.dict_id();
@@ -117,7 +117,7 @@ void Lz4WriterBase::Done() {
   stable_src_ = true;
   BufferedWriter::Done();
   if (ABSL_PREDICT_TRUE(ok())) {
-    if (pledged_size_ != absl::nullopt &&
+    if (pledged_size_ != std::nullopt &&
         ABSL_PREDICT_FALSE(start_pos() < *pledged_size_)) {
       Fail(absl::FailedPreconditionError(
           absl::StrCat("Actual size does not match pledged size: ", start_pos(),
@@ -173,7 +173,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  if (pledged_size_ != absl::nullopt) {
+  if (pledged_size_ != std::nullopt) {
     const Position next_pos = start_pos() + src.size();
     if (next_pos >= *pledged_size_) {
       if (ABSL_PREDICT_FALSE(next_pos > *pledged_size_)) {

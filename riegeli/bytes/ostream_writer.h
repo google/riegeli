@@ -19,6 +19,7 @@
 
 #include <cerrno>
 #include <istream>
+#include <optional>
 #include <ostream>
 #include <utility>
 
@@ -26,7 +27,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -50,29 +50,29 @@ class OStreamWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current stream position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the stream supports
     // random access.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current stream
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current stream
     // position. Random access is not supported.
     //
-    // Warning: On Windows this must not be `absl::nullopt` if the stream is a
+    // Warning: On Windows this must not be `std::nullopt` if the stream is a
     // `std::ofstream` or `std::fstream` opened in text mode.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // If `assumed_pos()` is not set, `assumed_append()` should be set to `true`
     // if the `std::ostream` refers a file open in append mode, i.e. if all
@@ -92,7 +92,7 @@ class OStreamWriterBase : public BufferedWriter {
     bool assumed_append() const { return assumed_append_; }
 
    private:
-    absl::optional<Position> assumed_pos_;
+    std::optional<Position> assumed_pos_;
     bool assumed_append_ = false;
   };
 
@@ -113,7 +113,7 @@ class OStreamWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
-  void Initialize(std::ostream* dest, absl::optional<Position> assumed_pos,
+  void Initialize(std::ostream* dest, std::optional<Position> assumed_pos,
                   bool assumed_append);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
@@ -125,7 +125,7 @@ class OStreamWriterBase : public BufferedWriter {
   bool WriteInternal(absl::string_view src) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeBehindBuffer() override;
+  std::optional<Position> SizeBehindBuffer() override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
@@ -150,7 +150,7 @@ class OStreamWriterBase : public BufferedWriter {
 // A `Writer` which writes to a `std::ostream`.
 //
 // `OStreamWriter` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// `Options::assumed_pos() == std::nullopt` and the stream supports random
 // access (this is checked by calling `std::ostream::tellp()` and
 // `std::ostream::seekp()` to the end and back).
 //

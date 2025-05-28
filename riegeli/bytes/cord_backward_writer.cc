@@ -18,13 +18,13 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -46,7 +46,7 @@ void CordBackwardWriterBase::Done() {
 }
 
 inline size_t CordBackwardWriterBase::MaxBytesToCopy() const {
-  if (size_hint_ != absl::nullopt && pos() < *size_hint_) {
+  if (size_hint_ != std::nullopt && pos() < *size_hint_) {
     return UnsignedClamp(*size_hint_ - pos() - 1,
                          cord_internal::kMaxBytesToCopyToEmptyCord,
                          cord_internal::kMaxBytesToCopyToNonEmptyCord);
@@ -79,9 +79,9 @@ inline void CordBackwardWriterBase::SyncBuffer(absl::Cord& dest) {
 }
 
 void CordBackwardWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
-  if (write_size_hint == absl::nullopt) {
-    size_hint_ = absl::nullopt;
+    std::optional<Position> write_size_hint) {
+  if (write_size_hint == std::nullopt) {
+    size_hint_ = std::nullopt;
   } else {
     size_hint_ = SaturatingAdd(pos(), *write_size_hint);
   }
@@ -95,7 +95,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (pos() == 0) {
     Position needed_length = UnsignedMax(min_length, recommended_length);
-    if (size_hint_ != absl::nullopt) {
+    if (size_hint_ != std::nullopt) {
       needed_length = UnsignedMax(needed_length, *size_hint_);
     }
     if (needed_length <= cord_buffer_.capacity()) {

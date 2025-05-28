@@ -18,6 +18,7 @@
 
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -155,7 +155,7 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
     SyncBuffer();
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     size_t length_to_read = length;
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
         ExactSizeReached();
         return false;
@@ -420,7 +420,7 @@ inline bool BufferedReader::CopyUsingPush(Position length, Writer& dest) {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of BufferedReader::CopyUsingPush()";
   Position length_to_read = length;
-  if (exact_size() != absl::nullopt) {
+  if (exact_size() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
       ExactSizeReached();
       return false;
@@ -466,7 +466,7 @@ bool BufferedReader::CopyInternal(Position length, Writer& dest) {
     // `CopyInternal()` needs to take `exact_size()` into account for remaining
     // iterations.
     length_to_read = SaturatingIntCast<size_t>(length);
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
         ExactSizeReached();
         return false;
@@ -506,7 +506,7 @@ bool BufferedReader::ReadOrPullSomeSlow(
     // Read directly to `get_dest(max_length)`.
     SyncBuffer();
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    if (exact_size() != absl::nullopt) {
+    if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
         ExactSizeReached();
         return false;
@@ -560,9 +560,9 @@ bool BufferedReader::SeekSlow(Position new_pos) {
   return result;
 }
 
-absl::optional<Position> BufferedReader::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
-  if (ABSL_PREDICT_FALSE(exact_size() == absl::nullopt)) {
+std::optional<Position> BufferedReader::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
+  if (ABSL_PREDICT_FALSE(exact_size() == std::nullopt)) {
     // Delegate to the base class to avoid repeating the error message.
     return Reader::SizeImpl();
   }

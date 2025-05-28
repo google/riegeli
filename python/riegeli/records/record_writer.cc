@@ -22,12 +22,12 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_writer.h"
 #include "python/riegeli/records/record_position.h"
@@ -273,9 +273,9 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     python_writer_options.set_owns_dest(owns_dest_is_true != 0);
   }
   if (assumed_pos_arg != nullptr && assumed_pos_arg != Py_None) {
-    const absl::optional<Position> assumed_pos =
+    const std::optional<Position> assumed_pos =
         PositionFromPython(assumed_pos_arg);
-    if (ABSL_PREDICT_FALSE(assumed_pos == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(assumed_pos == std::nullopt)) return -1;
     python_writer_options.set_assumed_pos(*assumed_pos);
   }
   if (buffer_size_arg != nullptr && buffer_size_arg != Py_None) {
@@ -283,15 +283,15 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     max_buffer_size_arg = buffer_size_arg;
   }
   if (min_buffer_size_arg != nullptr) {
-    const absl::optional<size_t> min_buffer_size =
+    const std::optional<size_t> min_buffer_size =
         SizeFromPython(min_buffer_size_arg);
-    if (ABSL_PREDICT_FALSE(min_buffer_size == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(min_buffer_size == std::nullopt)) return -1;
     python_writer_options.set_min_buffer_size(*min_buffer_size);
   }
   if (max_buffer_size_arg != nullptr) {
-    const absl::optional<size_t> max_buffer_size =
+    const std::optional<size_t> max_buffer_size =
         SizeFromPython(max_buffer_size_arg);
-    if (ABSL_PREDICT_FALSE(max_buffer_size == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(max_buffer_size == std::nullopt)) return -1;
     python_writer_options.set_max_buffer_size(*max_buffer_size);
   }
 
@@ -310,18 +310,18 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
     const PythonPtr serialized_metadata_str(PyObject_CallMethodObjArgs(
         metadata_arg, id_SerializeToString.get(), nullptr));
     if (ABSL_PREDICT_FALSE(serialized_metadata_str == nullptr)) return -1;
-    absl::optional<Chain> serialized_metadata =
+    std::optional<Chain> serialized_metadata =
         ChainFromPython(serialized_metadata_str.get());
-    if (ABSL_PREDICT_FALSE(serialized_metadata == absl::nullopt)) return -1;
+    if (ABSL_PREDICT_FALSE(serialized_metadata == std::nullopt)) return -1;
     record_writer_options.set_serialized_metadata(
         *std::move(serialized_metadata));
   }
   if (serialized_metadata_arg != nullptr &&
       serialized_metadata_arg != Py_None) {
-    absl::optional<Chain> serialized_metadata =
+    std::optional<Chain> serialized_metadata =
         ChainFromPython(serialized_metadata_arg);
-    if (ABSL_PREDICT_FALSE(serialized_metadata == absl::nullopt)) return -1;
-    if (record_writer_options.serialized_metadata() != absl::nullopt) {
+    if (ABSL_PREDICT_FALSE(serialized_metadata == std::nullopt)) return -1;
+    if (record_writer_options.serialized_metadata() != std::nullopt) {
       PyErr_SetString(PyExc_TypeError,
                       "RecordWriter() got conflicting keyword arguments "
                       "'metadata' and 'serialized_metadata'");

@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BASE_BINARY_SEARCH_H_
 #define RIEGELI_BASE_BINARY_SEARCH_H_
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -23,7 +24,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/compare.h"
 
 namespace riegeli {
@@ -135,7 +135,7 @@ template <typename T, typename Pos>
 struct IsOptionalOrderingOrSearchGuide : std::false_type {};
 
 template <typename T, typename Pos>
-struct IsOptionalOrderingOrSearchGuide<absl::optional<T>, Pos>
+struct IsOptionalOrderingOrSearchGuide<std::optional<T>, Pos>
     : IsOrderingOrSearchGuide<T, Pos> {};
 
 template <typename T, typename Pos>
@@ -247,20 +247,20 @@ SearchResult<typename Traits::Pos> BinarySearch(typename Traits::Pos low,
 
 // A variant of `BinarySearch()` which supports cancellation.
 //
-// If a `test()` returns `absl::nullopt`, `BinarySearch()` returns
-// `absl::nullopt`.
+// If a `test()` returns `std::nullopt`, `BinarySearch()` returns
+// `std::nullopt`.
 template <typename Pos, typename Test,
           std::enable_if_t<
               binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
                   Test, Pos>::value,
               int> = 0>
-absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high, Test&& test);
+std::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high, Test&& test);
 template <typename Traits, typename Test,
           std::enable_if_t<
               binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
                   Test, typename Traits::Pos>::value,
               int> = 0>
-absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
+std::optional<SearchResult<typename Traits::Pos>> BinarySearch(
     typename Traits::Pos low, typename Traits::Pos high, Test&& test,
     const Traits& traits);
 
@@ -314,9 +314,9 @@ class DefaultSearchTraits {
 
   // Returns a position in the range from `low` (inclusive) to `high`
   // (exclusive) which is approximately halfway between `low` and `high`.
-  // Returns `absl::nullopt` if the range contains no interesting positions.
-  absl::optional<T> Middle(T low, T high) const {
-    if (low >= high) return absl::nullopt;
+  // Returns `std::nullopt` if the range contains no interesting positions.
+  std::optional<T> Middle(T low, T high) const {
+    if (low >= high) return std::nullopt;
     return low + (high - low) / 2;
   }
 };
@@ -404,8 +404,8 @@ inline SearchResult<typename Traits::Pos> BinarySearch(
   SearchResult<Pos> greater_result = {PartialOrdering::unordered, high};
 
 again:
-  absl::optional<Pos> middle_before_unordered = traits.Middle(low, high);
-  if (middle_before_unordered == absl::nullopt) return greater_result;
+  std::optional<Pos> middle_before_unordered = traits.Middle(low, high);
+  if (middle_before_unordered == std::nullopt) return greater_result;
   Pos middle = *middle_before_unordered;
   // Invariant: all positions between `*middle_before_unordered` and `middle`
   // are `unordered`.
@@ -452,8 +452,8 @@ template <typename Pos, typename Test,
               binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
                   Test, Pos>::value,
               int>>
-inline absl::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high,
-                                                      Test&& test) {
+inline std::optional<SearchResult<Pos>> BinarySearch(Pos low, Pos high,
+                                                     Test&& test) {
   return BinarySearch(std::move(low), std::move(high), std::forward<Test>(test),
                       DefaultSearchTraits<Pos>());
 }
@@ -463,7 +463,7 @@ template <typename Traits, typename Test,
               binary_search_internal::TestReturnsOptionalOrderingOrSearchGuide<
                   Test, typename Traits::Pos>::value,
               int>>
-inline absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
+inline std::optional<SearchResult<typename Traits::Pos>> BinarySearch(
     typename Traits::Pos low, typename Traits::Pos high, Test&& test,
     const Traits& traits) {
   bool cancelled = false;
@@ -473,14 +473,14 @@ inline absl::optional<SearchResult<typename Traits::Pos>> BinarySearch(
         auto test_result = test(pos);
         using Cancel = binary_search_internal::CancelSearch<
             typename Traits::Pos, std::decay_t<decltype(*test_result)>>;
-        if (ABSL_PREDICT_FALSE(test_result == absl::nullopt)) {
+        if (ABSL_PREDICT_FALSE(test_result == std::nullopt)) {
           cancelled = true;
           return Cancel::DoCancel(pos);
         }
         return Cancel::DoNotCancel(*std::move(test_result));
       },
       traits);
-  if (ABSL_PREDICT_FALSE(cancelled)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(cancelled)) return std::nullopt;
   return result;
 }
 

@@ -19,12 +19,12 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -237,18 +237,18 @@ bool RecognizeZstd(Reader& src);
 
 // Returns the claimed uncompressed size of Zstd-compressed data.
 //
-// Returns `absl::nullopt` if the size was not stored or on failure. The size is
-// stored if `ZstdWriterBase::Options::pledged_size() != absl::nullopt`.
+// Returns `std::nullopt` if the size was not stored or on failure. The size is
+// stored if `ZstdWriterBase::Options::pledged_size() != std::nullopt`.
 //
 // The current position of `src` is unchanged.
-absl::optional<Position> ZstdUncompressedSize(Reader& src);
+std::optional<Position> ZstdUncompressedSize(Reader& src);
 
 // Returns the dictionary ID needed to read `src`, or 0 if none is needed.
 //
-// Returns `absl::nullopt` on failure.
+// Returns `std::nullopt` on failure.
 //
 // The current position of `src` is unchanged.
-absl::optional<uint32_t> ZstdDictId(Reader& src);
+std::optional<uint32_t> ZstdDictId(Reader& src);
 
 // Implementation details follow.
 

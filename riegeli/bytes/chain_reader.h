@@ -18,11 +18,11 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -69,7 +69,7 @@ class ChainReaderBase : public PullableReader {
   bool CopyBehindScratch(Position length, Writer& dest) override;
   bool CopyBehindScratch(size_t length, BackwardWriter& dest) override;
   bool SeekBehindScratch(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:

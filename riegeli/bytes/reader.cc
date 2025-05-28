@@ -19,6 +19,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -29,7 +30,6 @@
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -48,8 +48,8 @@ void Reader::VerifyEndImpl() {
   if (ABSL_PREDICT_FALSE(Pull())) {
     absl::Status status = absl::InvalidArgumentError("End of data expected");
     if (SupportsSize()) {
-      const absl::optional<Position> size = Size();
-      if (size != absl::nullopt) {
+      const std::optional<Position> size = Size();
+      if (size != std::nullopt) {
         status = Annotate(status, absl::StrCat("remaining length: ",
                                                SaturatingSub(*size, pos())));
       }
@@ -614,9 +614,9 @@ bool Reader::SeekSlow(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> Reader::SizeImpl() {
+std::optional<Position> Reader::SizeImpl() {
   Fail(absl::UnimplementedError("Reader::Size() not supported"));
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 std::unique_ptr<Reader> Reader::NewReader(Position initial_pos) {

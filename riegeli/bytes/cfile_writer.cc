@@ -40,13 +40,13 @@
 
 #include <cerrno>
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
@@ -83,7 +83,7 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, absl::nullopt)
+  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "original_mode_ not reset";
 #endif
@@ -115,7 +115,7 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
     }
     original_mode_ = original_mode;
   }
-  if (options.assumed_pos() == absl::nullopt) {
+  if (options.assumed_pos() == std::nullopt) {
     if (text_mode == 0) {
       const int fd = _fileno(dest);
       if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -136,7 +136,7 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
     if (text_mode != _O_BINARY) options.set_assumed_pos(0);
   }
 #endif  // _WIN32
-  if (options.assumed_pos() != absl::nullopt) {
+  if (options.assumed_pos() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(
             *options.assumed_pos() >
             Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
@@ -199,7 +199,7 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
 void CFileWriterBase::Done() {
   BufferedWriter::Done();
 #ifdef _WIN32
-  if (original_mode_ != absl::nullopt) {
+  if (original_mode_ != std::nullopt) {
     FILE* const dest = DestFile();
     const int fd = _fileno(dest);
     if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -425,31 +425,31 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> CFileWriterBase::SizeBehindBuffer() {
+std::optional<Position> CFileWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!CFileWriterBase::SupportsRandomAccess())) {
     if (ok()) Fail(random_access_status_);
-    return absl::nullopt;
+    return std::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   read_mode_ = false;
   FILE* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(dest, 0, SEEK_END) != 0)) {
     FailOperation(cfile_internal::kFSeekFunctionName);
-    return absl::nullopt;
+    return std::nullopt;
   }
   const cfile_internal::Offset file_size = cfile_internal::FTell(dest);
   if (ABSL_PREDICT_FALSE(file_size < 0)) {
     FailOperation(cfile_internal::kFTellFunctionName);
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(cfile_internal::FSeek(
                              dest, IntCast<cfile_internal::Offset>(start_pos()),
                              SEEK_SET) != 0)) {
     FailOperation(cfile_internal::kFSeekFunctionName);
-    return absl::nullopt;
+    return std::nullopt;
   }
   return IntCast<Position>(file_size);
 }

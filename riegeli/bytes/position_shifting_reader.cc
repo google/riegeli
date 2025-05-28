@@ -18,6 +18,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -213,18 +213,18 @@ bool PositionShiftingReaderBase::SupportsSize() {
   return src != nullptr && src->SupportsSize();
 }
 
-absl::optional<Position> PositionShiftingReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> PositionShiftingReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(!MakeBuffer(src) || size == absl::nullopt)) {
-    return absl::nullopt;
+  const std::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(!MakeBuffer(src) || size == std::nullopt)) {
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(*size >
                          std::numeric_limits<Position>::max() - base_pos_)) {
     FailOverflow();
-    return absl::nullopt;
+    return std::nullopt;
   }
   return *size + base_pos_;
 }

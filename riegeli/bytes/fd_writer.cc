@@ -47,6 +47,7 @@
 
 #include <cerrno>
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -54,7 +55,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -116,7 +116,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     });
   }
 #else   // _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, absl::nullopt)
+  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "original_mode_ not reset";
   int text_mode = options.mode() &
@@ -136,7 +136,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     }
     original_mode_ = original_mode;
   }
-  if (options.assumed_pos() == absl::nullopt) {
+  if (options.assumed_pos() == std::nullopt) {
     if (text_mode == 0) {
       // There is no `_getmode()`, but `_setmode()` returns the previous mode.
       text_mode = _setmode(dest, _O_BINARY);
@@ -150,7 +150,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
       }
     }
     if (text_mode != _O_BINARY) {
-      if (ABSL_PREDICT_FALSE(options.independent_pos() != absl::nullopt)) {
+      if (ABSL_PREDICT_FALSE(options.independent_pos() != std::nullopt)) {
         Fail(absl::InvalidArgumentError(
             "FdWriterBase::Options::independent_pos() requires binary mode"));
         return;
@@ -159,8 +159,8 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     }
   }
 #endif  // _WIN32
-  if (options.assumed_pos() != absl::nullopt) {
-    if (ABSL_PREDICT_FALSE(options.independent_pos() != absl::nullopt)) {
+  if (options.assumed_pos() != std::nullopt) {
+    if (ABSL_PREDICT_FALSE(options.independent_pos() != std::nullopt)) {
       Fail(absl::InvalidArgumentError(
           "FdWriterBase::Options::assumed_pos() and independent_pos() "
           "must not be both set"));
@@ -180,7 +180,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
           "FileWriterBase::Options::assumed_pos() excludes random access");
     });
     read_mode_status_.Update(random_access_status_);
-  } else if (options.independent_pos() != absl::nullopt) {
+  } else if (options.independent_pos() != std::nullopt) {
     if (ABSL_PREDICT_FALSE((options.mode() & O_APPEND) != 0)) {
       Fail(
           absl::InvalidArgumentError("FdWriterBase::Options::independent_pos() "
@@ -242,7 +242,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
 void FdWriterBase::Done() {
   BufferedWriter::Done();
 #ifdef _WIN32
-  if (original_mode_ != absl::nullopt) {
+  if (original_mode_ != std::nullopt) {
     const int dest = DestFd();
     if (ABSL_PREDICT_FALSE(_setmode(dest, *original_mode_) < 0)) {
       FailOperation("_setmode()");
@@ -520,8 +520,8 @@ bool FdWriterBase::WriteSlow(ByteFill src) {
   if (src.fill() != '\0' || !FdWriterBase::SupportsRandomAccess()) {
     return BufferedWriter::WriteSlow(src);
   }
-  const absl::optional<Position> size = SizeImpl();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return false;
+  const std::optional<Position> size = SizeImpl();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return false;
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "BufferedWriter::SizeImpl() flushes the buffer";
   if (ABSL_PREDICT_FALSE(
@@ -628,20 +628,20 @@ bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
   return SeekInternal(dest, new_pos);
 }
 
-absl::optional<Position> FdWriterBase::SizeBehindBuffer() {
+std::optional<Position> FdWriterBase::SizeBehindBuffer() {
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!FdWriterBase::SupportsRandomAccess())) {
     if (ok()) Fail(random_access_status_);
-    return absl::nullopt;
+    return std::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   const int dest = DestFd();
   fd_internal::StatInfo stat_info;
   if (ABSL_PREDICT_FALSE(fd_internal::FStat(dest, &stat_info) < 0)) {
     FailOperation(fd_internal::kFStatFunctionName);
-    return absl::nullopt;
+    return std::nullopt;
   }
   return IntCast<Position>(stat_info.st_size);
 }
@@ -704,8 +704,8 @@ Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
       UnownedFd(DestFdHandle()),
       FdReaderBase::Options()
           .set_independent_pos(has_independent_pos_
-                                   ? absl::make_optional(initial_pos)
-                                   : absl::nullopt)
+                                   ? std::make_optional(initial_pos)
+                                   : std::nullopt)
           .set_buffer_options(buffer_options()));
   if (!has_independent_pos_) reader->Seek(initial_pos);
   read_mode_ = true;

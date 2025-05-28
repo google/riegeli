@@ -17,12 +17,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -83,8 +83,8 @@ absl::Status SnappyReaderBase::AnnotateOverSrc(absl::Status status) {
 namespace snappy_internal {
 
 absl::Status SnappyDecompressImpl(Reader& src, Writer& dest) {
-  const absl::optional<Position> size = src.Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) return src.status();
+  const std::optional<Position> size = src.Size();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src.status();
   ReaderSnappySource source(&src, *size);
   WriterSnappySink sink(&dest);
   const bool uncompress_ok = snappy::Uncompress(&source, &sink);
@@ -100,9 +100,9 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest) {
 
 }  // namespace snappy_internal
 
-absl::optional<size_t> SnappyUncompressedSize(Reader& src) {
+std::optional<size_t> SnappyUncompressedSize(Reader& src) {
   if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
     size_t length = 1;
@@ -110,14 +110,14 @@ absl::optional<size_t> SnappyUncompressedSize(Reader& src) {
            static_cast<uint8_t>(src.cursor()[length - 1]) >= 0x80) {
       ++length;
       if (ABSL_PREDICT_FALSE(!src.Pull(length, kMaxLengthVarint32))) {
-        return absl::nullopt;
+        return std::nullopt;
       }
     }
   }
   uint32_t size;
-  const absl::optional<const char*> cursor =
+  const std::optional<const char*> cursor =
       ReadVarint32(src.cursor(), src.limit(), size);
-  if (ABSL_PREDICT_FALSE(cursor == absl::nullopt)) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(cursor == std::nullopt)) return std::nullopt;
   return size;
 }
 

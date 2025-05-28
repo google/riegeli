@@ -19,13 +19,13 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "brotli/encode.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -138,12 +138,12 @@ absl::Status BrotliWriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 void BrotliWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   BufferedWriter::SetWriteSizeHintImpl(write_size_hint);
   if (ABSL_PREDICT_FALSE(!ok())) return;
   // Ignore failure if compression already started.
   BrotliEncoderSetParameter(compressor_.get(), BROTLI_PARAM_SIZE_HINT,
-                            write_size_hint == absl::nullopt
+                            write_size_hint == std::nullopt
                                 ? 0
                                 : SaturatingIntCast<uint32_t>(
                                       SaturatingAdd(pos(), *write_size_hint)));

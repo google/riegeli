@@ -18,12 +18,12 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -38,11 +38,11 @@ namespace riegeli {
 
 void CordReaderBase::Done() {
   PullableReader::Done();
-  iter_ = absl::nullopt;
+  iter_ = std::nullopt;
 }
 
 inline void CordReaderBase::SyncBuffer() {
-  RIEGELI_ASSERT(iter_ != absl::nullopt)
+  RIEGELI_ASSERT(iter_ != std::nullopt)
       << "Failed precondition of CordReaderBase::SyncBuffer(): "
          "no Cord iterator";
   set_limit_pos(pos());
@@ -57,7 +57,7 @@ bool CordReaderBase::PullBehindScratch(size_t recommended_length) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
-  if (iter_ == absl::nullopt) return false;
+  if (iter_ == std::nullopt) return false;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const absl::Cord& src = *SrcCord();
   RIEGELI_ASSERT_LE(limit_pos(), src.size())
@@ -83,7 +83,7 @@ bool CordReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "scratch used";
-  if (iter_ == absl::nullopt) {
+  if (iter_ == std::nullopt) {
     return PullableReader::ReadBehindScratch(length, dest);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -108,7 +108,7 @@ bool CordReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
-  if (iter_ == absl::nullopt) {
+  if (iter_ == std::nullopt) {
     return PullableReader::ReadBehindScratch(length, dest);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -199,7 +199,7 @@ bool CordReaderBase::SeekBehindScratch(Position new_pos) {
       << "Failed precondition of PullableReader::SeekBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (iter_ == absl::nullopt) {
+  if (iter_ == std::nullopt) {
     RIEGELI_ASSERT_EQ(start_pos(), 0u)
         << "Failed invariant of CordReaderBase: "
            "no Cord iterator but non-zero position of buffer start";
@@ -232,8 +232,8 @@ bool CordReaderBase::SeekBehindScratch(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> CordReaderBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> CordReaderBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   const absl::Cord& src = *SrcCord();
   return src.size();
 }

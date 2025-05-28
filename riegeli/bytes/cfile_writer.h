@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -27,7 +28,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
@@ -222,26 +222,26 @@ class CFileWriterBase : public BufferedWriter {
     // text mode, resolved using `_get_fmode()`. Not on Windows the concept does
     // not exist.
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current `FILE` position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the `FILE` supports
     // random access.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current `FILE`
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current `FILE`
     // position. Random access is not supported.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
    private:
 #ifndef _WIN32
@@ -249,7 +249,7 @@ class CFileWriterBase : public BufferedWriter {
 #else
     std::string mode_ = "wbN";
 #endif
-    absl::optional<Position> assumed_pos_;
+    std::optional<Position> assumed_pos_;
   };
 
   // Returns the `CFileHandle` being written to. Unchanged by `Close()`.
@@ -296,7 +296,7 @@ class CFileWriterBase : public BufferedWriter {
   bool WriteInternal(absl::string_view src) override;
   bool FlushBehindBuffer(absl::string_view src, FlushType flush_type) override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeBehindBuffer() override;
+  std::optional<Position> SizeBehindBuffer() override;
   bool TruncateBehindBuffer(Position new_size) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
@@ -324,7 +324,7 @@ class CFileWriterBase : public BufferedWriter {
   absl::Status random_access_status_;
   absl::Status read_mode_status_;
 #ifdef _WIN32
-  absl::optional<int> original_mode_;
+  std::optional<int> original_mode_;
 #endif
 
   AssociatedReader<CFileReader<UnownedCFile>> associated_reader_;
@@ -337,7 +337,7 @@ class CFileWriterBase : public BufferedWriter {
 // A `Writer` which writes to a `FILE`.
 //
 // `CFileWriter` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the `FILE` supports random
+// `Options::assumed_pos() == std::nullopt` and the `FILE` supports random
 // access (this is checked by calling `ftell()` and `fseek(SEEK_END)`).
 //
 // `CFileWriter` supports `ReadMode()` if it supports random access and the
@@ -490,7 +490,7 @@ inline void CFileWriterBase::Reset(Closed) {
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
   associated_reader_.Reset();
   read_mode_ = false;
@@ -503,7 +503,7 @@ inline void CFileWriterBase::Reset(BufferOptions buffer_options) {
   random_access_status_ = absl::OkStatus();
   read_mode_status_ = absl::OkStatus();
 #ifdef _WIN32
-  original_mode_ = absl::nullopt;
+  original_mode_ = std::nullopt;
 #endif
   associated_reader_.Reset();
   read_mode_ = false;

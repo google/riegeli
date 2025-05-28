@@ -18,13 +18,13 @@
 
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -221,8 +221,8 @@ bool PushableWriter::WriteBehindScratch(const absl::Cord& src) {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Cord): "
          "scratch used";
-  if (const absl::optional<absl::string_view> flat = src.TryFlat();
-      flat != absl::nullopt) {
+  if (const std::optional<absl::string_view> flat = src.TryFlat();
+      flat != std::nullopt) {
     return Write(*flat);
   }
   for (const absl::string_view fragment : src.Chunks()) {
@@ -286,12 +286,12 @@ bool PushableWriter::SeekBehindScratch(Position new_pos) {
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 
-absl::optional<Position> PushableWriter::SizeBehindScratch() {
+std::optional<Position> PushableWriter::SizeBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::SizeBehindScratch(): "
          "scratch used";
   Fail(absl::UnimplementedError("Writer::Size() not supported"));
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 bool PushableWriter::TruncateBehindScratch(Position new_size) {
@@ -443,9 +443,9 @@ bool PushableWriter::SeekSlow(Position new_pos) {
   return SeekBehindScratch(new_pos);
 }
 
-absl::optional<Position> PushableWriter::SizeImpl() {
+std::optional<Position> PushableWriter::SizeImpl() {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    if (ABSL_PREDICT_FALSE(!SyncScratch())) return absl::nullopt;
+    if (ABSL_PREDICT_FALSE(!SyncScratch())) return std::nullopt;
   }
   return SizeBehindScratch();
 }

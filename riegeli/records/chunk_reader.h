@@ -15,13 +15,13 @@
 #ifndef RIEGELI_RECORDS_CHUNK_READER_H_
 #define RIEGELI_RECORDS_CHUNK_READER_H_
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -135,8 +135,8 @@ class DefaultChunkReaderBase : public Object {
 
   // Returns the size of the file, i.e. the position corresponding to its end.
   //
-  // Returns `absl::nullopt` on failure (`!ok()`).
-  absl::optional<Position> Size();
+  // Returns `std::nullopt` on failure (`!ok()`).
+  std::optional<Position> Size();
 
  protected:
   using Object::Object;

@@ -87,7 +87,6 @@ cc_library(
         "//riegeli/base:chain",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "@highwayhash//:hh_types",
         "@highwayhash//:highwayhash_dynamic",
         "@highwayhash//:instruction_sets",
@@ -109,7 +108,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -134,7 +132,6 @@ cc_library(
         "//riegeli/varint:varint_writing",
         "//riegeli/zstd:zstd_writer",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -160,7 +157,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -206,7 +202,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:optional",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -269,7 +264,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -302,7 +296,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )

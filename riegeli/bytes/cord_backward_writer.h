@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -25,7 +26,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
@@ -138,7 +138,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   void Initialize(absl::Cord* dest, bool prepend);
 
   void Done() override;
-  void SetWriteSizeHintImpl(absl::optional<Position> write_size_hint) override;
+  void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using BackwardWriter::WriteSlow;
   bool WriteSlow(ExternalRef src) override;
@@ -161,7 +161,7 @@ class CordBackwardWriterBase : public BackwardWriter {
   // Moves `cord_buffer_`, adjusting buffer pointers if they point to it.
   void MoveCordBuffer(CordBackwardWriterBase& that);
 
-  absl::optional<Position> size_hint_;
+  std::optional<Position> size_hint_;
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   uint32_t min_block_size_ = uint32_t{kDefaultMinBlockSize};
   uint32_t max_block_size_ =
@@ -284,7 +284,7 @@ inline CordBackwardWriterBase& CordBackwardWriterBase::operator=(
 
 inline void CordBackwardWriterBase::Reset(Closed) {
   BackwardWriter::Reset(kClosed);
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   min_block_size_ = uint32_t{kDefaultMinBlockSize};
   max_block_size_ =
       uint32_t{absl::CordBuffer::MaximumPayload(kDefaultMaxBlockSize)};
@@ -294,7 +294,7 @@ inline void CordBackwardWriterBase::Reset(Closed) {
 
 inline void CordBackwardWriterBase::Reset(const Options& options) {
   BackwardWriter::Reset();
-  size_hint_ = absl::nullopt;
+  size_hint_ = std::nullopt;
   min_block_size_ = IntCast<uint32_t>(options.min_block_size());
   max_block_size_ = IntCast<uint32_t>(options.max_block_size());
 }

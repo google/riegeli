@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -25,7 +26,6 @@
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -50,22 +50,22 @@ class PrefixLimitingReaderBase : public Reader {
     // The base position of the original `Reader`. It must be at least as large
     // as the initial position.
     //
-    // `absl::nullopt` means the current position.
+    // `std::nullopt` means the current position.
     //
-    // Default: `absl::nullopt`.
-    Options& set_base_pos(absl::optional<Position> base_pos) &
+    // Default: `std::nullopt`.
+    Options& set_base_pos(std::optional<Position> base_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       base_pos_ = base_pos;
       return *this;
     }
-    Options&& set_base_pos(absl::optional<Position> base_pos) &&
+    Options&& set_base_pos(std::optional<Position> base_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_base_pos(base_pos));
     }
-    absl::optional<Position> base_pos() const { return base_pos_; }
+    std::optional<Position> base_pos() const { return base_pos_; }
 
    private:
-    absl::optional<Position> base_pos_;
+    std::optional<Position> base_pos_;
   };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
@@ -88,7 +88,7 @@ class PrefixLimitingReaderBase : public Reader {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(Reader* src, absl::optional<Position> base_pos);
+  void Initialize(Reader* src, std::optional<Position> base_pos);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
   // Sets cursor of `src` to cursor of `*this`.
@@ -114,7 +114,7 @@ class PrefixLimitingReaderBase : public Reader {
                           absl::FunctionRef<char*(size_t&)> get_dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SeekSlow(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
@@ -224,10 +224,10 @@ inline void PrefixLimitingReaderBase::Reset() {
 }
 
 inline void PrefixLimitingReaderBase::Initialize(
-    Reader* src, absl::optional<Position> base_pos) {
+    Reader* src, std::optional<Position> base_pos) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of PrefixLimitingReader: null Reader pointer";
-  if (base_pos == absl::nullopt) {
+  if (base_pos == std::nullopt) {
     base_pos_ = src->pos();
   } else {
     RIEGELI_ASSERT_LE(*base_pos, src->pos())

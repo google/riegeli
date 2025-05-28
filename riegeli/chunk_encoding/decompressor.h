@@ -17,13 +17,13 @@
 
 #include <stdint.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
@@ -47,9 +47,9 @@ namespace riegeli::chunk_encoding_internal {
 // size, otherwise reads uncompressed size as a varint from the beginning of
 // compressed_data.
 //
-// Returns `absl::nullopt` on failure.
-absl::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
-                                          CompressionType compression_type);
+// Returns `std::nullopt` on failure.
+std::optional<uint64_t> UncompressedSize(const Chain& compressed_data,
+                                         CompressionType compression_type);
 
 // Options for a `Decompressor`.
 class DecompressorOptions {

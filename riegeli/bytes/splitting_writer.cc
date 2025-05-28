@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -24,7 +25,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -72,8 +72,8 @@ inline bool SplittingWriterBase::OpenShardInternal() {
   if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
     return FailOverflow();
   }
-  const absl::optional<Position> size_limit = OpenShardImpl();
-  if (ABSL_PREDICT_FALSE(size_limit == absl::nullopt)) {
+  const std::optional<Position> size_limit = OpenShardImpl();
+  if (ABSL_PREDICT_FALSE(size_limit == std::nullopt)) {
     RIEGELI_ASSERT(!ok())
         << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
            "zero returned but SplittingWriterBase OK";
@@ -87,7 +87,7 @@ inline bool SplittingWriterBase::OpenShardInternal() {
   shard_pos_limit_ = SaturatingAdd(start_pos(), *size_limit);
   Writer* shard = ShardWriter();
   Position limit_hint = shard_pos_limit_;
-  if (size_hint_ != absl::nullopt) {
+  if (size_hint_ != std::nullopt) {
     limit_hint = UnsignedMin(limit_hint, *size_hint_);
   }
   shard->SetWriteSizeHint(SaturatingSub(limit_hint, start_pos()));
@@ -155,10 +155,10 @@ absl::Status SplittingWriterBase::AnnotateOverShard(absl::Status status) {
 }
 
 void SplittingWriterBase::SetWriteSizeHintImpl(
-    absl::optional<Position> write_size_hint) {
+    std::optional<Position> write_size_hint) {
   if (ABSL_PREDICT_FALSE(!ok())) return;
-  if (write_size_hint == absl::nullopt) {
-    size_hint_ = absl::nullopt;
+  if (write_size_hint == std::nullopt) {
+    size_hint_ = std::nullopt;
   } else {
     size_hint_ = SaturatingAdd(pos(), *write_size_hint);
   }
@@ -167,7 +167,7 @@ void SplittingWriterBase::SetWriteSizeHintImpl(
   BehindScratch behind_scratch(this);
   SyncBuffer(*shard);
   Position limit_hint = shard_pos_limit_;
-  if (size_hint_ != absl::nullopt) {
+  if (size_hint_ != std::nullopt) {
     limit_hint = UnsignedMin(limit_hint, *size_hint_);
   }
   shard->SetWriteSizeHint(SaturatingSub(limit_hint, start_pos()));

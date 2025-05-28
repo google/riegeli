@@ -16,9 +16,10 @@
 
 #include <stddef.h>
 
+#include <optional>
+
 #include "absl/base/optimization.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -85,11 +86,11 @@ bool ArrayWriterBase::SeekBehindScratch(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> ArrayWriterBase::SizeBehindScratch() {
+std::optional<Position> ArrayWriterBase::SizeBehindScratch() {
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of PushableWriter::SizeBehindScratch(): "
          "scratch used";
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   return UnsignedMax(start_to_cursor(), written_.size());
 }
 

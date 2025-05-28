@@ -16,13 +16,13 @@
 
 #include <stddef.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -143,11 +143,11 @@ bool WrappingWriterBase::SeekSlow(Position new_pos) {
   return seek_ok;
 }
 
-absl::optional<Position> WrappingWriterBase::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> WrappingWriterBase::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
-  const absl::optional<Position> size = dest.Size();
+  const std::optional<Position> size = dest.Size();
   MakeBuffer(dest);
   return size;
 }

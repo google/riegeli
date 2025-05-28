@@ -19,13 +19,13 @@
 
 #include <cerrno>
 #include <istream>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -43,29 +43,29 @@ class IStreamReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
-    // If `absl::nullopt`, the current position reported by `pos()` corresponds
+    // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current stream position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the stream supports
     // random access.
     //
-    // If not `absl::nullopt`, this position is assumed initially, to be
-    // reported by `pos()`. It does not need to correspond to the current stream
+    // If not `std::nullopt`, this position is assumed initially, to be reported
+    // by `pos()`. It does not need to correspond to the current stream
     // position. Random access is not supported.
     //
-    // Warning: On Windows this must not be `absl::nullopt` if the stream is a
+    // Warning: On Windows this must not be `std::nullopt` if the stream is a
     // `std::ifstream` or `std::fstream` opened in text mode.
     //
-    // Default: `absl::nullopt`.
-    Options& set_assumed_pos(absl::optional<Position> assumed_pos) &
+    // Default: `std::nullopt`.
+    Options& set_assumed_pos(std::optional<Position> assumed_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       assumed_pos_ = assumed_pos;
       return *this;
     }
-    Options&& set_assumed_pos(absl::optional<Position> assumed_pos) &&
+    Options&& set_assumed_pos(std::optional<Position> assumed_pos) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_assumed_pos(assumed_pos));
     }
-    absl::optional<Position> assumed_pos() const { return assumed_pos_; }
+    std::optional<Position> assumed_pos() const { return assumed_pos_; }
 
     // If `true`, supports reading up to the end of the stream, then retrying
     // when the stream has grown. This disables caching the stream size.
@@ -83,7 +83,7 @@ class IStreamReaderBase : public BufferedReader {
     bool growing_source() const { return growing_source_; }
 
    private:
-    absl::optional<Position> assumed_pos_;
+    std::optional<Position> assumed_pos_;
     bool growing_source_ = false;
   };
 
@@ -106,13 +106,13 @@ class IStreamReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source);
-  void Initialize(std::istream* src, absl::optional<Position> assumed_pos);
+  void Initialize(std::istream* src, std::optional<Position> assumed_pos);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
 
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);
@@ -127,7 +127,7 @@ class IStreamReaderBase : public BufferedReader {
 // A `Reader` which reads from a `std::istream`.
 //
 // `IStreamReader` supports random access if
-// `Options::assumed_pos() == absl::nullopt` and the stream supports random
+// `Options::assumed_pos() == std::nullopt` and the stream supports random
 // access (this is checked by calling `std::istream::tellg()` and
 // `std::istream::seekg()` to the end and back).
 //

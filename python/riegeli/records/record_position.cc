@@ -27,13 +27,13 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/types.h"
@@ -76,12 +76,12 @@ static PyRecordPositionObject* RecordPositionNew(PyTypeObject* cls,
           &chunk_begin_arg, &record_index_arg))) {
     return nullptr;
   }
-  const absl::optional<Position> chunk_begin =
+  const std::optional<Position> chunk_begin =
       PositionFromPython(chunk_begin_arg);
-  if (ABSL_PREDICT_FALSE(chunk_begin == absl::nullopt)) return nullptr;
-  const absl::optional<Position> record_index =
+  if (ABSL_PREDICT_FALSE(chunk_begin == std::nullopt)) return nullptr;
+  const std::optional<Position> record_index =
       PositionFromPython(record_index_arg);
-  if (ABSL_PREDICT_FALSE(record_index == absl::nullopt)) return nullptr;
+  if (ABSL_PREDICT_FALSE(record_index == std::nullopt)) return nullptr;
   if (ABSL_PREDICT_FALSE(*chunk_begin > std::numeric_limits<uint64_t>::max()) ||
       ABSL_PREDICT_FALSE(*record_index >
                          std::numeric_limits<uint64_t>::max() - *chunk_begin)) {
@@ -385,11 +385,11 @@ PythonPtr RecordPositionToPython(FutureRecordPosition value) {
   return self;
 }
 
-absl::optional<RecordPosition> RecordPositionFromPython(PyObject* object) {
+std::optional<RecordPosition> RecordPositionFromPython(PyObject* object) {
   if (ABSL_PREDICT_FALSE(!PyObject_TypeCheck(object, &PyRecordPosition_Type))) {
     PyErr_Format(PyExc_TypeError, "Expected RecordPosition, not %s",
                  Py_TYPE(object)->tp_name);
-    return absl::nullopt;
+    return std::nullopt;
   }
   return PythonUnlocked([&] {
     return reinterpret_cast<PyRecordPositionObject*>(object)

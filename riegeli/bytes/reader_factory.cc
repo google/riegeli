@@ -19,6 +19,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -29,7 +30,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/optional.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
@@ -73,7 +73,7 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
                              size_t recommended_length) override;
   bool SyncBehindScratch(SyncType sync_type) override;
   bool SeekBehindScratch(Position new_pos) override;
-  absl::optional<Position> SizeImpl() override;
+  std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
@@ -558,11 +558,11 @@ bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
   set_limit_pos(secondary_buffer_end);
   if (new_pos > secondary_buffer_end) {
     // Seeking forwards.
-    absl::optional<Position> size;
+    std::optional<Position> size;
     {
       absl::MutexLock lock(&shared_->mutex);
       size = shared_->reader->Size();
-      if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+      if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
         return FailWithoutAnnotation(shared_->reader->status());
       }
     }
@@ -578,11 +578,11 @@ bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
   return true;
 }
 
-absl::optional<Position> ReaderFactoryBase::ConcurrentReader::SizeImpl() {
-  if (ABSL_PREDICT_FALSE(!ok())) return absl::nullopt;
+std::optional<Position> ReaderFactoryBase::ConcurrentReader::SizeImpl() {
+  if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   absl::MutexLock lock(&shared_->mutex);
-  const absl::optional<Position> size = shared_->reader->Size();
-  if (ABSL_PREDICT_FALSE(size == absl::nullopt)) {
+  const std::optional<Position> size = shared_->reader->Size();
+  if (ABSL_PREDICT_FALSE(size == std::nullopt)) {
     FailWithoutAnnotation(shared_->reader->status());
   }
   return size;
