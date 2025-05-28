@@ -20,7 +20,6 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:compare",
-        "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

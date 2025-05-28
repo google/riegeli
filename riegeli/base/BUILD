@@ -210,7 +210,6 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/utility",
     ],
 )
 
@@ -219,7 +218,6 @@ cc_library(
     hdrs = ["global.h"],
     deps = [
         ":initializer",
-        ":type_traits",
         "@com_google_absl//absl/meta:type_traits",
     ],
 )

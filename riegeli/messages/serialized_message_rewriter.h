@@ -176,7 +176,7 @@ class SerializedMessageRewriter {
       std::enable_if_t<
           absl::conjunction<
               std::is_empty<Initialize>,
-              is_invocable<Initialize, SerializedMessageRewriter&>>::value,
+              std::is_invocable<Initialize, SerializedMessageRewriter&>>::value,
           int> = 0>
   static const SerializedMessageRewriter& Global(Initialize initialize);
 
@@ -496,13 +496,13 @@ class SerializedMessageRewriter {
 // Implementation details follow.
 
 template <typename Context>
-template <
-    typename Initialize,
-    std::enable_if_t<
-        absl::conjunction<std::is_empty<Initialize>,
-                          is_invocable<Initialize, SerializedMessageRewriter<
-                                                       Context>&>>::value,
-        int>>
+template <typename Initialize,
+          std::enable_if_t<
+              absl::conjunction<
+                  std::is_empty<Initialize>,
+                  std::is_invocable<
+                      Initialize, SerializedMessageRewriter<Context>&>>::value,
+              int>>
 inline const SerializedMessageRewriter<Context>&
 SerializedMessageRewriter<Context>::Global(Initialize initialize) {
   return riegeli::Global([] { return SerializedMessageRewriter(); },

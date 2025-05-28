@@ -115,7 +115,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/utility",
     ],
 )
 

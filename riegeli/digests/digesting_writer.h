@@ -28,7 +28,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
@@ -496,7 +495,7 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
   DependencyRef<DigesterBaseHandle, Digester> digester_dep(
       std::forward<Digester>(digester));
   if (digester_dep.IsOwning()) {
-    absl::apply(
+    std::apply(
         [&](const Srcs&... srcs) {
           SetWriteSizeHint(digester_dep.get(), srcs...);
         },
@@ -518,7 +517,7 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DigestingWriter<TargetRefT<Digester>, NullWriter> writer(
       std::forward<Digester>(digester));
-  absl::apply(
+  std::apply(
       [&](const Srcs&... srcs) { SetWriteSizeHint(writer.get(), srcs...); },
       srcs);
   writer.WriteTuple(srcs);

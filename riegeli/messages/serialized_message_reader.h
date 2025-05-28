@@ -273,12 +273,13 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
   // would be misleadingly ignored for subsequent calls. Since distinct lambdas
   // have distinct types, distinct call sites with lambdas return references to
   // distinct objects.
-  template <typename Initialize,
-            std::enable_if_t<
-                absl::conjunction<
-                    std::is_empty<Initialize>,
-                    is_invocable<Initialize, SerializedMessageReader&>>::value,
-                int> = 0>
+  template <
+      typename Initialize,
+      std::enable_if_t<
+          absl::conjunction<
+              std::is_empty<Initialize>,
+              std::is_invocable<Initialize, SerializedMessageReader&>>::value,
+          int> = 0>
   static const SerializedMessageReader& Global(Initialize initialize);
 
   SerializedMessageReader() = default;
@@ -599,9 +600,9 @@ template <typename Context>
 template <
     typename Initialize,
     std::enable_if_t<
-        absl::conjunction<
-            std::is_empty<Initialize>,
-            is_invocable<Initialize, SerializedMessageReader<Context>&>>::value,
+        absl::conjunction<std::is_empty<Initialize>,
+                          std::is_invocable<Initialize, SerializedMessageReader<
+                                                            Context>&>>::value,
         int>>
 inline const SerializedMessageReader<Context>&
 SerializedMessageReader<Context>::Global(Initialize initialize) {

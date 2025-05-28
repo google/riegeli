@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
-#include "absl/utility/utility.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
@@ -70,13 +69,13 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
   template <typename T,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
   T Construct() && {
-    return absl::make_from_tuple<T>(std::move(args_));
+    return std::make_from_tuple<T>(std::move(args_));
   }
   template <
       typename T,
       std::enable_if_t<std::is_constructible_v<T, const Args&...>, int> = 0>
   T Construct() const& {
-    return absl::make_from_tuple<T>(args_);
+    return std::make_from_tuple<T>(args_);
   }
 
   // Constructs the `std::decay_t<T>` on the heap.
@@ -163,7 +162,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                 = {}
 #endif
                 ) && {
-    return absl::apply(
+    return std::apply(
         [&](Args&&... args) -> T&& {
           return std::move(storage).emplace(std::forward<Args>(args)...);
         },
@@ -185,7 +184,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                 = {}
 #endif
   ) const& {
-    return absl::apply(
+    return std::apply(
         [&](const Args&... args) -> T&& {
           return std::move(storage).emplace(args...);
         },
@@ -201,7 +200,7 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                                          SupportsReset<T, Args&&...>>::value,
                        int> = 0>
   friend void RiegeliReset(T& dest, MakerType&& src) {
-    absl::apply(
+    std::apply(
         [&](Args&&... args) {
           riegeli::Reset(dest, std::forward<Args>(args)...);
         },
@@ -213,8 +212,8 @@ class MakerType : public ConditionallyAssignable<absl::conjunction<
                                   SupportsReset<T, const Args&...>>::value,
                 int> = 0>
   friend void RiegeliReset(T& dest, const MakerType& src) {
-    absl::apply([&](const Args&... args) { riegeli::Reset(dest, args...); },
-                src.args_);
+    std::apply([&](const Args&... args) { riegeli::Reset(dest, args...); },
+               src.args_);
   }
 
   // Extracts the given argument.

@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <functional>
 #include <type_traits>
 #include <utility>
 
@@ -25,7 +26,6 @@
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "riegeli/base/type_erased_ref.h"
-#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -40,7 +40,7 @@ struct IsInvocableWithContextImpl : std::false_type {};
 template <typename Context, typename Action, typename... Args>
 struct IsInvocableWithContextImpl<std::enable_if_t<!std::is_void_v<Context>>,
                                   Context, Action, Args...>
-    : is_invocable_r<absl::Status, Action, Args..., Context&> {};
+    : std::is_invocable_r<absl::Status, Action, Args..., Context&> {};
 
 template <typename Context, typename Action, typename... Args>
 struct IsInvocableWithContext
@@ -48,7 +48,7 @@ struct IsInvocableWithContext
 
 template <typename Action, typename... Args>
 struct IsInvocableWithoutContext
-    : is_invocable_r<absl::Status, Action, Args...> {};
+    : std::is_invocable_r<absl::Status, Action, Args...> {};
 
 template <typename Context, typename Action, typename... Args>
 struct IsAction
@@ -60,8 +60,8 @@ template <typename Context, typename Action, typename... Args,
               IsInvocableWithContext<Context, Action, Args...>::value, int> = 0>
 inline absl::Status InvokeAction(TypeErasedRef context, Action&& action,
                                  Args&&... args) {
-  return riegeli::invoke(std::forward<Action>(action),
-                         std::forward<Args>(args)..., context.Cast<Context&>());
+  return std::invoke(std::forward<Action>(action), std::forward<Args>(args)...,
+                     context.Cast<Context&>());
 }
 
 template <typename Context, typename Action, typename... Args,
@@ -69,8 +69,7 @@ template <typename Context, typename Action, typename... Args,
                            int> = 0>
 inline absl::Status InvokeAction(ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
                                  Action&& action, Args&&... args) {
-  return riegeli::invoke(std::forward<Action>(action),
-                         std::forward<Args>(args)...);
+  return std::invoke(std::forward<Action>(action), std::forward<Args>(args)...);
 }
 
 template <typename Context, typename Action, typename... Args>

@@ -892,7 +892,7 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
                         allow_explicit, T, InvokerType<Function, Args...>&&>>,
                     initializer_internal::IsCompatibleResult<
                         allow_explicit, T,
-                        invoke_result_t<Function&&, Args&&...>>>::value,
+                        std::invoke_result_t<Function&&, Args&&...>>>::value,
                 int> = 0>
   /*implicit*/ Initializer(
       InvokerType<Function, Args...>&& invoker ABSL_ATTRIBUTE_LIFETIME_BOUND)
@@ -906,7 +906,8 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
                   allow_explicit, T, const InvokerType<Function, Args...>&>>,
               initializer_internal::IsCompatibleResult<
                   allow_explicit, T,
-                  invoke_result_t<const Function&, const Args&...>>>::value,
+                  std::invoke_result_t<const Function&, const Args&...>>>::
+              value,
           int> = 0>
   /*implicit*/ Initializer(const InvokerType<Function, Args...>& invoker
                                ABSL_ATTRIBUTE_LIFETIME_BOUND)

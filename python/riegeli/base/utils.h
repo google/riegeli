@@ -28,6 +28,7 @@
 #include <new>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -39,7 +40,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
-#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 
 namespace riegeli::python {
@@ -88,7 +88,7 @@ class PythonUnlock {
 //
 // Same as `Py_BEGIN_ALLOW_THREADS` / `Py_END_ALLOW_THREADS`.
 template <typename Function>
-invoke_result_t<Function> PythonUnlocked(Function&& f) {
+std::invoke_result_t<Function> PythonUnlocked(Function&& f) {
   PythonUnlock unlock;
   return std::forward<Function>(f)();
 }
