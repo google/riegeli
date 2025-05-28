@@ -85,34 +85,11 @@ inline T* NewAligned(size_t num_bytes, Args&&... args) {
                 "alignment must be a power of 2");
   new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
   T* ptr;
-#if __cpp_aligned_new
-  if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+  if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
     ptr = static_cast<T*>(operator new(num_bytes));
   } else {
     ptr = static_cast<T*>(operator new(num_bytes, std::align_val_t(alignment)));
   }
-#else
-#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
-  constexpr size_t kDefaultNewAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-#else
-  constexpr size_t kDefaultNewAlignment = alignof(max_align_t);
-#endif
-  if (alignment <= kDefaultNewAlignment) {
-    ptr = static_cast<T*>(operator new(num_bytes));
-  } else {
-    RIEGELI_CHECK_LE(num_bytes, std::numeric_limits<size_t>::max() -
-                                    sizeof(void*) - alignment +
-                                    kDefaultNewAlignment)
-        << "Out of memory";
-    void* const allocated = operator new(sizeof(void*) + num_bytes + alignment -
-                                         kDefaultNewAlignment);
-    void* const aligned =
-        reinterpret_cast<void*>(RoundUp<alignment>(reinterpret_cast<uintptr_t>(
-            static_cast<char*>(allocated) + sizeof(void*))));
-    reinterpret_cast<void**>(aligned)[-1] = allocated;
-    ptr = static_cast<T*>(aligned);
-  }
-#endif
   new_aligned_internal::ConstructObject(ptr, std::forward<Args>(args)...);
   return ptr;
 }
@@ -123,49 +100,18 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
                 "alignment must be a power of 2");
   new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
   new_aligned_internal::DestroyObject(ptr);
-#if __cpp_aligned_new
 #if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
-  if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+  if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
     operator delete(ptr, num_bytes);
   } else {
     operator delete(ptr, num_bytes, std::align_val_t(alignment));
   }
 #else
-  if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+  if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
     operator delete(ptr);
   } else {
     operator delete(ptr, std::align_val_t(alignment));
   }
-#endif
-#else
-#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
-  constexpr size_t kDefaultNewAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-#else
-  constexpr size_t kDefaultNewAlignment = alignof(max_align_t);
-#endif
-#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
-  if (alignment <= kDefaultNewAlignment) {
-    operator delete(ptr, num_bytes);
-  } else {
-    void* const allocated = reinterpret_cast<void**>(ptr)[-1];
-    RIEGELI_ASSERT(
-        ptr ==
-        reinterpret_cast<void*>(RoundUp<alignment>(reinterpret_cast<uintptr_t>(
-            static_cast<char*>(allocated) + sizeof(void*)))))
-        << "Failed precondition of DeleteAligned(): "
-           "the pointer was not obtained from NewAligned(), "
-           "or alignment does not match, "
-           "or memory before the allocated block got corrupted";
-    operator delete(allocated, sizeof(void*) + num_bytes + alignment -
-                                   kDefaultNewAlignment);
-  }
-#else
-  if (alignment <= kDefaultNewAlignment) {
-    operator delete(ptr);
-  } else {
-    operator delete(reinterpret_cast<void**>(ptr)[-1]);
-  }
-#endif
 #endif
 }
 
@@ -185,34 +131,11 @@ inline T* SizeReturningNewAligned(size_t min_num_bytes,
   new_aligned_internal::EnsureSpaceForObject<T>(min_num_bytes);
   T* ptr;
   const size_t capacity = EstimatedAllocatedSize(min_num_bytes);
-#if __cpp_aligned_new
-  if (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+  if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
     ptr = static_cast<T*>(operator new(capacity));
   } else {
     ptr = static_cast<T*>(operator new(capacity, std::align_val_t(alignment)));
   }
-#else
-#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
-  constexpr size_t kDefaultNewAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-#else
-  constexpr size_t kDefaultNewAlignment = alignof(max_align_t);
-#endif
-  if (alignment <= kDefaultNewAlignment) {
-    ptr = static_cast<T*>(operator new(capacity));
-  } else {
-    RIEGELI_CHECK_LE(capacity, std::numeric_limits<size_t>::max() -
-                                   sizeof(void*) - alignment +
-                                   kDefaultNewAlignment)
-        << "Out of memory";
-    void* const allocated = operator new(sizeof(void*) + capacity + alignment -
-                                         kDefaultNewAlignment);
-    void* const aligned =
-        reinterpret_cast<void*>(RoundUp<alignment>(reinterpret_cast<uintptr_t>(
-            static_cast<char*>(allocated) + sizeof(void*))));
-    reinterpret_cast<void**>(aligned)[-1] = allocated;
-    ptr = static_cast<T*>(aligned);
-  }
-#endif
   *actual_num_bytes = capacity;
   new_aligned_internal::ConstructObject(ptr, std::forward<Args>(args)...);
   return ptr;

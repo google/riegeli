@@ -79,8 +79,6 @@ struct HasClassSpecificOperatorNew<
 // `Allocate<T>()` allocates memory like `new T`, but without constructing the
 // `T` object there.
 
-#if __cpp_aligned_new
-
 template <typename T, typename Enable = void>
 struct HasClassSpecificAlignedOperatorNew : std::false_type {};
 
@@ -102,24 +100,19 @@ inline void* Allocate() {
   return T::operator new(sizeof(T), std::align_val_t{alignof(T)});
 }
 
-#endif  // __cpp_aligned_new
-
 template <typename T,
           std::enable_if_t<
               absl::conjunction<
-#if __cpp_aligned_new
                   absl::disjunction<
                       std::bool_constant<(alignof(T) <=
                                           __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
                       absl::negation<HasClassSpecificAlignedOperatorNew<T>>>,
-#endif  // __cpp_aligned_new
                   HasClassSpecificOperatorNew<T>>::value,
               int> = 0>
 inline void* Allocate() {
   return T::operator new(sizeof(T));
 }
 
-#if __cpp_aligned_new
 template <
     typename T,
     std::enable_if_t<
@@ -131,19 +124,13 @@ template <
 inline void* Allocate() {
   return operator new(sizeof(T), std::align_val_t{alignof(T)});
 }
-#endif  // __cpp_aligned_new
 
 template <
     typename T,
     std::enable_if_t<absl::conjunction<
-#if __cpp_aligned_new
                          std::bool_constant<(alignof(T) <=
                                              __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
                          absl::negation<HasClassSpecificAlignedOperatorNew<T>>,
-#else   // !__cpp_aligned_new
-                         std::bool_constant<(alignof(T) <=
-                                             alignof(max_align_t))>,
-#endif  // !__cpp_aligned_new
                          absl::negation<HasClassSpecificOperatorNew<T>>>::value,
                      int> = 0>
 inline void* Allocate() {

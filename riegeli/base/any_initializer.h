@@ -176,42 +176,24 @@ void AnyInitializer<Handle>::ConstructMethod(
   // construction can be shared between the two cases, reducing the code size.
   Dependency<Handle, Target>* dep_ptr;
   const any_internal::Methods<Handle>* methods_ptr;
-  bool constructed = false;
   if (any_internal::ReprIsInline<Handle, Target>(available_size,
                                                  available_align)) {
     dep_ptr = reinterpret_cast<Dependency<Handle, Target>*>(dest);
     methods_ptr = &MethodsFor<Target, true>::kMethods;
   } else {
-#if __cpp_aligned_new
-    if (alignof(Dependency<Handle, Target>) >
-        __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+    if constexpr (alignof(Dependency<Handle, Target>) >
+                  __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
       dep_ptr = static_cast<Dependency<Handle, Target>*>(operator new(
           sizeof(Dependency<Handle, Target>),
           std::align_val_t(alignof(Dependency<Handle, Target>))));
-    }
-#else
-#ifdef __STDCPP_DEFAULT_NEW_ALIGNMENT__
-    constexpr size_t kDefaultNewAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-#else
-    constexpr size_t kDefaultNewAlignment = alignof(max_align_t);
-#endif
-    if (alignof(Dependency<Handle, Target>) > kDefaultNewAlignment) {
-      // Factoring out the code constructing `Dependency<Handle, Target>` is
-      // not feasible.
-      dep_ptr = new Dependency<Handle, Target>(context.Cast<Manager>());
-      constructed = true;
-    }
-#endif
-    else {
+    } else {
       dep_ptr = static_cast<Dependency<Handle, Target>*>(operator new(
           sizeof(Dependency<Handle, Target>)));
     }
     new (dest) Dependency<Handle, Target>*(dep_ptr);
     methods_ptr = &MethodsFor<Target, false>::kMethods;
   }
-  if (!constructed) {
-    new (dep_ptr) Dependency<Handle, Target>(context.Cast<Manager>());
-  }
+  new (dep_ptr) Dependency<Handle, Target>(context.Cast<Manager>());
   dest_methods_and_handle->methods = methods_ptr;
   new (&dest_methods_and_handle->handle) Handle(dep_ptr->get());
 }
