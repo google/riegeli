@@ -1162,21 +1162,69 @@ inline void Chain::Prepend(Src&& src, Options options) {
 
 template <typename HashState>
 HashState Chain::HashValue(HashState hash_state) const {
-  // TODO: this code relies on two internal Abseil APIs:
-  // 1. AbslInternalPiecewiseCombiner
-  // 2. WeaklyMixedInteger
-  // Reimplement this in terms of the public Abseil API.
-  if (const std::optional<absl::string_view> flat = TryFlat();
-      flat != std::nullopt) {
-    return HashState::combine(std::move(hash_state), *flat);
+  if (empty()) return HashState::combine(std::move(hash_state), size_t{0});
+  RIEGELI_ASSERT(!blocks().empty());
+  constexpr size_t kChunkSize = 256;
+  char chunk[kChunkSize];
+
+  // Hash chunks of size `kChunkSize` using `HashState::combine_contiguous()`.
+  // The last chunk can be smaller; no chunk is empty. Then combine the size.
+  size_t position = 0;
+  for (size_t block_index = 0; block_index < blocks().size() - 1;
+       ++block_index) {
+    absl::string_view block = blocks()[block_index];
+    if (block.size() < kChunkSize - position) {
+      std::memcpy(chunk + position, block.data(), block.size());
+      position += block.size();
+      continue;
+    }
+    if (position > 0) {
+      const size_t remaining = kChunkSize - position;
+      std::memcpy(chunk + position, block.data(), remaining);
+      hash_state = HashState::combine_contiguous(std::move(hash_state), chunk,
+                                                 kChunkSize);
+      block.remove_prefix(remaining);
+    }
+    while (block.size() >= kChunkSize) {
+      hash_state = HashState::combine_contiguous(std::move(hash_state),
+                                                 block.data(), kChunkSize);
+      block.remove_prefix(kChunkSize);
+    }
+    std::memcpy(chunk, block.data(), block.size());
+    position = block.size();
   }
-  typename HashState::AbslInternalPiecewiseCombiner combiner;
-  for (const absl::string_view block : blocks()) {
+
+  // The last block can be hashed without copying its last chunk if there are no
+  // buffered data from the previous blocks.
+  absl::string_view block = blocks().back();
+  if (block.size() <= kChunkSize - position) {
+    if (position > 0) {
+      std::memcpy(chunk + position, block.data(), block.size());
+      position += block.size();
+      hash_state =
+          HashState::combine_contiguous(std::move(hash_state), chunk, position);
+    } else if (!block.empty()) {
+      hash_state = HashState::combine_contiguous(std::move(hash_state),
+                                                 block.data(), block.size());
+    }
+    return HashState::combine(std::move(hash_state), size());
+  }
+  if (position > 0) {
+    const size_t remaining = kChunkSize - position;
+    std::memcpy(chunk + position, block.data(), remaining);
     hash_state =
-        combiner.add_buffer(std::move(hash_state), block.data(), block.size());
+        HashState::combine_contiguous(std::move(hash_state), chunk, kChunkSize);
+    block.remove_prefix(remaining);
   }
-  return HashState::combine(combiner.finalize(std::move(hash_state)),
-                            absl::hash_internal::WeaklyMixedInteger{size()});
+  while (block.size() > kChunkSize) {
+    hash_state = HashState::combine_contiguous(std::move(hash_state),
+                                               block.data(), kChunkSize);
+    block.remove_prefix(kChunkSize);
+  }
+  RIEGELI_ASSERT(!block.empty());
+  hash_state = HashState::combine_contiguous(std::move(hash_state),
+                                             block.data(), block.size());
+  return HashState::combine(std::move(hash_state), size());
 }
 
 template <typename Sink>
