@@ -299,7 +299,7 @@ class
             kOffset + sizeof(SubT));
     void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
     new (static_cast<RefCount*>(ptr) - 1) RefCount();
-    std::move(value).ConstructAt(ptr);
+    new (ptr) SubT(std::move(value).Construct());
     return std::launder(static_cast<SubT*>(ptr));
   }
   template <typename SubT,
@@ -311,7 +311,7 @@ class
             kOffset + sizeof(SubT));
     void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
     new (static_cast<Control*>(ptr) - 1) Control(DestroyMethod<SubT>);
-    std::move(value).ConstructAt(ptr);
+    new (ptr) SubT(std::move(value).Construct());
     return std::launder(static_cast<SubT*>(ptr));
   }
 

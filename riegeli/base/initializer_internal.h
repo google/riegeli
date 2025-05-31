@@ -17,7 +17,6 @@
 
 #include <stddef.h>
 
-#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -64,76 +63,6 @@ template <typename T, typename Arg,
 inline T&& BindReference(Arg&& arg) {
   return std::forward<T>(
       *absl::implicit_cast<std::remove_reference_t<T>*>(&arg));
-}
-
-template <typename T, typename Enable = void>
-struct HasClassSpecificOperatorNew : std::false_type {};
-
-template <typename T>
-struct HasClassSpecificOperatorNew<
-    T, std::enable_if_t<std::is_convertible_v<
-           decltype(T::operator new(std::declval<size_t>())), void*>>>
-    : std::true_type {};
-
-// `Allocate<T>()` allocates memory like `new T`, but without constructing the
-// `T` object there.
-
-template <typename T, typename Enable = void>
-struct HasClassSpecificAlignedOperatorNew : std::false_type {};
-
-template <typename T>
-struct HasClassSpecificAlignedOperatorNew<
-    T, std::enable_if_t<std::is_convertible_v<
-           decltype(T::operator new(std::declval<size_t>(),
-                                    std::declval<std::align_val_t>())),
-           void*>>> : std::true_type {};
-
-template <
-    typename T,
-    std::enable_if_t<
-        std::conjunction_v<
-            std::bool_constant<(alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-            HasClassSpecificAlignedOperatorNew<T>>,
-        int> = 0>
-inline void* Allocate() {
-  return T::operator new(sizeof(T), std::align_val_t{alignof(T)});
-}
-
-template <typename T,
-          std::enable_if_t<
-              std::conjunction_v<
-                  std::disjunction<
-                      std::bool_constant<(alignof(T) <=
-                                          __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                      std::negation<HasClassSpecificAlignedOperatorNew<T>>>,
-                  HasClassSpecificOperatorNew<T>>,
-              int> = 0>
-inline void* Allocate() {
-  return T::operator new(sizeof(T));
-}
-
-template <
-    typename T,
-    std::enable_if_t<
-        std::conjunction_v<
-            std::bool_constant<(alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-            std::negation<HasClassSpecificAlignedOperatorNew<T>>,
-            std::negation<HasClassSpecificOperatorNew<T>>>,
-        int> = 0>
-inline void* Allocate() {
-  return operator new(sizeof(T), std::align_val_t{alignof(T)});
-}
-
-template <
-    typename T,
-    std::enable_if_t<
-        std::conjunction_v<std::bool_constant<(
-                               alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)>,
-                           std::negation<HasClassSpecificAlignedOperatorNew<T>>,
-                           std::negation<HasClassSpecificOperatorNew<T>>>,
-        int> = 0>
-inline void* Allocate() {
-  return operator new(sizeof(T));
 }
 
 }  // namespace riegeli::initializer_internal

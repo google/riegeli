@@ -18,13 +18,11 @@
 #include <stddef.h>
 
 #include <memory>
-#include <new>  // IWYU pragma: keep
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
@@ -84,19 +82,15 @@ class MakerType
             std::enable_if_t<
                 std::is_constructible_v<std::decay_t<T>, Args&&...>, int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() && {
-    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
-    std::move(*this).template ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-        std::launder(static_cast<std::decay_t<T>*>(ptr)));
+        new std::decay_t<T>(std::move(*this).template Construct<T>()));
   }
   template <typename T, typename Deleter,
             std::enable_if_t<
                 std::is_constructible_v<std::decay_t<T>, Args&&...>, int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(Deleter&& deleter) && {
-    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
-    std::move(*this).template ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-        std::launder(static_cast<std::decay_t<T>*>(ptr)),
+        new std::decay_t<T>(std::move(*this).template Construct<T>()),
         std::forward<Deleter>(deleter));
   }
   template <
@@ -104,10 +98,8 @@ class MakerType
       std::enable_if_t<std::is_constructible_v<std::decay_t<T>, const Args&...>,
                        int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr() const& {
-    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
-    ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-        std::launder(static_cast<std::decay_t<T>*>(ptr)));
+        new std::decay_t<T>(Construct<T>()));
   }
   template <
       typename T, typename Deleter,
@@ -115,74 +107,43 @@ class MakerType
                        int> = 0>
   std::unique_ptr<std::decay_t<T>, Deleter> UniquePtr(
       Deleter&& deleter) const& {
-    void* const ptr = initializer_internal::Allocate<std::decay_t<T>>();
-    ConstructAt<T>(ptr);
     return std::unique_ptr<std::decay_t<T>, Deleter>(
-        std::launder(static_cast<std::decay_t<T>*>(ptr)),
-        std::forward<Deleter>(deleter));
-  }
-
-  // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
-  template <typename T,
-            std::enable_if_t<
-                std::is_constructible_v<std::decay_t<T>, Args&&...>, int> = 0>
-  void ConstructAt(void* ptr) && {
-    std::move(*this).template ConstructAtImpl<T>(
-        ptr, std::index_sequence_for<Args...>());
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::is_constructible_v<std::decay_t<T>, const Args&...>,
-                       int> = 0>
-  void ConstructAt(void* ptr) const& {
-    ConstructAtImpl<T>(ptr, std::index_sequence_for<Args...>());
+        new std::decay_t<T>(Construct<T>()), std::forward<Deleter>(deleter));
   }
 
   // Constructs the `T` in `storage` which must outlive the returned reference.
   //
-  // `Reference()` instead of `Construct()` supports `Initializer::Reference()`,
-  // and is compatible with immovable types before C++17 which guarantees copy
-  // elision.
+  // `Reference()` instead of `Construct()` supports `Initializer::Reference()`.
   //
-  // If copy elision is guaranteed and the `storage` argument is omitted, the
-  // result is returned by value instead of by reference, which is a more
-  // efficient way to construct the temporary.
-#if __cpp_guaranteed_copy_elision
+  // If the `storage` argument is omitted, the result is returned by value
+  // instead of by reference, which is a more efficient way to construct the
+  // temporary.
   template <typename T,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
   T Reference() && {
     return std::move(*this).template Construct<T>();
   }
-#endif
   template <typename T,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
-#if !__cpp_guaranteed_copy_elision
-                = {}
-#endif
-                ) && {
+  T&& Reference(
+      TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND) && {
     return std::apply(
         [&](Args&&... args) -> T&& {
           return std::move(storage).emplace(std::forward<Args>(args)...);
         },
         std::move(args_));
   }
-#if __cpp_guaranteed_copy_elision
   template <
       typename T,
       std::enable_if_t<std::is_constructible_v<T, const Args&...>, int> = 0>
   T Reference() const& {
     return Construct<T>();
   }
-#endif
   template <
       typename T,
       std::enable_if_t<std::is_constructible_v<T, const Args&...>, int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
-#if !__cpp_guaranteed_copy_elision
-                = {}
-#endif
-  ) const& {
+  T&& Reference(
+      TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND) const& {
     return std::apply(
         [&](const Args&... args) -> T&& {
           return std::move(storage).emplace(args...);
@@ -234,15 +195,6 @@ class MakerType
   }
 
  private:
-  template <typename T, size_t... indices>
-  void ConstructAtImpl(void* ptr, std::index_sequence<indices...>) && {
-    new (ptr) std::decay_t<T>(std::forward<Args>(std::get<indices>(args_))...);
-  }
-  template <typename T, size_t... indices>
-  void ConstructAtImpl(void* ptr, std::index_sequence<indices...>) const& {
-    new (ptr) std::decay_t<T>(std::get<indices>(args_)...);
-  }
-
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
@@ -380,65 +332,38 @@ class MakerTypeFor
         std::forward<Deleter>(deleter));
   }
 
-  // Constructs the `std::decay_t<T>` at `ptr` using placement `new`.
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::is_constructible_v<std::decay_t<DependentT>, Args&&...>,
-                int> = 0>
-  void ConstructAt(void* ptr) && {
-    std::move(*this).maker().template ConstructAt<T>(ptr);
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<std::is_constructible_v<std::decay_t<DependentT>,
-                                                     const Args&...>,
-                             int> = 0>
-  void ConstructAt(void* ptr) const& {
-    this->maker().template ConstructAt<T>(ptr);
-  }
-
   // Constructs the `T` in `storage` which must outlive the returned reference.
   //
   // `Reference()` instead of conversion to `T` or `Construct()` supports
-  // `Initializer::Reference()`, and is compatible with immovable types before
-  // C++17 which guarantees copy elision.
+  // `Initializer::Reference()`.
   //
-  // If copy elision is guaranteed and the `storage` argument is omitted, the
-  // result is returned by value instead of by reference, which is a more
-  // efficient way to construct the temporary.
-#if __cpp_guaranteed_copy_elision
+  // If the `storage` argument is omitted, the result is returned by value
+  // instead of by reference, which is a more efficient way to construct the
+  // temporary.
   template <
       typename DependentT = T,
       std::enable_if_t<std::is_constructible_v<DependentT, Args&&...>, int> = 0>
   T Reference() && {
     return std::move(*this).maker().template Reference<T>();
   }
-#endif
   template <
       typename DependentT = T,
       std::enable_if_t<std::is_constructible_v<DependentT, Args&&...>, int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
-#if !__cpp_guaranteed_copy_elision
-                = {}
-#endif
-                ) && {
+  T&& Reference(
+      TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND) && {
     return std::move(*this).maker().template Reference<T>(std::move(storage));
   }
-#if __cpp_guaranteed_copy_elision
   template <typename DependentT = T,
             std::enable_if_t<
                 std::is_constructible_v<DependentT, const Args&...>, int> = 0>
   T Reference() const& {
     return this->maker().template Reference<T>();
   }
-#endif
   template <typename DependentT = T,
             std::enable_if_t<
                 std::is_constructible_v<DependentT, const Args&...>, int> = 0>
-  T&& Reference(TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND
-#if !__cpp_guaranteed_copy_elision
-                = {}
-#endif
-  ) const& {
+  T&& Reference(
+      TemporaryStorage<T>&& storage ABSL_ATTRIBUTE_LIFETIME_BOUND) const& {
     return this->maker().template Reference<T>(std::move(storage));
   }
 

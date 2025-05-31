@@ -25,6 +25,7 @@
 #include <iosfwd>
 #include <iterator>
 #include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -524,7 +525,7 @@ void Chain::ExternalMethodsFor<T>::RegisterSubobjects(
 template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  std::move(object).ConstructAt(&unchecked_external_object<T>());
+  new (&unchecked_external_object<T>()) T(std::move(object));
   substr_ = BytesRef(unchecked_external_object<T>());
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
@@ -535,7 +536,7 @@ inline Chain::RawBlock::RawBlock(Initializer<T> object,
                                  absl::string_view substr)
     : substr_(substr) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
-  std::move(object).ConstructAt(&unchecked_external_object<T>());
+  new (&unchecked_external_object<T>()) T(std::move(object));
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
   AssertSubstr(unchecked_external_object<T>(), substr);

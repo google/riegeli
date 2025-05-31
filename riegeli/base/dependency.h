@@ -620,29 +620,21 @@ struct SupportsDependencyDeref
 // `Dependency<Handle, Manager>` is defined and usable, i.e. constructible from
 // `Initializer<Manager>`.
 //
-// An immovable `Manager` is usable since C++17 which guarantees copy elision.
-// In this case the `Initializer<Manager>` must have been constructed from
-// `riegeli::Maker()` or `riegeli::Invoker()`, not from an already constructed
-// object.
+// An immovable `Manager` is usable when the `Initializer<Manager>` has been
+// constructed from `riegeli::Maker()` or `riegeli::Invoker()`, not from an
+// already constructed object.
 template <typename Handle, typename Manager>
 struct SupportsDependency
     : std::conjunction<
-          dependency_internal::SupportsDependencyDeref<Handle, Manager>
-#if !__cpp_guaranteed_copy_elision
-          ,
-          std::is_convertible<Manager&&, Manager>
-#endif
-          > {
-};
+          dependency_internal::SupportsDependencyDeref<Handle, Manager>> {};
 
 // `TargetSupportsDependency<Handle, Manager>::value` is `true` when
 // `Dependency<Handle, TargetT<Manager>>` is defined and constructible from
 // `Manager&&`.
 //
-// An immovable `TargetT<Manager>` is usable since C++17 which guarantees
-// copy elision. In this case the `Dependency` must be initialized with
-// `riegeli::Maker()` or `riegeli::Invoker()`, possibly behind `Initializer`,
-// not from an already constructed object.
+// An immovable `TargetT<Manager>` is usable when the `Dependency` has been
+// initialized with `riegeli::Maker()` or `riegeli::Invoker()`, possibly behind
+// `Initializer`, not from an already constructed object.
 template <typename Handle, typename Manager>
 struct TargetSupportsDependency
     : std::conjunction<
@@ -654,10 +646,9 @@ struct TargetSupportsDependency
 // `Dependency<Handle, TargetRefT<Manager>>` is defined and constructible from
 // `Manager&&`.
 //
-// An immovable `TargetRefT<Manager>` is usable since C++17 which guarantees
-// copy elision. In this case the `Dependency` must be initialized with
-// `riegeli::Maker()` or `riegeli::Invoker()`, possibly behind `Initializer`,
-// not from an already constructed object.
+// An immovable `TargetRefT<Manager>` is usable when the `Dependency` has been
+// initialized with `riegeli::Maker()` or `riegeli::Invoker()`, possibly behind
+// `Initializer`, not from an already constructed object.
 template <typename Handle, typename Manager>
 struct TargetRefSupportsDependency
     : std::conjunction<

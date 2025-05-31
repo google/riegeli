@@ -26,7 +26,6 @@
 #include "absl/time/time.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
-#include "riegeli/base/maker.h"
 
 namespace riegeli::internal {
 
@@ -73,7 +72,7 @@ void ThreadPool::Schedule(absl::AnyInvocable<void() &&> task) {
 }
 
 ThreadPool& ThreadPool::global() {
-  return Global([] { return riegeli::OwningMaker<ThreadPool>(); });
+  return Global([] { return ThreadPool(); });
 }
 
 }  // namespace riegeli::internal

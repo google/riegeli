@@ -19,8 +19,6 @@
 #include <new>
 #include <type_traits>
 
-#include "riegeli/base/initializer.h"
-
 namespace riegeli {
 
 // `Global<T>()` returns a const reference to a default-constructed object of
@@ -34,8 +32,7 @@ template <typename T,
           std::enable_if_t<std::is_default_constructible_v<T>, int> = 0>
 const T& Global();
 
-// `Global(construct)` returns a reference to an object returned by `construct`,
-// or to the target of its `Initializer`.
+// `Global(construct)` returns a reference to an object returned by `construct`.
 //
 // The object is created when `Global` is first called with the given
 // `construct` type, and is never destroyed.
@@ -53,11 +50,10 @@ template <typename Construct,
           std::enable_if_t<std::conjunction_v<std::is_empty<Construct>,
                                               std::is_invocable<Construct>>,
                            int> = 0>
-TargetT<std::invoke_result_t<Construct>>& Global(Construct construct);
+std::decay_t<std::invoke_result_t<Construct>>& Global(Construct construct);
 
 // `Global(construct, initialize)` returns a reference to an object returned by
-// `construct`, or to the target of its `Initializer`. After construction,
-// `initialize` is called on the reference.
+// `construct`. After construction, `initialize` is called on the reference.
 //
 // The object is created when `Global` is first called with the given
 // `construct` and `initialize` types, and is never destroyed.
@@ -71,15 +67,16 @@ TargetT<std::invoke_result_t<Construct>>& Global(Construct construct);
 // state, which would be misleadingly ignored for subsequent calls. Since
 // distinct lambdas have distinct types, distinct call sites with lambdas return
 // references to distinct objects.
-template <typename Construct, typename Initialize,
-          std::enable_if_t<
-              std::conjunction_v<
-                  std::is_empty<Construct>, std::is_empty<Initialize>,
-                  std::is_invocable<Initialize,
-                                    TargetT<std::invoke_result_t<Construct>>&>>,
-              int> = 0>
-TargetT<std::invoke_result_t<Construct>>& Global(Construct construct,
-                                                 Initialize initialize);
+template <
+    typename Construct, typename Initialize,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_empty<Construct>, std::is_empty<Initialize>,
+            std::is_invocable<Initialize,
+                              std::decay_t<std::invoke_result_t<Construct>>&>>,
+        int> = 0>
+std::decay_t<std::invoke_result_t<Construct>>& Global(Construct construct,
+                                                      Initialize initialize);
 
 // Implementation details follow.
 
@@ -92,20 +89,12 @@ class NoDestructor {
 
   template <typename Construct>
   explicit NoDestructor(Construct construct) {
-#if __cpp_guaranteed_copy_elision
     new (storage_) T(std::invoke(construct));
-#else
-    Initializer<T>(std::invoke(construct)).ConstructAt(storage_);
-#endif
   }
 
   template <typename Construct, typename Initialize>
   explicit NoDestructor(Construct construct, Initialize initialize) {
-#if __cpp_guaranteed_copy_elision
     new (storage_) T(std::invoke(construct));
-#else
-    Initializer<T>(std::invoke(construct)).ConstructAt(storage_);
-#endif
     std::invoke(initialize, object());
   }
 
@@ -130,22 +119,26 @@ template <typename Construct,
           std::enable_if_t<std::conjunction_v<std::is_empty<Construct>,
                                               std::is_invocable<Construct>>,
                            int>>
-inline TargetT<std::invoke_result_t<Construct>>& Global(Construct construct) {
-  static global_internal::NoDestructor<TargetT<std::invoke_result_t<Construct>>>
+inline std::decay_t<std::invoke_result_t<Construct>>& Global(
+    Construct construct) {
+  static global_internal::NoDestructor<
+      std::decay_t<std::invoke_result_t<Construct>>>
       kStorage(construct);
   return kStorage.object();
 }
 
-template <typename Construct, typename Initialize,
-          std::enable_if_t<
-              std::conjunction_v<
-                  std::is_empty<Construct>, std::is_empty<Initialize>,
-                  std::is_invocable<Initialize,
-                                    TargetT<std::invoke_result_t<Construct>>&>>,
-              int>>
-inline TargetT<std::invoke_result_t<Construct>>& Global(Construct construct,
-                                                        Initialize initialize) {
-  static global_internal::NoDestructor<TargetT<std::invoke_result_t<Construct>>>
+template <
+    typename Construct, typename Initialize,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_empty<Construct>, std::is_empty<Initialize>,
+            std::is_invocable<Initialize,
+                              std::decay_t<std::invoke_result_t<Construct>>&>>,
+        int>>
+inline std::decay_t<std::invoke_result_t<Construct>>& Global(
+    Construct construct, Initialize initialize) {
+  static global_internal::NoDestructor<
+      std::decay_t<std::invoke_result_t<Construct>>>
       kStorage(construct, initialize);
   return kStorage.object();
 }

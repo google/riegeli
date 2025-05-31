@@ -22,7 +22,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "riegeli/base/global.h"
-#include "riegeli/base/maker.h"
 
 namespace riegeli {
 
@@ -84,7 +83,7 @@ class BackgroundCleaner {
 
   // Returns a default global `BackgroundCleaner`.
   static BackgroundCleaner& global() {
-    return Global([] { return riegeli::OwningMaker<BackgroundCleaner>(); });
+    return Global([] { return BackgroundCleaner(); });
   }
 
   // Registers the cleanee, allowing `ScheduleCleaning()` calls.

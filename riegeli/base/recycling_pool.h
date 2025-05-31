@@ -40,7 +40,6 @@
 #include "riegeli/base/background_cleaning.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/global.h"
-#include "riegeli/base/maker.h"
 
 namespace riegeli {
 
@@ -520,8 +519,8 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
                            : recycling_pool_internal::CurrentThreadNumber() &
                                  (options.thread_shards() - 1);
   return Global([] {
-           return riegeli::OwningMaker<
-               std::array<Pools, RecyclingPoolOptions::kDefaultThreadShards>>();
+           return std::array<Pools,
+                             RecyclingPoolOptions::kDefaultThreadShards>();
          })[shard % RecyclingPoolOptions::kDefaultThreadShards]
       .GetPool(shard, options);
 }
@@ -735,8 +734,8 @@ KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
                            : recycling_pool_internal::CurrentThreadNumber() &
                                  (options.thread_shards() - 1);
   return Global([] {
-           return riegeli::OwningMaker<
-               std::array<Pools, RecyclingPoolOptions::kDefaultThreadShards>>();
+           return std::array<Pools,
+                             RecyclingPoolOptions::kDefaultThreadShards>();
          })[shard % RecyclingPoolOptions::kDefaultThreadShards]
       .GetPool(shard, options);
 }
