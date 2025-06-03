@@ -46,7 +46,7 @@ class DeferredEncoder : public ChunkEncoder {
 
   using ChunkEncoder::AddRecord;
   bool AddRecord(const google::protobuf::MessageLite& record,
-                 SerializeOptions serialize_options) override;
+                 SerializeMessageOptions serialize_options) override;
   bool AddRecord(BytesRef record) override;
   bool AddRecord(ExternalRef record) override;
   bool AddRecord(const Chain& record) override;

@@ -35,7 +35,7 @@
 
 namespace riegeli {
 
-class TextParseOptions;
+class TextParseMessageOptions;
 
 namespace text_parse_message_internal {
 
@@ -51,13 +51,13 @@ class StringErrorCollector : public google::protobuf::io::ErrorCollector {
 };
 
 absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
-                                  const TextParseOptions& options);
+                                  const TextParseMessageOptions& options);
 
 }  // namespace text_parse_message_internal
 
-class TextParseOptions {
+class TextParseMessageOptions {
  public:
-  TextParseOptions();
+  TextParseMessageOptions();
 
   // If `false`, replaces existing contents of the destination, clearing it
   // first.
@@ -65,11 +65,13 @@ class TextParseOptions {
   // If `true`, merges to existing contents of the destination.
   //
   // Default: `false`.
-  TextParseOptions& set_merge(bool merge) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  TextParseMessageOptions& set_merge(bool merge) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     merge_ = merge;
     return *this;
   }
-  TextParseOptions&& set_merge(bool merge) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  TextParseMessageOptions&& set_merge(bool merge) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_merge(merge));
   }
   bool merge() const { return merge_; }
@@ -90,13 +92,15 @@ class TextParseOptions {
   // For `error_collector_`.
   friend absl::Status text_parse_message_internal::TextParseMessageImpl(
       Reader& src, google::protobuf::Message& dest,
-      const TextParseOptions& options);
+      const TextParseMessageOptions& options);
 
   bool merge_ = false;
   std::unique_ptr<text_parse_message_internal::StringErrorCollector>
       error_collector_;
   google::protobuf::TextFormat::Parser parser_;
 };
+
+using TextParseOptions ABSL_DEPRECATE_AND_INLINE() = TextParseMessageOptions;
 
 // Reads a message in text format from the given `Reader`. If successful, the
 // entire input will be consumed.
@@ -115,7 +119,7 @@ template <
     std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int> = 0>
 absl::Status TextParseMessage(
     Src&& src, google::protobuf::Message& dest,
-    const TextParseOptions& options = TextParseOptions());
+    const TextParseMessageOptions& options = TextParseMessageOptions());
 
 // Reads a message in text format from `src`.
 //
@@ -124,20 +128,20 @@ absl::Status TextParseMessage(
 //  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status TextParseMessage(
     BytesRef src, google::protobuf::Message& dest,
-    const TextParseOptions& options = TextParseOptions());
+    const TextParseMessageOptions& options = TextParseMessageOptions());
 absl::Status TextParseMessage(
     const Chain& src, google::protobuf::Message& dest,
-    const TextParseOptions& options = TextParseOptions());
+    const TextParseMessageOptions& options = TextParseMessageOptions());
 absl::Status TextParseMessage(
     const absl::Cord& src, google::protobuf::Message& dest,
-    const TextParseOptions& options = TextParseOptions());
+    const TextParseMessageOptions& options = TextParseMessageOptions());
 
 // Implementation details follow.
 
 namespace text_parse_message_internal {
 
 absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
-                                  const TextParseOptions& options);
+                                  const TextParseMessageOptions& options);
 
 }  // namespace text_parse_message_internal
 
@@ -145,7 +149,7 @@ template <
     typename Src,
     std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int>>
 inline absl::Status TextParseMessage(Src&& src, google::protobuf::Message& dest,
-                                     const TextParseOptions& options) {
+                                     const TextParseMessageOptions& options) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status = text_parse_message_internal::TextParseMessageImpl(

@@ -40,9 +40,9 @@
 
 namespace riegeli {
 
-class SerializeOptions {
+class SerializeMessageOptions {
  public:
-  SerializeOptions() noexcept {}
+  SerializeMessageOptions() noexcept {}
 
   // If `false`, all required fields must be set. This is verified in debug
   // mode.
@@ -51,11 +51,12 @@ class SerializeOptions {
   // not having these fields.
   //
   // Default: `false`.
-  SerializeOptions& set_partial(bool partial) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SerializeMessageOptions& set_partial(bool partial) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     partial_ = partial;
     return *this;
   }
-  SerializeOptions&& set_partial(bool partial) &&
+  SerializeMessageOptions&& set_partial(bool partial) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_partial(partial));
   }
@@ -74,12 +75,12 @@ class SerializeOptions {
   // Default:
   // `google::protobuf::io::CodedOutputStream::IsDefaultSerializationDeterministic()`
   // (usually `false`).
-  SerializeOptions& set_deterministic(bool deterministic) &
+  SerializeMessageOptions& set_deterministic(bool deterministic) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     deterministic_ = deterministic;
     return *this;
   }
-  SerializeOptions&& set_deterministic(bool deterministic) &&
+  SerializeMessageOptions&& set_deterministic(bool deterministic) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_deterministic(deterministic));
   }
@@ -93,12 +94,12 @@ class SerializeOptions {
   // instead of `ByteSizeLong()`.
   //
   // Default: `false`.
-  SerializeOptions& set_has_cached_size(bool has_cached_size) &
+  SerializeMessageOptions& set_has_cached_size(bool has_cached_size) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     has_cached_size_ = has_cached_size;
     return *this;
   }
-  SerializeOptions&& set_has_cached_size(bool has_cached_size) &&
+  SerializeMessageOptions&& set_has_cached_size(bool has_cached_size) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_has_cached_size(has_cached_size));
   }
@@ -106,10 +107,11 @@ class SerializeOptions {
 
   // Returns `message.ByteSizeLong()` faster.
   //
-  // Requires that these `SerializeOptions` will be used only for serializing
-  // this `message`, which will not be modified in the meantime.
+  // Requires that these `SerializeMessageOptions` will be used only for
+  // serializing this `message`, which will not be modified in the meantime.
   //
-  // This consults and updates `has_cached_size()` in these `SerializeOptions`.
+  // This consults and updates `has_cached_size()` in these
+  // `SerializeMessageOptions`.
   size_t GetByteSize(const google::protobuf::MessageLite& message);
 
  private:
@@ -118,6 +120,8 @@ class SerializeOptions {
       IsDefaultSerializationDeterministic();
   bool has_cached_size_ = false;
 };
+
+using SerializeOptions ABSL_DEPRECATE_AND_INLINE() = SerializeMessageOptions;
 
 // Writes the message in binary format to the given `Writer`.
 //
@@ -133,9 +137,9 @@ class SerializeOptions {
 template <typename Dest,
           std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value,
                            int> = 0>
-absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              Dest&& dest,
-                              SerializeOptions options = SerializeOptions());
+absl::Status SerializeMessage(
+    const google::protobuf::MessageLite& src, Dest&& dest,
+    SerializeMessageOptions options = SerializeMessageOptions());
 
 // Writes the message in binary format to the given `BackwardWriter`.
 //
@@ -152,9 +156,9 @@ template <
     typename Dest,
     std::enable_if_t<TargetRefSupportsDependency<BackwardWriter*, Dest>::value,
                      int> = 0>
-absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              Dest&& dest,
-                              SerializeOptions options = SerializeOptions());
+absl::Status SerializeMessage(
+    const google::protobuf::MessageLite& src, Dest&& dest,
+    SerializeMessageOptions options = SerializeMessageOptions());
 
 // Writes the message length as varint32, then the message in binary format to
 // the given `Writer`.
@@ -164,7 +168,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
 //  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status SerializeLengthPrefixedMessage(
     const google::protobuf::MessageLite& src, Writer& dest,
-    SerializeOptions options = SerializeOptions());
+    SerializeMessageOptions options = SerializeMessageOptions());
 
 // Writes the message in binary format to `dest`, clearing any existing data in
 // `dest`.
@@ -172,18 +176,18 @@ absl::Status SerializeLengthPrefixedMessage(
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              std::string& dest,
-                              SerializeOptions options = SerializeOptions());
-absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              CompactString& dest,
-                              SerializeOptions options = SerializeOptions());
-absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              Chain& dest,
-                              SerializeOptions options = SerializeOptions());
-absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              absl::Cord& dest,
-                              SerializeOptions options = SerializeOptions());
+absl::Status SerializeMessage(
+    const google::protobuf::MessageLite& src, std::string& dest,
+    SerializeMessageOptions options = SerializeMessageOptions());
+absl::Status SerializeMessage(
+    const google::protobuf::MessageLite& src, CompactString& dest,
+    SerializeMessageOptions options = SerializeMessageOptions());
+absl::Status SerializeMessage(
+    const google::protobuf::MessageLite& src, Chain& dest,
+    SerializeMessageOptions options = SerializeMessageOptions());
+absl::Status SerializeMessage(
+    const google::protobuf::MessageLite& src, absl::Cord& dest,
+    SerializeMessageOptions options = SerializeMessageOptions());
 
 // Adapts a `Writer` to a `google::protobuf::io::ZeroCopyOutputStream`.
 class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
@@ -212,7 +216,7 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
 
 // Implementation details follow.
 
-inline size_t SerializeOptions::GetByteSize(
+inline size_t SerializeMessageOptions::GetByteSize(
     const google::protobuf::MessageLite& message) {
   if (has_cached_size()) return IntCast<size_t>(message.GetCachedSize());
   const size_t size = message.ByteSizeLong();
@@ -226,12 +230,12 @@ inline size_t SerializeOptions::GetByteSize(
 namespace serialize_message_internal {
 
 absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
-                                  Writer& dest, SerializeOptions options,
+                                  Writer& dest, SerializeMessageOptions options,
                                   bool set_write_hint);
 
 absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
                                   BackwardWriter& dest,
-                                  SerializeOptions options,
+                                  SerializeMessageOptions options,
                                   bool set_write_hint);
 
 }  // namespace serialize_message_internal
@@ -240,7 +244,8 @@ template <
     typename Dest,
     std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value, int>>
 inline absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                                     Dest&& dest, SerializeOptions options) {
+                                     Dest&& dest,
+                                     SerializeMessageOptions options) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   absl::Status status = serialize_message_internal::SerializeMessageImpl(
       src, *dest_dep, options, dest_dep.IsOwning());
@@ -256,7 +261,8 @@ template <typename Dest,
           std::enable_if_t<
               TargetRefSupportsDependency<BackwardWriter*, Dest>::value, int>>
 inline absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                                     Dest&& dest, SerializeOptions options) {
+                                     Dest&& dest,
+                                     SerializeMessageOptions options) {
   DependencyRef<BackwardWriter*, Dest> dest_dep(std::forward<Dest>(dest));
   absl::Status status = serialize_message_internal::SerializeMessageImpl(
       src, *dest_dep, options, dest_dep.IsOwning());

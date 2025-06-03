@@ -36,7 +36,7 @@ namespace text_print_message_internal {
 
 absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
                                   Writer& dest,
-                                  const TextPrintOptions& options) {
+                                  const TextPrintMessageOptions& options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to text-print message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -64,18 +64,18 @@ absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
 
 absl::Status TextPrintMessage(const google::protobuf::Message& src,
                               std::string& dest,
-                              const TextPrintOptions& options) {
+                              const TextPrintMessageOptions& options) {
   return TextPrintMessage(src, StringWriter<>(&dest), options);
 }
 
 absl::Status TextPrintMessage(const google::protobuf::Message& src, Chain& dest,
-                              const TextPrintOptions& options) {
+                              const TextPrintMessageOptions& options) {
   return TextPrintMessage(src, ChainWriter<>(&dest), options);
 }
 
 absl::Status TextPrintMessage(const google::protobuf::Message& src,
                               absl::Cord& dest,
-                              const TextPrintOptions& options) {
+                              const TextPrintMessageOptions& options) {
   return TextPrintMessage(src, CordWriter<>(&dest), options);
 }
 

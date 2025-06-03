@@ -133,7 +133,7 @@ class SerializedMessageWriter {
   absl::Status CopyString(int field_number, Position length, Reader& src);
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
-      SerializeOptions options = {});
+      SerializeMessageOptions options = {});
 
   // Writes an element of a packed repeated field.
   //
@@ -539,7 +539,7 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteSerializedMessage(
     int field_number, const google::protobuf::MessageLite& message,
-    SerializeOptions options) {
+    SerializeMessageOptions options) {
   if (absl::Status status =
           WriteLengthUnchecked(field_number, options.GetByteSize(message));
       ABSL_PREDICT_FALSE(!status.ok())) {

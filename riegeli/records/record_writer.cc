@@ -163,7 +163,7 @@ class RecordWriterBase::Worker {
   template <typename Record>
   bool AddRecord(Record&& record);
   bool AddRecord(const google::protobuf::MessageLite& record,
-                 SerializeOptions serialize_options);
+                 SerializeMessageOptions serialize_options);
 
   // Precondition: chunk is open.
   //
@@ -328,7 +328,7 @@ inline bool RecordWriterBase::Worker::AddRecord(Record&& record) {
 
 inline bool RecordWriterBase::Worker::AddRecord(
     const google::protobuf::MessageLite& record,
-    SerializeOptions serialize_options) {
+    SerializeMessageOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(
           !chunk_encoder_->AddRecord(record, std::move(serialize_options)))) {
@@ -902,7 +902,7 @@ absl::Status RecordWriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
-                                   SerializeOptions serialize_options) {
+                                   SerializeMessageOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const size_t size = serialize_options.GetByteSize(record);
   return WriteRecordImpl(size, record, std::move(serialize_options));

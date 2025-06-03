@@ -49,7 +49,7 @@ void StringErrorCollector::RecordError(
 
 }  // namespace text_parse_message_internal
 
-TextParseOptions::TextParseOptions()
+TextParseMessageOptions::TextParseMessageOptions()
     : error_collector_(std::make_unique<
                        text_parse_message_internal::StringErrorCollector>()) {
   parser_.RecordErrorsTo(error_collector_.get());
@@ -58,7 +58,7 @@ TextParseOptions::TextParseOptions()
 namespace text_parse_message_internal {
 
 absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
-                                  const TextParseOptions& options) {
+                                  const TextParseMessageOptions& options) {
   ReaderInputStream input_stream(&src);
   google::protobuf::TextFormat::Parser parser = options.parser();
   const bool parse_ok = options.merge() ? parser.Merge(&input_stream, &dest)
@@ -75,18 +75,18 @@ absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
 }  // namespace text_parse_message_internal
 
 absl::Status TextParseMessage(BytesRef src, google::protobuf::Message& dest,
-                              const TextParseOptions& options) {
+                              const TextParseMessageOptions& options) {
   return TextParseMessage(StringReader<>(src), dest, options);
 }
 
 absl::Status TextParseMessage(const Chain& src, google::protobuf::Message& dest,
-                              const TextParseOptions& options) {
+                              const TextParseMessageOptions& options) {
   return TextParseMessage(ChainReader<>(&src), dest, options);
 }
 
 absl::Status TextParseMessage(const absl::Cord& src,
                               google::protobuf::Message& dest,
-                              const TextParseOptions& options) {
+                              const TextParseMessageOptions& options) {
   return TextParseMessage(CordReader<>(&src), dest, options);
 }
 

@@ -146,7 +146,7 @@ class SerializedMessageBackwardWriter {
   absl::Status CopyString(int field_number, Position length, Reader& src);
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
-      SerializeOptions options = {});
+      SerializeMessageOptions options = {});
 
   // Writes an element of a packed repeated field.
   //
@@ -505,7 +505,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteString(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
     int field_number, const google::protobuf::MessageLite& message,
-    SerializeOptions options) {
+    SerializeMessageOptions options) {
   const size_t length = options.GetByteSize(message);
   if (absl::Status status =
           riegeli::SerializeMessage(message, writer(), options);

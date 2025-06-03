@@ -37,9 +37,9 @@
 
 namespace riegeli {
 
-class ParseOptions {
+class ParseMessageOptions {
  public:
-  ParseOptions() noexcept {}
+  ParseMessageOptions() noexcept {}
 
   // If `false`, replaces existing contents of the destination, clearing it
   // first.
@@ -47,11 +47,11 @@ class ParseOptions {
   // If `true`, merges to existing contents of the destination.
   //
   // Default: `false`.
-  ParseOptions& set_merge(bool merge) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ParseMessageOptions& set_merge(bool merge) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     merge_ = merge;
     return *this;
   }
-  ParseOptions&& set_merge(bool merge) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ParseMessageOptions&& set_merge(bool merge) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_merge(merge));
   }
   bool merge() const { return merge_; }
@@ -62,11 +62,13 @@ class ParseOptions {
   // not having these fields.
   //
   // Default: `false`.
-  ParseOptions& set_partial(bool partial) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ParseMessageOptions& set_partial(bool partial) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     partial_ = partial;
     return *this;
   }
-  ParseOptions&& set_partial(bool partial) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ParseMessageOptions&& set_partial(bool partial) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_partial(partial));
   }
   bool partial() const { return partial_; }
@@ -77,15 +79,15 @@ class ParseOptions {
   // Default:
   // `google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()`
   // (usually 100).
-  ParseOptions& set_recursion_limit(int recursion_limit) &
+  ParseMessageOptions& set_recursion_limit(int recursion_limit) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_GE(recursion_limit, 0)
-        << "Failed precondition of ParseOptions::set_recursion_limit(): "
+        << "Failed precondition of ParseMessageOptions::set_recursion_limit(): "
            "recursion limit out of range";
     recursion_limit_ = recursion_limit;
     return *this;
   }
-  ParseOptions&& set_recursion_limit(int recursion_limit) &&
+  ParseMessageOptions&& set_recursion_limit(int recursion_limit) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_recursion_limit(recursion_limit));
   }
@@ -97,6 +99,8 @@ class ParseOptions {
   int recursion_limit_ =
       google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit();
 };
+
+using ParseOptions ABSL_DEPRECATE_AND_INLINE() = ParseMessageOptions;
 
 // Reads a message in binary format from the given `Reader`. If successful, the
 // entire input will be consumed.
@@ -114,7 +118,7 @@ template <
     typename Src,
     std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int> = 0>
 absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
-                          ParseOptions options = ParseOptions());
+                          ParseMessageOptions options = ParseMessageOptions());
 
 // Reads a message in binary format with the given `length` from the given
 // `Reader`. If successful, exactly `length` bytes will be consumed.
@@ -131,9 +135,9 @@ absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
 //                      LimitingReaderBase::Options().set_exact_length(length)),
 //     dest, options)
 // ```
-absl::Status ParseMessageWithLength(Reader& src, size_t length,
-                                    google::protobuf::MessageLite& dest,
-                                    ParseOptions options = ParseOptions());
+absl::Status ParseMessageWithLength(
+    Reader& src, size_t length, google::protobuf::MessageLite& dest,
+    ParseMessageOptions options = ParseMessageOptions());
 
 // Reads a message length as varint32 (at most 2G), then a message in binary
 // format with that length from the given `Reader`.
@@ -141,9 +145,9 @@ absl::Status ParseMessageWithLength(Reader& src, size_t length,
 // Returns status:
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
-absl::Status ParseLengthPrefixedMessage(Reader& src,
-                                        google::protobuf::MessageLite& dest,
-                                        ParseOptions options = ParseOptions());
+absl::Status ParseLengthPrefixedMessage(
+    Reader& src, google::protobuf::MessageLite& dest,
+    ParseMessageOptions options = ParseMessageOptions());
 
 // Reads a message in binary format from `src`.
 //
@@ -151,12 +155,12 @@ absl::Status ParseLengthPrefixedMessage(Reader& src,
 //  * `status.ok()`  - success (`dest` is filled)
 //  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status ParseMessage(BytesRef src, google::protobuf::MessageLite& dest,
-                          ParseOptions options = ParseOptions());
+                          ParseMessageOptions options = ParseMessageOptions());
 absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
-                          ParseOptions options = ParseOptions());
+                          ParseMessageOptions options = ParseMessageOptions());
 absl::Status ParseMessage(const absl::Cord& src,
                           google::protobuf::MessageLite& dest,
-                          ParseOptions options = ParseOptions());
+                          ParseMessageOptions options = ParseMessageOptions());
 
 // Adapts a `Reader` to a `google::protobuf::io::ZeroCopyInputStream`.
 class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
@@ -189,7 +193,7 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
 namespace parse_message_internal {
 
 absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
-                              ParseOptions options);
+                              ParseMessageOptions options);
 
 }  // namespace parse_message_internal
 
@@ -197,7 +201,7 @@ template <
     typename Src,
     std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int>>
 inline absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
-                                 ParseOptions options) {
+                                 ParseMessageOptions options) {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
   absl::Status status =

@@ -58,7 +58,7 @@ ABSL_ATTRIBUTE_COLD inline absl::Status ParseError(
 }
 
 inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
-                                     ParseOptions options) {
+                                     ParseMessageOptions options) {
   if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
     return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
@@ -70,7 +70,7 @@ inline absl::Status CheckInitialized(google::protobuf::MessageLite& dest,
 
 inline absl::Status CheckInitialized(Reader& src,
                                      google::protobuf::MessageLite& dest,
-                                     ParseOptions options) {
+                                     ParseMessageOptions options) {
   if (!options.partial() && ABSL_PREDICT_FALSE(!dest.IsInitialized())) {
     return src.AnnotateStatus(absl::InvalidArgumentError(
         absl::StrCat("Failed to parse message of type ", dest.GetTypeName(),
@@ -85,7 +85,7 @@ inline absl::Status CheckInitialized(Reader& src,
 namespace parse_message_internal {
 
 absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
-                              ParseOptions options) {
+                              ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -125,7 +125,7 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
 
 absl::Status ParseMessageWithLength(Reader& src, size_t length,
                                     google::protobuf::MessageLite& dest,
-                                    ParseOptions options) {
+                                    ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -168,7 +168,7 @@ absl::Status ParseMessageWithLength(Reader& src, size_t length,
 
 absl::Status ParseLengthPrefixedMessage(Reader& src,
                                         google::protobuf::MessageLite& dest,
-                                        ParseOptions options) {
+                                        ParseMessageOptions options) {
   uint32_t length;
   if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length)) ||
       ABSL_PREDICT_FALSE(length >
@@ -180,7 +180,7 @@ absl::Status ParseLengthPrefixedMessage(Reader& src,
 }
 
 absl::Status ParseMessage(BytesRef src, google::protobuf::MessageLite& dest,
-                          ParseOptions options) {
+                          ParseMessageOptions options) {
   bool parse_ok;
   if (ABSL_PREDICT_FALSE(src.size() >
                          unsigned{std::numeric_limits<int>::max()})) {
@@ -203,7 +203,7 @@ absl::Status ParseMessage(BytesRef src, google::protobuf::MessageLite& dest,
 }
 
 absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
-                          ParseOptions options) {
+                          ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -240,7 +240,7 @@ absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
 
 absl::Status ParseMessage(const absl::Cord& src,
                           google::protobuf::MessageLite& dest,
-                          ParseOptions options) {
+                          ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&

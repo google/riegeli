@@ -469,8 +469,9 @@ class RecordWriterBase : public Object {
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
-  bool WriteRecord(const google::protobuf::MessageLite& record,
-                   SerializeOptions serialize_options = SerializeOptions());
+  bool WriteRecord(
+      const google::protobuf::MessageLite& record,
+      SerializeMessageOptions serialize_options = SerializeMessageOptions());
   bool WriteRecord(BytesRef record);
   bool WriteRecord(ExternalRef record);
   template <typename Src,

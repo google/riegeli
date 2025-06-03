@@ -159,7 +159,7 @@ inline absl::Status SerializeMessageHavingSize(
 namespace serialize_message_internal {
 
 absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
-                                  Writer& dest, SerializeOptions options,
+                                  Writer& dest, SerializeMessageOptions options,
                                   bool set_write_hint) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
@@ -176,7 +176,7 @@ absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
 
 absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
                                   BackwardWriter& dest,
-                                  SerializeOptions options,
+                                  SerializeMessageOptions options,
                                   bool set_write_hint) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
@@ -195,7 +195,7 @@ absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
 
 absl::Status SerializeLengthPrefixedMessage(
     const google::protobuf::MessageLite& src, Writer& dest,
-    SerializeOptions options) {
+    SerializeMessageOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -212,7 +212,8 @@ absl::Status SerializeLengthPrefixedMessage(
 }
 
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              std::string& dest, SerializeOptions options) {
+                              std::string& dest,
+                              SerializeMessageOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -252,7 +253,8 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
 }
 
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              CompactString& dest, SerializeOptions options) {
+                              CompactString& dest,
+                              SerializeMessageOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -290,7 +292,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
 }
 
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              Chain& dest, SerializeOptions options) {
+                              Chain& dest, SerializeMessageOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
@@ -332,7 +334,8 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
 }
 
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
-                              absl::Cord& dest, SerializeOptions options) {
+                              absl::Cord& dest,
+                              SerializeMessageOptions options) {
   RIEGELI_ASSERT(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "

@@ -280,7 +280,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
     const std::optional<Position> size = chunk_reader.Size();
     if (size != std::nullopt) WriteLine("  file_size: ", *size, report);
   }
-  TextPrintOptions print_options;
+  TextPrintMessageOptions print_options;
   print_options.printer().SetInitialIndentLevel(2);
   print_options.printer().SetUseShortRepeatedPrimitives(true);
   print_options.printer().SetUseUtf8StringEscaping(true);

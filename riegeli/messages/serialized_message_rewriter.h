@@ -323,7 +323,7 @@ class SerializedMessageRewriter {
                     Context, Action, MessageType&&>::value,
                 int> = 0>
   void OnParsedMessage(absl::Span<const int> field_path, Action action,
-                       ParseOptions options = {});
+                       ParseMessageOptions options = {});
 
   // Sets the action to be performed when encountering a length-delimited field
   // identified by `field_path` of field numbers from the root through
@@ -940,7 +940,7 @@ template <typename MessageType, typename Action,
               int>>
 inline void SerializedMessageRewriter<Context>::OnParsedMessage(
     absl::Span<const int> field_path, Action action,
-    ParseOptions parse_options) {
+    ParseMessageOptions parse_options) {
   message_reader_.OnLengthUnchecked(
       field_path, [action = std::move(action), parse_options](
                       size_t length, LimitingReaderBase& src,

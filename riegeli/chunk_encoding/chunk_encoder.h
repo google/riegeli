@@ -57,7 +57,7 @@ class ChunkEncoder : public Object {
   //  * `false` - failure (`!ok()`)
   bool AddRecord(const google::protobuf::MessageLite& record);
   virtual bool AddRecord(const google::protobuf::MessageLite& record,
-                         SerializeOptions serialize_options);
+                         SerializeMessageOptions serialize_options);
   virtual bool AddRecord(BytesRef record) = 0;
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool AddRecord(const char* record) {
     return AddRecord(absl::string_view(record));
@@ -117,7 +117,7 @@ inline void ChunkEncoder::Clear() {
 
 inline bool ChunkEncoder::AddRecord(
     const google::protobuf::MessageLite& record) {
-  return AddRecord(record, SerializeOptions());
+  return AddRecord(record, SerializeMessageOptions());
 }
 
 template <typename Src,

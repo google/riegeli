@@ -31,9 +31,9 @@
 
 namespace riegeli {
 
-class TextPrintOptions {
+class TextPrintMessageOptions {
  public:
-  TextPrintOptions() noexcept {}
+  TextPrintMessageOptions() noexcept {}
 
   // If `false`, all required fields must be set. This is verified in debug
   // mode.
@@ -42,11 +42,12 @@ class TextPrintOptions {
   // not having these fields.
   //
   // Default: `false`.
-  TextPrintOptions& set_partial(bool partial) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  TextPrintMessageOptions& set_partial(bool partial) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     partial_ = partial;
     return *this;
   }
-  TextPrintOptions&& set_partial(bool partial) &&
+  TextPrintMessageOptions&& set_partial(bool partial) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_partial(partial));
   }
@@ -67,11 +68,13 @@ class TextPrintOptions {
   // for details.
   //
   // Default: `false`.
-  TextPrintOptions& set_header(bool header) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  TextPrintMessageOptions& set_header(bool header) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     header_ = header;
     return *this;
   }
-  TextPrintOptions&& set_header(bool header) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  TextPrintMessageOptions&& set_header(bool header) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_header(header));
   }
   bool header() const { return header_; }
@@ -92,6 +95,8 @@ class TextPrintOptions {
   google::protobuf::TextFormat::Printer printer_;
 };
 
+using TextPrintOptions ABSL_DEPRECATE_AND_INLINE() = TextPrintMessageOptions;
+
 // Writes the message in text format to the given `Writer`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
@@ -108,7 +113,7 @@ template <typename Dest,
                            int> = 0>
 absl::Status TextPrintMessage(
     const google::protobuf::Message& src, Dest&& dest,
-    const TextPrintOptions& options = TextPrintOptions());
+    const TextPrintMessageOptions& options = TextPrintMessageOptions());
 
 // Writes the message in text format to `dest`, clearing any existing data in
 // `dest`.
@@ -118,13 +123,13 @@ absl::Status TextPrintMessage(
 //  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status TextPrintMessage(
     const google::protobuf::Message& src, std::string& dest,
-    const TextPrintOptions& options = TextPrintOptions());
+    const TextPrintMessageOptions& options = TextPrintMessageOptions());
 absl::Status TextPrintMessage(
     const google::protobuf::Message& src, Chain& dest,
-    const TextPrintOptions& options = TextPrintOptions());
+    const TextPrintMessageOptions& options = TextPrintMessageOptions());
 absl::Status TextPrintMessage(
     const google::protobuf::Message& src, absl::Cord& dest,
-    const TextPrintOptions& options = TextPrintOptions());
+    const TextPrintMessageOptions& options = TextPrintMessageOptions());
 
 // Implementation details follow.
 
@@ -132,7 +137,7 @@ namespace text_print_message_internal {
 
 absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
                                   Writer& dest,
-                                  const TextPrintOptions& options);
+                                  const TextPrintMessageOptions& options);
 
 }  // namespace text_print_message_internal
 
@@ -141,7 +146,7 @@ template <
     std::enable_if_t<TargetRefSupportsDependency<Writer*, Dest>::value, int>>
 inline absl::Status TextPrintMessage(const google::protobuf::Message& src,
                                      Dest&& dest,
-                                     const TextPrintOptions& options) {
+                                     const TextPrintMessageOptions& options) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   absl::Status status = text_print_message_internal::TextPrintMessageImpl(
       src, *dest_dep, options);

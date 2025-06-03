@@ -61,7 +61,7 @@ void SimpleEncoder::Clear() {
 }
 
 bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
-                              SerializeOptions serialize_options) {
+                              SerializeMessageOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const size_t size = serialize_options.GetByteSize(record);
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
