@@ -224,7 +224,7 @@ class Object {
   //
   // Then, to actually cast:
   // ```
-  //   if (A* const a = object->GetIf<A>(); a != nullptr) {
+  //   if (A* const a = object->GetIf<A>()) {
   //     ...
   //   }
   // ```

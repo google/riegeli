@@ -1047,8 +1047,7 @@ FutureRecordPosition RecordWriterBase::LastPos() const {
       << "Failed precondition of RecordWriterBase::LastPos(): "
          "no record was recently written";
   if (const LastRecordIsValidAt* const last_record_at_pos =
-          std::get_if<LastRecordIsValidAt>(&last_record_);
-      last_record_at_pos != nullptr) {
+          std::get_if<LastRecordIsValidAt>(&last_record_)) {
     return last_record_at_pos->pos;
   }
   RIEGELI_ASSERT_NE(worker_, nullptr)

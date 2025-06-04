@@ -491,8 +491,7 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
       << "Failed precondition of BufferedReader::CopyInternal()";
 #if !RIEGELI_DISABLE_COPY_FILE_RANGE
   if (HaveCopyFileRange<int>::value) {
-    if (FdWriterBase* const fd_writer = dest.GetIf<FdWriterBase>();
-        fd_writer != nullptr) {
+    if (FdWriterBase* const fd_writer = dest.GetIf<FdWriterBase>()) {
       const int src = SrcFd();
       for (;;) {
         if (ABSL_PREDICT_FALSE(!fd_writer->Flush(FlushType::kFromObject))) {

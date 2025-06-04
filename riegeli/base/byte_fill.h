@@ -562,8 +562,7 @@ inline ByteFill::Blocks::Blocks(Blocks&& that) noexcept
       last_block_size_(that.last_block_size_),
       data_(that.data_),
       block_(std::move(that.block_)) {
-  if (SmallBlock* const small_block = std::get_if<SmallBlock>(&block_);
-      small_block != nullptr) {
+  if (SmallBlock* const small_block = std::get_if<SmallBlock>(&block_)) {
     data_ = small_block->data();
   }
 }
