@@ -112,9 +112,21 @@ class
 
   // Returns the `TypeId` corresponding to the stored `Manager` type, stripping
   // any toplevel reference.
-  //
-  // `GetIf<Manager>() != nullptr` when `type_id() == TypeId::For<Manager>()`.
   TypeId type_id() const { return methods_and_handle_.methods->type_id; }
+
+  // Returns `true` when the stored `Manager` has exactly this type or a
+  // reference to it.
+  //
+  // Same as `type_id() == TypeId::For<Manager>()`.
+  //
+  // Same as `GetIf<Manager>() != nullptr` but more efficient if the type
+  // matches.
+  template <
+      typename Manager,
+      std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int> = 0>
+  bool Holds() const {
+    return type_id() == TypeId::For<Manager>();
+  }
 
   // Supports `MemoryEstimator`.
   friend void RiegeliRegisterSubobjects(const AnyBase* self,
@@ -744,7 +756,7 @@ template <typename Manager,
           std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int>>
 inline Manager* AnyBase<Handle, inline_size, inline_align>::GetIf()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  if (type_id() != TypeId::For<Manager>()) return nullptr;
+  if (!Holds<Manager>()) return nullptr;
   return &methods_and_handle_.methods->get_raw_manager(repr_.storage)
               .template Cast<Manager&>();
 }
@@ -754,7 +766,7 @@ template <typename Manager,
           std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int>>
 inline const Manager* AnyBase<Handle, inline_size, inline_align>::GetIf() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  if (type_id() != TypeId::For<Manager>()) return nullptr;
+  if (!Holds<Manager>()) return nullptr;
   return &methods_and_handle_.methods->get_raw_manager(repr_.storage)
               .template Cast<const Manager&>();
 }
