@@ -219,9 +219,7 @@ void ChunkedSortedStringSet::Builder::Reset(Options options) {
 }
 
 inline void ChunkedSortedStringSet::Builder::ApplySizeHint(size_t size_hint) {
-  if (size_hint > 0) {
-    chunks_.reserve((size_hint - 1) / chunk_size_ + 1);
-  }
+  if (size_hint > 0) chunks_.reserve((size_hint - 1) / chunk_size_ + 1);
 }
 
 bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {

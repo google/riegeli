@@ -439,9 +439,7 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedEnum(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, BytesRef value) {
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return WriteLengthUnchecked(field_number, value.size());
 }
 
@@ -463,9 +461,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteString(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, const Chain& value) {
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return WriteLengthUnchecked(field_number, value.size());
 }
 
@@ -480,9 +476,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteString(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, const absl::Cord& value) {
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return WriteLengthUnchecked(field_number, value.size());
 }
 
@@ -497,9 +491,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteString(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, ByteFill value) {
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return WriteLengthUnchecked(field_number, value.size());
 }
 

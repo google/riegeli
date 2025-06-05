@@ -452,9 +452,7 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return absl::OkStatus();
 }
 
@@ -483,9 +481,7 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return absl::OkStatus();
 }
 
@@ -507,9 +503,7 @@ inline absl::Status SerializedMessageWriter::WriteString(
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return absl::OkStatus();
 }
 
@@ -531,9 +525,7 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) {
-    return writer().status();
-  }
+  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return absl::OkStatus();
 }
 

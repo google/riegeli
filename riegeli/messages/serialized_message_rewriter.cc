@@ -110,9 +110,7 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
     }
   } else {
     Writer& dest = context.message_writer().writer();
-    if (ABSL_PREDICT_FALSE(!WriteVarint32(tag, dest))) {
-      return dest.status();
-    }
+    if (ABSL_PREDICT_FALSE(!WriteVarint32(tag, dest))) return dest.status();
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
         if (ABSL_PREDICT_FALSE(!dest.Push(kMaxLengthVarint64))) {

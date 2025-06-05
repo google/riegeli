@@ -200,9 +200,7 @@ std::optional<FieldProjection> FieldProjectionFromPython(PyObject* object) {
         PyIter_Next(field_number_iter.get())}) {
       const std::optional<int> field_number =
           FieldNumberFromPython(field_number_object.get());
-      if (ABSL_PREDICT_FALSE(field_number == std::nullopt)) {
-        return std::nullopt;
-      }
+      if (ABSL_PREDICT_FALSE(field_number == std::nullopt)) return std::nullopt;
       field.AddFieldNumber(*field_number);
     }
     if (ABSL_PREDICT_FALSE(PyErr_Occurred() != nullptr)) return std::nullopt;

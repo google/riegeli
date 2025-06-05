@@ -627,9 +627,7 @@ std::optional<PartialOrdering> RecordReaderBase::SearchImpl(
             // Declare the skipped record unordered.
             continue;
           }
-          if (ABSL_PREDICT_FALSE(ordering == std::nullopt)) {
-            return std::nullopt;
-          }
+          if (ABSL_PREDICT_FALSE(ordering == std::nullopt)) return std::nullopt;
           if (*ordering < 0) {
             less_found =
                 ChunkSuffix{chunk_begin, record_index + 1, num_records};

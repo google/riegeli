@@ -101,9 +101,7 @@ absl::Status SnappyDecompressImpl(Reader& src, Writer& dest) {
 }  // namespace snappy_internal
 
 std::optional<size_t> SnappyUncompressedSize(Reader& src) {
-  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) {
-    return std::nullopt;
-  }
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) return std::nullopt;
   if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
     size_t length = 1;
     while (length < kMaxLengthVarint32 &&
