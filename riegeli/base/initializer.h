@@ -258,7 +258,6 @@ class InitializerAssignableBase : public InitializerBase<T> {
     void (*reset)(TypeErasedRef context, T& dest);
   };
 
-#if __cpp_aggregate_bases
   template <typename Dummy = void>
   static constexpr Methods kMethodsDefault = {
       InitializerAssignableBase::InitializerBase::template kMethodsDefault<>,
@@ -287,70 +286,6 @@ class InitializerAssignableBase : public InitializerBase<T> {
       InitializerAssignableBase::InitializerBase::
           template kMethodsFromConvertedReference<Arg>,
       ResetMethodFromConvertedReference<Arg>};
-#else   // !__cpp_aggregate_bases
-  static constexpr Methods MakeMethodsDefault() {
-    Methods methods;
-    static_cast<typename InitializerAssignableBase::InitializerBase::Methods&>(
-        methods) =
-        InitializerAssignableBase::InitializerBase::template kMethodsDefault<>;
-    methods.reset = ResetMethodDefault;
-    return methods;
-  }
-  template <typename Dummy = void>
-  static constexpr Methods kMethodsDefault = MakeMethodsDefault();
-
-  template <typename Arg>
-  static constexpr Methods MakeMethodsFromObject() {
-    Methods methods;
-    static_cast<typename InitializerAssignableBase::InitializerBase::Methods&>(
-        methods) =
-        InitializerAssignableBase::InitializerBase::template kMethodsFromObject<
-            Arg>;
-    methods.reset = ResetMethodFromObject<Arg>;
-    return methods;
-  }
-  template <typename Arg>
-  static constexpr Methods kMethodsFromObject = MakeMethodsFromObject<Arg>();
-
-  template <typename... Args>
-  static constexpr Methods MakeMethodsFromMaker() {
-    Methods methods;
-    static_cast<typename InitializerAssignableBase::InitializerBase::Methods&>(
-        methods) =
-        InitializerAssignableBase::InitializerBase::template kMethodsFromMaker<
-            Args...>;
-    methods.reset = ResetMethodFromMaker<Args...>;
-    return methods;
-  }
-  template <typename... Args>
-  static constexpr Methods kMethodsFromMaker = MakeMethodsFromMaker<Args...>();
-
-  template <typename... Args>
-  static constexpr Methods MakeMethodsFromConstMaker() {
-    Methods methods;
-    static_cast<typename InitializerAssignableBase::InitializerBase::Methods&>(
-        methods) = InitializerAssignableBase::InitializerBase::
-        template kMethodsFromConstMaker<Args...>;
-    methods.reset = ResetMethodFromConstMaker<Args...>;
-    return methods;
-  }
-  template <typename... Args>
-  static constexpr Methods kMethodsFromConstMaker =
-      MakeMethodsFromConstMaker<Args...>();
-
-  template <typename Arg>
-  static constexpr Methods MakeMethodsFromConvertedReference() {
-    Methods methods;
-    static_cast<typename InitializerAssignableBase::InitializerBase::Methods&>(
-        methods) = InitializerAssignableBase::InitializerBase::
-        template kMethodsFromConvertedReference<Arg>;
-    methods.reset = ResetMethodFromConvertedReference<Arg>;
-    return methods;
-  }
-  template <typename Arg>
-  static constexpr Methods kMethodsFromConvertedReference =
-      MakeMethodsFromConvertedReference<Arg>();
-#endif  // !__cpp_aggregate_bases
 
   explicit InitializerAssignableBase(const Methods* methods)
       : InitializerAssignableBase::InitializerBase(methods) {}

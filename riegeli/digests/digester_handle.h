@@ -599,34 +599,12 @@ class DigesterHandle : public DigesterBaseHandle {
     DigestTypeParam (*digest)(TypeErasedRef target);
   };
 
-#if __cpp_aggregate_bases
   static constexpr Methods kMethodsDefault = {
       DigesterBaseHandle::kMethodsDefault, DigestMethodDefault};
 
   template <typename T>
   static constexpr Methods kMethods = {DigesterBaseHandle::kMethods<T>,
                                        DigestMethod<T>};
-#else   // !__cpp_aggregate_bases
-  static constexpr Methods MakeMethodsDefault() {
-    Methods methods;
-    static_cast<DigesterBaseHandle::Methods&>(methods) =
-        DigesterBaseHandle::kMethodsDefault;
-    methods.digest = DigestMethodDefault;
-    return methods;
-  }
-  static constexpr Methods kMethodsDefault = MakeMethodsDefault();
-
-  template <typename T>
-  static constexpr Methods MakeMethods() {
-    Methods methods;
-    static_cast<DigesterBaseHandle::Methods&>(methods) =
-        DigesterBaseHandle::kMethods<T>;
-    methods.digest = DigestMethod<T>;
-    return methods;
-  }
-  template <typename T>
-  static constexpr Methods kMethods = MakeMethods<T>();
-#endif  // !__cpp_aggregate_bases
 
   const Methods* methods() const {
     return static_cast<const Methods*>(DigesterBaseHandle::methods());
