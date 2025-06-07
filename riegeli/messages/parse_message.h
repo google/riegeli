@@ -100,8 +100,6 @@ class ParseMessageOptions {
       google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit();
 };
 
-using ParseOptions ABSL_DEPRECATE_AND_INLINE() = ParseMessageOptions;
-
 // Reads a message in binary format from the given `Reader`. If successful, the
 // entire input will be consumed.
 //

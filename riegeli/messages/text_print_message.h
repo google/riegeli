@@ -95,8 +95,6 @@ class TextPrintMessageOptions {
   google::protobuf::TextFormat::Printer printer_;
 };
 
-using TextPrintOptions ABSL_DEPRECATE_AND_INLINE() = TextPrintMessageOptions;
-
 // Writes the message in text format to the given `Writer`.
 //
 // The `Dest` template parameter specifies the type of the object providing and

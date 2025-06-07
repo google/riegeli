@@ -61,8 +61,8 @@ class FlatCordBlock {
  public:
   explicit FlatCordBlock(Initializer<absl::Cord> src);
 
-  FlatCordBlock(const FlatCordBlock&) = delete;
-  FlatCordBlock& operator=(const FlatCordBlock&) = delete;
+  FlatCordBlock(FlatCordBlock&& that) = default;
+  FlatCordBlock& operator=(FlatCordBlock&& that) = default;
 
   const absl::Cord& src() const { return src_; }
 

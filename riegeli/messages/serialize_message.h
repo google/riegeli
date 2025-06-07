@@ -121,8 +121,6 @@ class SerializeMessageOptions {
   bool has_cached_size_ = false;
 };
 
-using SerializeOptions ABSL_DEPRECATE_AND_INLINE() = SerializeMessageOptions;
-
 // Writes the message in binary format to the given `Writer`.
 //
 // The `Dest` template parameter specifies the type of the object providing and

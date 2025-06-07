@@ -100,8 +100,6 @@ class TextParseMessageOptions {
   google::protobuf::TextFormat::Parser parser_;
 };
 
-using TextParseOptions ABSL_DEPRECATE_AND_INLINE() = TextParseMessageOptions;
-
 // Reads a message in text format from the given `Reader`. If successful, the
 // entire input will be consumed.
 //
