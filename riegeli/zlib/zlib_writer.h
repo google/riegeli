@@ -334,6 +334,7 @@ inline void ZlibWriterBase::Reset(Closed) {
   recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
   compressor_.reset();
+  // Must be destroyed after `compressor_`.
   dictionary_ = ZlibDictionary();
   associated_reader_.Reset();
 }
@@ -346,6 +347,7 @@ inline void ZlibWriterBase::Reset(
   recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
   compressor_.reset();
+  // Must be destroyed after `compressor_`.
   dictionary_ = std::move(dictionary);
   associated_reader_.Reset();
 }

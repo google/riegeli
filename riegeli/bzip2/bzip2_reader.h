@@ -122,12 +122,12 @@ class Bzip2ReaderBase : public BufferedReader {
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
+  Position initial_compressed_pos_ = 0;
   bool truncated_ = false;
   // If `true`, some compressed data from the current stream were processed.
   // If `concatenate_` and `!stream_had_data_`, an end of the source is
   // legitimate, it does not imply that the source is truncated.
   bool stream_had_data_ = false;
-  Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
@@ -206,18 +206,18 @@ inline Bzip2ReaderBase::Bzip2ReaderBase(BufferOptions buffer_options,
 inline Bzip2ReaderBase::Bzip2ReaderBase(Bzip2ReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       concatenate_(that.concatenate_),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       truncated_(that.truncated_),
       stream_had_data_(that.stream_had_data_),
-      initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline Bzip2ReaderBase& Bzip2ReaderBase::operator=(
     Bzip2ReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   concatenate_ = that.concatenate_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   truncated_ = that.truncated_;
   stream_had_data_ = that.stream_had_data_;
-  initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
@@ -225,9 +225,9 @@ inline Bzip2ReaderBase& Bzip2ReaderBase::operator=(
 inline void Bzip2ReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   concatenate_ = false;
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   stream_had_data_ = false;
-  initial_compressed_pos_ = 0;
   decompressor_.reset();
 }
 
@@ -235,9 +235,9 @@ inline void Bzip2ReaderBase::Reset(BufferOptions buffer_options,
                                    bool concatenate) {
   BufferedReader::Reset(buffer_options);
   concatenate_ = concatenate;
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   stream_had_data_ = false;
-  initial_compressed_pos_ = 0;
   decompressor_.reset();
 }
 

@@ -93,6 +93,23 @@ class ZlibReaderBase : public BufferedReader {
     }
     int window_log() const { return window_log_; }
 
+    // If `true`, concatenated compressed streams are decoded to concatenation
+    // of their decompressed contents. An empty compressed stream is decoded to
+    // empty decompressed contents.
+    //
+    // If `false`, exactly one compressed stream is consumed.
+    //
+    // Default: `false`.
+    Options& set_concatenate(bool concatenate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      concatenate_ = concatenate;
+      return *this;
+    }
+    Options&& set_concatenate(bool concatenate) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_concatenate(concatenate));
+    }
+    bool concatenate() const { return concatenate_; }
+
     // Zlib dictionary. The same dictionary must have been used for compression,
     // except that it is allowed to supply a dictionary for decompression even
     // if no dictionary was used for compression.
@@ -113,23 +130,6 @@ class ZlibReaderBase : public BufferedReader {
     const ZlibDictionary& dictionary() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return dictionary_;
     }
-
-    // If `true`, concatenated compressed streams are decoded to concatenation
-    // of their decompressed contents. An empty compressed stream is decoded to
-    // empty decompressed contents.
-    //
-    // If `false`, exactly one compressed stream is consumed.
-    //
-    // Default: `false`.
-    Options& set_concatenate(bool concatenate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      concatenate_ = concatenate;
-      return *this;
-    }
-    Options&& set_concatenate(bool concatenate) &&
-        ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      return std::move(set_concatenate(concatenate));
-    }
-    bool concatenate() const { return concatenate_; }
 
     // Options for a global `RecyclingPool` of decompression contexts.
     //
@@ -156,8 +156,8 @@ class ZlibReaderBase : public BufferedReader {
    private:
     Header header_ = kDefaultHeader;
     int window_log_ = kDefaultWindowLog;
-    ZlibDictionary dictionary_;
     bool concatenate_ = false;
+    ZlibDictionary dictionary_;
     RecyclingPoolOptions recycling_pool_options_;
   };
 
@@ -184,15 +184,15 @@ class ZlibReaderBase : public BufferedReader {
   explicit ZlibReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZlibReaderBase(BufferOptions buffer_options, int window_bits,
-                          ZlibDictionary&& dictionary, bool concatenate,
+                          bool concatenate, ZlibDictionary&& dictionary,
                           const RecyclingPoolOptions& recycling_pool_options);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
   ZlibReaderBase& operator=(ZlibReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(BufferOptions buffer_options, int window_bits,
-             ZlibDictionary&& dictionary, bool concatenate,
+  void Reset(BufferOptions buffer_options, int window_bits, bool concatenate,
+             ZlibDictionary&& dictionary,
              const RecyclingPoolOptions& recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src);
@@ -221,6 +221,7 @@ class ZlibReaderBase : public BufferedReader {
 
   int window_bits_ = 0;
   bool concatenate_ = false;
+  Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
@@ -231,7 +232,6 @@ class ZlibReaderBase : public BufferedReader {
   bool stream_had_data_ = false;
   ZlibDictionary dictionary_;
   RecyclingPoolOptions recycling_pool_options_;
-  Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
@@ -326,8 +326,9 @@ std::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src);
 // Implementation details follow.
 
 inline ZlibReaderBase::ZlibReaderBase(
-    BufferOptions buffer_options, int window_bits, ZlibDictionary&& dictionary,
-    bool concatenate, const RecyclingPoolOptions& recycling_pool_options)
+    BufferOptions buffer_options, int window_bits, bool concatenate,
+    ZlibDictionary&& dictionary,
+    const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
       window_bits_(window_bits),
       concatenate_(concatenate),
@@ -338,11 +339,11 @@ inline ZlibReaderBase::ZlibReaderBase(ZlibReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       window_bits_(that.window_bits_),
       concatenate_(that.concatenate_),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       truncated_(that.truncated_),
       stream_had_data_(that.stream_had_data_),
       dictionary_(std::move(that.dictionary_)),
       recycling_pool_options_(that.recycling_pool_options_),
-      initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline ZlibReaderBase& ZlibReaderBase::operator=(
@@ -350,11 +351,11 @@ inline ZlibReaderBase& ZlibReaderBase::operator=(
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   window_bits_ = that.window_bits_;
   concatenate_ = that.concatenate_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   truncated_ = that.truncated_;
   stream_had_data_ = that.stream_had_data_;
   dictionary_ = std::move(that.dictionary_);
   recycling_pool_options_ = that.recycling_pool_options_;
-  initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
@@ -363,25 +364,28 @@ inline void ZlibReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   window_bits_ = 0;
   concatenate_ = false;
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   stream_had_data_ = false;
   recycling_pool_options_ = RecyclingPoolOptions();
-  initial_compressed_pos_ = 0;
   decompressor_.reset();
+  // Must be destroyed after `decompressor_`.
   dictionary_ = ZlibDictionary();
 }
 
 inline void ZlibReaderBase::Reset(
-    BufferOptions buffer_options, int window_bits, ZlibDictionary&& dictionary,
-    bool concatenate, const RecyclingPoolOptions& recycling_pool_options) {
+    BufferOptions buffer_options, int window_bits, bool concatenate,
+    ZlibDictionary&& dictionary,
+    const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   window_bits_ = window_bits;
   concatenate_ = concatenate;
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   stream_had_data_ = false;
   recycling_pool_options_ = recycling_pool_options;
-  initial_compressed_pos_ = 0;
   decompressor_.reset();
+  // Must be destroyed after `decompressor_`.
   dictionary_ = std::move(dictionary);
 }
 
@@ -394,7 +398,7 @@ inline int ZlibReaderBase::GetWindowBits(const Options& options) {
 template <typename Src>
 inline ZlibReader<Src>::ZlibReader(Initializer<Src> src, Options options)
     : ZlibReaderBase(options.buffer_options(), GetWindowBits(options),
-                     std::move(options.dictionary()), options.concatenate(),
+                     options.concatenate(), std::move(options.dictionary()),
                      options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
@@ -409,7 +413,7 @@ inline void ZlibReader<Src>::Reset(Closed) {
 template <typename Src>
 inline void ZlibReader<Src>::Reset(Initializer<Src> src, Options options) {
   ZlibReaderBase::Reset(options.buffer_options(), GetWindowBits(options),
-                        std::move(options.dictionary()), options.concatenate(),
+                        options.concatenate(), std::move(options.dictionary()),
                         options.recycling_pool_options());
   src_.Reset(std::move(src));
   Initialize(src_.get());

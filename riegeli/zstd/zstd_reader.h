@@ -157,6 +157,7 @@ class ZstdReaderBase : public BufferedReader {
   // If `true`, supports decompressing as much as possible from a truncated
   // source, then retrying when the source has grown.
   bool growing_source_ = false;
+  Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
@@ -165,7 +166,6 @@ class ZstdReaderBase : public BufferedReader {
   bool just_initialized_ = false;
   ZstdDictionary dictionary_;
   RecyclingPoolOptions recycling_pool_options_;
-  Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
@@ -264,22 +264,22 @@ inline ZstdReaderBase::ZstdReaderBase(
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       growing_source_(that.growing_source_),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       truncated_(that.truncated_),
       just_initialized_(that.just_initialized_),
       dictionary_(std::move(that.dictionary_)),
       recycling_pool_options_(that.recycling_pool_options_),
-      initial_compressed_pos_(that.initial_compressed_pos_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline ZstdReaderBase& ZstdReaderBase::operator=(
     ZstdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   growing_source_ = that.growing_source_;
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   truncated_ = that.truncated_;
   just_initialized_ = that.just_initialized_;
   dictionary_ = std::move(that.dictionary_);
   recycling_pool_options_ = that.recycling_pool_options_;
-  initial_compressed_pos_ = that.initial_compressed_pos_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
@@ -287,11 +287,12 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
 inline void ZstdReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   growing_source_ = false;
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   just_initialized_ = false;
   recycling_pool_options_ = RecyclingPoolOptions();
-  initial_compressed_pos_ = 0;
   decompressor_.reset();
+  // Must be destroyed after `decompressor_`.
   dictionary_ = ZstdDictionary();
 }
 
@@ -301,11 +302,12 @@ inline void ZstdReaderBase::Reset(
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   just_initialized_ = false;
   recycling_pool_options_ = recycling_pool_options;
-  initial_compressed_pos_ = 0;
   decompressor_.reset();
+  // Must be destroyed after `decompressor_`.
   dictionary_ = std::move(dictionary);
 }
 

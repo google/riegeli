@@ -285,7 +285,9 @@ inline void BrotliWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   initial_compressed_pos_ = 0;
   compressor_.reset();
+  // Must be destroyed after `compressor_`.
   dictionary_ = BrotliDictionary();
+  // Must be destroyed after `compressor_`.
   allocator_ = BrotliAllocator();
   associated_reader_.Reset();
 }
@@ -296,7 +298,9 @@ inline void BrotliWriterBase::Reset(BufferOptions buffer_options,
   BufferedWriter::Reset(buffer_options);
   initial_compressed_pos_ = 0;
   compressor_.reset();
+  // Must be destroyed after `compressor_`.
   dictionary_ = std::move(dictionary);
+  // Must be destroyed after `compressor_`.
   allocator_ = std::move(allocator);
   associated_reader_.Reset();
 }

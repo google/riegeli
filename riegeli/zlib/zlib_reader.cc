@@ -297,8 +297,8 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
                               : static_cast<Header>(window_bits_ & ~15))
               .set_window_log(window_bits_ < 0 ? -window_bits_
                                                : window_bits_ & 15)
-              .set_dictionary(dictionary_)
               .set_concatenate(concatenate_)
+              .set_dictionary(dictionary_)
               .set_buffer_options(buffer_options())
               .set_recycling_pool_options(recycling_pool_options_));
   reader->Seek(initial_pos);

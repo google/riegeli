@@ -189,12 +189,12 @@ class XzReaderBase : public BufferedReader {
 
   Container container_ = Options::kDefaultContainer;
   uint32_t flags_ = 0;
-  RecyclingPoolOptions recycling_pool_options_;
+  Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
-  Position initial_compressed_pos_ = 0;
+  RecyclingPoolOptions recycling_pool_options_;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
@@ -280,18 +280,18 @@ inline XzReaderBase::XzReaderBase(XzReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       container_(that.container_),
       flags_(that.flags_),
-      recycling_pool_options_(that.recycling_pool_options_),
-      truncated_(that.truncated_),
       initial_compressed_pos_(that.initial_compressed_pos_),
+      truncated_(that.truncated_),
+      recycling_pool_options_(that.recycling_pool_options_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline XzReaderBase& XzReaderBase::operator=(XzReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   container_ = that.container_;
   flags_ = that.flags_;
-  recycling_pool_options_ = that.recycling_pool_options_;
-  truncated_ = that.truncated_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
+  truncated_ = that.truncated_;
+  recycling_pool_options_ = that.recycling_pool_options_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
@@ -300,9 +300,9 @@ inline void XzReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   container_ = Options::kDefaultContainer;
   flags_ = 0;
-  recycling_pool_options_ = RecyclingPoolOptions();
-  truncated_ = false;
   initial_compressed_pos_ = 0;
+  truncated_ = false;
+  recycling_pool_options_ = RecyclingPoolOptions();
   decompressor_.reset();
 }
 
@@ -312,9 +312,9 @@ inline void XzReaderBase::Reset(
   BufferedReader::Reset(buffer_options);
   container_ = container;
   flags_ = flags;
-  recycling_pool_options_ = recycling_pool_options;
-  truncated_ = false;
   initial_compressed_pos_ = 0;
+  truncated_ = false;
+  recycling_pool_options_ = recycling_pool_options;
   decompressor_.reset();
 }
 

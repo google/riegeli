@@ -131,11 +131,11 @@ class BrotliReaderBase : public PullableReader {
 
   BrotliDictionary dictionary_;
   BrotliAllocator allocator_;
+  Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
-  Position initial_compressed_pos_ = 0;
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed.
   std::unique_ptr<BrotliDecoderState, BrotliDecoderStateDeleter> decompressor_;
@@ -213,8 +213,8 @@ inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
     : PullableReader(static_cast<PullableReader&&>(that)),
       dictionary_(std::move(that.dictionary_)),
       allocator_(std::move(that.allocator_)),
-      truncated_(that.truncated_),
       initial_compressed_pos_(that.initial_compressed_pos_),
+      truncated_(that.truncated_),
       decompressor_(std::move(that.decompressor_)) {}
 
 inline BrotliReaderBase& BrotliReaderBase::operator=(
@@ -222,28 +222,32 @@ inline BrotliReaderBase& BrotliReaderBase::operator=(
   PullableReader::operator=(static_cast<PullableReader&&>(that));
   dictionary_ = std::move(that.dictionary_);
   allocator_ = std::move(that.allocator_);
-  truncated_ = that.truncated_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
+  truncated_ = that.truncated_;
   decompressor_ = std::move(that.decompressor_);
   return *this;
 }
 
 inline void BrotliReaderBase::Reset(Closed) {
   PullableReader::Reset(kClosed);
-  truncated_ = false;
   initial_compressed_pos_ = 0;
+  truncated_ = false;
   decompressor_.reset();
+  // Must be destroyed after `decompressor_`.
   dictionary_ = BrotliDictionary();
+  // Must be destroyed after `decompressor_`.
   allocator_ = BrotliAllocator();
 }
 
 inline void BrotliReaderBase::Reset(BrotliDictionary&& dictionary,
                                     BrotliAllocator&& allocator) {
   PullableReader::Reset();
-  truncated_ = false;
   initial_compressed_pos_ = 0;
+  truncated_ = false;
   decompressor_.reset();
+  // Must be destroyed after `decompressor_`.
   dictionary_ = std::move(dictionary);
+  // Must be destroyed after `decompressor_`.
   allocator_ = std::move(allocator);
 }
 

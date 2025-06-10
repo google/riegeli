@@ -293,9 +293,9 @@ class Lz4WriterBase : public BufferedWriter {
   Lz4Dictionary dictionary_;
   std::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
-  RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
   LZ4F_preferences_t preferences_{};
+  RecyclingPoolOptions recycling_pool_options_;
   // If `ok()` but `compressor_ == nullptr` then `LZ4F_compressEnd()` was
   // already called.
   RecyclingPool<LZ4F_cctx, LZ4F_cctxDeleter>::Handle compressor_;
@@ -384,9 +384,9 @@ inline Lz4WriterBase::Lz4WriterBase(Lz4WriterBase&& that) noexcept
       dictionary_(std::move(that.dictionary_)),
       pledged_size_(that.pledged_size_),
       reserve_max_size_(that.reserve_max_size_),
-      recycling_pool_options_(that.recycling_pool_options_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       preferences_(that.preferences_),
+      recycling_pool_options_(that.recycling_pool_options_),
       compressor_(std::move(that.compressor_)),
       stable_src_(that.stable_src_),
       buffered_length_(that.buffered_length_),
@@ -397,9 +397,9 @@ inline Lz4WriterBase& Lz4WriterBase::operator=(Lz4WriterBase&& that) noexcept {
   dictionary_ = std::move(that.dictionary_);
   pledged_size_ = that.pledged_size_;
   reserve_max_size_ = that.reserve_max_size_;
-  recycling_pool_options_ = that.recycling_pool_options_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   preferences_ = that.preferences_;
+  recycling_pool_options_ = that.recycling_pool_options_;
   compressor_ = std::move(that.compressor_);
   stable_src_ = that.stable_src_;
   buffered_length_ = that.buffered_length_;
@@ -411,10 +411,11 @@ inline void Lz4WriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   pledged_size_ = std::nullopt;
   reserve_max_size_ = false;
-  recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
   preferences_ = {};
+  recycling_pool_options_ = RecyclingPoolOptions();
   compressor_.reset();
+  // Must be destroyed after `compressor_`.
   dictionary_ = Lz4Dictionary();
   stable_src_ = false;
   buffered_length_ = 0;
@@ -428,10 +429,11 @@ inline void Lz4WriterBase::Reset(
   BufferedWriter::Reset(buffer_options);
   pledged_size_ = pledged_size;
   reserve_max_size_ = reserve_max_size;
-  recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
+  recycling_pool_options_ = recycling_pool_options;
   preferences_ = {};
   compressor_.reset();
+  // Must be destroyed after `compressor_`.
   dictionary_ = std::move(dictionary);
   stable_src_ = false;
   buffered_length_ = 0;

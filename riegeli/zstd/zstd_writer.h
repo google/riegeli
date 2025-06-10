@@ -279,8 +279,8 @@ class ZstdWriterBase : public BufferedWriter {
   ZstdDictionary::ZSTD_CDictHandle compression_dictionary_;
   std::optional<Position> pledged_size_;
   bool reserve_max_size_ = false;
-  RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
+  RecyclingPoolOptions recycling_pool_options_;
   // If `ok()` but `compressor_ == nullptr` then `*pledged_size_` has been
   // reached. In this case `ZSTD_compressStream()` must not be called again.
   RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;
@@ -364,8 +364,8 @@ inline ZstdWriterBase::ZstdWriterBase(ZstdWriterBase&& that) noexcept
       compression_dictionary_(std::move(that.compression_dictionary_)),
       pledged_size_(that.pledged_size_),
       reserve_max_size_(that.reserve_max_size_),
-      recycling_pool_options_(that.recycling_pool_options_),
       initial_compressed_pos_(that.initial_compressed_pos_),
+      recycling_pool_options_(that.recycling_pool_options_),
       compressor_(std::move(that.compressor_)),
       associated_reader_(std::move(that.associated_reader_)) {}
 
@@ -376,8 +376,8 @@ inline ZstdWriterBase& ZstdWriterBase::operator=(
   compression_dictionary_ = std::move(that.compression_dictionary_);
   pledged_size_ = that.pledged_size_;
   reserve_max_size_ = that.reserve_max_size_;
-  recycling_pool_options_ = that.recycling_pool_options_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
+  recycling_pool_options_ = that.recycling_pool_options_;
   compressor_ = std::move(that.compressor_);
   associated_reader_ = std::move(that.associated_reader_);
   return *this;
@@ -387,9 +387,10 @@ inline void ZstdWriterBase::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   pledged_size_ = std::nullopt;
   reserve_max_size_ = false;
-  recycling_pool_options_ = RecyclingPoolOptions();
   initial_compressed_pos_ = 0;
+  recycling_pool_options_ = RecyclingPoolOptions();
   compressor_.reset();
+  // Must be destroyed after `compressor_`.
   dictionary_ = ZstdDictionary();
   compression_dictionary_.reset();
   associated_reader_.Reset();
@@ -402,8 +403,8 @@ inline void ZstdWriterBase::Reset(
   BufferedWriter::Reset(buffer_options);
   pledged_size_ = pledged_size;
   reserve_max_size_ = reserve_max_size;
-  recycling_pool_options_ = recycling_pool_options;
   initial_compressed_pos_ = 0;
+  recycling_pool_options_ = recycling_pool_options;
   compressor_.reset();
   dictionary_ = std::move(dictionary);
   compression_dictionary_.reset();
