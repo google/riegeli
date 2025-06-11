@@ -118,7 +118,9 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
       return;
     }
   }
-  if (exact_size() == std::nullopt) set_exact_size(ZstdUncompressedSize(src));
+  if (!concatenate_ && exact_size() == std::nullopt) {
+    set_exact_size(ZstdUncompressedSize(src));
+  }
   just_initialized_ = true;
 }
 
@@ -166,7 +168,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal()";
   Reader& src = *SrcReader();
   truncated_ = false;
-  if (just_initialized_ && exact_size() == std::nullopt) {
+  if (just_initialized_ && !concatenate_ && exact_size() == std::nullopt) {
     // Try again in case the source has grown.
     set_exact_size(ZstdUncompressedSize(src));
   }
@@ -194,6 +196,13 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
         ZSTD_decompressStream(decompressor_.get(), &output, &input);
     src.set_cursor(static_cast<const char*>(input.src) + input.pos);
     if (ABSL_PREDICT_FALSE(result == 0)) {
+      if (concatenate_) {
+        if (output.pos >= min_length) {
+          move_limit_pos(output.pos);
+          return true;
+        }
+        continue;
+      }
       decompressor_.reset();
       move_limit_pos(output.pos);
       // Avoid `BufferedReader` allocating another buffer.
@@ -227,7 +236,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       move_limit_pos(output.pos);
       if (ABSL_PREDICT_FALSE(!src.ok())) {
         FailWithoutAnnotation(AnnotateOverSrc(src.status()));
-      } else {
+      } else if (ABSL_PREDICT_FALSE(!concatenate_ || input.pos > 0)) {
         if (!growing_source_) {
           Fail(absl::InvalidArgumentError("Truncated Zstd-compressed stream"));
         }
@@ -310,6 +319,7 @@ std::unique_ptr<Reader> ZstdReaderBase::NewReaderImpl(Position initial_pos) {
           std::move(compressed_reader),
           ZstdReaderBase::Options()
               .set_growing_source(growing_source_)
+              .set_concatenate(concatenate_)
               .set_dictionary(dictionary_)
               .set_buffer_options(buffer_options())
               .set_recycling_pool_options(recycling_pool_options_));

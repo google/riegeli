@@ -81,10 +81,12 @@ inline bool Lz4ReaderBase::ReadHeader(Reader& src) {
     if (ABSL_PREDICT_FALSE(!src.ok())) {
       return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
-    if (!growing_source_) {
-      Fail(absl::InvalidArgumentError("Truncated Lz4-compressed stream"));
+    if (ABSL_PREDICT_FALSE(!concatenate_)) {
+      if (!growing_source_) {
+        Fail(absl::InvalidArgumentError("Truncated Lz4-compressed stream"));
+      }
+      truncated_ = true;
     }
-    truncated_ = true;
     return false;
   }
   const size_t header_size = LZ4F_headerSize(src.cursor(), src.available());
@@ -96,10 +98,12 @@ inline bool Lz4ReaderBase::ReadHeader(Reader& src) {
     if (ABSL_PREDICT_FALSE(!src.ok())) {
       return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
     }
-    if (!growing_source_) {
-      Fail(absl::InvalidArgumentError("Truncated Lz4-compressed stream"));
+    if (ABSL_PREDICT_FALSE(!concatenate_)) {
+      if (!growing_source_) {
+        Fail(absl::InvalidArgumentError("Truncated Lz4-compressed stream"));
+      }
+      truncated_ = true;
     }
-    truncated_ = true;
     return false;
   }
   LZ4F_frameInfo_t frame_info;
@@ -113,7 +117,9 @@ inline bool Lz4ReaderBase::ReadHeader(Reader& src) {
   src.move_cursor(length);
   header_read_ = true;
 
-  if (frame_info.contentSize > 0) set_exact_size(frame_info.contentSize);
+  if (!concatenate_ && frame_info.contentSize > 0) {
+    set_exact_size(frame_info.contentSize);
+  }
   if (frame_info.dictID > 0 &&
       ABSL_PREDICT_FALSE(frame_info.dictID != dictionary_.dict_id())) {
     if (dictionary_.empty()) {
@@ -198,7 +204,17 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
         &decompress_options);
     src.move_cursor(src_length);
     move_limit_pos(dest_length);
-    if (result == 0) {
+    if (ABSL_PREDICT_FALSE(result == 0)) {
+      if (concatenate_) {
+        if (dest_length >= min_length) return true;
+        dest += dest_length;
+        min_length -= dest_length;
+        max_length -= dest_length;
+        effective_min_length -= dest_length;
+        header_read_ = false;
+        if (ABSL_PREDICT_FALSE(!ReadHeader(src))) return false;
+        continue;
+      }
       decompressor_.reset();
       // Avoid `BufferedReader` allocating another buffer.
       set_exact_size(limit_pos());
@@ -309,6 +325,7 @@ std::unique_ptr<Reader> Lz4ReaderBase::NewReaderImpl(Position initial_pos) {
           std::move(compressed_reader),
           Lz4ReaderBase::Options()
               .set_growing_source(growing_source_)
+              .set_concatenate(concatenate_)
               .set_dictionary(dictionary_)
               .set_buffer_options(buffer_options())
               .set_recycling_pool_options(recycling_pool_options_));

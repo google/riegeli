@@ -25,6 +25,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -60,6 +61,23 @@ class ZstdReaderBase : public BufferedReader {
       return std::move(set_growing_source(growing_source));
     }
     bool growing_source() const { return growing_source_; }
+
+    // If `true`, concatenated compressed frames are decoded to concatenation
+    // of their decompressed contents. An empty compressed stream is decoded to
+    // empty decompressed contents.
+    //
+    // If `false`, exactly one compressed frame is consumed.
+    //
+    // Default: `false`.
+    Options& set_concatenate(bool concatenate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      concatenate_ = concatenate;
+      return *this;
+    }
+    Options&& set_concatenate(bool concatenate) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_concatenate(concatenate));
+    }
+    bool concatenate() const { return concatenate_; }
 
     // Zstd dictionary. The same dictionary must have been used for compression,
     // except that it is allowed to supply a dictionary for decompression even
@@ -106,6 +124,7 @@ class ZstdReaderBase : public BufferedReader {
 
    private:
     bool growing_source_ = false;
+    bool concatenate_ = false;
     ZstdDictionary dictionary_;
     RecyclingPoolOptions recycling_pool_options_;
   };
@@ -116,7 +135,14 @@ class ZstdReaderBase : public BufferedReader {
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
   // does not grow, `Close()` will fail.
-  bool truncated() const { return truncated_ && available() == 0; }
+  //
+  // Precondition: `Options::concatenate()` was `false`.
+  bool truncated() const {
+    RIEGELI_ASSERT(!concatenate_)
+        << "Failed precondition of ZstdReaderBase::truncated(): "
+           "Options::concatenate() is true";
+    return truncated_ && available() == 0;
+  }
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
@@ -126,7 +152,7 @@ class ZstdReaderBase : public BufferedReader {
   explicit ZstdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZstdReaderBase(BufferOptions buffer_options, bool growing_source,
-                          ZstdDictionary&& dictionary,
+                          bool concatenate, ZstdDictionary&& dictionary,
                           const RecyclingPoolOptions& recycling_pool_options);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
@@ -134,7 +160,7 @@ class ZstdReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source,
-             ZstdDictionary&& dictionary,
+             bool concatenate, ZstdDictionary&& dictionary,
              const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
@@ -157,6 +183,7 @@ class ZstdReaderBase : public BufferedReader {
   // If `true`, supports decompressing as much as possible from a truncated
   // source, then retrying when the source has grown.
   bool growing_source_ = false;
+  bool concatenate_ = false;
   Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
@@ -237,6 +264,8 @@ bool RecognizeZstd(Reader& src);
 
 // Returns the claimed uncompressed size of Zstd-compressed data.
 //
+// If the data consists of multiple frames, only the first frame is considered.
+//
 // Returns `std::nullopt` if the size was not stored or on failure. The size is
 // stored if `ZstdWriterBase::Options::pledged_size() != std::nullopt`.
 //
@@ -253,17 +282,19 @@ std::optional<uint32_t> ZstdDictId(Reader& src);
 // Implementation details follow.
 
 inline ZstdReaderBase::ZstdReaderBase(
-    BufferOptions buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source, bool concatenate,
     ZstdDictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
       growing_source_(growing_source),
+      concatenate_(concatenate),
       dictionary_(std::move(dictionary)),
       recycling_pool_options_(recycling_pool_options) {}
 
 inline ZstdReaderBase::ZstdReaderBase(ZstdReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       growing_source_(that.growing_source_),
+      concatenate_(that.concatenate_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       truncated_(that.truncated_),
       just_initialized_(that.just_initialized_),
@@ -275,6 +306,7 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
     ZstdReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   growing_source_ = that.growing_source_;
+  concatenate_ = that.concatenate_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   truncated_ = that.truncated_;
   just_initialized_ = that.just_initialized_;
@@ -287,34 +319,34 @@ inline ZstdReaderBase& ZstdReaderBase::operator=(
 inline void ZstdReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   growing_source_ = false;
+  concatenate_ = false;
   initial_compressed_pos_ = 0;
   truncated_ = false;
   just_initialized_ = false;
   recycling_pool_options_ = RecyclingPoolOptions();
   decompressor_.reset();
-  // Must be destroyed after `decompressor_`.
   dictionary_ = ZstdDictionary();
 }
 
 inline void ZstdReaderBase::Reset(
-    BufferOptions buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source, bool concatenate,
     ZstdDictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
+  concatenate_ = concatenate;
   initial_compressed_pos_ = 0;
   truncated_ = false;
   just_initialized_ = false;
   recycling_pool_options_ = recycling_pool_options;
   decompressor_.reset();
-  // Must be destroyed after `decompressor_`.
   dictionary_ = std::move(dictionary);
 }
 
 template <typename Src>
 inline ZstdReader<Src>::ZstdReader(Initializer<Src> src, Options options)
     : ZstdReaderBase(options.buffer_options(), options.growing_source(),
-                     std::move(options.dictionary()),
+                     options.concatenate(), std::move(options.dictionary()),
                      options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
@@ -329,7 +361,7 @@ inline void ZstdReader<Src>::Reset(Closed) {
 template <typename Src>
 inline void ZstdReader<Src>::Reset(Initializer<Src> src, Options options) {
   ZstdReaderBase::Reset(options.buffer_options(), options.growing_source(),
-                        std::move(options.dictionary()),
+                        options.concatenate(), std::move(options.dictionary()),
                         options.recycling_pool_options());
   src_.Reset(std::move(src));
   Initialize(src_.get());

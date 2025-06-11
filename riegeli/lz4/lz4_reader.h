@@ -69,6 +69,23 @@ class Lz4ReaderBase : public BufferedReader {
     }
     bool growing_source() const { return growing_source_; }
 
+    // If `true`, concatenated compressed frames are decoded to concatenation
+    // of their decompressed contents. An empty compressed stream is decoded to
+    // empty decompressed contents.
+    //
+    // If `false`, exactly one compressed frame is consumed.
+    //
+    // Default: `false`.
+    Options& set_concatenate(bool concatenate) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      concatenate_ = concatenate;
+      return *this;
+    }
+    Options&& set_concatenate(bool concatenate) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_concatenate(concatenate));
+    }
+    bool concatenate() const { return concatenate_; }
+
     // Lz4 dictionary. The same dictionary must have been used for compression,
     // except that it is allowed to supply a dictionary even if no dictionary
     // was used for compression.
@@ -114,6 +131,7 @@ class Lz4ReaderBase : public BufferedReader {
 
    private:
     bool growing_source_ = false;
+    bool concatenate_ = false;
     Lz4Dictionary dictionary_;
     RecyclingPoolOptions recycling_pool_options_
 #if LZ4_VERSION_NUMBER <= 10904
@@ -129,7 +147,14 @@ class Lz4ReaderBase : public BufferedReader {
   // Returns `true` if the source is truncated (without a clean end of the
   // compressed stream) at the current position. In such case, if the source
   // does not grow, `Close()` will fail.
-  bool truncated() const { return truncated_ && available() == 0; }
+  //
+  // Precondition: `Options::concatenate()` was `false`.
+  bool truncated() const {
+    RIEGELI_ASSERT(!concatenate_)
+        << "Failed precondition of Lz4ReaderBase::truncated(): "
+           "Options::concatenate() is true";
+    return truncated_ && available() == 0;
+  }
 
   bool ToleratesReadingAhead() override;
   bool SupportsRewind() override;
@@ -139,7 +164,7 @@ class Lz4ReaderBase : public BufferedReader {
   explicit Lz4ReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit Lz4ReaderBase(BufferOptions buffer_options, bool growing_source,
-                         Lz4Dictionary&& dictionary,
+                         bool concatenate, Lz4Dictionary&& dictionary,
                          const RecyclingPoolOptions& recycling_pool_options);
 
   Lz4ReaderBase(Lz4ReaderBase&& that) noexcept;
@@ -147,7 +172,7 @@ class Lz4ReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source,
-             Lz4Dictionary&& dictionary,
+             bool concatenate, Lz4Dictionary&& dictionary,
              const RecyclingPoolOptions& recycling_pool_options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
@@ -181,6 +206,7 @@ class Lz4ReaderBase : public BufferedReader {
   // If `true`, supports decompressing as much as possible from a truncated
   // source, then retrying when the source has grown.
   bool growing_source_ = false;
+  bool concatenate_ = false;
   Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
@@ -263,6 +289,8 @@ bool RecognizeLz4(Reader& src,
 
 // Returns the claimed uncompressed size of Lz4-compressed data.
 //
+// If the data consists of multiple frames, only the first frame is considered.
+//
 // Returns `std::nullopt` if the size was not stored or on failure. The size is
 // stored if `Lz4WriterBase::Options::pledged_size() != std::nullopt`.
 //
@@ -274,17 +302,19 @@ std::optional<Position> Lz4UncompressedSize(
 // Implementation details follow.
 
 inline Lz4ReaderBase::Lz4ReaderBase(
-    BufferOptions buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source, bool concatenate,
     Lz4Dictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options)
     : BufferedReader(buffer_options),
       growing_source_(growing_source),
+      concatenate_(concatenate),
       dictionary_(std::move(dictionary)),
       recycling_pool_options_(recycling_pool_options) {}
 
 inline Lz4ReaderBase::Lz4ReaderBase(Lz4ReaderBase&& that) noexcept
     : BufferedReader(static_cast<BufferedReader&&>(that)),
       growing_source_(that.growing_source_),
+      concatenate_(that.concatenate_),
       initial_compressed_pos_(that.initial_compressed_pos_),
       truncated_(that.truncated_),
       header_read_(that.header_read_),
@@ -295,6 +325,7 @@ inline Lz4ReaderBase::Lz4ReaderBase(Lz4ReaderBase&& that) noexcept
 inline Lz4ReaderBase& Lz4ReaderBase::operator=(Lz4ReaderBase&& that) noexcept {
   BufferedReader::operator=(static_cast<BufferedReader&&>(that));
   growing_source_ = that.growing_source_;
+  concatenate_ = that.concatenate_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
   truncated_ = that.truncated_;
   header_read_ = that.header_read_;
@@ -307,34 +338,34 @@ inline Lz4ReaderBase& Lz4ReaderBase::operator=(Lz4ReaderBase&& that) noexcept {
 inline void Lz4ReaderBase::Reset(Closed) {
   BufferedReader::Reset(kClosed);
   growing_source_ = false;
+  concatenate_ = false;
   initial_compressed_pos_ = 0;
   truncated_ = false;
   header_read_ = false;
   recycling_pool_options_ = RecyclingPoolOptions();
   decompressor_.reset();
-  // Must be destroyed after `decompressor_`.
   dictionary_ = Lz4Dictionary();
 }
 
 inline void Lz4ReaderBase::Reset(
-    BufferOptions buffer_options, bool growing_source,
+    BufferOptions buffer_options, bool growing_source, bool concatenate,
     Lz4Dictionary&& dictionary,
     const RecyclingPoolOptions& recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
+  concatenate_ = concatenate;
   initial_compressed_pos_ = 0;
   truncated_ = false;
   header_read_ = false;
   recycling_pool_options_ = recycling_pool_options;
   decompressor_.reset();
-  // Must be destroyed after `decompressor_`.
   dictionary_ = std::move(dictionary);
 }
 
 template <typename Src>
 inline Lz4Reader<Src>::Lz4Reader(Initializer<Src> src, Options options)
     : Lz4ReaderBase(options.buffer_options(), options.growing_source(),
-                    std::move(options.dictionary()),
+                    options.concatenate(), std::move(options.dictionary()),
                     options.recycling_pool_options()),
       src_(std::move(src)) {
   Initialize(src_.get());
@@ -349,7 +380,7 @@ inline void Lz4Reader<Src>::Reset(Closed) {
 template <typename Src>
 inline void Lz4Reader<Src>::Reset(Initializer<Src> src, Options options) {
   Lz4ReaderBase::Reset(options.buffer_options(), options.growing_source(),
-                       std::move(options.dictionary()),
+                       options.concatenate(), std::move(options.dictionary()),
                        options.recycling_pool_options());
   src_.Reset(std::move(src));
   Initialize(src_.get());

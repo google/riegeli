@@ -313,6 +313,8 @@ bool RecognizeZlib(Reader& src,
 // `ZlibWriterBase::Header::kGzip`) modulo 4G. The compressed stream must not
 // have anything appended.
 //
+// If the data consists of multiple streams, only the last stream is considered.
+//
 // Returns `std::nullopt` on failure. If the data are not Gzip-compressed, or
 // have something appended, then this is generally not detected and the returned
 // value will be meaningless. If the data were longer than 4G, then only the
