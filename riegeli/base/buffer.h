@@ -84,7 +84,7 @@ class
 
  private:
   void AllocateInternal(size_t min_capacity);
-  void DeleteInternal();
+  void DeleteInternal() { operator delete(data_, capacity_); }
   void DumpStructure(absl::string_view substr, std::ostream& dest) const;
 
   char* data_ = nullptr;
@@ -125,14 +125,6 @@ inline void Buffer::AllocateInternal(size_t min_capacity) {
     data_ = static_cast<char*>(operator new(capacity));
     capacity_ = capacity;
   }
-}
-
-inline void Buffer::DeleteInternal() {
-#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
-  if (data_ != nullptr) operator delete(data_, capacity_);
-#else
-  if (data_ != nullptr) operator delete(data_);
-#endif
 }
 
 }  // namespace riegeli

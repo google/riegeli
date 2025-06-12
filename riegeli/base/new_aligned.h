@@ -100,19 +100,11 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
                 "alignment must be a power of 2");
   new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
   new_aligned_internal::DestroyObject(ptr);
-#if __cpp_sized_deallocation || __GXX_DELETE_WITH_SIZE__
   if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
     operator delete(ptr, num_bytes);
   } else {
     operator delete(ptr, num_bytes, std::align_val_t(alignment));
   }
-#else
-  if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
-    operator delete(ptr);
-  } else {
-    operator delete(ptr, std::align_val_t(alignment));
-  }
-#endif
 }
 
 // `SizeReturningNewAligned()` is like `NewAligned()`, but it returns the number

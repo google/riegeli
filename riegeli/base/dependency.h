@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_DEPENDENCY_H_
 
 #include <cstddef>
+#include <string_view>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 
@@ -31,10 +32,6 @@
 #include "riegeli/base/dependency_manager.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/type_traits.h"
-
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
-#include <string_view>
-#endif
 
 namespace riegeli {
 
@@ -338,7 +335,7 @@ class DependencyImpl<
   static constexpr bool kIsStable =
       DependencyImpl::DependencyManager::kIsStable ||
       std::is_same_v<Manager, absl::string_view> ||
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+#if !defined(ABSL_USES_STD_STRING_VIEW)
       std::is_same_v<Manager, std::string_view> ||
 #endif
       std::is_same_v<Manager, absl::Span<const char>> ||

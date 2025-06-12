@@ -168,8 +168,6 @@ void RiegeliDebug(absl::string_view src, DebugStream& dest) {
   dest.DebugStringQuote();
 }
 
-#if __cpp_lib_string_view
-
 void RiegeliDebug(std::wstring_view src, DebugStream& dest) {
   dest.DebugStringQuote();
   WriteStringFragment<
@@ -197,38 +195,6 @@ void RiegeliDebug(std::u32string_view src, DebugStream& dest) {
   WriteStringFragment<uint32_t>(absl::MakeConstSpan(src), dest);
   dest.DebugStringQuote();
 }
-
-#else  // !__cpp_lib_string_view
-
-void RiegeliDebug(const std::wstring& src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<
-      std::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
-      absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
-}
-
-#if __cpp_char8_t
-void RiegeliDebug(const std::u8string& src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<uint8_t>(absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
-}
-#endif  // __cpp_char8_t
-
-void RiegeliDebug(const std::u16string& src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<uint16_t>(absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
-}
-
-void RiegeliDebug(const std::u32string& src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<uint32_t>(absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
-}
-
-#endif  // !__cpp_lib_string_view
 
 void RiegeliDebug(const absl::Cord& src, DebugStream& dest) {
   dest.DebugStringQuote();

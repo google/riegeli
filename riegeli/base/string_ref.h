@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <ostream>
+#include <string_view>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 
@@ -27,10 +28,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/type_traits.h"
-
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
-#include <string_view>
-#endif
 
 namespace riegeli {
 
@@ -58,7 +55,7 @@ class StringRef : public WithCompare<StringRef> {
   /*implicit*/ StringRef(absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : str_(str) {}
 
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+#if !defined(ABSL_USES_STD_STRING_VIEW)
   // Stores `str` converted to `absl::string_view`.
   /*implicit*/ StringRef(std::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : str_(str.data(), str.size()) {}
@@ -69,7 +66,7 @@ class StringRef : public WithCompare<StringRef> {
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<StringRef, T>,
                                    NotSameRef<absl::string_view, T>,
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+#if !defined(ABSL_USES_STD_STRING_VIEW)
                                    NotSameRef<std::string_view, T>,
 #endif
                                    std::is_convertible<T&&, absl::string_view>>,
@@ -78,7 +75,7 @@ class StringRef : public WithCompare<StringRef> {
       : str_(std::forward<T>(str)) {
   }
 
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+#if !defined(ABSL_USES_STD_STRING_VIEW)
   // Stores `str` converted to `std::string_view` and then to
   // `absl::string_view`.
   template <typename T,
@@ -122,7 +119,7 @@ class StringRef : public WithCompare<StringRef> {
                 std::conjunction_v<
                     NotSameRef<StringRef, T>,
                     std::disjunction<std::is_convertible<T&&, absl::string_view>
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+#if !defined(ABSL_USES_STD_STRING_VIEW)
                                      ,
                                      std::is_convertible<T&&, std::string_view>
 #endif
@@ -136,7 +133,7 @@ class StringRef : public WithCompare<StringRef> {
                 std::conjunction_v<
                     NotSameRef<StringRef, T>,
                     std::disjunction<std::is_convertible<T&&, absl::string_view>
-#if defined(ABSL_HAVE_STD_STRING_VIEW) && !defined(ABSL_USES_STD_STRING_VIEW)
+#if !defined(ABSL_USES_STD_STRING_VIEW)
                                      ,
                                      std::is_convertible<T&&, std::string_view>
 #endif

@@ -239,21 +239,12 @@ void RiegeliDebug(T src, DebugStream& dest) {
 // `std::string` and `CompactString`.
 void RiegeliDebug(absl::string_view src, DebugStream& dest);
 
-#if __cpp_lib_string_view
 void RiegeliDebug(std::wstring_view src, DebugStream& dest);
 #if __cpp_char8_t
 void RiegeliDebug(std::u8string_view src, DebugStream& dest);
 #endif
 void RiegeliDebug(std::u16string_view src, DebugStream& dest);
 void RiegeliDebug(std::u32string_view src, DebugStream& dest);
-#else  // !__cpp_lib_string_view
-void RiegeliDebug(const std::wstring& src, DebugStream& dest);
-#if __cpp_char8_t
-void RiegeliDebug(const std::u8string& src, DebugStream& dest);
-#endif
-void RiegeliDebug(const std::u16string& src, DebugStream& dest);
-void RiegeliDebug(const std::u32string& src, DebugStream& dest);
-#endif  // !__cpp_lib_string_view
 
 // `absl::Cord` is written in C++ string literal format.
 void RiegeliDebug(const absl::Cord& src, DebugStream& dest);
