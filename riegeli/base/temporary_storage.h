@@ -15,6 +15,8 @@
 #ifndef RIEGELI_BASE_TEMPORARY_STORAGE_H_
 #define RIEGELI_BASE_TEMPORARY_STORAGE_H_
 
+#include <stdint.h>
+
 #include <new>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
@@ -45,55 +47,62 @@ class TemporaryStorage {
   TemporaryStorage& operator=(const TemporaryStorage&) = delete;
 
   ~TemporaryStorage() {
-    if (initialized_) value_.~T();
+    if (state_ != State::kUninitialized) value_.~T();
   }
 
   template <typename... Args,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
       T& emplace(Args&&... args) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(!initialized_)
-        << "Failed precondition of TemporaryStorage::emplace(): "
-           "already initialized";
+    RIEGELI_ASSERT_EQ(state_, State::kUninitialized)
+        << "Failed precondition of TemporaryStorage::emplace()";
     new (&value_) T(std::forward<Args>(args)...);
-    initialized_ = true;
+    state_ = State::kValid;
     return value_;
   }
   template <typename... Args,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
       T&& emplace(Args&&... args) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(emplace(std::forward<Args>(args)...));
+    RIEGELI_ASSERT_EQ(state_, State::kUninitialized)
+        << "Failed precondition of TemporaryStorage::emplace()";
+    new (&value_) T(std::forward<Args>(args)...);
+    state_ = State::kMovedFrom;
+    return std::move(value_);
   }
 
   T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of TemporaryStorage::operator*: "
-           "not initialized";
+    RIEGELI_ASSERT_EQ(state_, State::kValid)
+        << "Failed precondition of TemporaryStorage::operator*";
     return value_;
   }
   const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of TemporaryStorage::operator*: "
-           "not initialized";
+    RIEGELI_ASSERT_EQ(state_, State::kValid)
+        << "Failed precondition of TemporaryStorage::operator*";
     return value_;
   }
   T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of TemporaryStorage::operator*: "
-           "not initialized";
+    RIEGELI_ASSERT_EQ(state_, State::kValid)
+        << "Failed precondition of TemporaryStorage::operator*";
+    state_ = State::kMovedFrom;
     return std::move(value_);
   }
   const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(initialized_)
-        << "Failed precondition of TemporaryStorage::operator*: "
-           "not initialized";
+    RIEGELI_ASSERT_EQ(state_, State::kValid)
+        << "Failed precondition of TemporaryStorage::operator*";
+    state_ = State::kMovedFrom;
     return std::move(value_);
   }
 
  private:
+  enum class State : uint8_t {
+    kUninitialized = 0,
+    kValid = 1,
+    kMovedFrom = 2,
+  };
+
   union {
     std::remove_cv_t<T> value_;
   };
-  bool initialized_ = false;
+  mutable State state_ = State::kUninitialized;
 };
 
 // Specialization of `TemporaryStorage<T>` for non-reference trivially
@@ -120,7 +129,8 @@ class TemporaryStorage<
   template <typename... Args,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
       T&& emplace(Args&&... args) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(emplace(std::forward<Args>(args)...));
+    new (&value_) T(std::forward<Args>(args)...);
+    return std::move(value_);
   }
 
   T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND { return value_; }
@@ -161,7 +171,8 @@ class TemporaryStorage<
   template <typename... Args,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
       T&& emplace(Args&&... args) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(emplace(std::forward<Args>(args)...));
+    new (&value_) T(std::forward<Args>(args)...);
+    return std::move(value_);
   }
 
   T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND { return value_; }
@@ -193,7 +204,8 @@ class TemporaryStorage<T, std::enable_if_t<std::is_reference_v<T>>> {
   template <typename Arg,
             std::enable_if_t<std::is_convertible_v<Arg&&, T>, int> = 0>
       T&& emplace(Arg&& arg) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::forward<T>(emplace(std::forward<Arg>(arg)));
+    value_ = &arg;
+    return std::forward<T>(*value_);
   }
 
   T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND { return *value_; }
