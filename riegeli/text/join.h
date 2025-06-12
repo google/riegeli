@@ -246,11 +246,6 @@ class JoinType {
   Formatter formatter_;
 };
 
-template <typename Src, typename Formatter = DefaultFormatter>
-explicit JoinType(Src&& src, absl::string_view separator,
-                  Formatter&& formatter = Formatter())
-    -> JoinType<TargetT<Src>, TargetT<Formatter>>;
-
 // `riegeli::Join()` wraps a collection such that its stringified representation
 // joins elements with a separator. Each element is formatted with the given
 // formatter.
@@ -258,8 +253,8 @@ explicit JoinType(Src&& src, absl::string_view separator,
 // `riegeli::Join()` does not own the collection nor the formatter, even if they
 // involve temporaries, hence it should be stringified by the same expression
 // which constructed it, so that the temporaries outlive its usage. For storing
-// a `JoinType` in a variable or returning it from a function, construct
-// `JoinType` directly.
+// a `JoinType` in a variable or returning it from a function, use
+// `riegeli::OwningJoin()` or construct `JoinType` directly.
 
 template <typename Src, typename Formatter = DefaultFormatter,
           std::enable_if_t<
@@ -298,6 +293,47 @@ inline JoinType<std::initializer_list<Value>, TargetRefT<Formatter>> Join(
     absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
     Formatter&& formatter ABSL_ATTRIBUTE_LIFETIME_BOUND = Formatter()) {
   return JoinType<std::initializer_list<Value>, TargetRefT<Formatter>>(
+      src, separator, std::forward<Formatter>(formatter));
+}
+
+// `riegeli::OwningJoin()` is like `riegeli::Join()`, but the arguments are
+// stored by value instead of by reference. This is useful for storing the
+// `JoinType` in a variable or returning it from a function.
+
+template <typename Src, typename Formatter = DefaultFormatter,
+          std::enable_if_t<
+              !std::is_convertible_v<Formatter&&, absl::string_view>, int> = 0>
+inline JoinType<TargetT<Src>, TargetT<Formatter>> OwningJoin(
+    Src&& src, Formatter&& formatter = Formatter()) {
+  return JoinType<TargetT<Src>, TargetT<Formatter>>(
+      std::forward<Src>(src), std::forward<Formatter>(formatter));
+}
+
+template <typename Value = absl::string_view,
+          typename Formatter = DefaultFormatter,
+          std::enable_if_t<
+              !std::is_convertible_v<Formatter&&, absl::string_view>, int> = 0>
+inline JoinType<std::initializer_list<Value>, TargetT<Formatter>> OwningJoin(
+    std::initializer_list<Value> src, Formatter&& formatter = Formatter()) {
+  return JoinType<std::initializer_list<Value>, TargetT<Formatter>>(
+      src, std::forward<Formatter>(formatter));
+}
+
+template <typename Src, typename Formatter = DefaultFormatter>
+inline JoinType<TargetT<Src>, TargetT<Formatter>> OwningJoin(
+    Src&& src, absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    Formatter&& formatter = Formatter()) {
+  return JoinType<TargetT<Src>, TargetT<Formatter>>(
+      std::forward<Src>(src), separator, std::forward<Formatter>(formatter));
+}
+
+template <typename Value = absl::string_view,
+          typename Formatter = DefaultFormatter>
+inline JoinType<std::initializer_list<Value>, TargetT<Formatter>> OwningJoin(
+    std::initializer_list<Value> src,
+    absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    Formatter&& formatter = Formatter()) {
+  return JoinType<std::initializer_list<Value>, TargetT<Formatter>>(
       src, separator, std::forward<Formatter>(formatter));
 }
 
