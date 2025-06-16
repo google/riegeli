@@ -362,26 +362,6 @@ struct IsComparableAgainstNullptr<
            std::is_convertible_v<decltype(std::declval<T>() == nullptr), bool>>>
     : std::true_type {};
 
-namespace type_traits_internal {
-
-class UnimplementedSink {
- public:
-  void Append(size_t length, char fill);
-  void Append(absl::string_view src);
-  friend void AbslFormatFlush(UnimplementedSink* dest, absl::string_view src);
-};
-
-}  // namespace type_traits_internal
-
-// Checks if the type supports stringification using `AbslStringify()`.
-template <typename T, typename Enable = void>
-struct HasAbslStringify : std::false_type {};
-template <typename T>
-struct HasAbslStringify<
-    T, std::void_t<decltype(AbslStringify(
-           std::declval<type_traits_internal::UnimplementedSink&>(),
-           std::declval<const T&>()))>> : std::true_type {};
-
 // Deriving a class from `CopyableLike<T>` disables those copy and move
 // constructor and assignment that `T` has disabled.
 //

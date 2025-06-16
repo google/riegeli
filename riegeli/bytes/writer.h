@@ -31,6 +31,7 @@
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -42,7 +43,6 @@
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
-#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/write_int_internal.h"
 
@@ -116,7 +116,7 @@ void StringifiedSize(long double);
 template <typename Src,
           std::enable_if_t<
               std::conjunction_v<
-                  HasAbslStringify<Src>,
+                  absl::HasAbslStringify<Src>,
                   std::negation<std::is_convertible<Src&&, BytesRef>>,
                   std::negation<std::is_convertible<Src&&, const Chain&>>,
                   std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
@@ -307,7 +307,7 @@ class Writer : public Object {
       typename Src,
       std::enable_if_t<
           std::conjunction_v<
-              HasAbslStringify<Src>,
+              absl::HasAbslStringify<Src>,
               std::negation<std::is_convertible<Src&&, BytesRef>>,
               std::negation<std::is_convertible<Src&&, const Chain&>>,
               std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
@@ -951,7 +951,7 @@ inline bool Writer::Write(absl::uint128 src) {
 template <typename Src,
           std::enable_if_t<
               std::conjunction_v<
-                  HasAbslStringify<Src>,
+                  absl::HasAbslStringify<Src>,
                   std::negation<std::is_convertible<Src&&, BytesRef>>,
                   std::negation<std::is_convertible<Src&&, const Chain&>>,
                   std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
