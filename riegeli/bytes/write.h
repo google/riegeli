@@ -29,6 +29,7 @@
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

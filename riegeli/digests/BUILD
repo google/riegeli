@@ -106,6 +106,7 @@ cc_library(
         "//riegeli/base:types",
         "//riegeli/bytes:null_writer",
         "//riegeli/bytes:reader",
+        "//riegeli/bytes:stringify",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

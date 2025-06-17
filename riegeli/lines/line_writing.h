@@ -25,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/lines/newline.h"
 

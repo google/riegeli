@@ -44,6 +44,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/write_int_internal.h"
 
 namespace riegeli {
@@ -80,72 +81,6 @@ class WriterAbslStringifySink {
  private:
   Writer* dest_ = nullptr;
 };
-
-// `StringifiedSize()` of a stringifiable value returns the size of its
-// stringification as `Position` if easily known, otherwise it is only declared
-// as returning `void`.
-//
-// It has the same overloads as `Writer::Write()`, assuming that the parameter
-// is passed by const reference.
-inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char src) { return 1; }
-#if __cpp_char8_t
-inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char8_t src) { return 1; }
-#endif
-inline Position StringifiedSize(BytesRef src) { return src.size(); }
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline Position StringifiedSize(const char* src) {
-  return absl::string_view(src).size();
-}
-inline Position StringifiedSize(const Chain& src) { return src.size(); }
-inline Position StringifiedSize(const absl::Cord& src) { return src.size(); }
-inline Position StringifiedSize(ByteFill src) { return src.size(); }
-void StringifiedSize(signed char);
-void StringifiedSize(unsigned char);
-void StringifiedSize(short src);
-void StringifiedSize(unsigned short src);
-void StringifiedSize(int src);
-void StringifiedSize(unsigned src);
-void StringifiedSize(long src);
-void StringifiedSize(unsigned long src);
-void StringifiedSize(long long src);
-void StringifiedSize(unsigned long long src);
-void StringifiedSize(absl::int128 src);
-void StringifiedSize(absl::uint128 src);
-void StringifiedSize(float);
-void StringifiedSize(double);
-void StringifiedSize(long double);
-template <typename Src,
-          std::enable_if_t<
-              std::conjunction_v<
-                  absl::HasAbslStringify<Src>,
-                  std::negation<std::is_convertible<Src&&, BytesRef>>,
-                  std::negation<std::is_convertible<Src&&, const Chain&>>,
-                  std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
-                  std::negation<std::is_convertible<Src&&, ByteFill>>>,
-              int> = 0>
-void StringifiedSize(Src&&);
-void StringifiedSize(bool) = delete;
-void StringifiedSize(wchar_t) = delete;
-void StringifiedSize(char16_t) = delete;
-void StringifiedSize(char32_t) = delete;
-
-// `IsStringifiable` checks if the type is an appropriate argument for
-// `Writer::Write()`, `BackwardWriter::Write()`, `riegeli::Write()`, and e.g.
-// `riegeli::WriteLine()`.
-template <typename T, typename Enable = void>
-struct IsStringifiable : std::false_type {};
-template <typename T>
-struct IsStringifiable<T, std::void_t<decltype(riegeli::StringifiedSize(
-                              std::declval<const T&>()))>> : std::true_type {};
-
-// `HasStringifiedSize` checks if the type has `StringifiedSize()` defined
-// returning the size.
-template <typename T, typename Enable = void>
-struct HasStringifiedSize : std::false_type {};
-template <typename T>
-struct HasStringifiedSize<
-    T, std::enable_if_t<std::is_convertible_v<decltype(riegeli::StringifiedSize(
-                                                  std::declval<const T&>())),
-                                              Position>>> : std::true_type {};
 
 // Abstract class `Writer` writes sequences of bytes to a destination. The
 // nature of the destination depends on the particular class derived from
@@ -1094,8 +1029,6 @@ void AssociatedReader<ReaderClass>::Delete(Reader* reader) {
     writer_internal::DeleteReader(reader);
   }
 }
-
-inline void Test(const char* str) { StringifiedSize(str); }
 
 }  // namespace riegeli
 

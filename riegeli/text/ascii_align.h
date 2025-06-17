@@ -35,6 +35,7 @@
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/restricted_chain_writer.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

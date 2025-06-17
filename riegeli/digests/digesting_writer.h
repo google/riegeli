@@ -40,6 +40,7 @@
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/null_writer.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/digests/digest_converter.h"
 #include "riegeli/digests/digester_handle.h"

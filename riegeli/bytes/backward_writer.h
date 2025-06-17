@@ -43,6 +43,7 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/restricted_chain_writer.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {

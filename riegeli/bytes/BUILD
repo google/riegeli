@@ -41,6 +41,7 @@ cc_library(
     hdrs = ["writer.h"],
     deps = [
         ":reader_and_writer",
+        ":stringify",
         ":write_int_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -66,6 +67,7 @@ cc_library(
     hdrs = ["backward_writer.h"],
     deps = [
         ":reader_and_writer",
+        ":stringify",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
@@ -100,6 +102,7 @@ cc_library(
     ],
     visibility = ["//visibility:private"],
     deps = [
+        ":stringify",
         ":write_int_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -168,6 +171,7 @@ cc_library(
     hdrs = ["write.h"],
     deps = [
         ":backward_writer",
+        ":stringify",
         ":writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:dependency",
@@ -188,6 +192,21 @@ cc_library(
         "//riegeli/base:assert",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/numeric:int128",
+    ],
+)
+
+cc_library(
+    name = "stringify",
+    hdrs = ["stringify.h"],
+    deps = [
+        "//riegeli/base:byte_fill",
+        "//riegeli/base:bytes_ref",
+        "//riegeli/base:chain",
+        "//riegeli/base:types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
     ],
 )
 

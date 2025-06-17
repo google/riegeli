@@ -35,6 +35,7 @@ cc_library(
         ":newline",
         "//riegeli/base:assert",
         "//riegeli/base:type_traits",
+        "//riegeli/bytes:stringify",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
     ],
