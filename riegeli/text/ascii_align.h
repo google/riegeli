@@ -169,8 +169,11 @@ class AsciiLeftType {
 //
 // The width is measured in bytes, so this is suitable only for ASCII data.
 //
-// Values are captured by reference, so the result is valid while the values are
-// valid.
+// `riegeli::AsciiLeft()` does not own the values, even if they involve
+// temporaries, hence it should be stringified by the same expression which
+// constructed it, so that the temporaries outlive its usage. For storing
+// an `AsciiLeftType` in a variable or returning it from a function, use
+// `riegeli::OwningAsciiLeft()` or construct `AsciiLeftType` directly.
 template <
     typename... Args,
     std::enable_if_t<
@@ -196,6 +199,26 @@ inline AsciiLeftType<Arg&&> AsciiLeft(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                       AlignOptions options) {
   return AsciiLeftType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
                               std::move(options));
+}
+
+// `riegeli::OwningAsciiLeft()` is like `riegeli::AsciiLeft()`, but the
+// arguments are stored by value instead of by reference. This is useful for
+// storing the `AsciiLeftType` in a variable or returning it from a function.
+template <
+    typename... Args,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+                                 IsStringifiable>>,
+        int> = 0>
+inline ApplyToTupleElementsT<AsciiLeftType,
+                             RemoveTypesFromEndT<1, std::decay_t<Args>...>>
+OwningAsciiLeft(Args&&... args) {
+  return ApplyToTupleElementsT<AsciiLeftType,
+                               RemoveTypesFromEndT<1, std::decay_t<Args>...>>(
+      RemoveFromEnd<1>(std::forward<Args>(args)...),
+      GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 // The type returned by `AsciiCenter()`.
@@ -292,8 +315,11 @@ class AsciiCenterType {
 //
 // The width is measured in bytes, so this is suitable only for ASCII data.
 //
-// Values are captured by reference, so the result is valid while the values are
-// valid.
+// `riegeli::AsciiCenter()` does not own the values, even if they involve
+// temporaries, hence it should be stringified by the same expression which
+// constructed it, so that the temporaries outlive its usage. For storing
+// an `AsciiCenterType` in a variable or returning it from a function, use
+// `riegeli::OwningAsciiCenter()` or construct `AsciiCenterType` directly.
 template <
     typename... Args,
     std::enable_if_t<
@@ -319,6 +345,26 @@ inline AsciiCenterType<Arg&&> AsciiCenter(
     Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
   return AsciiCenterType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
                                 std::move(options));
+}
+
+// `riegeli::OwningAsciiCenter()` is like `riegeli::AsciiCenter()`, but the
+// arguments are stored by value instead of by reference. This is useful for
+// storing the `AsciiCenterType` in a variable or returning it from a function.
+template <
+    typename... Args,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+                                 IsStringifiable>>,
+        int> = 0>
+inline ApplyToTupleElementsT<AsciiCenterType,
+                             RemoveTypesFromEndT<1, std::decay_t<Args>...>>
+OwningAsciiCenter(Args&&... args) {
+  return ApplyToTupleElementsT<AsciiCenterType,
+                               RemoveTypesFromEndT<1, std::decay_t<Args>...>>(
+      RemoveFromEnd<1>(std::forward<Args>(args)...),
+      GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 // The type returned by `AsciiRight()`.
@@ -414,8 +460,11 @@ class AsciiRightType {
 //
 // The width is measured in bytes, so this is suitable only for ASCII data.
 //
-// Values are captured by reference, so the result is valid while the values are
-// valid.
+// `riegeli::AsciiRight()` does not own the values, even if they involve
+// temporaries, hence it should be stringified by the same expression which
+// constructed it, so that the temporaries outlive its usage. For storing
+// an `AsciiRightType` in a variable or returning it from a function, use
+// `riegeli::OwningAsciiRight()` or construct `AsciiRightType` directly.
 template <
     typename... Args,
     std::enable_if_t<
@@ -441,6 +490,26 @@ inline AsciiRightType<Arg&&> AsciiRight(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                         AlignOptions options) {
   return AsciiRightType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
                                std::move(options));
+}
+
+// `riegeli::OwningAsciiRight()` is like `riegeli::AsciiRight()`, but the
+// arguments are stored by value instead of by reference. This is useful for
+// storing the `AsciiRightType` in a variable or returning it from a function.
+template <
+    typename... Args,
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+                                 IsStringifiable>>,
+        int> = 0>
+inline ApplyToTupleElementsT<AsciiRightType,
+                             RemoveTypesFromEndT<1, std::decay_t<Args>...>>
+OwningAsciiRight(Args&&... args) {
+  return ApplyToTupleElementsT<AsciiRightType,
+                               RemoveTypesFromEndT<1, std::decay_t<Args>...>>(
+      RemoveFromEnd<1>(std::forward<Args>(args)...),
+      GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 // Implementation details follow.
