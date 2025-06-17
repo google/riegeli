@@ -28,6 +28,7 @@ cc_library(
     hdrs = ["ascii_align.h"],
     deps = [
         "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
         "//riegeli/base:chain",
         "//riegeli/base:type_traits",
