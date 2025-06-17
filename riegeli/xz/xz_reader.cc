@@ -87,37 +87,11 @@ inline void XzReaderBase::InitializeDecompressor() {
 }
 
 void XzReaderBase::Done() {
-  if (ABSL_PREDICT_FALSE(truncated_)) {
+  if (ABSL_PREDICT_FALSE(TruncatedAtClose())) {
     Reader& src = *SrcReader();
-    if ((flags_ & LZMA_CONCATENATED) != 0) {
-      if (src.pos() == initial_compressed_pos_) {
-        // Empty concatenated stream.
-        goto not_truncated;
-      }
-      // Check if the stream ends cleanly.
-      decompressor_->next_out = nullptr;
-      decompressor_->avail_out = 0;
-      decompressor_->next_in = nullptr;
-      decompressor_->avail_in = 0;
-      const lzma_ret liblzma_code = lzma_code(decompressor_.get(), LZMA_FINISH);
-      switch (liblzma_code) {
-        case LZMA_OK:
-          RIEGELI_ASSUME_UNREACHABLE()
-              << "lzma_code(LZMA_FINISH) with no buffer returned LZMA_OK";
-        case LZMA_BUF_ERROR:
-          // Stream is truncated.
-          break;
-        case LZMA_STREAM_END:
-          goto not_truncated;
-        default:
-          FailOperation("lzma_code()", liblzma_code);
-          goto not_truncated;
-      }
-    }
     FailWithoutAnnotation(AnnotateOverSrc(src.AnnotateStatus(
         absl::InvalidArgumentError("Truncated Xz-compressed stream"))));
   }
-not_truncated:
   BufferedReader::Done();
   decompressor_.reset();
 }
@@ -152,6 +126,34 @@ absl::Status XzReaderBase::AnnotateOverSrc(absl::Status status) {
     return Annotate(status, absl::StrCat("at uncompressed byte ", pos()));
   }
   return status;
+}
+
+inline bool XzReaderBase::TruncatedAtClose() {
+  if (!truncated_) return false;
+  if ((flags_ & LZMA_CONCATENATED) == 0) return true;
+  Reader& src = *SrcReader();
+  if (src.pos() == initial_compressed_pos_) {
+    // Empty concatenated stream.
+    return false;
+  }
+  // Check if the stream ends cleanly.
+  decompressor_->next_out = nullptr;
+  decompressor_->avail_out = 0;
+  decompressor_->next_in = nullptr;
+  decompressor_->avail_in = 0;
+  const lzma_ret liblzma_code = lzma_code(decompressor_.get(), LZMA_FINISH);
+  switch (liblzma_code) {
+    case LZMA_OK:
+      RIEGELI_ASSUME_UNREACHABLE()
+          << "lzma_code(LZMA_FINISH) with no buffer returned LZMA_OK";
+    case LZMA_BUF_ERROR:
+      return true;
+    case LZMA_STREAM_END:
+      return false;
+    default:
+      FailOperation("lzma_code()", liblzma_code);
+      return false;
+  }
 }
 
 bool XzReaderBase::ReadInternal(size_t min_length, size_t max_length,

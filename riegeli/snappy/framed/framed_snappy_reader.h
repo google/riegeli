@@ -68,11 +68,11 @@ class FramedSnappyReaderBase : public PullableReader {
  private:
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);
 
+  Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
-  Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
 
@@ -154,30 +154,30 @@ bool RecognizeFramedSnappy(Reader& src);
 inline FramedSnappyReaderBase::FramedSnappyReaderBase(
     FramedSnappyReaderBase&& that) noexcept
     : PullableReader(static_cast<PullableReader&&>(that)),
-      truncated_(that.truncated_),
       initial_compressed_pos_(that.initial_compressed_pos_),
+      truncated_(that.truncated_),
       uncompressed_(std::move(that.uncompressed_)) {}
 
 inline FramedSnappyReaderBase& FramedSnappyReaderBase::operator=(
     FramedSnappyReaderBase&& that) noexcept {
   PullableReader::operator=(static_cast<PullableReader&&>(that));
-  truncated_ = that.truncated_;
   initial_compressed_pos_ = that.initial_compressed_pos_;
+  truncated_ = that.truncated_;
   uncompressed_ = std::move(that.uncompressed_);
   return *this;
 }
 
 inline void FramedSnappyReaderBase::Reset(Closed) {
   PullableReader::Reset(kClosed);
-  truncated_ = false;
   initial_compressed_pos_ = 0;
+  truncated_ = false;
   uncompressed_ = Buffer();
 }
 
 inline void FramedSnappyReaderBase::Reset() {
   PullableReader::Reset();
-  truncated_ = false;
   initial_compressed_pos_ = 0;
+  truncated_ = false;
 }
 
 template <typename Src>

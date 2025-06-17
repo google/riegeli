@@ -186,6 +186,7 @@ class XzReaderBase : public BufferedReader {
   void InitializeDecompressor();
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          lzma_ret liblzma_code);
+  bool TruncatedAtClose();
 
   Container container_ = Options::kDefaultContainer;
   uint32_t flags_ = 0;

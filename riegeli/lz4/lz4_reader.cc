@@ -206,12 +206,12 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
     move_limit_pos(dest_length);
     if (ABSL_PREDICT_FALSE(result == 0)) {
       if (concatenate_) {
+        header_read_ = false;
         if (dest_length >= min_length) return true;
         dest += dest_length;
         min_length -= dest_length;
         max_length -= dest_length;
         effective_min_length -= dest_length;
-        header_read_ = false;
         if (ABSL_PREDICT_FALSE(!ReadHeader(src))) return false;
         continue;
       }

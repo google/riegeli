@@ -68,13 +68,13 @@ class HadoopSnappyReaderBase : public PullableReader {
  private:
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);
 
+  Position initial_compressed_pos_ = 0;
   // If `true`, the source is truncated (without a clean end of the compressed
   // stream) at the current position. If the source does not grow, `Close()`
   // will fail.
   bool truncated_ = false;
   // Remaining number of uncompressed bytes in the current chunk.
   uint32_t remaining_chunk_length_ = 0;
-  Position initial_compressed_pos_ = 0;
   // Buffered uncompressed data.
   Buffer uncompressed_;
 
@@ -148,34 +148,34 @@ explicit HadoopSnappyReader(Src&& src, HadoopSnappyReaderBase::Options options =
 inline HadoopSnappyReaderBase::HadoopSnappyReaderBase(
     HadoopSnappyReaderBase&& that) noexcept
     : PullableReader(static_cast<PullableReader&&>(that)),
+      initial_compressed_pos_(that.initial_compressed_pos_),
       truncated_(that.truncated_),
       remaining_chunk_length_(that.remaining_chunk_length_),
-      initial_compressed_pos_(that.initial_compressed_pos_),
       uncompressed_(std::move(that.uncompressed_)) {}
 
 inline HadoopSnappyReaderBase& HadoopSnappyReaderBase::operator=(
     HadoopSnappyReaderBase&& that) noexcept {
   PullableReader::operator=(static_cast<PullableReader&&>(that));
+  initial_compressed_pos_ = that.initial_compressed_pos_;
   truncated_ = that.truncated_;
   remaining_chunk_length_ = that.remaining_chunk_length_;
-  initial_compressed_pos_ = that.initial_compressed_pos_;
   uncompressed_ = std::move(that.uncompressed_);
   return *this;
 }
 
 inline void HadoopSnappyReaderBase::Reset(Closed) {
   PullableReader::Reset(kClosed);
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   remaining_chunk_length_ = 0;
-  initial_compressed_pos_ = 0;
   uncompressed_ = Buffer();
 }
 
 inline void HadoopSnappyReaderBase::Reset() {
   PullableReader::Reset();
+  initial_compressed_pos_ = 0;
   truncated_ = false;
   remaining_chunk_length_ = 0;
-  initial_compressed_pos_ = 0;
 }
 
 template <typename Src>
