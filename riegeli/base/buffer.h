@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <iosfwd>
+#include <new>  // IWYU pragma: keep
 #include <utility>
 
 #include "absl/base/attributes.h"
