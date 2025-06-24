@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -38,6 +39,49 @@ struct type_identity {
 
 template <typename T>
 using type_identity_t = typename type_identity<T>::type;
+
+// `unwrap_reference<T>::type` and `unwrap_reference_t<T>` changes
+// `std::reference_wrapper<U>` to `U&`, leaving other types unchanged.
+//
+// This is `std::unwrap_reference` from C++20.
+
+#if __cpp_lib_unwrap_ref
+
+using std::unwrap_reference;
+using std::unwrap_reference_t;
+
+#else
+
+template <typename T>
+struct unwrap_reference : type_identity<T> {};
+
+template <typename T>
+struct unwrap_reference<std::reference_wrapper<T>> : type_identity<T&> {};
+
+template <typename T>
+using unwrap_reference_t = typename unwrap_reference<T>::type;
+
+#endif
+
+// `unwrap_ref_decay<T>::type` and `unwrap_ref_decay_t<T>` changes
+// `std::reference_wrapper<U>` to `U&`, and other types like `std::decay`.
+//
+// This is `std::unwrap_ref_decay` from C++20.
+
+#if __cpp_lib_unwrap_ref
+
+using std::unwrap_ref_decay;
+using std::unwrap_ref_decay_t;
+
+#else
+
+template <typename T>
+struct unwrap_ref_decay : unwrap_reference<std::decay<T>> {};
+
+template <typename T>
+using unwrap_ref_decay_t = typename unwrap_ref_decay<T>::type;
+
+#endif
 
 // `IsConvertibleFromResult<T, Result>` is like
 // `std::is_convertible<Result, T>`, except that `Result` represents the

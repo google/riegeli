@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/stringify.h"
@@ -32,8 +33,8 @@ namespace riegeli {
 template <typename... T>
 class ConcatType {
  public:
-  explicit ConcatType(const std::tuple<T...>& values) : values_(values) {}
-  explicit ConcatType(std::tuple<T...>&& values) : values_(std::move(values)) {}
+  explicit ConcatType(std::tuple<Initializer<T>...> values)
+      : values_(std::move(values)) {}
 
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const ConcatType& src) {
@@ -96,9 +97,6 @@ class ConcatType {
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<T...> values_;
 };
 
-template <typename... T>
-explicit ConcatType(std::tuple<T...> values) -> ConcatType<T...>;
-
 // Wraps a sequence of values such that its stringified representation is the
 // concatenation of stringified representations of the values.
 //
@@ -107,21 +105,26 @@ explicit ConcatType(std::tuple<T...> values) -> ConcatType<T...>;
 // constructed it, so that the temporaries outlive its usage. For storing
 // a `ConcatType` in a variable or returning it from a function, use
 // `riegeli::OwningConcat()` or construct `ConcatType` directly.
-template <typename... Srcs,
-          std::enable_if_t<IsStringifiable<Srcs...>::value, int> = 0>
-inline ConcatType<Srcs&&...> Concat(
+template <
+    typename... Srcs,
+    std::enable_if_t<IsStringifiable<TargetRefT<Srcs>...>::value, int> = 0>
+inline ConcatType<TargetRefT<Srcs>...> Concat(
     Srcs&&... srcs ABSL_ATTRIBUTE_LIFETIME_BOUND) {
-  return ConcatType<Srcs&&...>(
+  return ConcatType<TargetRefT<Srcs>...>(
       std::forward_as_tuple(std::forward<Srcs>(srcs)...));
 }
 
 // `riegeli::OwningConcat()` is like `riegeli::Concat()`, but the arguments are
 // stored by value instead of by reference. This is useful for storing the
 // `ConcatType` in a variable or returning it from a function.
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, convert `const std::string&` to `absl::string_view` or wrap
+// the argument in `std::cref()`.
 template <typename... Srcs,
-          std::enable_if_t<IsStringifiable<Srcs...>::value, int> = 0>
-inline ConcatType<std::decay_t<Srcs>...> OwningConcat(Srcs&&... srcs) {
-  return ConcatType<std::decay_t<Srcs>...>(
+          std::enable_if_t<IsStringifiable<TargetT<Srcs>...>::value, int> = 0>
+inline ConcatType<TargetT<Srcs>...> OwningConcat(Srcs&&... srcs) {
+  return ConcatType<TargetT<Srcs>...>(
       std::forward_as_tuple(std::forward<Srcs>(srcs)...));
 }
 

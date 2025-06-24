@@ -9,6 +9,7 @@ cc_library(
     name = "concat",
     hdrs = ["concat.h"],
     deps = [
+        "//riegeli/base:initializer",
         "//riegeli/bytes:absl_stringify_writer",
         "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:stringify",
@@ -45,6 +46,7 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
         "//riegeli/base:chain",
+        "//riegeli/base:initializer",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "//riegeli/bytes:absl_stringify_writer",

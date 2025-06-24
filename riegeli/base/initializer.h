@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -501,6 +502,17 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   /*implicit*/ Initializer(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Base(&Base::template kMethodsFromObject<Arg>, std::forward<Arg>(arg)) {}
 
+  // Constructs `Initializer<T&>` from `std::reference_wrapper<Arg>` with a
+  // compatible `Arg`.
+  template <typename Arg,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_reference<T>,
+                    std::is_convertible<Arg*, std::remove_reference_t<T>*>>,
+                int> = 0>
+  /*implicit*/ Initializer(std::reference_wrapper<Arg> arg)
+      : Base(&Base::template kMethodsFromObject<Arg&>, arg.get()) {}
+
   // Constructs `Initializer<T>` from constructor arguments for `T` packed in
   // `riegeli::Maker(args...)`.
   //
@@ -652,7 +664,14 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
 namespace initializer_internal {
 
 template <typename Value, typename Reference>
-struct TargetImpl : std::decay<Value> {};
+struct TargetImpl {
+  using type = Value;
+};
+
+template <typename T, typename Reference>
+struct TargetImpl<std::reference_wrapper<T>, Reference> {
+  using type = T&;
+};
 
 template <typename... Args, typename Reference>
 struct TargetImpl<MakerType<Args...>, Reference> {
@@ -693,6 +712,11 @@ namespace initializer_internal {
 template <typename Value, typename Reference>
 struct TargetRefImpl {
   using type = Reference;
+};
+
+template <typename T, typename Reference>
+struct TargetRefImpl<std::reference_wrapper<T>, Reference> {
+  using type = T&;
 };
 
 template <typename... Args, typename Reference>

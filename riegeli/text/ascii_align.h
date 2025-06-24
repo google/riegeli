@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/initializer.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
@@ -82,7 +83,8 @@ class AlignOptions {
 template <typename... T>
 class AsciiLeftType {
  public:
-  explicit AsciiLeftType(std::tuple<T...> values, AlignOptions options)
+  explicit AsciiLeftType(std::tuple<Initializer<T>...> values,
+                         AlignOptions options)
       : values_(std::move(values)), options_(std::move(options)) {}
 
   template <typename Sink>
@@ -156,42 +158,48 @@ template <
         std::conjunction_v<
             std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, TargetRefT<Args>...>,
                                  IsStringifiable>>,
         int> = 0>
-inline ApplyToTupleElementsT<AsciiLeftType, RemoveTypesFromEndT<1, Args&&...>>
+inline ApplyToTupleElementsT<AsciiLeftType,
+                             RemoveTypesFromEndT<1, TargetRefT<Args>...>>
 AsciiLeft(Args&&... args) {
   return ApplyToTupleElementsT<AsciiLeftType,
-                               RemoveTypesFromEndT<1, Args&&...>>(
+                               RemoveTypesFromEndT<1, TargetRefT<Args>...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 // A specialization for one stringifiable parameter which allows to annotate the
 // parameter with `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
-template <typename Arg, std::enable_if_t<IsStringifiable<Arg>::value, int> = 0>
-inline AsciiLeftType<Arg&&> AsciiLeft(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                                      AlignOptions options) {
-  return AsciiLeftType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
-                              std::move(options));
+template <typename Arg,
+          std::enable_if_t<IsStringifiable<TargetRefT<Arg>>::value, int> = 0>
+inline AsciiLeftType<TargetRefT<Arg>> AsciiLeft(
+    Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
+  return AsciiLeftType<TargetRefT<Arg>>(
+      std::forward_as_tuple(std::forward<Arg>(arg)), std::move(options));
 }
 
 // `riegeli::OwningAsciiLeft()` is like `riegeli::AsciiLeft()`, but the
 // arguments are stored by value instead of by reference. This is useful for
 // storing the `AsciiLeftType` in a variable or returning it from a function.
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, convert `const std::string&` to `absl::string_view` or wrap
+// the argument in `std::cref()`.
 template <
     typename... Args,
     std::enable_if_t<
         std::conjunction_v<
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, TargetT<Args>...>,
                                  IsStringifiable>>,
         int> = 0>
 inline ApplyToTupleElementsT<AsciiLeftType,
-                             RemoveTypesFromEndT<1, std::decay_t<Args>...>>
+                             RemoveTypesFromEndT<1, TargetT<Args>...>>
 OwningAsciiLeft(Args&&... args) {
   return ApplyToTupleElementsT<AsciiLeftType,
-                               RemoveTypesFromEndT<1, std::decay_t<Args>...>>(
+                               RemoveTypesFromEndT<1, TargetT<Args>...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
 }
@@ -201,7 +209,8 @@ OwningAsciiLeft(Args&&... args) {
 template <typename... T>
 class AsciiCenterType {
  public:
-  explicit AsciiCenterType(std::tuple<T...> values, AlignOptions options)
+  explicit AsciiCenterType(std::tuple<Initializer<T>...> values,
+                           AlignOptions options)
       : values_(std::move(values)), options_(std::move(options)) {}
 
   template <typename Sink>
@@ -276,42 +285,48 @@ template <
         std::conjunction_v<
             std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, TargetRefT<Args>...>,
                                  IsStringifiable>>,
         int> = 0>
-inline ApplyToTupleElementsT<AsciiCenterType, RemoveTypesFromEndT<1, Args&&...>>
+inline ApplyToTupleElementsT<AsciiCenterType,
+                             RemoveTypesFromEndT<1, TargetRefT<Args>...>>
 AsciiCenter(Args&&... args) {
   return ApplyToTupleElementsT<AsciiCenterType,
-                               RemoveTypesFromEndT<1, Args&&...>>(
+                               RemoveTypesFromEndT<1, TargetRefT<Args>...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 // A specialization for one stringifiable parameter which allows to annotate the
 // parameter with `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
-template <typename Arg, std::enable_if_t<IsStringifiable<Arg>::value, int> = 0>
-inline AsciiCenterType<Arg&&> AsciiCenter(
+template <typename Arg,
+          std::enable_if_t<IsStringifiable<TargetRefT<Arg>>::value, int> = 0>
+inline AsciiCenterType<TargetRefT<Arg>> AsciiCenter(
     Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
-  return AsciiCenterType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
-                                std::move(options));
+  return AsciiCenterType<TargetRefT<Arg>>(
+      std::forward_as_tuple(std::forward<Arg>(arg)), std::move(options));
 }
 
 // `riegeli::OwningAsciiCenter()` is like `riegeli::AsciiCenter()`, but the
 // arguments are stored by value instead of by reference. This is useful for
 // storing the `AsciiCenterType` in a variable or returning it from a function.
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, convert `const std::string&` to `absl::string_view` or wrap
+// the argument in `std::cref()`.
 template <
     typename... Args,
     std::enable_if_t<
         std::conjunction_v<
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, TargetT<Args>...>,
                                  IsStringifiable>>,
         int> = 0>
 inline ApplyToTupleElementsT<AsciiCenterType,
-                             RemoveTypesFromEndT<1, std::decay_t<Args>...>>
+                             RemoveTypesFromEndT<1, TargetT<Args>...>>
 OwningAsciiCenter(Args&&... args) {
   return ApplyToTupleElementsT<AsciiCenterType,
-                               RemoveTypesFromEndT<1, std::decay_t<Args>...>>(
+                               RemoveTypesFromEndT<1, TargetT<Args>...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
 }
@@ -321,7 +336,8 @@ OwningAsciiCenter(Args&&... args) {
 template <typename... T>
 class AsciiRightType {
  public:
-  explicit AsciiRightType(std::tuple<T...> values, AlignOptions options)
+  explicit AsciiRightType(std::tuple<Initializer<T>...> values,
+                          AlignOptions options)
       : values_(std::move(values)), options_(std::move(options)) {}
 
   template <typename Sink>
@@ -395,42 +411,48 @@ template <
         std::conjunction_v<
             std::bool_constant<sizeof...(Args) != 2>,
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, TargetRefT<Args>...>,
                                  IsStringifiable>>,
         int> = 0>
-inline ApplyToTupleElementsT<AsciiRightType, RemoveTypesFromEndT<1, Args&&...>>
+inline ApplyToTupleElementsT<AsciiRightType,
+                             RemoveTypesFromEndT<1, TargetRefT<Args>...>>
 AsciiRight(Args&&... args) {
   return ApplyToTupleElementsT<AsciiRightType,
-                               RemoveTypesFromEndT<1, Args&&...>>(
+                               RemoveTypesFromEndT<1, TargetRefT<Args>...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 // A specialization for one stringifiable parameter which allows to annotate the
 // parameter with `ABSL_ATTRIBUTE_LIFETIME_BOUND`.
-template <typename Arg, std::enable_if_t<IsStringifiable<Arg>::value, int> = 0>
-inline AsciiRightType<Arg&&> AsciiRight(Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                                        AlignOptions options) {
-  return AsciiRightType<Arg&&>(std::tuple<Arg&&>(std::forward<Arg>(arg)),
-                               std::move(options));
+template <typename Arg,
+          std::enable_if_t<IsStringifiable<TargetRefT<Arg>>::value, int> = 0>
+inline AsciiRightType<TargetRefT<Arg>> AsciiRight(
+    Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
+  return AsciiRightType<TargetRefT<Arg>>(
+      std::forward_as_tuple(std::forward<Arg>(arg)), std::move(options));
 }
 
 // `riegeli::OwningAsciiRight()` is like `riegeli::AsciiRight()`, but the
 // arguments are stored by value instead of by reference. This is useful for
 // storing the `AsciiRightType` in a variable or returning it from a function.
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, convert `const std::string&` to `absl::string_view` or wrap
+// the argument in `std::cref()`.
 template <
     typename... Args,
     std::enable_if_t<
         std::conjunction_v<
             std::is_convertible<GetTypeFromEndT<1, Args&&...>, AlignOptions>,
-            TupleElementsSatisfy<RemoveTypesFromEndT<1, Args...>,
+            TupleElementsSatisfy<RemoveTypesFromEndT<1, TargetT<Args>...>,
                                  IsStringifiable>>,
         int> = 0>
 inline ApplyToTupleElementsT<AsciiRightType,
-                             RemoveTypesFromEndT<1, std::decay_t<Args>...>>
+                             RemoveTypesFromEndT<1, TargetT<Args>...>>
 OwningAsciiRight(Args&&... args) {
   return ApplyToTupleElementsT<AsciiRightType,
-                               RemoveTypesFromEndT<1, std::decay_t<Args>...>>(
+                               RemoveTypesFromEndT<1, TargetT<Args>...>>(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
       GetFromEnd<1>(std::forward<Args>(args)...));
 }

@@ -423,12 +423,15 @@ inline InvokerType<Function&&, Args&&...> Invoker(
 // `riegeli::OwningInvoker()` is like `riegeli::Invoker()`, but the arguments
 // are stored by value instead of by reference. This is useful for storing the
 // `InvokerType` in a variable or returning it from a function.
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, wrap it in `std::ref()` or `std::cref()`.
 template <typename Function, typename... Args,
-          std::enable_if_t<std::is_invocable_v<std::decay_t<Function>,
-                                               std::decay_t<Args>...>,
+          std::enable_if_t<std::is_invocable_v<unwrap_ref_decay_t<Function>,
+                                               unwrap_ref_decay_t<Args>...>,
                            int> = 0>
-inline InvokerType<std::decay_t<Function>, std::decay_t<Args>...> OwningInvoker(
-    Function&& function, Args&&... args) {
+inline InvokerType<unwrap_ref_decay_t<Function>, unwrap_ref_decay_t<Args>...>
+OwningInvoker(Function&& function, Args&&... args) {
   return {std::forward<Function>(function), std::forward<Args>(args)...};
 }
 

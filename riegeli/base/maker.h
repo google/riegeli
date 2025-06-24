@@ -198,9 +198,6 @@ class MakerType
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<Args...> args_;
 };
 
-template <typename... Args>
-/*implicit*/ MakerType(Args&&...) -> MakerType<std::decay_t<Args>...>;
-
 // `MakerTypeFor<T, Args...>, usually made with `riegeli::Maker<T>(args...)`,
 // packs constructor arguments for `T`. `MakerTypeFor<T, Args...>` is
 // convertible to `Initializer<T>`.
@@ -532,18 +529,25 @@ MakerTypeFor<DeduceClassTemplateArgumentsT<Template, Args...>, Args&&...> Maker(
 // `riegeli::OwningMaker()` is like `riegeli::Maker()`, but the arguments are
 // stored by value instead of by reference. This is useful for storing the
 // `MakerType` in a variable or returning it from a function.
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, wrap it in `std::ref()` or `std::cref()`.
 template <int generic = 0, typename... Args>
-MakerType<std::decay_t<Args>...> OwningMaker(Args&&... args) {
+MakerType<unwrap_ref_decay_t<Args>...> OwningMaker(Args&&... args) {
   return {std::forward<Args>(args)...};
 }
 
 // `riegeli::OwningMaker<T>()` is like `riegeli::Maker<T>()`, but the arguments
 // are stored by value instead of by reference. This is useful for storing the
 // `MakerTypeFor` in a variable or returning it from a function.
-template <typename T, typename... Args,
-          std::enable_if_t<std::is_constructible_v<T, std::decay_t<Args>&&...>,
-                           int> = 0>
-MakerTypeFor<T, std::decay_t<Args>...> OwningMaker(Args&&... args) {
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, wrap it in `std::ref()` or `std::cref()`.
+template <
+    typename T, typename... Args,
+    std::enable_if_t<std::is_constructible_v<T, unwrap_ref_decay_t<Args>&&...>,
+                     int> = 0>
+MakerTypeFor<T, unwrap_ref_decay_t<Args>...> OwningMaker(Args&&... args) {
   return {std::forward<Args>(args)...};
 }
 
@@ -552,14 +556,18 @@ MakerTypeFor<T, std::decay_t<Args>...> OwningMaker(Args&&... args) {
 // constructor arguments.
 //
 // Only class templates with solely type template parameters are supported.
+//
+// If a particular argument is heavy and its lifetime is sufficient for storing
+// it by reference, wrap it in `std::ref()` or `std::cref()`.
 template <template <typename...> class Template, typename... Args,
-          std::enable_if_t<
-              std::is_constructible_v<DeduceClassTemplateArgumentsT<
-                                          Template, std::decay_t<Args>...>,
-                                      std::decay_t<Args>...>,
-              int> = 0>
-MakerTypeFor<DeduceClassTemplateArgumentsT<Template, std::decay_t<Args>&&...>,
-             std::decay_t<Args>...>
+          std::enable_if_t<std::is_constructible_v<
+                               DeduceClassTemplateArgumentsT<
+                                   Template, unwrap_ref_decay_t<Args>...>,
+                               unwrap_ref_decay_t<Args>...>,
+                           int> = 0>
+MakerTypeFor<
+    DeduceClassTemplateArgumentsT<Template, unwrap_ref_decay_t<Args>&&...>,
+    unwrap_ref_decay_t<Args>...>
 OwningMaker(Args&&... args) {
   return {std::forward<Args>(args)...};
 }

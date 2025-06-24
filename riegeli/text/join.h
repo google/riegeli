@@ -358,6 +358,9 @@ inline JoinType<std::initializer_list<Value>, TargetRefT<Formatter>> Join(
 // `riegeli::OwningJoin()` is like `riegeli::Join()`, but the arguments are
 // stored by value instead of by reference. This is useful for storing the
 // `JoinType` in a variable or returning it from a function.
+//
+// If the lifetime of the collection is sufficient for storing it by reference,
+// store its pointer or wrap it in `std::cref()`.
 
 template <typename Src, typename Formatter = DefaultFormatter,
           std::enable_if_t<
