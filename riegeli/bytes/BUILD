@@ -173,10 +173,8 @@ cc_library(
         ":backward_writer",
         ":stringify",
         ":writer",
-        "//riegeli/base:arithmetic",
         "//riegeli/base:dependency",
         "//riegeli/base:type_traits",
-        "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
     ],
@@ -191,6 +189,7 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
     ],
 )
@@ -199,6 +198,7 @@ cc_library(
     name = "stringify",
     hdrs = ["stringify.h"],
     deps = [
+        ":write_int_internal",
         "//riegeli/base:byte_fill",
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",

@@ -349,7 +349,10 @@ cc_library(
 cc_library(
     name = "iterable",
     hdrs = ["iterable.h"],
-    deps = [":dependency"],
+    deps = [
+        ":dependency",
+        "@com_google_absl//absl/meta:type_traits",
+    ],
 )
 
 cc_library(

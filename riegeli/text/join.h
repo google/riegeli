@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <ostream>
 #include <type_traits>
 #include <utility>
@@ -27,11 +28,30 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/ostream_writer.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+// `FormatterHasStringifiedSize<Formatter, Value>::value` is `true` if
+// `Formatter` supports `StringifiedSize()` when called with a `Value`.
+//
+// `formatter.StringifiedSize(value)` returns the size of the formatted value as
+// `Position` if easily known. A function returning `void` is treated as absent.
+
+template <typename Formatter, typename Value, typename Enable = void>
+struct FormatterHasStringifiedSize : std::false_type {};
+
+template <typename Formatter, typename Value>
+struct FormatterHasStringifiedSize<
+    Formatter, Value,
+    std::enable_if_t<std::is_convertible_v<
+        decltype(std::declval<const Formatter&>().StringifiedSize(
+            std::declval<const Value&>())),
+        Position>>> : std::true_type {};
 
 // The default formatter for `Join()` which formats a value by using
 // `Writer::Write()`.
@@ -40,10 +60,19 @@ struct DefaultFormatter {
   void operator()(Value&& src, Writer& dest) const {
     dest.Write(std::forward<Value>(src));
   }
+
+  template <typename Value>
+  auto StringifiedSize(const Value& src) const {
+    return riegeli::StringifiedSize(src);
+  }
 };
 
 // A formatter for `Join()` which formats a value by invoking a function and
 // using `Writer::Write()` on the result.
+//
+// The function should be cheap enough that invoking it twice to compute
+// `StringifiedSize()` is acceptable. If it is expensive, use a lambda as the
+// formatter: `[](Value src, Writer& dest) { dest.Write(function(src)); }`
 template <typename Function>
 class InvokingFormatter {
  public:
@@ -55,6 +84,11 @@ class InvokingFormatter {
   template <typename Value>
   void operator()(Value&& src, Writer& dest) const {
     dest.Write(std::invoke(function_, std::forward<Value>(src)));
+  }
+
+  template <typename Value>
+  auto StringifiedSize(const Value& src) const {
+    return riegeli::StringifiedSize(std::invoke(function_, src));
   }
 
  private:
@@ -97,6 +131,14 @@ class DecoratingFormatter {
     dest.Write(before_);
     value_formatter_(std::forward<Value>(src), dest);
     dest.Write(after_);
+  }
+
+  template <typename Value>
+  auto StringifiedSize(const Value& src) const {
+    if constexpr (FormatterHasStringifiedSize<ValueFormatter, Value>::value) {
+      return before_.size() + value_formatter_.StringifiedSize(src) +
+             after_.size();
+    }
   }
 
  private:
@@ -157,6 +199,16 @@ class PairFormatter {
     second_formatter_(std::move(src.second), dest);
   }
 
+  template <typename First, typename Second>
+  auto StringifiedSize(const std::pair<First, Second>& src) const {
+    if constexpr (std::conjunction_v<
+                      FormatterHasStringifiedSize<FirstFormatter, First>,
+                      FormatterHasStringifiedSize<SecondFormatter, Second>>) {
+      return first_formatter_.StringifiedSize(src.first) + separator_.size() +
+             second_formatter_.StringifiedSize(src.second);
+    }
+  }
+
  private:
   FirstFormatter first_formatter_;
   absl::string_view separator_;
@@ -174,7 +226,7 @@ explicit PairFormatter(FirstFormatter&& first_formatter,
                        SecondFormatter&& second_formatter = SecondFormatter())
     -> PairFormatter<TargetT<FirstFormatter>, TargetT<SecondFormatter>>;
 
-// The type returned by `Join()`.
+// The type returned by `riegeli::Join()` and `riegeli::OwningJoin()`.
 template <typename Src, typename Formatter = DefaultFormatter>
 class JoinType {
  public:
@@ -217,6 +269,10 @@ class JoinType {
     return dest;
   }
 
+  friend auto RiegeliStringifiedSize(const JoinType& src) {
+    return src.StringifiedSize();
+  }
+
  private:
   template <typename Sink>
   void Stringify(Sink& dest) const& {
@@ -230,6 +286,7 @@ class JoinType {
     std::move(*this).WriteTo(writer);
     writer.Close();
   }
+
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
   void Stringify(WriterAbslStringifySink& dest) const& {
     WriteTo(*dest.dest());
@@ -240,6 +297,8 @@ class JoinType {
 
   void WriteTo(Writer& dest) const&;
   void WriteTo(Writer& dest) &&;
+
+  auto StringifiedSize() const;
 
   Dependency<const void*, Src> src_;
   absl::string_view separator_;
@@ -342,8 +401,8 @@ inline JoinType<std::initializer_list<Value>, TargetT<Formatter>> OwningJoin(
 template <typename Src, typename Formatter>
 inline void JoinType<Src, Formatter>::WriteTo(Writer& dest) const& {
   using std::begin;
-  auto iter = begin(*src_);
   using std::end;
+  auto iter = begin(*src_);
   auto end_iter = end(*src_);
   if (iter == end_iter) return;
   for (;;) {
@@ -357,8 +416,8 @@ inline void JoinType<Src, Formatter>::WriteTo(Writer& dest) const& {
 template <typename Src, typename Formatter>
 inline void JoinType<Src, Formatter>::WriteTo(Writer& dest) && {
   using std::begin;
-  auto iter = MaybeMakeMoveIterator<Src>(begin(*src_));
   using std::end;
+  auto iter = MaybeMakeMoveIterator<Src>(begin(*src_));
   auto end_iter = MaybeMakeMoveIterator<Src>(end(*src_));
   if (iter == end_iter) return;
   for (;;) {
@@ -366,6 +425,28 @@ inline void JoinType<Src, Formatter>::WriteTo(Writer& dest) && {
     ++iter;
     if (iter == end_iter) break;
     dest.Write(separator_);
+  }
+}
+
+template <typename Src, typename Formatter>
+inline auto JoinType<Src, Formatter>::StringifiedSize() const {
+  using Iterable = decltype(*src_);
+  if constexpr (std::conjunction_v<IsForwardIterable<Iterable>,
+                                   FormatterHasStringifiedSize<
+                                       Formatter, ElementTypeT<Iterable>>>) {
+    using std::begin;
+    using std::end;
+    auto iter = begin(*src_);
+    auto end_iter = end(*src_);
+    Position stringified_size = 0;
+    if (iter == end_iter) return stringified_size;
+    for (;;) {
+      stringified_size += formatter_.StringifiedSize(*iter);
+      ++iter;
+      if (iter == end_iter) break;
+      stringified_size += separator_.size();
+    }
+    return stringified_size;
   }
 }
 

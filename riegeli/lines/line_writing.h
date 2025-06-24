@@ -91,12 +91,15 @@ void WriteUtf8Bom(Writer& dest);
 
 namespace write_line_internal {
 
-template <typename... Srcs, size_t... indices>
+template <typename... Srcs>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
     ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Writer& dest,
-    WriteLineOptions options, std::index_sequence<indices...>) {
-  if (ABSL_PREDICT_FALSE(
-          !dest.Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
+    WriteLineOptions options) {
+  if (ABSL_PREDICT_FALSE(!std::apply(
+          [&](Srcs&&... srcs) {
+            return dest.Write(std::forward<Srcs>(srcs)...);
+          },
+          std::move(srcs)))) {
     return false;
   }
   switch (options.newline()) {
@@ -123,8 +126,7 @@ template <typename... Args,
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
   return write_line_internal::WriteLineInternal(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
-      GetFromEnd<1>(std::forward<Args>(args)...), WriteLineOptions(),
-      std::make_index_sequence<sizeof...(Args) - 1>());
+      GetFromEnd<1>(std::forward<Args>(args)...), WriteLineOptions());
 }
 
 template <typename... Args,
@@ -140,8 +142,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLine(Args&&... args) {
   return write_line_internal::WriteLineInternal(
       RemoveFromEnd<2>(std::forward<Args>(args)...),
       GetFromEnd<2>(std::forward<Args>(args)...),
-      GetFromEnd<1>(std::forward<Args>(args)...),
-      std::make_index_sequence<sizeof...(Args) - 2>());
+      GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 inline void WriteUtf8Bom(Writer& dest) { dest.Write(kUtf8Bom); }

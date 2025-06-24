@@ -29,13 +29,14 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/write_int_internal.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
 
-// The type returned by `Dec()`.
+// The type returned by `riegeli::Dec()`.
 template <typename T>
 class DecType {
  public:
@@ -54,10 +55,16 @@ class DecType {
   template <typename DependentT = T,
             std::enable_if_t<IsInt<DependentT>::value, int> = 0>
   friend std::ostream& operator<<(std::ostream& dest, const DecType& src) {
-    OStreamWriter<> writer(&dest);
+    OStreamWriter writer(&dest);
     src.WriteTo(writer);
     writer.Close();
     return dest;
+  }
+
+  template <typename DependentT = T,
+            std::enable_if_t<IsInt<DependentT>::value, int> = 0>
+  friend Position RiegeliStringifiedSize(const DecType& src) {
+    return src.StringifiedSize();
   }
 
  private:
@@ -67,6 +74,7 @@ class DecType {
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void Stringify(Sink& dest) const;
+
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
   void Stringify(WriterAbslStringifySink& dest) const { WriteTo(*dest.dest()); }
 
@@ -76,6 +84,13 @@ class DecType {
   template <typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void WriteTo(Writer& dest) const;
+
+  template <typename DependentT = T,
+            std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
+  Position StringifiedSize() const;
+  template <typename DependentT = T,
+            std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
+  Position StringifiedSize() const;
 
   T value_;
   size_t width_;
@@ -100,6 +115,11 @@ class DecType<char> {
   friend std::ostream& operator<<(std::ostream& dest, const DecType& src) {
     return dest << DecType<unsigned char>(
                static_cast<unsigned char>(src.value()), src.width());
+  }
+
+  friend Position RiegeliStringifiedSize(const DecType& src) {
+    return RiegeliStringifiedSize(DecType<unsigned char>(
+        static_cast<unsigned char>(src.value()), src.width()));
   }
 
  private:
@@ -129,7 +149,7 @@ enum class DigitCase {
   kUpper,  // ['0'..'9'], ['A'..'F']
 };
 
-// The type returned by `Hex()`.
+// The type returned by `riegeli::Hex()`.
 template <typename T, DigitCase digit_case = DigitCase::kLower>
 class HexType {
  public:
@@ -148,10 +168,16 @@ class HexType {
   template <typename DependentT = T,
             std::enable_if_t<IsInt<DependentT>::value, int> = 0>
   friend std::ostream& operator<<(std::ostream& dest, const HexType& src) {
-    OStreamWriter<> writer(&dest);
+    OStreamWriter writer(&dest);
     src.WriteTo(writer);
     writer.Close();
     return dest;
+  }
+
+  template <typename DependentT = T,
+            std::enable_if_t<IsInt<DependentT>::value, int> = 0>
+  friend Position RiegeliStringifiedSize(const HexType& src) {
+    return src.StringifiedSize();
   }
 
  private:
@@ -161,6 +187,7 @@ class HexType {
   template <typename Sink, typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void Stringify(Sink& dest) const;
+
   // Faster implementation if `Sink` is `WriterAbslStringifySink`.
   void Stringify(WriterAbslStringifySink& dest) const { WriteTo(*dest.dest()); }
 
@@ -170,6 +197,13 @@ class HexType {
   template <typename DependentT = T,
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void WriteTo(Writer& dest) const;
+
+  template <typename DependentT = T,
+            std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
+  Position StringifiedSize() const;
+  template <typename DependentT = T,
+            std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
+  Position StringifiedSize() const;
 
   T value_;
   size_t width_;
@@ -194,6 +228,11 @@ class HexType<char, digit_case> {
   friend std::ostream& operator<<(std::ostream& dest, const HexType& src) {
     return dest << HexType<unsigned char, digit_case>(
                static_cast<unsigned char>(src.value()), src.width());
+  }
+
+  friend Position RiegeliStringifiedSize(const HexType& src) {
+    return RiegeliStringifiedSize(HexType<unsigned char, digit_case>(
+        static_cast<unsigned char>(src.value()), src.width()));
   }
 
  private:
@@ -226,6 +265,57 @@ inline HexType<T, DigitCase::kUpper> HexUpperCase(T value, size_t width = 0) {
 // Implementation details follow.
 
 namespace write_int_internal {
+
+template <typename T, std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
+inline size_t HexStringifiedSizeUnsigned(T src) {
+  return IntCast<uint8_t>(src) < 0x10 ? size_t{1} : size_t{2};
+}
+
+template <typename T,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, uint8_t>>,
+                                              FitsIn<T, uint16_t>>,
+                           int> = 0>
+inline size_t HexStringifiedSizeUnsigned(T src) {
+  return (IntCast<size_t>(absl::bit_width(IntCast<uint16_t>(src | 1))) + 3) / 4;
+}
+
+template <typename T, std::enable_if_t<
+                          std::conjunction_v<std::negation<FitsIn<T, uint16_t>>,
+                                             FitsIn<T, uint32_t>>,
+                          int> = 0>
+inline size_t HexStringifiedSizeUnsigned(T src) {
+  return (IntCast<size_t>(absl::bit_width(IntCast<uint32_t>(src | 1))) + 3) / 4;
+}
+
+template <typename T, std::enable_if_t<
+                          std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
+                                             FitsIn<T, uint64_t>>,
+                          int> = 0>
+inline size_t HexStringifiedSizeUnsigned(T src) {
+  return (IntCast<size_t>(absl::bit_width(IntCast<uint64_t>(src | 1))) + 3) / 4;
+}
+
+template <typename T, std::enable_if_t<
+                          std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
+                                             FitsIn<T, absl::uint128>>,
+                          int> = 0>
+inline size_t HexStringifiedSizeUnsigned(T src) {
+  return (IntCast<size_t>(absl::Uint128High64(src) == 0
+                              ? absl::bit_width(absl::Uint128Low64(src) | 1)
+                              : absl::bit_width(absl::Uint128High64(src)) +
+                                    64) +
+          3) /
+         4;
+}
+
+template <typename T>
+inline size_t HexStringifiedSizeSigned(T src) {
+  if (src >= 0) {
+    return HexStringifiedSizeUnsigned(UnsignedCast(src));
+  } else {
+    return HexStringifiedSizeUnsigned(NegatingUnsignedCast(src)) + 1;
+  }
+}
 
 // `WriteHex{2,4,8,16,32}()` writes a fixed number of digits.
 template <DigitCase digit_case>
@@ -442,9 +532,7 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 2u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward2<digit_case>(IntCast<uint8_t>(src), dest);
-  width =
-      UnsignedMax(width, IntCast<uint8_t>(src) < 0x10 ? size_t{1} : size_t{2});
-  return dest - width;
+  return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
 }
 
 template <DigitCase digit_case, typename T,
@@ -455,11 +543,7 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 4u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward4<digit_case>(IntCast<uint16_t>(src), dest);
-  width = UnsignedMax(width, (IntCast<size_t>(absl::bit_width(IntCast<uint16_t>(
-                                  IntCast<uint16_t>(src) | 1))) +
-                              3) /
-                                 4);
-  return dest - width;
+  return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
 }
 
 template <
@@ -471,10 +555,7 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 8u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward8<digit_case>(IntCast<uint32_t>(src), dest);
-  width = UnsignedMax(
-      width,
-      (IntCast<size_t>(absl::bit_width(IntCast<uint32_t>(src) | 1)) + 3) / 4);
-  return dest - width;
+  return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
 }
 
 template <
@@ -486,10 +567,7 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 16u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward16<digit_case>(IntCast<uint64_t>(src), dest);
-  width = UnsignedMax(
-      width,
-      (IntCast<size_t>(absl::bit_width(IntCast<uint64_t>(src) | 1)) + 3) / 4);
-  return dest - width;
+  return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
 }
 
 template <
@@ -501,14 +579,7 @@ inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
   RIEGELI_ASSERT_LE(width, 32u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward32<digit_case>(IntCast<absl::uint128>(src), dest);
-  width = UnsignedMax(
-      width,
-      (IntCast<size_t>(absl::Uint128High64(src) == 0
-                           ? absl::bit_width(absl::Uint128Low64(src) | 1)
-                           : absl::bit_width(absl::Uint128High64(src)) + 64) +
-       3) /
-          4);
-  return dest - width;
+  return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
 }
 
 }  // namespace write_int_internal
@@ -585,6 +656,21 @@ inline void DecType<T>::WriteTo(Writer& dest) const {
   }
   dest.set_cursor(
       write_int_internal::WriteDecSigned(value_, dest.cursor(), width_));
+}
+
+template <typename T>
+template <typename DependentT,
+          std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
+inline Position DecType<T>::StringifiedSize() const {
+  return UnsignedMax(width_,
+                     write_int_internal::StringifiedSizeUnsigned(value_));
+}
+
+template <typename T>
+template <typename DependentT,
+          std::enable_if_t<IsSignedInt<DependentT>::value, int>>
+inline Position DecType<T>::StringifiedSize() const {
+  return UnsignedMax(width_, write_int_internal::StringifiedSizeSigned(value_));
 }
 
 template <typename T, DigitCase digit_case>
@@ -672,6 +758,24 @@ inline void HexType<T, digit_case>::WriteTo(Writer& dest) const {
   }
   dest.set_cursor(write_int_internal::WriteHexUnsigned<digit_case>(
       abs_value, cursor, width));
+}
+
+template <typename T, DigitCase digit_case>
+template <typename DependentT,
+          std::enable_if_t<IsUnsignedInt<DependentT>::value, int>>
+inline Position HexType<T, digit_case>::StringifiedSize() const {
+  constexpr size_t kMaxNumDigits = (std::numeric_limits<T>::digits + 3) / 4;
+  if (width_ >= kMaxNumDigits) return width_;
+  return UnsignedMax(width_,
+                     write_int_internal::HexStringifiedSizeUnsigned(value_));
+}
+
+template <typename T, DigitCase digit_case>
+template <typename DependentT,
+          std::enable_if_t<IsSignedInt<DependentT>::value, int>>
+inline Position HexType<T, digit_case>::StringifiedSize() const {
+  return UnsignedMax(width_,
+                     write_int_internal::HexStringifiedSizeSigned(value_));
 }
 
 }  // namespace riegeli

@@ -19,6 +19,7 @@ cc_library(
         "//riegeli/bytes:absl_stringify_writer",
         "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:string_writer",
+        "//riegeli/bytes:stringify",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",

@@ -22,7 +22,6 @@
 #include <cstring>
 #include <limits>
 #include <optional>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -265,24 +264,9 @@ class Writer : public Object {
   template <typename... Srcs,
             std::enable_if_t<
                 std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
-                                   IsStringifiable<Srcs>...>,
+                                   IsStringifiable<Srcs...>>,
                 int> = 0>
   bool Write(Srcs&&... srcs);
-
-  // Writes stringified elements of the tuple to the buffer and/or the
-  // destination.
-  //
-  // Return values:
-  //  * `true`  - success
-  //  * `false` - failure (`!ok()`)
-  template <
-      typename... Srcs,
-      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
-  bool WriteTuple(const std::tuple<Srcs...>& srcs);
-  template <
-      typename... Srcs,
-      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
-  bool WriteTuple(std::tuple<Srcs...>&& srcs);
 
   // Pushes buffered data to the destination.
   //
@@ -524,33 +508,6 @@ class Writer : public Object {
   virtual Reader* ReadModeImpl(Position initial_pos);
 
  private:
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
-      ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs) {
-    return true;
-  }
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
-      const std::tuple<Srcs...>& srcs) {
-    return Write(std::get<index>(srcs)) && WriteInternal<index + 1>(srcs);
-  }
-
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
-      ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...>&& srcs) {
-    return true;
-  }
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(std::tuple<Srcs...>&& srcs) {
-    return Write(std::forward<std::tuple_element_t<index, std::tuple<Srcs...>>>(
-               std::get<index>(srcs))) &&
-           WriteInternal<index + 1>(std::move(srcs));
-  }
-
   char* start_ = nullptr;
   char* cursor_ = nullptr;
   char* limit_ = nullptr;
@@ -901,28 +858,10 @@ inline bool Writer::Write(Src&& src) {
 template <typename... Srcs,
           std::enable_if_t<
               std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
-                                 IsStringifiable<Srcs>...>,
+                                 IsStringifiable<Srcs...>>,
               int>>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
-#if __cpp_fold_expressions
   return (Write(std::forward<Srcs>(srcs)) && ...);
-#else
-  return WriteTuple(std::forward_as_tuple(std::forward<Srcs>(srcs)...));
-#endif
-}
-
-template <typename... Srcs,
-          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::WriteTuple(
-    const std::tuple<Srcs...>& srcs) {
-  return WriteInternal<0>(srcs);
-}
-
-template <typename... Srcs,
-          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::WriteTuple(
-    std::tuple<Srcs...>&& srcs) {
-  return WriteInternal<0>(std::move(srcs));
 }
 
 inline bool Writer::Flush(FlushType flush_type) {

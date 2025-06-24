@@ -223,27 +223,12 @@ class BackwardWriter : public Object {
   template <typename... Srcs,
             std::enable_if_t<
                 std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
-                                   IsStringifiable<Srcs>...>,
+                                   IsStringifiable<Srcs...>>,
                 int> = 0>
-  bool Write(Srcs&&... srcs);
-
-  // Writes stringified elements of the tuple to the buffer and/or the
-  // destination.
-  //
-  // `srcs` are prepended in the reverse order, so that they appear in the
-  // destination in the same order as arguments of the tuple.
-  //
-  // Return values:
-  //  * `true`  - success
-  //  * `false` - failure (`!ok()`)
-  template <
-      typename... Srcs,
-      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
-  bool WriteTuple(const std::tuple<Srcs...>& srcs);
-  template <
-      typename... Srcs,
-      std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int> = 0>
-  bool WriteTuple(std::tuple<Srcs...>&& srcs);
+  bool Write(Srcs&&... srcs) {
+    return WriteInternal<sizeof...(Srcs)>(
+        std::forward_as_tuple(std::forward<Srcs>(srcs)...));
+  }
 
   // Pushes buffered data to the destination.
   //
@@ -415,19 +400,6 @@ class BackwardWriter : public Object {
   virtual bool TruncateImpl(Position new_size);
 
  private:
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index > 0), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
-      const std::tuple<Srcs...>& srcs) {
-    return Write(std::get<index - 1>(srcs)) && WriteInternal<index - 1>(srcs);
-  }
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index == 0), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
-      ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs) {
-    return true;
-  }
-
   template <size_t index, typename... Srcs,
             std::enable_if_t<(index > 0), int> = 0>
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(std::tuple<Srcs...>&& srcs) {
@@ -753,29 +725,6 @@ inline bool BackwardWriter::Write(Src&& src) {
     return Fail(chain_writer.status());
   }
   return Write(std::move(chain_writer.dest()));
-}
-
-template <typename... Srcs,
-          std::enable_if_t<
-              std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
-                                 IsStringifiable<Srcs>...>,
-              int>>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::Write(Srcs&&... srcs) {
-  return WriteTuple(std::forward_as_tuple(std::forward<Srcs>(srcs)...));
-}
-
-template <typename... Srcs,
-          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::WriteTuple(
-    const std::tuple<Srcs...>& srcs) {
-  return WriteInternal<sizeof...(Srcs)>(srcs);
-}
-
-template <typename... Srcs,
-          std::enable_if_t<std::conjunction_v<IsStringifiable<Srcs>...>, int>>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool BackwardWriter::WriteTuple(
-    std::tuple<Srcs...>&& srcs) {
-  return WriteInternal<sizeof...(Srcs)>(std::move(srcs));
 }
 
 inline bool BackwardWriter::Flush(FlushType flush_type) {

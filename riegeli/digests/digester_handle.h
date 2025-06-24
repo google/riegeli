@@ -175,9 +175,7 @@ class
   bool Write(const absl::Cord& src) {
     return methods()->write_cord(target(), src);
   }
-  bool Write(ByteFill src) const {
-    return methods()->write_byte_fill(target(), src);
-  }
+  bool Write(ByteFill src) { return methods()->write_byte_fill(target(), src); }
   template <
       typename Src,
       std::enable_if_t<

@@ -17,10 +17,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <cstring>
 #include <limits>
+#include <type_traits>
 
 #include "absl/base/attributes.h"
+#include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -339,6 +342,100 @@ char* WriteDecBackward(absl::int128 src, char* dest) {
     --dest;
     *dest = '-';
     return dest;
+  }
+}
+
+// For `StringifiedSize(value)`, there is an entry for each
+// `absl::bit_width(value) / 2`.
+template <typename T>
+struct StringifiedSizeEntry {
+  using Size = std::conditional_t<(sizeof(T) < sizeof(size_t)), T, size_t>;
+  Size size;    // Number of digits at the upper bound of this entry.
+  T threshold;  // If `value < threshold`, there is one digit less.
+};
+
+template <typename T>
+constexpr size_t kNumStringifiedSizeEntries =
+    std::numeric_limits<T>::digits / 2 + 1;
+
+template <typename T>
+constexpr std::array<StringifiedSizeEntry<T>, kNumStringifiedSizeEntries<T>>
+MakeStringifiedSizeEntries() {
+  // Default construction of `entries` should not be needed, but without that
+  // GCC rejects this code in constexpr context for some reason.
+  std::array<StringifiedSizeEntry<T>, kNumStringifiedSizeEntries<T>> entries{};
+  typename StringifiedSizeEntry<T>::Size size = 1;
+  T threshold = 1;
+  T upper_bound = 3;
+  for (StringifiedSizeEntry<T>& entry : entries) {
+    entry.size = size;
+    entry.threshold = threshold;
+    if (size < std::numeric_limits<T>::digits10 + 1) {
+      // Some `absl::uint128` operations are not constexpr,
+      // hence multiplication is avoided.
+      upper_bound = (upper_bound << 2) + 3;
+      const T next_threshold = (threshold << 3) + (threshold << 1);
+      if (upper_bound >= next_threshold) {
+        ++size;
+        threshold = next_threshold;
+      }
+    }
+  }
+  entries[0].threshold = T{0};  // 0 has one digit.
+  return entries;
+}
+
+size_t StringifiedSize(uint32_t src) {
+  static constexpr std::array<StringifiedSizeEntry<uint32_t>,
+                              kNumStringifiedSizeEntries<uint32_t>>
+      kEntries = MakeStringifiedSizeEntries<uint32_t>();
+  const size_t width = IntCast<size_t>(absl::bit_width(src));
+  const StringifiedSizeEntry<uint32_t>& entry = kEntries[width / 2];
+  return size_t{entry.size} - (src < entry.threshold ? 1 : 0);
+}
+
+size_t StringifiedSize(uint64_t src) {
+  static constexpr std::array<StringifiedSizeEntry<uint64_t>,
+                              kNumStringifiedSizeEntries<uint64_t>>
+      kEntries = MakeStringifiedSizeEntries<uint64_t>();
+  const size_t width = IntCast<size_t>(absl::bit_width(src));
+  const StringifiedSizeEntry<uint64_t>& entry = kEntries[width / 2];
+  return size_t{entry.size} - (src < entry.threshold ? 1 : 0);
+}
+
+size_t StringifiedSize(absl::uint128 src) {
+  static constexpr std::array<StringifiedSizeEntry<absl::uint128>,
+                              kNumStringifiedSizeEntries<absl::uint128>>
+      kEntries = MakeStringifiedSizeEntries<absl::uint128>();
+  const size_t width =
+      IntCast<size_t>(absl::Uint128High64(src) == 0
+                          ? absl::bit_width(absl::Uint128Low64(src))
+                          : absl::bit_width(absl::Uint128High64(src)) + 64);
+  const StringifiedSizeEntry<absl::uint128>& entry = kEntries[width / 2];
+  return size_t{entry.size} - (src < entry.threshold ? 1 : 0);
+}
+
+size_t StringifiedSize(int32_t src) {
+  if (src >= 0) {
+    return StringifiedSize(UnsignedCast(src));
+  } else {
+    return StringifiedSize(NegatingUnsignedCast(src)) + 1;
+  }
+}
+
+size_t StringifiedSize(int64_t src) {
+  if (src >= 0) {
+    return StringifiedSize(UnsignedCast(src));
+  } else {
+    return StringifiedSize(NegatingUnsignedCast(src)) + 1;
+  }
+}
+
+size_t StringifiedSize(absl::int128 src) {
+  if (src >= 0) {
+    return StringifiedSize(UnsignedCast(src));
+  } else {
+    return StringifiedSize(NegatingUnsignedCast(src)) + 1;
   }
 }
 

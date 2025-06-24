@@ -446,61 +446,32 @@ namespace digesting_writer_internal {
 
 ABSL_ATTRIBUTE_COLD absl::Status FailedStatus(DigesterBaseHandle digester);
 
-template <
-    typename DigesterOrWriter, typename... Srcs,
-    std::enable_if_t<std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
-    DigesterOrWriter&& dest, const Srcs&... srcs) {
-  std::forward<DigesterOrWriter>(dest).SetWriteSizeHint(
-      SaturatingAdd<Position>(riegeli::StringifiedSize(srcs)...));
-}
-
-template <
-    typename DigesterOrWriter, typename... Srcs,
-    std::enable_if_t<!std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
-    ABSL_ATTRIBUTE_UNUSED DigesterOrWriter&& dest,
-    ABSL_ATTRIBUTE_UNUSED const Srcs&... srcs) {}
-
 template <typename T, typename Enable = void>
-struct SupportedByDigesterHandle : std::false_type {};
+struct IsDigestible : std::false_type {};
 
 template <typename T>
-struct SupportedByDigesterHandle<
+struct IsDigestible<
     T, std::void_t<decltype(std::declval<DigesterBaseHandle&>().Write(
            std::declval<const T&>()))>> : std::true_type {};
 
-template <size_t index, typename... Srcs,
-          std::enable_if_t<(index == sizeof...(Srcs)), int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteTuple(
-    ABSL_ATTRIBUTE_UNUSED const std::tuple<Srcs...>& srcs,
-    ABSL_ATTRIBUTE_UNUSED DigesterBaseHandle digester) {
-  return true;
-}
-
-template <size_t index, typename... Srcs,
-          std::enable_if_t<(index < sizeof...(Srcs)), int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteTuple(
-    const std::tuple<Srcs...>& srcs, DigesterBaseHandle digester) {
-  return digester.Write(std::get<index>(srcs)) &&
-         WriteTuple<index + 1>(srcs, digester);
-}
-
 template <typename DesiredDigestType, typename Digester, typename... Srcs,
-          std::enable_if_t<
-              std::conjunction_v<SupportedByDigesterHandle<Srcs>...>, int> = 0>
+          std::enable_if_t<std::conjunction_v<IsDigestible<Srcs>...>, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DependencyRef<DigesterBaseHandle, Digester> digester_dep(
       std::forward<Digester>(digester));
-  if (digester_dep.IsOwning()) {
-    std::apply(
-        [&](const Srcs&... srcs) {
-          SetWriteSizeHint(digester_dep.get(), srcs...);
-        },
-        srcs);
+  if constexpr (HasStringifiedSize<Srcs...>::value) {
+    if (digester_dep.IsOwning()) {
+      digester_dep.get().SetWriteSizeHint(std::apply(
+          [](const Srcs&... srcs) { return riegeli::StringifiedSize(srcs...); },
+          srcs));
+    }
   }
-  bool ok = WriteTuple<0>(srcs, digester_dep.get());
+  bool ok = std::apply(
+      [&](const Srcs&... srcs) {
+        return (digester_dep.get().Write(srcs) && ...);
+      },
+      srcs);
   if (digester_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!digester_dep.get().Close())) ok = false;
   }
@@ -509,16 +480,17 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
 }
 
 template <typename DesiredDigestType, typename Digester, typename... Srcs,
-          std::enable_if_t<
-              !std::conjunction_v<SupportedByDigesterHandle<Srcs>...>, int> = 0>
+          std::enable_if_t<!std::conjunction_v<IsDigestible<Srcs>...>, int> = 0>
 inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
                                         Digester&& digester) {
   DigestingWriter<TargetRefT<Digester>, NullWriter> writer(
       std::forward<Digester>(digester));
-  std::apply(
-      [&](const Srcs&... srcs) { SetWriteSizeHint(writer.get(), srcs...); },
-      srcs);
-  writer.WriteTuple(srcs);
+  if constexpr (HasStringifiedSize<Srcs...>::value) {
+    writer.SetWriteSizeHint(std::apply(
+        [](const Srcs&... srcs) { return riegeli::StringifiedSize(srcs...); },
+        srcs));
+  }
+  std::apply([&](const Srcs&... srcs) { writer.Write(srcs...); }, srcs);
   RIEGELI_CHECK(writer.Close()) << writer.status();
   return writer.template Digest<DesiredDigestType>();
 }

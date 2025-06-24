@@ -94,7 +94,7 @@ inline char* WriteDecSigned(T src, char* dest) {
   return WriteDec(IntCast<absl::int128>(src), dest);
 }
 
-// `WriteDec()` with a width parameter writes at least `width` digits.
+// `WriteDec()` with a width parameter writes at least `width` characters.
 char* WriteDec(uint32_t src, char* dest, size_t width);
 char* WriteDec(uint64_t src, char* dest, size_t width);
 char* WriteDec(absl::uint128 src, char* dest, size_t width);
@@ -102,7 +102,8 @@ char* WriteDec(int32_t src, char* dest, size_t width);
 char* WriteDec(int64_t src, char* dest, size_t width);
 char* WriteDec(absl::int128 src, char* dest, size_t width);
 
-// `WriteDecUnsigned()` with a width parameter writes at least `width` digits.
+// `WriteDecUnsigned()` with a width parameter writes at least `width`
+// characters.
 
 template <typename T, std::enable_if_t<FitsIn<T, uint32_t>::value, int> = 0>
 inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
@@ -128,7 +129,7 @@ inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
                     : WriteDec(IntCast<absl::uint128>(src), dest, width);
 }
 
-// `WriteDecSigned()` with a width parameter writes at least `width` digits.
+// `WriteDecSigned()` with a width parameter writes at least `width` characters.
 
 template <typename T, std::enable_if_t<FitsIn<T, int32_t>::value, int> = 0>
 inline char* WriteDecSigned(T src, char* dest, size_t width) {
@@ -206,6 +207,55 @@ template <typename T,
                            int> = 0>
 inline char* WriteDecSignedBackward(T src, char* dest) {
   return WriteDecBackward(IntCast<absl::int128>(src), dest);
+}
+
+size_t StringifiedSize(uint32_t src);
+size_t StringifiedSize(uint64_t src);
+size_t StringifiedSize(absl::uint128 src);
+size_t StringifiedSize(int32_t src);
+size_t StringifiedSize(int64_t src);
+size_t StringifiedSize(absl::int128 src);
+
+template <typename T, std::enable_if_t<FitsIn<T, uint32_t>::value, int> = 0>
+inline size_t StringifiedSizeUnsigned(T src) {
+  return StringifiedSize(IntCast<uint32_t>(src));
+}
+
+template <typename T, std::enable_if_t<
+                          std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
+                                             FitsIn<T, uint64_t>>,
+                          int> = 0>
+inline size_t StringifiedSizeUnsigned(T src) {
+  return StringifiedSize(IntCast<uint64_t>(src));
+}
+
+template <typename T, std::enable_if_t<
+                          std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
+                                             FitsIn<T, absl::uint128>>,
+                          int> = 0>
+inline size_t StringifiedSizeUnsigned(T src) {
+  return StringifiedSize(IntCast<absl::uint128>(src));
+}
+
+template <typename T, std::enable_if_t<FitsIn<T, int32_t>::value, int> = 0>
+inline size_t StringifiedSizeSigned(T src) {
+  return StringifiedSize(IntCast<int32_t>(src));
+}
+
+template <typename T,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int32_t>>,
+                                              FitsIn<T, int64_t>>,
+                           int> = 0>
+inline size_t StringifiedSizeSigned(T src) {
+  return StringifiedSize(IntCast<int64_t>(src));
+}
+
+template <typename T,
+          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int64_t>>,
+                                              FitsIn<T, absl::int128>>,
+                           int> = 0>
+inline size_t StringifiedSizeSigned(T src) {
+  return StringifiedSize(IntCast<absl::int128>(src));
 }
 
 }  // namespace riegeli::write_int_internal

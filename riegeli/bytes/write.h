@@ -24,10 +24,8 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
-#include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
@@ -69,33 +67,23 @@ absl::Status Write(Args&&... args);
 
 namespace write_internal {
 
-template <
-    typename WriterType, typename... Srcs,
-    std::enable_if_t<std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(WriterType& dest,
-                                                          const Srcs&... srcs) {
-  dest.SetWriteSizeHint(
-      SaturatingAdd<Position>(riegeli::StringifiedSize(srcs)...));
-}
-
-template <
-    typename WriterType, typename... Srcs,
-    std::enable_if_t<!std::conjunction_v<HasStringifiedSize<Srcs>...>, int> = 0>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline void SetWriteSizeHint(
-    ABSL_ATTRIBUTE_UNUSED WriterType& dest,
-    ABSL_ATTRIBUTE_UNUSED const Srcs&... srcs) {}
-
-template <typename... Srcs, typename Dest, size_t... indices>
+template <typename... Srcs, typename Dest>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
-    std::index_sequence<indices...>) {
+    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
-  if (dest_dep.IsOwning()) {
-    SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
+  if constexpr (HasStringifiedSize<Srcs...>::value) {
+    if (dest_dep.IsOwning()) {
+      dest_dep->SetWriteSizeHint(std::apply(
+          [](const Srcs&... srcs) { return riegeli::StringifiedSize(srcs...); },
+          srcs));
+    }
   }
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(
-          !dest_dep->Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
+  if (ABSL_PREDICT_FALSE(!std::apply(
+          [&](Srcs&&... srcs) {
+            return dest_dep->Write(std::forward<Srcs>(srcs)...);
+          },
+          std::move(srcs)))) {
     status = dest_dep->status();
   }
   if (dest_dep.IsOwning()) {
@@ -106,17 +94,23 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
   return status;
 }
 
-template <typename... Srcs, typename Dest, size_t... indices>
+template <typename... Srcs, typename Dest>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest,
-    std::index_sequence<indices...>) {
+    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest) {
   DependencyRef<BackwardWriter*, Dest> dest_dep(std::forward<Dest>(dest));
-  if (dest_dep.IsOwning()) {
-    SetWriteSizeHint(*dest_dep, std::get<indices>(srcs)...);
+  if constexpr (HasStringifiedSize<Srcs...>::value) {
+    if (dest_dep.IsOwning()) {
+      dest_dep->SetWriteSizeHint(std::apply(
+          [](const Srcs&... srcs) { return riegeli::StringifiedSize(srcs...); },
+          srcs));
+    }
   }
   absl::Status status;
-  if (ABSL_PREDICT_FALSE(
-          !dest_dep->Write(std::forward<Srcs>(std::get<indices>(srcs))...))) {
+  if (ABSL_PREDICT_FALSE(!std::apply(
+          [&](Srcs&&... srcs) {
+            return dest_dep->Write(std::forward<Srcs>(srcs)...);
+          },
+          std::move(srcs)))) {
     status = dest_dep->status();
   }
   if (dest_dep.IsOwning()) {
@@ -140,8 +134,7 @@ template <
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
   return write_internal::WriteInternal(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
-      GetFromEnd<1>(std::forward<Args>(args)...),
-      std::make_index_sequence<sizeof...(Args) - 1>());
+      GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 template <
@@ -155,8 +148,7 @@ template <
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status Write(Args&&... args) {
   return write_internal::BackwardWriteInternal(
       RemoveFromEnd<1>(std::forward<Args>(args)...),
-      GetFromEnd<1>(std::forward<Args>(args)...),
-      std::make_index_sequence<sizeof...(Args) - 1>());
+      GetFromEnd<1>(std::forward<Args>(args)...));
 }
 
 }  // namespace riegeli

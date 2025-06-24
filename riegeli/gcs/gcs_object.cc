@@ -32,6 +32,7 @@
 #include "riegeli/base/global.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/string_writer.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -330,10 +331,11 @@ std::string GcsObject::uri() const {
   std::string uri;
   if (ABSL_PREDICT_TRUE(ok())) {
     StringWriter<> writer(&uri);
-    if (generation() == std::nullopt) {
-      writer.SetWriteSizeHint(kUriPrefix.size() + bucket_name().size() + 1 +
-                              object_name().size());
-    }
+    writer.SetWriteSizeHint(
+        kUriPrefix.size() + bucket_name().size() + 1 + object_name().size() +
+        (generation() == std::nullopt
+             ? 0
+             : 1 + riegeli::StringifiedSize(*generation())));
     WriteTo(writer);
     writer.Close();
   }
