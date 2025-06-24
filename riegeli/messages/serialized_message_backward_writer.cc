@@ -25,7 +25,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
-#include "riegeli/bytes/chain_writer.h"
+#include "riegeli/bytes/reader.h"
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/varint/varint_reading.h"
 #include "riegeli/varint/varint_writing.h"

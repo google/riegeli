@@ -26,19 +26,15 @@
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/byte_fill.h"
-#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/constexpr.h"
-#include "riegeli/base/external_ref.h"
 #include "riegeli/base/types.h"
-#include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/bytes/restricted_chain_writer.h"
+#include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
 #include "riegeli/messages/message_wire_format.h"
@@ -116,20 +112,9 @@ class SerializedMessageWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   absl::Status WriteEnum(int field_number, EnumType value);
-  absl::Status WriteString(int field_number, BytesRef value);
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  absl::Status WriteString(int field_number, const char* value) {
-    return WriteString(field_number, absl::string_view(value));
-  }
-  absl::Status WriteString(int field_number, ExternalRef value);
-  template <typename Src,
-            std::enable_if_t<SupportsExternalRefWhole<Src>::value, int> = 0>
-  absl::Status WriteString(int field_number, Src&& value);
-  absl::Status WriteString(int field_number, const Chain& value);
-  absl::Status WriteString(int field_number, Chain&& value);
-  absl::Status WriteString(int field_number, const absl::Cord& value);
-  absl::Status WriteString(int field_number, absl::Cord&& value);
-  absl::Status WriteString(int field_number, ByteFill value);
+  template <typename... Values,
+            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
+  absl::Status WriteString(int field_number, Values&&... values);
   absl::Status CopyString(int field_number, Position length, Reader& src);
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
@@ -210,7 +195,7 @@ class SerializedMessageWriter {
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
 
   Writer* dest_ = nullptr;
-  std::vector<ChainWriter<Chain>> submessages_;
+  std::vector<RestrictedChainWriter> submessages_;
   Writer* writer_ = nullptr;
 
   // Invariant:
@@ -446,86 +431,35 @@ inline absl::Status SerializedMessageWriter::WritePackedEnum(EnumType value) {
   return WritePackedUInt64(static_cast<uint64_t>(value));
 }
 
+template <typename... Values,
+          std::enable_if_t<IsStringifiable<Values...>::value, int>>
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         BytesRef value) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
+                                                         Values&&... values) {
+  if constexpr (HasStringifiedSize<Values...>::value) {
+    if (absl::Status status = WriteLengthUnchecked(
+            field_number, riegeli::StringifiedSize(values...));
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    if (ABSL_PREDICT_FALSE(!writer().Write(std::forward<Values>(values)...))) {
+      return writer().status();
+    }
+  } else {
+    RestrictedChainWriter chain_writer;
+    if (ABSL_PREDICT_FALSE(
+            !chain_writer.Write(std::forward<Values>(values)...) ||
+            !chain_writer.Close())) {
+      return chain_writer.status();
+    }
+    if (absl::Status status =
+            WriteLengthUnchecked(field_number, chain_writer.dest().size());
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    if (ABSL_PREDICT_FALSE(!writer().Write(std::move(chain_writer.dest())))) {
+      return writer().status();
+    }
   }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
-  return absl::OkStatus();
-}
-
-inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         ExternalRef value) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
-  }
-  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
-    return writer().status();
-  }
-  return absl::OkStatus();
-}
-
-template <typename Src,
-          std::enable_if_t<SupportsExternalRefWhole<Src>::value, int>>
-inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         Src&& value) {
-  return WriteString(field_number, ExternalRef(std::forward<Src>(value)));
-}
-
-inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         const Chain& value) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
-  }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
-  return absl::OkStatus();
-}
-
-inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         Chain&& value) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
-  }
-  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
-    return writer().status();
-  }
-  return absl::OkStatus();
-}
-
-inline absl::Status SerializedMessageWriter::WriteString(
-    int field_number, const absl::Cord& value) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
-  }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
-  return absl::OkStatus();
-}
-
-inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         absl::Cord&& value) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
-  }
-  if (ABSL_PREDICT_FALSE(!writer().Write(std::move(value)))) {
-    return writer().status();
-  }
-  return absl::OkStatus();
-}
-
-inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         ByteFill value) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, value.size());
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
-  }
-  if (ABSL_PREDICT_FALSE(!writer().Write(value))) return writer().status();
   return absl::OkStatus();
 }
 
