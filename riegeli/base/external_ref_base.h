@@ -30,7 +30,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/buffering.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain_base.h"
 #include "riegeli/base/cord_utils.h"
@@ -60,9 +59,8 @@ namespace riegeli {
 //
 // In contrast to `Chain::Block` and `absl::MakeCordFromExternal()`,
 // `ExternalRef` chooses between sharing the object and copying the data,
-// depending on the size of the data, whether the object is wasteful, the method
-// of consuming the data, and the state of the destination for appending or
-// prepending.
+// depending on the size of the data, the method of consuming the data,
+// and the state of the destination for appending or prepending.
 //
 // `ExternalRef` itself does not own the object description nor the data, and is
 // efficiently movable. The state is stored in a storage object passed as a
@@ -227,21 +225,12 @@ namespace riegeli {
 // `substr` parameter passed to `ExternalRef` constructor. Having `substr`
 // available in these functions might avoid storing `substr` in the external
 // object.
-//
-// If `MemoryEstimator` is supported by customizing
-// `RiegeliRegisterSubobjects()`, it is used to determine whether the object
-// is considered wasteful, to avoid embedding wasteful objects.
 class ExternalRef {
  private:
   using UseStringViewFunction = void (*)(void* context, absl::string_view data);
   using UseChainBlockFunction = void (*)(void* context, Chain::Block data);
   using UseCordFunction = void (*)(void* context, absl::Cord data);
   using UseExternalDataFunction = void (*)(void* context, ExternalData data);
-
-  template <typename T>
-  static bool Wasteful(const T& object, size_t used) {
-    return riegeli::Wasteful(riegeli::EstimateMemorySimplified(object), used);
-  }
 
   template <typename T, typename Enable = void>
   struct HasCallOperatorSubstr : std::false_type {};
@@ -576,7 +565,7 @@ class ExternalRef {
         : context_(context),
           use_string_view_(use_string_view),
           use_chain_block_(use_chain_block) {
-      if (RiegeliExternalCopy(&object) || Wasteful(object, data.size())) {
+      if (RiegeliExternalCopy(&object)) {
         use_string_view_(context_, data);
         ExternalRef::CallOperatorWhole(std::forward<T>(object));
         return;
@@ -683,7 +672,7 @@ class ExternalRef {
           use_string_view_(use_string_view),
           use_chain_block_(use_chain_block) {
       AssertSubstr(object, substr_);
-      if (RiegeliExternalCopy(&object) || Wasteful(object, substr_.size())) {
+      if (RiegeliExternalCopy(&object)) {
         use_string_view_(context_, substr_);
         ExternalRef::CallOperatorSubstr(std::forward<T>(object), substr_);
         return;
@@ -901,7 +890,7 @@ class ExternalRef {
         : context_(context),
           use_string_view_(use_string_view),
           use_cord_(use_cord) {
-      if (RiegeliExternalCopy(&object) || Wasteful(object, data.size())) {
+      if (RiegeliExternalCopy(&object)) {
         use_string_view_(context_, data);
         ExternalRef::CallOperatorWhole(std::forward<T>(object));
         return;
@@ -1029,7 +1018,7 @@ class ExternalRef {
           use_string_view_(use_string_view),
           use_cord_(use_cord) {
       AssertSubstr(object, substr_);
-      if (RiegeliExternalCopy(&object) || Wasteful(object, substr_.size())) {
+      if (RiegeliExternalCopy(&object)) {
         use_string_view_(context_, substr_);
         ExternalRef::CallOperatorSubstr(std::forward<T>(object), substr_);
         return;
@@ -1279,7 +1268,7 @@ class ExternalRef {
         T&& object, absl::string_view data, void* context,
         UseExternalDataFunction use_external_data)
         : context_(context), use_external_data_(use_external_data) {
-      if (RiegeliExternalCopy(&object) || Wasteful(object, data.size())) {
+      if (RiegeliExternalCopy(&object)) {
         use_external_data_(context_, ExternalDataCopy(data));
         ExternalRef::CallOperatorWhole(std::forward<T>(object));
         return;
@@ -1395,7 +1384,7 @@ class ExternalRef {
           context_(context),
           use_external_data_(use_external_data) {
       AssertSubstr(object, substr_);
-      if (RiegeliExternalCopy(&object) || Wasteful(object, substr_.size())) {
+      if (RiegeliExternalCopy(&object)) {
         use_external_data_(context_, ExternalDataCopy(substr_));
         ExternalRef::CallOperatorSubstr(std::forward<T>(object), substr_);
         return;
