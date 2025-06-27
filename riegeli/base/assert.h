@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <ostream>  // IWYU pragma: export
-#include <sstream>
 #include <type_traits>
 #include <utility>
 
@@ -26,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "riegeli/base/debug.h"
 #include "riegeli/base/port.h"
+#include "riegeli/base/stream_utils.h"
 
 namespace riegeli {
 
@@ -74,10 +74,10 @@ class CheckResult {
   // Returns the header stream.
   //
   // Precondition: the check failed, i.e. `*this` is `false`.
-  std::ostringstream& header() { return *header_; }
+  StringOStream& header() { return *header_; }
 
  private:
-  std::ostringstream* header_ = nullptr;
+  StringOStream* header_ = nullptr;
 };
 
 // Stores a `CheckResult` and a stream for adding details to the message.
@@ -97,7 +97,7 @@ class CheckFailed {
   const char* file_;
   int line_;
   CheckResult check_result_;
-  std::ostringstream* details_ = nullptr;
+  StringOStream* details_;
 };
 
 // Indicates that a check failed with the message header

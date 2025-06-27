@@ -22,7 +22,6 @@
 #include <memory>
 #include <optional>
 #include <ostream>
-#include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -301,12 +300,22 @@ class DebugType {
   DebugType& operator=(DebugType&& that) = default;
 
   explicit operator std::string() const {
-    return (std::ostringstream() << *this).str();
+    std::string dest;
+    StringOStream stream(&dest);
+    DebugStream(&stream).Debug(src_);
+    return dest;
   }
 
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const DebugType& src) {
-    AbslStringifyOStream<Sink>(&dest) << src;
+    AbslStringifyOStream stream(&dest);
+    DebugStream(&stream).Debug(src.src_);
+  }
+
+  // Faster implementation if `Sink` is `OStreamAbslStringifySink`.
+  friend void AbslStringify(OStreamAbslStringifySink& dest,
+                            const DebugType& src) {
+    DebugStream(dest.dest()).Debug(src.src_);
   }
 
   friend std::ostream& operator<<(std::ostream& dest, const DebugType& src) {

@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <cassert>
 #include <cstring>
 #include <ios>
 #include <ostream>
@@ -30,6 +31,20 @@ void WritePadding(std::ostream& dest, size_t length, char fill) {
     length -= sizeof(buffer);
   }
   dest.write(buffer, static_cast<std::streamsize>(length));
+}
+
+int AbslStringifyOStream<StringAbslStringifySink>::StringStreambuf::overflow(
+    int src) {
+  if (src != traits_type::eof()) dest_->push_back(static_cast<char>(src));
+  return traits_type::not_eof(src);
+}
+
+std::streamsize
+AbslStringifyOStream<StringAbslStringifySink>::StringStreambuf::xsputn(
+    const char* src, std::streamsize length) {
+  assert(length >= 0);
+  dest_->append(src, static_cast<size_t>(length));
+  return length;
 }
 
 }  // namespace riegeli

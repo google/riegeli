@@ -62,6 +62,7 @@ cc_library(
     hdrs = ["assert.h"],
     deps = [
         ":debug",
+        ":stream_utils",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:absl_log",
     ],

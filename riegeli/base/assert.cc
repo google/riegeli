@@ -14,16 +14,15 @@
 
 #include "riegeli/base/assert.h"
 
-#include <sstream>
 #include <string>
-#include <utility>
 
 #include "absl/log/absl_log.h"
+#include "riegeli/base/stream_utils.h"
 
 namespace riegeli::assert_internal {
 
 CheckResult::CheckResult(const char* function, const char* prefix)
-    : header_(new std::ostringstream()) {
+    : header_(new StringOStream(new std::string())) {
   header() << "Check failed in " << function << ": " << prefix;
 }
 
@@ -31,13 +30,13 @@ CheckFailed::CheckFailed(const char* file, int line, CheckResult check_result)
     : file_(file),
       line_(line),
       check_result_(check_result),
-      details_(new std::ostringstream()) {}
+      details_(new StringOStream(new std::string())) {}
 
 CheckFailed::~CheckFailed() {
-  std::ostringstream& message = check_result_.header();
-  const std::string details = std::move(*details_).str();
-  if (!details.empty()) message << "; " << details;
-  ABSL_LOG(FATAL).AtLocation(file_, line_) << std::move(message).str();
+  if (!details_->dest()->empty()) {
+    check_result_.header() << "; " << *details_->dest();
+  }
+  ABSL_LOG(FATAL).AtLocation(file_, line_) << *check_result_.header().dest();
 }
 
 void CheckNotNullFailed(const char* file, int line, const char* function,
