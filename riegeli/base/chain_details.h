@@ -1236,9 +1236,8 @@ void Chain::Stringify(Sink& dest) const {
 template <typename DebugStream>
 void Chain::Debug(DebugStream& dest) const {
   dest.DebugStringQuote();
-  typename DebugStream::EscapeState escape_state;
   for (const absl::string_view fragment : blocks()) {
-    dest.DebugStringFragment(fragment, escape_state);
+    dest.DebugStringFragment(fragment);
   }
   dest.DebugStringQuote();
 }

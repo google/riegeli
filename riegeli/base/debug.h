@@ -92,10 +92,6 @@ struct SupportsDebug
 //  * `AbslStringify(dest, src)`
 class DebugStream {
  public:
-  // A default-constructible type used to maintain the state between calls to
-  // `DebugStringFragment()`.
-  class EscapeState;
-
   // Will write to `dest`.
   explicit DebugStream(std::ostream* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(dest) {}
@@ -173,9 +169,8 @@ class DebugStream {
   //
   // ```
   //   dest.DebugStringQuote();
-  //   EscapeState escape_state;
   //   for (const absl::string_view fragment : fragments) {
-  //     dest.DebugStringFragment(fragment, escape_state);
+  //     dest.DebugStringFragment(fragment);
   //   }
   //   dest.DebugStringQuote();
   // ```
@@ -183,7 +178,7 @@ class DebugStream {
   // If the representation is always flat, relying on `Debug()` for
   // `absl::string_view` is sufficient.
   void DebugStringQuote() { Write('"'); }
-  void DebugStringFragment(absl::string_view src, EscapeState& escape_state);
+  void DebugStringFragment(absl::string_view src);
 
  private:
   std::ostream* dest_;
@@ -342,31 +337,6 @@ template <typename T, std::enable_if_t<SupportsDebug<T>::value, int> = 0>
 inline DebugType<const T&> Debug(const T& src ABSL_ATTRIBUTE_LIFETIME_BOUND) {
   return DebugType<const T&>(src);
 }
-
-// Implementation details follow.
-
-namespace debug_internal {
-
-enum class LastEscape {
-  kNormal,  // The following conditions do not apply.
-  kZero,    // The last character was `\0`.
-  kHex,     // The last character was written with `\x`.
-};
-
-}  // namespace debug_internal
-
-class DebugStream::EscapeState {
- public:
-  EscapeState() = default;
-
-  EscapeState(const EscapeState& that) = default;
-  EscapeState& operator=(const EscapeState& that) = default;
-
- private:
-  friend class DebugStream;
-
-  debug_internal::LastEscape last_escape_ = debug_internal::LastEscape::kNormal;
-};
 
 }  // namespace riegeli
 

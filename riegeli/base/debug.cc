@@ -49,80 +49,63 @@ inline void WriteHex8(uint32_t src, DebugStream& dest) {
 }
 
 template <char quote, typename IntType, typename CharType>
-debug_internal::LastEscape WriteChar(CharType src, DebugStream& dest) {
+void WriteChar(CharType src, DebugStream& dest) {
   if (src >= 32 && src <= 126) {
     if (src == quote || src == '\\') dest.Write('\\');
     dest.Write(static_cast<char>(src));
-    return debug_internal::LastEscape::kNormal;
+    return;
   }
   switch (src) {
-    case '\0':
-      dest.Write("\\0");
-      return debug_internal::LastEscape::kZero;
     case '\t':
       dest.Write("\\t");
-      return debug_internal::LastEscape::kNormal;
+      break;
     case '\n':
       dest.Write("\\n");
-      return debug_internal::LastEscape::kNormal;
+      break;
     case '\r':
       dest.Write("\\r");
-      return debug_internal::LastEscape::kNormal;
+      break;
     default: {
       const auto unsigned_src = static_cast<IntType>(src);
       if (unsigned_src <= 0xff) {
-        dest.Write("\\x");
+        dest.Write("\\x{");
         WriteHex2(static_cast<uint8_t>(unsigned_src), dest);
-        return debug_internal::LastEscape::kHex;
+      } else {
+        dest.Write("\\u{");
+        if (unsigned_src <= 0xffff) {
+          WriteHex4(static_cast<uint16_t>(unsigned_src), dest);
+        } else {
+          WriteHex8(unsigned_src, dest);
+        }
       }
-      if (unsigned_src <= 0xffff) {
-        dest.Write("\\u");
-        WriteHex4(static_cast<uint16_t>(unsigned_src), dest);
-        return debug_internal::LastEscape::kNormal;
-      }
-      dest.Write("\\U");
-      WriteHex8(unsigned_src, dest);
-      return debug_internal::LastEscape::kNormal;
+      dest.Write('}');
+      break;
     }
   }
 }
 
 template <typename IntType, typename CharType>
-debug_internal::LastEscape WriteStringFragment(
-    absl::Span<const CharType> src, DebugStream& dest,
-    debug_internal::LastEscape last_escape =
-        debug_internal::LastEscape::kNormal) {
+void WriteQuotedChar(CharType src, DebugStream& dest) {
+  dest.Write('\'');
+  WriteChar<'\'', IntType>(src, dest);
+  dest.Write('\'');
+}
+
+template <typename IntType, typename CharType>
+void WriteQuotedString(absl::Span<const CharType> src, DebugStream& dest) {
+  dest.Write('"');
   for (const CharType ch : src) {
-    switch (last_escape) {
-      case debug_internal::LastEscape::kNormal:
-        break;
-      case debug_internal::LastEscape::kZero:
-        if (ch >= '0' && ch <= '7') {
-          // Ensure that the next character is not interpreted as a part of the
-          // previous octal escape sequence.
-          dest.Write("00");
-        }
-        break;
-      case debug_internal::LastEscape::kHex:
-        if ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') ||
-            (ch >= 'A' && ch <= 'F')) {
-          // Ensure that the next character is not interpreted as a part of the
-          // previous hex escape sequence.
-          dest.Write("\" \"");
-        }
-        break;
-    }
-    last_escape = WriteChar<'"', IntType>(ch, dest);
+    WriteChar<'"', IntType>(ch, dest);
   }
-  return last_escape;
+  dest.Write('"');
 }
 
 }  // namespace
 
-void DebugStream::DebugStringFragment(absl::string_view src,
-                                      EscapeState& escape_state) {
-  escape_state.last_escape_ = WriteStringFragment<uint8_t>(
-      absl::MakeConstSpan(src), *this, escape_state.last_escape_);
+void DebugStream::DebugStringFragment(absl::string_view src) {
+  for (const char ch : src) {
+    WriteChar<'"', uint8_t>(ch, *this);
+  }
 }
 
 void RiegeliDebug(bool src, DebugStream& dest) {
@@ -130,77 +113,56 @@ void RiegeliDebug(bool src, DebugStream& dest) {
 }
 
 void RiegeliDebug(char src, DebugStream& dest) {
-  dest.Write('\'');
-  WriteChar<'\'', uint8_t>(src, dest);
-  dest.Write('\'');
+  WriteQuotedChar<uint8_t>(src, dest);
 }
 
 void RiegeliDebug(wchar_t src, DebugStream& dest) {
-  dest.Write('\'');
-  WriteChar<'\'', std::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
+  WriteQuotedChar<std::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
       src, dest);
-  dest.Write('\'');
 }
 
 #if __cpp_char8_t
 void RiegeliDebug(char8_t src, DebugStream& dest) {
-  dest.Write('\'');
-  WriteChar<'\'', uint8_t>(src, dest);
-  dest.Write('\'');
+  WriteQuotedChar<uint8_t>(src, dest);
 }
 #endif  // __cpp_char8_t
 
 void RiegeliDebug(char16_t src, DebugStream& dest) {
-  dest.Write('\'');
-  WriteChar<'\'', uint16_t>(src, dest);
-  dest.Write('\'');
+  WriteQuotedChar<uint16_t>(src, dest);
 }
 
 void RiegeliDebug(char32_t src, DebugStream& dest) {
-  dest.Write('\'');
-  WriteChar<'\'', uint32_t>(src, dest);
-  dest.Write('\'');
+  WriteQuotedChar<uint32_t>(src, dest);
 }
 
 void RiegeliDebug(absl::string_view src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<uint8_t>(absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
+  WriteQuotedString<uint8_t>(absl::MakeConstSpan(src), dest);
 }
 
 void RiegeliDebug(std::wstring_view src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<
+  WriteQuotedString<
       std::conditional_t<sizeof(wchar_t) == 2, uint16_t, uint32_t>>(
       absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
 }
 
 #if __cpp_char8_t
 void RiegeliDebug(std::u8string_view src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<uint8_t>(absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
+  WriteQuotedString<uint8_t>(absl::MakeConstSpan(src), dest);
 }
 #endif  // __cpp_char8_t
 
 void RiegeliDebug(std::u16string_view src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<uint16_t>(absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
+  WriteQuotedString<uint16_t>(absl::MakeConstSpan(src), dest);
 }
 
 void RiegeliDebug(std::u32string_view src, DebugStream& dest) {
-  dest.DebugStringQuote();
-  WriteStringFragment<uint32_t>(absl::MakeConstSpan(src), dest);
-  dest.DebugStringQuote();
+  WriteQuotedString<uint32_t>(absl::MakeConstSpan(src), dest);
 }
 
 void RiegeliDebug(const absl::Cord& src, DebugStream& dest) {
   dest.DebugStringQuote();
-  DebugStream::EscapeState escape_state;
   for (const absl::string_view fragment : src.Chunks()) {
-    dest.DebugStringFragment(fragment, escape_state);
+    dest.DebugStringFragment(fragment);
   }
   dest.DebugStringQuote();
 }
