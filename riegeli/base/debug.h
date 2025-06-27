@@ -127,41 +127,19 @@ class DebugStream {
   //
   // This is used to implement `riegeli::Debug()`, and to write subobjects by
   // implementations of `RiegeliDebug()` for objects containing them.
-  template <typename T, std::enable_if_t<
-                            debug_internal::HasRiegeliDebug<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<SupportsDebug<T>::value, int> = 0>
   void Debug(const T& src) {
-    RiegeliDebug(src, *this);
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          std::conjunction_v<std::negation<debug_internal::HasRiegeliDebug<T>>,
-                             debug_internal::HasDebugString<T>>,
-          int> = 0>
-  void Debug(const T& src) {
-    Write(src.DebugString());
-  }
-  template <
-      typename T,
-      std::enable_if_t<
-          std::conjunction_v<std::negation<debug_internal::HasRiegeliDebug<T>>,
-                             std::negation<debug_internal::HasDebugString<T>>,
-                             debug_internal::HasOperatorOutput<T>>,
-          int> = 0>
-  void Debug(const T& src) {
-    *dest_ << src;
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<
-                           std::negation<debug_internal::HasRiegeliDebug<T>>,
-                           std::negation<debug_internal::HasDebugString<T>>,
-                           std::negation<debug_internal::HasOperatorOutput<T>>,
-                           absl::HasAbslStringify<T>>,
-                       int> = 0>
-  void Debug(const T& src) {
-    OStreamAbslStringifySink sink(dest_);
-    AbslStringify(sink, src);
+    if constexpr (debug_internal::HasRiegeliDebug<T>::value) {
+      RiegeliDebug(src, *this);
+    } else if constexpr (debug_internal::HasDebugString<T>::value) {
+      Write(src.DebugString());
+    } else if constexpr (debug_internal::HasOperatorOutput<T>::value) {
+      *dest_ << src;
+    } else {
+      static_assert(absl::HasAbslStringify<T>::value);
+      OStreamAbslStringifySink sink(dest_);
+      AbslStringify(sink, src);
+    }
   }
 
   // To implement `RiegeliDebug()` for string-like types which are not
