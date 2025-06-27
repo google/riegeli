@@ -299,13 +299,6 @@ class DebugType {
   DebugType(DebugType&& that) = default;
   DebugType& operator=(DebugType&& that) = default;
 
-  explicit operator std::string() const {
-    std::string dest;
-    StringOStream stream(&dest);
-    DebugStream(&stream).Debug(src_);
-    return dest;
-  }
-
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const DebugType& src) {
     AbslStringifyOStream stream(&dest);
@@ -320,6 +313,13 @@ class DebugType {
 
   friend std::ostream& operator<<(std::ostream& dest, const DebugType& src) {
     DebugStream(&dest).Debug(src.src_);
+    return dest;
+  }
+
+  std::string ToString() const {
+    std::string dest;
+    StringOStream stream(&dest);
+    DebugStream(&stream).Debug(src_);
     return dest;
   }
 
