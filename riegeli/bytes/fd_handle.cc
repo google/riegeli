@@ -34,6 +34,7 @@
 #include <utility>
 #endif
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -42,6 +43,7 @@
 #include "riegeli/base/compact_string.h"
 #endif
 #include "riegeli/base/status.h"
+#include "riegeli/base/type_erased_ref.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
 #endif
@@ -55,6 +57,25 @@ template class FdBase<UnownedFdDeleter>;
 template class FdBase<OwnedFdDeleter>;
 
 }  // namespace fd_internal
+
+int FdHandle::GetMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return -1;
+}
+
+bool FdHandle::IsOwningMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return false;
+}
+
+absl::string_view FdHandle::FilenameMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return kDefaultFilename;
+}
+
+absl::Status FdHandle::CloseMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return absl::OkStatus();
+}
 
 absl::Status OwnedFd::Open(CompactString filename, int mode,
                            Permissions permissions) {

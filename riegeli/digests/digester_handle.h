@@ -293,40 +293,14 @@ class
       : std::true_type {};
 
   static void SetWriteSizeHintMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-      ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
-
-  static bool WriteMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-                                 ABSL_ATTRIBUTE_UNUSED absl::string_view src) {
-    return true;
-  }
-
-  static bool WriteChainMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef
-                                          target,
-                                      ABSL_ATTRIBUTE_UNUSED const Chain& src) {
-    return true;
-  }
-
-  static bool WriteCordMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-      ABSL_ATTRIBUTE_UNUSED const absl::Cord& src) {
-    return true;
-  }
-
-  static bool WriteByteFillMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef
-                                             target,
-                                         ABSL_ATTRIBUTE_UNUSED ByteFill src) {
-    return true;
-  }
-
-  static bool CloseMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return true;
-  }
-
-  static absl::Status StatusMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return absl::OkStatus();
-  }
+      TypeErasedRef target, std::optional<Position> write_size_hint);
+  static bool WriteMethodDefault(TypeErasedRef target, absl::string_view src);
+  static bool WriteChainMethodDefault(TypeErasedRef target, const Chain& src);
+  static bool WriteCordMethodDefault(TypeErasedRef target,
+                                     const absl::Cord& src);
+  static bool WriteByteFillMethodDefault(TypeErasedRef target, ByteFill src);
+  static bool CloseMethodDefault(TypeErasedRef target);
+  static absl::Status StatusMethodDefault(TypeErasedRef target);
 
   template <
       typename T,
@@ -695,7 +669,7 @@ template <typename Src,
                   std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
                   std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
-inline bool DigesterBaseHandle::Write(Src&& src) {
+bool DigesterBaseHandle::Write(Src&& src) {
   DigesterAbslStringifySink sink(*this);
   AbslStringify(sink, std::forward<Src>(src));
   return sink.ok();

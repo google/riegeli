@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
@@ -65,6 +66,238 @@ absl::Status Reader::AnnotateStatusImpl(absl::Status status) {
 
 bool Reader::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("Reader position overflow"));
+}
+
+bool Reader::Read(size_t length, std::string& dest, size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= length)) {
+    // `std::string::assign()` checks for size overflow.
+    dest.assign(cursor(), length);
+    move_cursor(length);
+    if (length_read != nullptr) *length_read = length;
+    return true;
+  }
+  dest.clear();
+  if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
+  return ReadSlow(length, dest);
+}
+
+bool Reader::Read(size_t length, Chain& dest, size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    dest.Reset(absl::string_view(cursor(), length));
+    move_cursor(length);
+    if (length_read != nullptr) *length_read = length;
+    return true;
+  }
+  dest.Clear();
+  if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
+  return ReadSlow(length, dest);
+}
+
+bool Reader::Read(size_t length, absl::Cord& dest, size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    dest = absl::string_view(cursor(), length);
+    move_cursor(length);
+    if (length_read != nullptr) *length_read = length;
+    return true;
+  }
+  dest.Clear();
+  if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
+  return ReadSlow(length, dest);
+}
+
+bool Reader::ReadAndAppend(size_t length, std::string& dest,
+                           size_t* length_read) {
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppend(string&): "
+         "string size overflow";
+  if (ABSL_PREDICT_TRUE(available() >= length)) {
+    // `std::string::append()` checks for size overflow.
+    dest.append(cursor(), length);
+    move_cursor(length);
+    if (length_read != nullptr) *length_read = length;
+    return true;
+  }
+  if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
+  return ReadSlow(length, dest);
+}
+
+bool Reader::ReadAndAppend(size_t length, Chain& dest, size_t* length_read) {
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppend(Chain&): "
+         "Chain size overflow";
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    // `Chain::Append()` checks for size overflow.
+    dest.Append(absl::string_view(cursor(), length));
+    move_cursor(length);
+    if (length_read != nullptr) *length_read = length;
+    return true;
+  }
+  // Check the size before calling virtual `ReadSlow(Chain&)`.
+  if (length_read != nullptr) {
+    return ReadSlowWithSizeCheck(length, dest, *length_read);
+  }
+  return ReadSlowWithSizeCheck(length, dest);
+}
+
+bool Reader::ReadAndAppend(size_t length, absl::Cord& dest,
+                           size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(
+          available() >= length && length <= kMaxBytesToCopy &&
+          // `absl::Cord::Append()` does not check for size overflow.
+          length <= std::numeric_limits<size_t>::max() - dest.size())) {
+    dest.Append(absl::string_view(cursor(), length));
+    move_cursor(length);
+    if (length_read != nullptr) *length_read = length;
+    return true;
+  }
+  // Check the size in case it would overflow in the fast path, and before
+  // calling virtual `ReadSlow(absl::Cord&)`.
+  if (length_read != nullptr) {
+    return ReadSlowWithSizeCheck(length, dest, *length_read);
+  }
+  return ReadSlowWithSizeCheck(length, dest);
+}
+
+bool Reader::Copy(Position length, Writer& dest, Position* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    const absl::string_view data(cursor(), IntCast<size_t>(length));
+    move_cursor(IntCast<size_t>(length));
+    if (length_read != nullptr) *length_read = length;
+    return dest.Write(data);
+  }
+  if (length_read != nullptr) return CopySlow(length, dest, *length_read);
+  return CopySlow(length, dest);
+}
+
+bool Reader::Copy(size_t length, BackwardWriter& dest) {
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
+    const absl::string_view data(cursor(), length);
+    move_cursor(length);
+    return dest.Write(data);
+  }
+  return CopySlow(length, dest);
+}
+
+bool Reader::ReadSome(size_t max_length, std::string& dest,
+                      size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= max_length)) {
+    dest.assign(cursor(), max_length);
+    move_cursor(max_length);
+    if (length_read != nullptr) *length_read = max_length;
+    return true;
+  }
+  dest.clear();
+  if (length_read != nullptr) {
+    return ReadSomeSlow(max_length, dest, *length_read);
+  }
+  return ReadSomeSlow(max_length, dest);
+}
+
+bool Reader::ReadSome(size_t max_length, Chain& dest, size_t* length_read) {
+  dest.Clear();
+  if (ABSL_PREDICT_TRUE(available() >= max_length &&
+                        max_length <= kMaxBytesToCopy)) {
+    dest.Append(absl::string_view(cursor(), max_length));
+    move_cursor(max_length);
+    if (length_read != nullptr) *length_read = max_length;
+    return true;
+  }
+  if (length_read != nullptr) {
+    return ReadSomeSlow(max_length, dest, *length_read);
+  }
+  return ReadSomeSlow(max_length, dest);
+}
+
+bool Reader::ReadSome(size_t max_length, absl::Cord& dest,
+                      size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= max_length &&
+                        max_length <= kMaxBytesToCopy)) {
+    dest = absl::string_view(cursor(), max_length);
+    move_cursor(max_length);
+    if (length_read != nullptr) *length_read = max_length;
+    return true;
+  }
+  dest.Clear();
+  if (length_read != nullptr) {
+    return ReadSomeSlow(max_length, dest, *length_read);
+  }
+  return ReadSomeSlow(max_length, dest);
+}
+
+bool Reader::ReadAndAppendSome(size_t max_length, std::string& dest,
+                               size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= max_length &&
+                        max_length <=
+                            std::numeric_limits<size_t>::max() - dest.size())) {
+    dest.append(cursor(), max_length);
+    move_cursor(max_length);
+    if (length_read != nullptr) *length_read = max_length;
+    return true;
+  }
+  if (length_read != nullptr) {
+    return ReadSomeSlow(max_length, dest, *length_read);
+  }
+  return ReadSomeSlow(max_length, dest);
+}
+
+bool Reader::ReadAndAppendSome(size_t max_length, Chain& dest,
+                               size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(
+          available() >= max_length && max_length <= kMaxBytesToCopy &&
+          max_length <= std::numeric_limits<size_t>::max() - dest.size())) {
+    dest.Append(absl::string_view(cursor(), max_length));
+    move_cursor(max_length);
+    if (length_read != nullptr) *length_read = max_length;
+    return true;
+  }
+  if (length_read != nullptr) {
+    return ReadSomeSlow(max_length, dest, *length_read);
+  }
+  return ReadSomeSlow(max_length, dest);
+}
+
+bool Reader::ReadAndAppendSome(size_t max_length, absl::Cord& dest,
+                               size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(
+          available() >= max_length && max_length <= kMaxBytesToCopy &&
+          max_length <= std::numeric_limits<size_t>::max() - dest.size())) {
+    dest.Append(absl::string_view(cursor(), max_length));
+    move_cursor(max_length);
+    if (length_read != nullptr) *length_read = max_length;
+    return true;
+  }
+  if (length_read != nullptr) {
+    return ReadSomeSlow(max_length, dest, *length_read);
+  }
+  return ReadSomeSlow(max_length, dest);
+}
+
+bool Reader::CopySome(size_t max_length, Writer& dest, size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() >= max_length &&
+                        max_length <= kMaxBytesToCopy)) {
+    const absl::string_view data(cursor(), max_length);
+    move_cursor(max_length);
+    if (length_read != nullptr) *length_read = max_length;
+    return dest.Write(data);
+  }
+  if (length_read != nullptr) {
+    return CopySomeSlow(max_length, dest, *length_read);
+  }
+  return CopySomeSlow(max_length, dest);
+}
+
+bool Reader::ReadOrPullSome(size_t max_length,
+                            absl::FunctionRef<char*(size_t&)> get_dest,
+                            size_t* length_read) {
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    if (length_read != nullptr) *length_read = 0;
+    return true;
+  }
+  if (length_read != nullptr) {
+    return ReadOrPullSomeSlow(max_length, get_dest, *length_read);
+  }
+  return ReadOrPullSomeSlow(max_length, get_dest);
 }
 
 bool Reader::ReadSlow(size_t length, char* dest) {
@@ -339,7 +572,8 @@ bool Reader::ReadSomeSlow(size_t max_length, char* dest) {
          "enough data available, use ReadSome(char*) instead";
   size_t length_read;
   const bool read_ok = ReadOrPullSome(
-      max_length, [dest](size_t& length) { return dest; }, &length_read);
+      max_length, [dest](ABSL_ATTRIBUTE_UNUSED size_t& length) { return dest; },
+      &length_read);
   if (length_read == 0) {
     if (ABSL_PREDICT_FALSE(!read_ok)) return false;
     RIEGELI_ASSERT_GT(available(), 0u)

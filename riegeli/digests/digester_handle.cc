@@ -18,13 +18,16 @@
 
 #include <optional>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/type_erased_ref.h"
+#include "riegeli/base/types.h"
 
 namespace riegeli {
 
@@ -32,6 +35,44 @@ void DigesterBaseHandle::FailedDigestMethodDefault() {
   RIEGELI_CHECK_UNREACHABLE()
       << "DigesterHandle::Digest() called on a default-constructed "
          "DigesterHandle with a non-void DigesterHandle::DigestType";
+}
+
+void DigesterBaseHandle::SetWriteSizeHintMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+    ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
+
+bool DigesterBaseHandle::WriteMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+    ABSL_ATTRIBUTE_UNUSED absl::string_view src) {
+  return true;
+}
+
+bool DigesterBaseHandle::WriteChainMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+    ABSL_ATTRIBUTE_UNUSED const Chain& src) {
+  return true;
+}
+
+bool DigesterBaseHandle::WriteCordMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+    ABSL_ATTRIBUTE_UNUSED const absl::Cord& src) {
+  return true;
+}
+
+bool DigesterBaseHandle::WriteByteFillMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
+    ABSL_ATTRIBUTE_UNUSED ByteFill src) {
+  return true;
+}
+
+bool DigesterBaseHandle::CloseMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return true;
+}
+
+absl::Status DigesterBaseHandle::StatusMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return absl::OkStatus();
 }
 
 bool DigesterBaseHandle::WriteChainFallback(

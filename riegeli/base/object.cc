@@ -25,6 +25,41 @@
 
 namespace riegeli {
 
+ObjectState& ObjectState::operator=(ObjectState&& that) noexcept {
+  DeleteStatus(std::exchange(
+      status_ptr_, std::exchange(that.status_ptr_, kClosedSuccessfully)));
+  return *this;
+}
+
+ObjectState::~ObjectState() { DeleteStatus(status_ptr_); }
+
+void ObjectState::Reset(Closed) {
+  DeleteStatus(std::exchange(status_ptr_, kClosedSuccessfully));
+}
+
+void ObjectState::Reset() { DeleteStatus(std::exchange(status_ptr_, kOk)); }
+
+bool ObjectState::MarkClosed() {
+  if (ABSL_PREDICT_TRUE(not_failed())) {
+    status_ptr_ = kClosedSuccessfully;
+    return true;
+  }
+  reinterpret_cast<FailedStatus*>(status_ptr_)->closed = true;
+  return false;
+}
+
+void ObjectState::MarkNotFailed() {
+  DeleteStatus(
+      std::exchange(status_ptr_, is_open() ? kOk : kClosedSuccessfully));
+}
+
+inline void ObjectState::DeleteStatus(uintptr_t status_ptr) {
+  if (ABSL_PREDICT_FALSE(status_ptr != kOk &&
+                         status_ptr != kClosedSuccessfully)) {
+    delete reinterpret_cast<FailedStatus*>(status_ptr);
+  }
+}
+
 absl::Status ObjectState::status() const {
   if (status_ptr_ == kOk) return absl::OkStatus();
   if (status_ptr_ == kClosedSuccessfully) {
@@ -50,6 +85,12 @@ void ObjectState::SetStatus(absl::Status status) {
       << "Failed precondition of ObjectState::SetStatus(): "
          "ObjectState not failed";
   reinterpret_cast<FailedStatus*>(status_ptr_)->status = std::move(status);
+}
+
+bool Object::Close() {
+  if (ABSL_PREDICT_FALSE(!state_.is_open())) return state_.not_failed();
+  Done();
+  return state_.MarkClosed();
 }
 
 void Object::Done() {}

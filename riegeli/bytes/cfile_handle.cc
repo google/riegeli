@@ -31,6 +31,7 @@
 #endif
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -38,9 +39,11 @@
 #include "riegeli/base/c_string_ref.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/status.h"
+#include "riegeli/base/type_erased_ref.h"
 #ifdef _WIN32
 #include "riegeli/base/unicode.h"
 #endif
+#include "riegeli/bytes/path_ref.h"
 
 namespace riegeli {
 
@@ -50,6 +53,26 @@ template class CFileBase<UnownedCFileDeleter>;
 template class CFileBase<OwnedCFileDeleter>;
 
 }  // namespace cfile_internal
+
+FILE* CFileHandle::GetMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return nullptr;
+}
+
+bool CFileHandle::IsOwningMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return false;
+}
+
+absl::string_view CFileHandle::FilenameMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return kDefaultFilename;
+}
+
+absl::Status CFileHandle::CloseMethodDefault(
+    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  return absl::OkStatus();
+}
 
 absl::Status OwnedCFile::Open(CompactString filename, CStringRef mode) {
   Reset(nullptr, std::move(filename));

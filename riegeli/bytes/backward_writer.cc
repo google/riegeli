@@ -20,9 +20,11 @@
 #include <cstring>
 #include <limits>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -37,8 +39,34 @@
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/write_int_internal.h"
 
 namespace riegeli {
+
+namespace {
+
+template <typename T>
+inline bool WriteUnsigned(T src, BackwardWriter& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits))) return false;
+  dest.set_cursor(
+      write_int_internal::WriteDecUnsignedBackward(src, dest.cursor()));
+  return true;
+}
+
+template <typename T>
+inline bool WriteSigned(T src, BackwardWriter& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  // `+ 1` for the minus sign.
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
+  dest.set_cursor(
+      write_int_internal::WriteDecSignedBackward(src, dest.cursor()));
+  return true;
+}
+
+}  // namespace
 
 void BackwardWriter::OnFail() { set_buffer(start()); }
 
@@ -49,6 +77,104 @@ absl::Status BackwardWriter::AnnotateStatusImpl(absl::Status status) {
 
 bool BackwardWriter::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("BackwardWriter position overflow"));
+}
+
+bool BackwardWriter::Write(const Chain& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.blocks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    move_cursor(src.size());
+    src.CopyTo(cursor());
+    return true;
+  }
+  AssertInitialized(cursor(), start_to_cursor());
+  return WriteSlow(src);
+}
+
+bool BackwardWriter::Write(Chain&& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.blocks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    move_cursor(src.size());
+    src.CopyTo(cursor());
+    return true;
+  }
+  AssertInitialized(cursor(), start_to_cursor());
+  return WriteSlow(std::move(src));
+}
+
+bool BackwardWriter::Write(const absl::Cord& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.Chunks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    move_cursor(src.size());
+    cord_internal::CopyCordToArray(src, cursor());
+    return true;
+  }
+  AssertInitialized(cursor(), start_to_cursor());
+  return WriteSlow(src);
+}
+
+bool BackwardWriter::Write(absl::Cord&& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.Chunks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    move_cursor(src.size());
+    cord_internal::CopyCordToArray(src, cursor());
+    return true;
+  }
+  AssertInitialized(cursor(), start_to_cursor());
+  return WriteSlow(std::move(src));
+}
+
+bool BackwardWriter::Write(signed char src) { return WriteSigned(src, *this); }
+
+bool BackwardWriter::Write(unsigned char src) {
+  return WriteUnsigned(src, *this);
+}
+
+bool BackwardWriter::Write(short src) { return WriteSigned(src, *this); }
+
+bool BackwardWriter::Write(unsigned short src) {
+  return WriteUnsigned(src, *this);
+}
+
+bool BackwardWriter::Write(int src) { return WriteSigned(src, *this); }
+
+bool BackwardWriter::Write(unsigned src) { return WriteUnsigned(src, *this); }
+
+bool BackwardWriter::Write(long src) { return WriteSigned(src, *this); }
+
+bool BackwardWriter::Write(unsigned long src) {
+  return WriteUnsigned(src, *this);
+}
+
+bool BackwardWriter::Write(long long src) { return WriteSigned(src, *this); }
+
+bool BackwardWriter::Write(unsigned long long src) {
+  return WriteUnsigned(src, *this);
+}
+
+bool BackwardWriter::Write(absl::int128 src) { return WriteSigned(src, *this); }
+
+bool BackwardWriter::Write(absl::uint128 src) {
+  return WriteUnsigned(src, *this);
 }
 
 // TODO: Optimize implementations below.

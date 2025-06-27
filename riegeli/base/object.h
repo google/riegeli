@@ -311,29 +311,6 @@ class Object {
 inline ObjectState::ObjectState(ObjectState&& that) noexcept
     : status_ptr_(std::exchange(that.status_ptr_, kClosedSuccessfully)) {}
 
-inline ObjectState& ObjectState::operator=(ObjectState&& that) noexcept {
-  DeleteStatus(std::exchange(
-      status_ptr_, std::exchange(that.status_ptr_, kClosedSuccessfully)));
-  return *this;
-}
-
-inline ObjectState::~ObjectState() { DeleteStatus(status_ptr_); }
-
-inline void ObjectState::Reset(Closed) {
-  DeleteStatus(std::exchange(status_ptr_, kClosedSuccessfully));
-}
-
-inline void ObjectState::Reset() {
-  DeleteStatus(std::exchange(status_ptr_, kOk));
-}
-
-inline void ObjectState::DeleteStatus(uintptr_t status_ptr) {
-  if (ABSL_PREDICT_FALSE(status_ptr != kOk &&
-                         status_ptr != kClosedSuccessfully)) {
-    delete reinterpret_cast<FailedStatus*>(status_ptr);
-  }
-}
-
 inline bool ObjectState::ok() const { return status_ptr_ == kOk; }
 
 inline bool ObjectState::is_open() const {
@@ -344,26 +321,6 @@ inline bool ObjectState::is_open() const {
 
 inline bool ObjectState::not_failed() const {
   return status_ptr_ == kOk || status_ptr_ == kClosedSuccessfully;
-}
-
-inline bool ObjectState::MarkClosed() {
-  if (ABSL_PREDICT_TRUE(not_failed())) {
-    status_ptr_ = kClosedSuccessfully;
-    return true;
-  }
-  reinterpret_cast<FailedStatus*>(status_ptr_)->closed = true;
-  return false;
-}
-
-inline void ObjectState::MarkNotFailed() {
-  DeleteStatus(
-      std::exchange(status_ptr_, is_open() ? kOk : kClosedSuccessfully));
-}
-
-inline bool Object::Close() {
-  if (ABSL_PREDICT_FALSE(!state_.is_open())) return state_.not_failed();
-  Done();
-  return state_.MarkClosed();
 }
 
 inline absl::Status Object::AnnotateStatus(absl::Status status) {

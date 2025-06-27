@@ -38,7 +38,6 @@
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -428,29 +427,6 @@ class BackwardWriter : public Object {
 
 // Implementation details follow.
 
-namespace write_int_internal {
-
-template <typename T>
-inline bool WriteUnsigned(T src, BackwardWriter& dest) {
-  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
-  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
-  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits))) return false;
-  dest.set_cursor(WriteDecUnsignedBackward(src, dest.cursor()));
-  return true;
-}
-
-template <typename T>
-inline bool WriteSigned(T src, BackwardWriter& dest) {
-  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
-  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
-  // `+ 1` for the minus sign.
-  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
-  dest.set_cursor(WriteDecSignedBackward(src, dest.cursor()));
-  return true;
-}
-
-}  // namespace write_int_internal
-
 inline BackwardWriter::BackwardWriter(BackwardWriter&& that) noexcept
     : Object(static_cast<Object&&>(that)),
       start_(std::exchange(that.start_, nullptr)),
@@ -582,70 +558,6 @@ inline bool BackwardWriter::Write(Src&& src) {
   return Write(ExternalRef(std::forward<Src>(src)));
 }
 
-inline bool BackwardWriter::Write(const Chain& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.blocks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    move_cursor(src.size());
-    src.CopyTo(cursor());
-    return true;
-  }
-  AssertInitialized(cursor(), start_to_cursor());
-  return WriteSlow(src);
-}
-
-inline bool BackwardWriter::Write(Chain&& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.blocks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    move_cursor(src.size());
-    src.CopyTo(cursor());
-    return true;
-  }
-  AssertInitialized(cursor(), start_to_cursor());
-  return WriteSlow(std::move(src));
-}
-
-inline bool BackwardWriter::Write(const absl::Cord& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.Chunks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    move_cursor(src.size());
-    cord_internal::CopyCordToArray(src, cursor());
-    return true;
-  }
-  AssertInitialized(cursor(), start_to_cursor());
-  return WriteSlow(src);
-}
-
-inline bool BackwardWriter::Write(absl::Cord&& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.Chunks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    move_cursor(src.size());
-    cord_internal::CopyCordToArray(src, cursor());
-    return true;
-  }
-  AssertInitialized(cursor(), start_to_cursor());
-  return WriteSlow(std::move(src));
-}
-
 inline bool BackwardWriter::Write(ByteFill src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
@@ -660,54 +572,6 @@ inline bool BackwardWriter::Write(ByteFill src) {
   return WriteSlow(src);
 }
 
-inline bool BackwardWriter::Write(signed char src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(unsigned char src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(short src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(unsigned short src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(int src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(unsigned src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(long src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(unsigned long src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(long long src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(unsigned long long src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(absl::int128 src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool BackwardWriter::Write(absl::uint128 src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
 template <typename Src,
           std::enable_if_t<
               std::conjunction_v<
@@ -717,7 +581,7 @@ template <typename Src,
                   std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
                   std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
-inline bool BackwardWriter::Write(Src&& src) {
+bool BackwardWriter::Write(Src&& src) {
   RestrictedChainWriter chain_writer;
   WriterAbslStringifySink sink(&chain_writer);
   AbslStringify(sink, std::forward<Src>(src));

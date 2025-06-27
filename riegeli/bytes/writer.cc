@@ -20,8 +20,10 @@
 #include <cstring>
 #include <limits>
 #include <optional>
+#include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -32,12 +34,36 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
+
+namespace {
+
+template <typename T>
+inline bool WriteUnsigned(T src, Writer& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits))) return false;
+  dest.set_cursor(write_int_internal::WriteDecUnsigned(src, dest.cursor()));
+  return true;
+}
+
+template <typename T>
+inline bool WriteSigned(T src, Writer& dest) {
+  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
+  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
+  // `+ 1` for the minus sign.
+  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
+  dest.set_cursor(write_int_internal::WriteDecSigned(src, dest.cursor()));
+  return true;
+}
+
+}  // namespace
 
 void Writer::OnFail() { set_buffer(start()); }
 
@@ -49,6 +75,94 @@ absl::Status Writer::AnnotateStatusImpl(absl::Status status) {
 bool Writer::FailOverflow() {
   return Fail(absl::ResourceExhaustedError("Writer position overflow"));
 }
+
+bool Writer::Write(const Chain& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.blocks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    src.CopyTo(cursor());
+    move_cursor(src.size());
+    return true;
+  }
+  AssertInitialized(start(), start_to_cursor());
+  return WriteSlow(src);
+}
+
+bool Writer::Write(Chain&& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.blocks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    src.CopyTo(cursor());
+    move_cursor(src.size());
+    return true;
+  }
+  AssertInitialized(start(), start_to_cursor());
+  return WriteSlow(std::move(src));
+}
+
+bool Writer::Write(const absl::Cord& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.Chunks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    cord_internal::CopyCordToArray(src, cursor());
+    move_cursor(src.size());
+    return true;
+  }
+  AssertInitialized(start(), start_to_cursor());
+  return WriteSlow(src);
+}
+
+bool Writer::Write(absl::Cord&& src) {
+#ifdef MEMORY_SANITIZER
+  for (const absl::string_view fragment : src.Chunks()) {
+    AssertInitialized(fragment.data(), fragment.size());
+  }
+#endif
+  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
+                        src.size() <= kMaxBytesToCopy)) {
+    cord_internal::CopyCordToArray(src, cursor());
+    move_cursor(src.size());
+    return true;
+  }
+  AssertInitialized(start(), start_to_cursor());
+  return WriteSlow(std::move(src));
+}
+
+bool Writer::Write(signed char src) { return WriteSigned(src, *this); }
+
+bool Writer::Write(unsigned char src) { return WriteUnsigned(src, *this); }
+
+bool Writer::Write(short src) { return WriteSigned(src, *this); }
+
+bool Writer::Write(unsigned short src) { return WriteUnsigned(src, *this); }
+
+bool Writer::Write(int src) { return WriteSigned(src, *this); }
+
+bool Writer::Write(unsigned src) { return WriteUnsigned(src, *this); }
+
+bool Writer::Write(long src) { return WriteSigned(src, *this); }
+
+bool Writer::Write(unsigned long src) { return WriteUnsigned(src, *this); }
+
+bool Writer::Write(long long src) { return WriteSigned(src, *this); }
+
+bool Writer::Write(unsigned long long src) { return WriteUnsigned(src, *this); }
+
+bool Writer::Write(absl::int128 src) { return WriteSigned(src, *this); }
+
+bool Writer::Write(absl::uint128 src) { return WriteUnsigned(src, *this); }
 
 // TODO: Optimize implementations below.
 bool Writer::Write(float src) { return Write(absl::StrCat(src)); }

@@ -225,24 +225,10 @@ class
                          decltype(std::declval<T&>().Close()), absl::Status>>>
       : std::true_type {};
 
-  static int GetMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return -1;
-  }
-
-  static bool IsOwningMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return false;
-  }
-
-  static absl::string_view FilenameMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return kDefaultFilename;
-  }
-
-  static absl::Status CloseMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return absl::OkStatus();
-  }
+  static int GetMethodDefault(TypeErasedRef target);
+  static bool IsOwningMethodDefault(TypeErasedRef target);
+  static absl::string_view FilenameMethodDefault(TypeErasedRef target);
+  static absl::Status CloseMethodDefault(TypeErasedRef target);
 
   static constexpr Methods kMethodsDefault = {
       GetMethodDefault, IsOwningMethodDefault, FilenameMethodDefault,

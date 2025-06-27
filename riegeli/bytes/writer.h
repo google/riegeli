@@ -38,13 +38,11 @@
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/stringify.h"
-#include "riegeli/bytes/write_int_internal.h"
 
 namespace riegeli {
 
@@ -556,29 +554,6 @@ class AssociatedReader {
 
 // Implementation details follow.
 
-namespace write_int_internal {
-
-template <typename T>
-inline bool WriteUnsigned(T src, Writer& dest) {
-  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
-  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
-  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits))) return false;
-  dest.set_cursor(WriteDecUnsigned(src, dest.cursor()));
-  return true;
-}
-
-template <typename T>
-inline bool WriteSigned(T src, Writer& dest) {
-  // `digits10` is rounded down, `kMaxNumDigits` is rounded up, hence `+ 1`.
-  constexpr size_t kMaxNumDigits = std::numeric_limits<T>::digits10 + 1;
-  // `+ 1` for the minus sign.
-  if (ABSL_PREDICT_FALSE(!dest.Push(kMaxNumDigits + 1))) return false;
-  dest.set_cursor(WriteDecSigned(src, dest.cursor()));
-  return true;
-}
-
-}  // namespace write_int_internal
-
 inline void WriterAbslStringifySink::Append(size_t length, char fill) {
   dest_->Write(ByteFill(length, fill));
 }
@@ -714,70 +689,6 @@ inline bool Writer::Write(Src&& src) {
   return Write(ExternalRef(std::forward<Src>(src)));
 }
 
-inline bool Writer::Write(const Chain& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.blocks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    src.CopyTo(cursor());
-    move_cursor(src.size());
-    return true;
-  }
-  AssertInitialized(start(), start_to_cursor());
-  return WriteSlow(src);
-}
-
-inline bool Writer::Write(Chain&& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.blocks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    src.CopyTo(cursor());
-    move_cursor(src.size());
-    return true;
-  }
-  AssertInitialized(start(), start_to_cursor());
-  return WriteSlow(std::move(src));
-}
-
-inline bool Writer::Write(const absl::Cord& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.Chunks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    cord_internal::CopyCordToArray(src, cursor());
-    move_cursor(src.size());
-    return true;
-  }
-  AssertInitialized(start(), start_to_cursor());
-  return WriteSlow(src);
-}
-
-inline bool Writer::Write(absl::Cord&& src) {
-#ifdef MEMORY_SANITIZER
-  for (const absl::string_view fragment : src.Chunks()) {
-    AssertInitialized(fragment.data(), fragment.size());
-  }
-#endif
-  if (ABSL_PREDICT_TRUE(available() >= src.size() &&
-                        src.size() <= kMaxBytesToCopy)) {
-    cord_internal::CopyCordToArray(src, cursor());
-    move_cursor(src.size());
-    return true;
-  }
-  AssertInitialized(start(), start_to_cursor());
-  return WriteSlow(std::move(src));
-}
-
 inline bool Writer::Write(ByteFill src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
@@ -792,54 +703,6 @@ inline bool Writer::Write(ByteFill src) {
   return WriteSlow(src);
 }
 
-inline bool Writer::Write(signed char src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool Writer::Write(unsigned char src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool Writer::Write(short src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool Writer::Write(unsigned short src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool Writer::Write(int src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool Writer::Write(unsigned src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool Writer::Write(long src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool Writer::Write(unsigned long src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool Writer::Write(long long src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool Writer::Write(unsigned long long src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
-inline bool Writer::Write(absl::int128 src) {
-  return write_int_internal::WriteSigned(src, *this);
-}
-
-inline bool Writer::Write(absl::uint128 src) {
-  return write_int_internal::WriteUnsigned(src, *this);
-}
-
 template <typename Src,
           std::enable_if_t<
               std::conjunction_v<
@@ -849,7 +712,7 @@ template <typename Src,
                   std::negation<std::is_convertible<Src&&, const absl::Cord&>>,
                   std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
-inline bool Writer::Write(Src&& src) {
+bool Writer::Write(Src&& src) {
   WriterAbslStringifySink sink(this);
   AbslStringify(sink, std::forward<Src>(src));
   return ok();

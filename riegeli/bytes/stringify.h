@@ -106,9 +106,9 @@ inline Position StringifiedSize(absl::int128 src) {
 inline Position StringifiedSize(absl::uint128 src) {
   return write_int_internal::StringifiedSizeUnsigned(src);
 }
-inline void StringifiedSize(float);
-inline void StringifiedSize(double);
-inline void StringifiedSize(long double);
+void StringifiedSize(float);
+void StringifiedSize(double);
+void StringifiedSize(long double);
 template <
     typename Src,
     std::enable_if_t<
