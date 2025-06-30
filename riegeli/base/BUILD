@@ -314,6 +314,7 @@ cc_library(
     name = "stable_dependency",
     hdrs = ["stable_dependency.h"],
     deps = [
+        ":assert",
         ":dependency",
         ":initializer",
         ":type_traits",

@@ -23,6 +23,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/type_traits.h"
@@ -49,13 +50,18 @@ class StableDependencyDefault
   StableDependencyDefault() = default;
 
   explicit StableDependencyDefault(Initializer<Manager> manager)
-      : dep_(new Dependency<Handle, Manager>(std::move(manager))) {}
+      : dep_(new Dependency<Handle, Manager>(std::move(manager))),
+        ensure_allocated_(AssumeAllocatedSlow) {}
 
   StableDependencyDefault(StableDependencyDefault&& that) noexcept
-      : dep_(that.dep_.exchange(nullptr, std::memory_order_relaxed)) {}
+      : dep_(that.dep_.exchange(nullptr, std::memory_order_relaxed)),
+        ensure_allocated_(
+            std::exchange(that.ensure_allocated_, EnsureAllocatedSlow)) {}
   StableDependencyDefault& operator=(StableDependencyDefault&& that) noexcept {
     delete dep_.exchange(that.dep_.exchange(nullptr, std::memory_order_relaxed),
                          std::memory_order_relaxed);
+    ensure_allocated_ =
+        std::exchange(that.ensure_allocated_, EnsureAllocatedSlow);
     return *this;
   }
 
@@ -107,13 +113,27 @@ class StableDependencyDefault
     Dependency<Handle, Manager>* const dep =
         dep_.load(std::memory_order_acquire);
     if (ABSL_PREDICT_TRUE(dep != nullptr)) return *dep;
-    return EnsureAllocatedSlow();
+    return ensure_allocated_(*this);
   }
 
-  Dependency<Handle, Manager>& EnsureAllocatedSlow() const;
+  static Dependency<Handle, Manager>& EnsureAllocatedSlow(
+      const StableDependencyDefault& self);
+  static Dependency<Handle, Manager>& AssumeAllocatedSlow(
+      const StableDependencyDefault& self);
 
   // Owned. `nullptr` is equivalent to a default constructed `Dependency`.
   mutable std::atomic<Dependency<Handle, Manager>*> dep_ = nullptr;
+  // Handles the case when `dep_ == nullptr`.
+  //
+  // The indirection allows initialization from `Initializer<Manager>` even if
+  // `Dependency<Handle, Manager>` appears to be default-constructible but its
+  // default constructor does not compile, by avoiding dead code which would
+  // call the default constructor.
+  //
+  // Invariant:
+  //   if `dep_ == nullptr` then `ensure_allocated_ == EnsureAllocatedSlow`
+  Dependency<Handle, Manager>& (*ensure_allocated_)(
+      const StableDependencyDefault&) = EnsureAllocatedSlow;
 };
 
 template <typename Handle, typename Manager>
@@ -182,8 +202,8 @@ class
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
-// `Dependency<Handle, Manager>` is not stable but default constructible:
-// allocate the dependency dynamically and lazily.
+// `Dependency<Handle, Manager>` is not stable but default-constructible:
+// allocate the dependency dynamically and conditionally.
 template <typename Handle, typename Manager>
 class StableDependency<
     Handle, Manager,
@@ -201,8 +221,8 @@ class StableDependency<
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
-// `Dependency<Handle, Manager>` is not stable and not default constructible:
-// allocate the dependency dynamically and eagerly.
+// `Dependency<Handle, Manager>` is not stable and not default-constructible:
+// allocate the dependency dynamically and always keep it allocated.
 template <typename Handle, typename Manager>
 class StableDependency<
     Handle, Manager,
@@ -227,16 +247,27 @@ namespace dependency_internal {
 
 template <typename Handle, typename Manager>
 Dependency<Handle, Manager>&
-StableDependencyDefault<Handle, Manager>::EnsureAllocatedSlow() const {
+StableDependencyDefault<Handle, Manager>::EnsureAllocatedSlow(
+    const StableDependencyDefault<Handle, Manager>& self) {
   Dependency<Handle, Manager>* const dep = new Dependency<Handle, Manager>();
   Dependency<Handle, Manager>* other_dep = nullptr;
-  if (ABSL_PREDICT_FALSE(!dep_.compare_exchange_strong(
+  if (ABSL_PREDICT_FALSE(!self.dep_.compare_exchange_strong(
           other_dep, dep, std::memory_order_acq_rel))) {
     // We lost the race.
     delete dep;
     return *other_dep;
   }
   return *dep;
+}
+
+template <typename Handle, typename Manager>
+Dependency<Handle, Manager>&
+StableDependencyDefault<Handle, Manager>::AssumeAllocatedSlow(
+    ABSL_ATTRIBUTE_UNUSED const StableDependencyDefault<Handle, Manager>&
+        self) {
+  RIEGELI_ASSUME_UNREACHABLE()
+      << "Failed invariant of StableDependency: "
+         "dep_ == nullptr but ensure_allocated_ == AssumeAllocatedSlow";
 }
 
 }  // namespace dependency_internal
