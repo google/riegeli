@@ -26,8 +26,8 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/compare.h"
-#include "riegeli/base/initializer.h"
 #include "riegeli/base/reset.h"
+#include "riegeli/base/string_ref.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
@@ -57,8 +57,8 @@ class GcsObject : public WithEqual<GcsObject> {
 
   // Constructs `GcsObject` from bucket name, object name, and
   // optional generation.
-  explicit GcsObject(Initializer<std::string>::AllowingExplicit bucket_name,
-                     Initializer<std::string>::AllowingExplicit object_name,
+  explicit GcsObject(StringInitializer bucket_name,
+                     StringInitializer object_name,
                      std::optional<int64_t> generation = std::nullopt);
 
   // Constructs `GcsObject` from a URI of the form
@@ -78,8 +78,7 @@ class GcsObject : public WithEqual<GcsObject> {
   // constructing a temporary `GcsObject` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      Initializer<std::string>::AllowingExplicit bucket_name,
-      Initializer<std::string>::AllowingExplicit object_name,
+      StringInitializer bucket_name, StringInitializer object_name,
       std::optional<int64_t> generation = std::nullopt);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(absl::string_view uri);
 
@@ -170,10 +169,9 @@ inline GcsObject& GcsObject::operator=(GcsObject&& that) noexcept {
   return *this;
 }
 
-inline GcsObject::GcsObject(
-    Initializer<std::string>::AllowingExplicit bucket_name,
-    Initializer<std::string>::AllowingExplicit object_name,
-    std::optional<int64_t> generation)
+inline GcsObject::GcsObject(StringInitializer bucket_name,
+                            StringInitializer object_name,
+                            std::optional<int64_t> generation)
     : bucket_name_(std::move(bucket_name)),
       object_name_(std::move(object_name)),
       generation_(generation) {
@@ -189,10 +187,9 @@ inline void GcsObject::Reset() {
   generation_ = std::nullopt;
 }
 
-inline void GcsObject::Reset(
-    Initializer<std::string>::AllowingExplicit bucket_name,
-    Initializer<std::string>::AllowingExplicit object_name,
-    std::optional<int64_t> generation) {
+inline void GcsObject::Reset(StringInitializer bucket_name,
+                             StringInitializer object_name,
+                             std::optional<int64_t> generation) {
   status_ = absl::OkStatus();
   riegeli::Reset(bucket_name_, std::move(bucket_name));
   riegeli::Reset(object_name_, std::move(object_name));

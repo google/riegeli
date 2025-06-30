@@ -33,6 +33,7 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
+#include "riegeli/base/string_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -56,12 +57,11 @@ class CFileReaderBase : public BufferedReader {
     // `mode()` can also be changed with `set_inheritable()` and `set_text()`.
     //
     // Default: "re" (on Windows: "rbN").
-    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) &
-        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    Options& set_mode(StringInitializer mode) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(mode_, std::move(mode));
       return *this;
     }
-    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) &&
+    Options&& set_mode(StringInitializer mode) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_mode(std::move(mode)));
     }

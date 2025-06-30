@@ -480,8 +480,8 @@ class Initializer : public initializer_internal::InitializerImpl<T>::type {
   // `Initializer<T>::AllowingExplicit` is implicitly convertible also from
   // a value explicitly convertible to `T`.
   //
-  // This is useful for `Initializer<std::string>::AllowingExplicit` to accept
-  // also `absl::string_view`.
+  // Deprecated. Instead of `Initializer<std::string>::AllowingExplicit`,
+  // prefer `StringInitializer`, `BytesInitializer`, or `PathInitializer`.
   using AllowingExplicit = Initializer<T, true>;
 
   // Constructs `Initializer<T>` which specifies `T()`.

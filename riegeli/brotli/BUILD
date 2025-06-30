@@ -64,6 +64,7 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:assert",
+        "//riegeli/base:bytes_ref",
         "//riegeli/base:initializer",
         "//riegeli/base:shared_ptr",
         "@com_google_absl//absl/base",

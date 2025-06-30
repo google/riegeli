@@ -29,6 +29,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/string_ref.h"
 
 namespace riegeli {
 
@@ -102,10 +103,9 @@ class ValueParser : public Object {
   //
   // Multiple occurrences of the same option are always invalid and do not have
   // to be explicitly checked with `FailIfSeen()`.
-  static Function FailIfSeen(Initializer<std::string>::AllowingExplicit key);
+  static Function FailIfSeen(StringInitializer key);
   template <typename... Keys, std::enable_if_t<(sizeof...(Keys) > 0), int> = 0>
-  static Function FailIfSeen(Initializer<std::string>::AllowingExplicit key,
-                             Keys&&... keys);
+  static Function FailIfSeen(StringInitializer key, Keys&&... keys);
 
   // Value parser which reports a conflict if an any option was seen before this
   // option.
@@ -154,7 +154,7 @@ class OptionsParser : public Object {
   //
   // The value parser may be implemented explicitly (e.g. as a lambda)
   // or returned by one of functions below (called on this `OptionsParser`).
-  void AddOption(Initializer<std::string>::AllowingExplicit key,
+  void AddOption(StringInitializer key,
                  Initializer<ValueParser::Function> function);
 
   // Parses options from text. Valid options must have been registered with
@@ -178,7 +178,7 @@ class OptionsParser : public Object {
   friend class ValueParser;
 
   struct Option {
-    explicit Option(Initializer<std::string>::AllowingExplicit key,
+    explicit Option(StringInitializer key,
                     Initializer<ValueParser::Function> function)
         : key(std::move(key)), function(std::move(function)) {}
 
@@ -240,15 +240,14 @@ ValueParser::Function ValueParser::And(Initializer<Function> function1,
 }
 
 template <typename... Keys, std::enable_if_t<(sizeof...(Keys) > 0), int>>
-ValueParser::Function ValueParser::FailIfSeen(
-    Initializer<std::string>::AllowingExplicit key, Keys&&... keys) {
+ValueParser::Function ValueParser::FailIfSeen(StringInitializer key,
+                                              Keys&&... keys) {
   return And(FailIfSeen(std::move(key)),
              FailIfSeen(std::forward<Keys>(keys)...));
 }
 
 inline void OptionsParser::AddOption(
-    Initializer<std::string>::AllowingExplicit key,
-    Initializer<ValueParser::Function> function) {
+    StringInitializer key, Initializer<ValueParser::Function> function) {
   options_.emplace_back(std::move(key), std::move(function));
   RIEGELI_ASSERT(std::none_of(
       options_.cbegin(), options_.cend() - 1,

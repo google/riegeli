@@ -36,7 +36,6 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
-#include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/sized_shared_buffer.h"
@@ -44,6 +43,7 @@
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/buffer_options.h"
+#include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/core/platform/env.h"
@@ -65,8 +65,7 @@ bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
   return InitializeFilename(filename);
 }
 
-bool FileReaderBase::InitializeFilename(
-    Initializer<std::string>::AllowingExplicit filename) {
+bool FileReaderBase::InitializeFilename(PathInitializer filename) {
   riegeli::Reset(filename_, std::move(filename));
   if (const absl::Status status =
           env_->GetFileSystemForFile(filename_, &file_system_);

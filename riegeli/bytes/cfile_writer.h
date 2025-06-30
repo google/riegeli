@@ -34,6 +34,7 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
+#include "riegeli/base/string_ref.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -63,12 +64,11 @@ class CFileWriterBase : public BufferedWriter {
     // `set_append()`, `set_exclusive()`, `set_inheritable()`, and `set_text()`.
     //
     // Default: "we" (on Windows: "wbN").
-    Options& set_mode(Initializer<std::string>::AllowingExplicit mode) &
-        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    Options& set_mode(StringInitializer mode) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(mode_, std::move(mode));
       return *this;
     }
-    Options&& set_mode(Initializer<std::string>::AllowingExplicit mode) &&
+    Options&& set_mode(StringInitializer mode) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_mode(std::move(mode)));
     }

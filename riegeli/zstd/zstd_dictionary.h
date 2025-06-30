@@ -30,7 +30,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "riegeli/base/initializer.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
 #include "zstd.h"
@@ -90,11 +90,9 @@ class ZstdDictionary {
   }
 
   // Sets a dictionary.
-  ZstdDictionary& set_data(Initializer<std::string>::AllowingExplicit data,
-                           Type type = Type::kAuto) &
+  ZstdDictionary& set_data(BytesInitializer data, Type type = Type::kAuto) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  ZstdDictionary&& set_data(Initializer<std::string>::AllowingExplicit data,
-                            Type type = Type::kAuto) &&
+  ZstdDictionary&& set_data(BytesInitializer data, Type type = Type::kAuto) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data(std::move(data), type));
   }
@@ -160,7 +158,7 @@ class ZstdDictionary {
 class ZstdDictionary::Repr {
  public:
   // Owns a copy of `data`.
-  explicit Repr(Type type, Initializer<std::string>::AllowingExplicit data,
+  explicit Repr(Type type, BytesInitializer data,
                 std::integral_constant<Ownership, Ownership::kCopied>)
       : type_(type), owned_data_(std::move(data)), data_(owned_data_) {}
 
@@ -228,8 +226,8 @@ inline ZstdDictionary& ZstdDictionary::Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return *this;
 }
 
-inline ZstdDictionary& ZstdDictionary::set_data(
-    Initializer<std::string>::AllowingExplicit data, Type type) &
+inline ZstdDictionary& ZstdDictionary::set_data(BytesInitializer data,
+                                                Type type) &
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset(
       riegeli::Maker(type, std::move(data),

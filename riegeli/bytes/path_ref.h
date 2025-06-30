@@ -25,6 +25,9 @@
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/strings/string_view.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/invoker.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/string_ref.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
@@ -53,8 +56,8 @@ constexpr absl::string_view kDefaultFilename = "<none>";
 // `path.native()`.
 //
 // For `std::filesystem::path` with `value_type = wchar_t`, it refers to
-// a copy of `path.string()`. The string is stored in a storage object passed
-// as a default argument to the constructor.
+// `path.string()` stored in a storage object passed as a default argument to
+// the constructor.
 //
 // `PathRef` does not own path contents and is efficiently copyable.
 class PathRef : public StringRef, public WithCompare<PathRef> {
@@ -92,10 +95,8 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
       : PathRef(path) {}
 
   // For `std::filesystem::path` with `value_type = wchar_t`, stores a reference
-  // to stored `path.string()`.
-  //
-  // The string is stored in a storage object passed as a default argument to
-  // this constructor.
+  // to `path.string()` stored in a storage object passed as a default argument
+  // to this constructor.
   template <
       typename DependentPath = std::filesystem::path,
       std::enable_if_t<
@@ -103,7 +104,8 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   /*implicit*/ PathRef(const std::filesystem::path& path,
                        TemporaryStorage<std::string>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : StringRef(std::move(storage).emplace(path.string())) {}
+      : StringRef(std::move(storage).emplace(
+            riegeli::Invoker([&path] { return path.string(); }))) {}
 
 #endif
 
@@ -145,6 +147,65 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   }
 
 #endif
+};
+
+// `PathInitializer` is convertible from the same types as `PathRef`,
+// but efficiently takes ownership of `std::string`.
+//
+// `PathInitializer` behaves like `Initializer<std::string>`.
+class PathInitializer : public Initializer<std::string> {
+ public:
+#if __cpp_lib_filesystem >= 201703
+  class StringFromPath {
+   public:
+    explicit StringFromPath(
+        const std::filesystem::path& path ABSL_ATTRIBUTE_LIFETIME_BOUND)
+        : path_(path) {}
+
+    /*implicit*/ operator std::string() const { return path_.string(); }
+
+   private:
+    const std::filesystem::path& path_;
+  };
+#endif
+
+  PathInitializer() = default;
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<PathInitializer, T>,
+                                   std::is_convertible<T&&, std::string&&>>,
+                int> = 0>
+  /*implicit*/ PathInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer(std::forward<T>(str)) {}
+
+#if __cpp_lib_filesystem >= 201703
+  /*implicit*/ PathInitializer(const std::filesystem::path& path
+                                   ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               TemporaryStorage<StringFromPath>&& storage
+                                   ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(std::move(storage).emplace(path)) {}
+#endif
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<PathInitializer, T>,
+                    std::negation<std::is_convertible<T&&, std::string&&>>,
+#if __cpp_lib_filesystem >= 201703
+                    NotSameRef<std::filesystem::path, T>,
+#endif
+                    std::is_convertible<T&&, StringRef>>,
+                int> = 0>
+  /*implicit*/ PathInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               TemporaryStorage<MakerType<absl::string_view>>&&
+                                   storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(
+            std::move(storage).emplace(StringRef(std::forward<T>(str)))) {
+  }
+
+  PathInitializer(PathInitializer&& that) = default;
+  PathInitializer& operator=(PathInitializer&&) = delete;
 };
 
 }  // namespace riegeli

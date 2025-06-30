@@ -126,7 +126,7 @@ class FileWriterBase : public Writer {
   void Reset(BufferOptions buffer_options, ::tensorflow::Env* env);
   void Initialize(::tensorflow::WritableFile* dest);
   bool InitializeFilename(::tensorflow::WritableFile* dest);
-  bool InitializeFilename(Initializer<std::string>::AllowingExplicit filename);
+  bool InitializeFilename(PathInitializer filename);
   std::unique_ptr<::tensorflow::WritableFile> OpenFile(bool append);
   void InitializePos(::tensorflow::WritableFile* dest);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const absl::Status& status,
@@ -205,8 +205,7 @@ class FileWriter : public FileWriterBase {
   // Opens a `::tensorflow::WritableFile` for writing.
   //
   // If opening the file fails, `FileWriter` will be failed and closed.
-  explicit FileWriter(Initializer<std::string>::AllowingExplicit filename,
-                      Options options = Options());
+  explicit FileWriter(PathInitializer filename, Options options = Options());
 
   FileWriter(FileWriter&& that) = default;
   FileWriter& operator=(FileWriter&& that) = default;
@@ -217,8 +216,7 @@ class FileWriter : public FileWriterBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
                                           Options options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(Initializer<std::string>::AllowingExplicit filename,
-             Options options = Options());
+  void Reset(PathInitializer filename, Options options = Options());
 
   // Returns the object providing and possibly owning the
   // `::tensorflow::WritableFile` being written to. Unchanged by `Close()`.
@@ -237,8 +235,7 @@ class FileWriter : public FileWriterBase {
 
  private:
   using FileWriterBase::Initialize;
-  void Initialize(Initializer<std::string>::AllowingExplicit filename,
-                  Options&& options);
+  void Initialize(PathInitializer filename, Options&& options);
 
   // The object providing and possibly owning the `::tensorflow::WritableFile`
   // being written to.
@@ -250,8 +247,7 @@ template <typename Dest>
 explicit FileWriter(Dest&& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())
     -> FileWriter<std::conditional_t<
-        std::is_convertible_v<Dest&&,
-                              Initializer<std::string>::AllowingExplicit>,
+        std::is_convertible_v<Dest&&, PathInitializer>,
         std::unique_ptr<::tensorflow::WritableFile>, TargetT<Dest>>>;
 
 // Implementation details follow.
@@ -317,8 +313,7 @@ inline FileWriter<Dest>::FileWriter(Initializer<Dest> dest, Options options)
 }
 
 template <typename Dest>
-inline FileWriter<Dest>::FileWriter(
-    Initializer<std::string>::AllowingExplicit filename, Options options)
+inline FileWriter<Dest>::FileWriter(PathInitializer filename, Options options)
     : FileWriterBase(options.buffer_options(), options.env()) {
   Initialize(std::move(filename), std::move(options));
 }
@@ -337,15 +332,14 @@ inline void FileWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
 }
 
 template <typename Dest>
-inline void FileWriter<Dest>::Reset(
-    Initializer<std::string>::AllowingExplicit filename, Options options) {
+inline void FileWriter<Dest>::Reset(PathInitializer filename, Options options) {
   FileWriterBase::Reset(options.buffer_options(), options.env());
   Initialize(std::move(filename), std::move(options));
 }
 
 template <typename Dest>
-inline void FileWriter<Dest>::Initialize(
-    Initializer<std::string>::AllowingExplicit filename, Options&& options) {
+inline void FileWriter<Dest>::Initialize(PathInitializer filename,
+                                         Options&& options) {
   if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
   std::unique_ptr<::tensorflow::WritableFile> dest = OpenFile(options.append());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;

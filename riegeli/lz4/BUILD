@@ -71,6 +71,7 @@ cc_library(
     features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
     deps = [
+        "//riegeli/base:bytes_ref",
         "//riegeli/base:initializer",
         "//riegeli/base:shared_ptr",
         "@com_google_absl//absl/base",

@@ -45,6 +45,7 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
+#include "riegeli/base/string_ref.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
@@ -82,16 +83,12 @@ class GcsWriter
     // `UseResumableUploadSession()` is not supported.
     //
     // Default: `std::nullopt`.
-    Options& set_temp_object_name(
-        Initializer<std::optional<std::string>>::AllowingExplicit
-            temp_object_name) &
+    Options& set_temp_object_name(StringInitializer temp_object_name) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       riegeli::Reset(temp_object_name_, std::move(temp_object_name));
       return *this;
     }
-    Options&& set_temp_object_name(
-        Initializer<std::optional<std::string>>::AllowingExplicit
-            temp_object_name) &&
+    Options&& set_temp_object_name(StringInitializer temp_object_name) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_temp_object_name(std::move(temp_object_name)));
     }

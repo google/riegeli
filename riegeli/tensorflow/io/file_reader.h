@@ -146,7 +146,7 @@ class FileReaderBase : public Reader {
              bool growing_source);
   void Initialize(::tensorflow::RandomAccessFile* src, Position initial_pos);
   bool InitializeFilename(::tensorflow::RandomAccessFile* src);
-  bool InitializeFilename(Initializer<std::string>::AllowingExplicit filename);
+  bool InitializeFilename(PathInitializer filename);
   std::unique_ptr<::tensorflow::RandomAccessFile> OpenFile();
   void InitializePos(Position initial_pos);
 
@@ -258,8 +258,7 @@ class FileReader : public FileReaderBase {
   // Opens a `::tensorflow::RandomAccessFile` for reading.
   //
   // If opening the file fails, `FileReader` will be failed and closed.
-  explicit FileReader(Initializer<std::string>::AllowingExplicit filename,
-                      Options options = Options());
+  explicit FileReader(PathInitializer filename, Options options = Options());
 
   FileReader(FileReader&& that) = default;
   FileReader& operator=(FileReader&& that) = default;
@@ -270,8 +269,7 @@ class FileReader : public FileReaderBase {
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
                                           Options options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(Initializer<std::string>::AllowingExplicit filename,
-             Options options = Options());
+  void Reset(PathInitializer filename, Options options = Options());
 
   // Returns the object providing and possibly owning the
   // `::tensorflow::RandomAccessFile` being read from. If the
@@ -291,8 +289,7 @@ class FileReader : public FileReaderBase {
 
  private:
   using FileReaderBase::Initialize;
-  void Initialize(Initializer<std::string>::AllowingExplicit filename,
-                  Options&& options);
+  void Initialize(PathInitializer filename, Options&& options);
 
   // The object providing and possibly owning the
   // `::tensorflow::RandomAccessFile` being read from.
@@ -304,8 +301,7 @@ template <typename Src>
 explicit FileReader(Src&& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
     -> FileReader<std::conditional_t<
-        std::is_convertible_v<Src&&,
-                              Initializer<std::string>::AllowingExplicit>,
+        std::is_convertible_v<Src&&, PathInitializer>,
         std::unique_ptr<::tensorflow::RandomAccessFile>, TargetT<Src>>>;
 
 // Implementation details follow.
@@ -376,8 +372,7 @@ inline FileReader<Src>::FileReader(Initializer<Src> src, Options options)
 }
 
 template <typename Src>
-inline FileReader<Src>::FileReader(
-    Initializer<std::string>::AllowingExplicit filename, Options options)
+inline FileReader<Src>::FileReader(PathInitializer filename, Options options)
     : FileReaderBase(options.buffer_options(), options.env(),
                      options.growing_source()) {
   Initialize(std::move(filename), std::move(options));
@@ -398,16 +393,15 @@ inline void FileReader<Src>::Reset(Initializer<Src> src, Options options) {
 }
 
 template <typename Src>
-inline void FileReader<Src>::Reset(
-    Initializer<std::string>::AllowingExplicit filename, Options options) {
+inline void FileReader<Src>::Reset(PathInitializer filename, Options options) {
   FileReaderBase::Reset(options.buffer_options(), options.env(),
                         options.growing_source());
   Initialize(std::move(filename), std::move(options));
 }
 
 template <typename Src>
-inline void FileReader<Src>::Initialize(
-    Initializer<std::string>::AllowingExplicit filename, Options&& options) {
+inline void FileReader<Src>::Initialize(PathInitializer filename,
+                                        Options&& options) {
   if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
   std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;

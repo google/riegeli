@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <ostream>
+#include <string>
 #include <string_view>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
@@ -27,6 +28,9 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -155,6 +159,40 @@ class StringRef : public WithCompare<StringRef> {
 
  private:
   absl::string_view str_;
+};
+
+// `StringInitializer` is convertible from the same types as `StringRef`,
+// but efficiently takes ownership of `std::string`.
+//
+// `StringInitializer` behaves like `Initializer<std::string>`.
+class StringInitializer : public Initializer<std::string> {
+ public:
+  StringInitializer() = default;
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<StringInitializer, T>,
+                                   std::is_convertible<T&&, std::string&&>>,
+                int> = 0>
+  /*implicit*/ StringInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer(std::forward<T>(str)) {}
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<StringInitializer, T>,
+                    std::negation<std::is_convertible<T&&, std::string&&>>,
+                    std::is_convertible<T&&, StringRef>>,
+                int> = 0>
+  /*implicit*/ StringInitializer(
+      T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      TemporaryStorage<MakerType<absl::string_view>>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(
+            std::move(storage).emplace(StringRef(std::forward<T>(str)))) {}
+
+  StringInitializer(StringInitializer&& that) = default;
+  StringInitializer& operator=(StringInitializer&&) = delete;
 };
 
 // Implementation details follow.

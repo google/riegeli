@@ -23,6 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/shared_ptr.h"
 
@@ -58,9 +59,9 @@ class ZlibDictionary {
 
   // Sets a dictionary (data which should contain sequences that are commonly
   // seen in the data being compressed).
-  ZlibDictionary& set_data(Initializer<std::string>::AllowingExplicit data) &
+  ZlibDictionary& set_data(BytesInitializer data) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  ZlibDictionary&& set_data(Initializer<std::string>::AllowingExplicit data) &&
+  ZlibDictionary&& set_data(BytesInitializer data) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data(std::move(data)));
   }
@@ -96,8 +97,7 @@ inline ZlibDictionary& ZlibDictionary::Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return *this;
 }
 
-inline ZlibDictionary& ZlibDictionary::set_data(
-    Initializer<std::string>::AllowingExplicit data) &
+inline ZlibDictionary& ZlibDictionary::set_data(BytesInitializer data) &
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   owned_data_.Reset(std::move(data));
   data_ = owned_data_->data();

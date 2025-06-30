@@ -21,7 +21,7 @@
 
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/initializer.h"
+#include "riegeli/base/string_ref.h"
 #include "riegeli/base/types.h"
 
 namespace riegeli {
@@ -34,7 +34,7 @@ class SkippedRegion {
   // Creates a `SkippedRegion` with the given region location and message
   // explaining why the region is invalid.
   explicit SkippedRegion(Position begin, Position end,
-                         Initializer<std::string>::AllowingExplicit message);
+                         StringInitializer message);
 
   SkippedRegion(const SkippedRegion& that) = default;
   SkippedRegion& operator=(const SkippedRegion& that) = default;
@@ -81,9 +81,8 @@ class SkippedRegion {
 
 // Implementation details follow.
 
-inline SkippedRegion::SkippedRegion(
-    Position begin, Position end,
-    Initializer<std::string>::AllowingExplicit message)
+inline SkippedRegion::SkippedRegion(Position begin, Position end,
+                                    StringInitializer message)
     : begin_(begin), end_(end), message_(std::move(message)) {
   RIEGELI_ASSERT_LE(begin, end)
       << "Failed precondition of SkippedRegion::SkippedRegion: "

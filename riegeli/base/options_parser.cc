@@ -31,6 +31,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/string_ref.h"
 
 namespace riegeli {
 
@@ -159,8 +160,7 @@ ValueParser::Function ValueParser::CopyTo(std::string* text) {
   };
 }
 
-ValueParser::Function ValueParser::FailIfSeen(
-    Initializer<std::string>::AllowingExplicit key) {
+ValueParser::Function ValueParser::FailIfSeen(StringInitializer key) {
   return [key = std::move(key).Construct()](ValueParser& value_parser) {
     for (const OptionsParser::Option& option :
          value_parser.options_parser_->options_) {

@@ -218,6 +218,7 @@ cc_library(
     deps = [
         ":assert",
         ":compare",
+        ":initializer",
         ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
@@ -230,6 +231,7 @@ cc_library(
     hdrs = ["bytes_ref.h"],
     deps = [
         ":compare",
+        ":initializer",
         ":string_ref",
         ":type_traits",
         "@com_google_absl//absl/base:config",
@@ -644,6 +646,7 @@ cc_library(
         ":assert",
         ":initializer",
         ":object",
+        ":string_ref",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",

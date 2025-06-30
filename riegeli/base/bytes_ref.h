@@ -17,14 +17,19 @@
 
 #include <stddef.h>
 
+#include <string>
 #include <type_traits>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 #include "riegeli/base/string_ref.h"
+#include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -105,6 +110,39 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
 
   // `absl::Span<const char>` is already comparable against types convertible to
   // `absl::Span<const char>`, which includes `BytesRef`.
+};
+
+// `StringInitializer` is convertible from the same types as `StringRef`,
+// but efficiently takes ownership of `std::string`.
+//
+// `StringInitializer` behaves like `Initializer<std::string>`.
+class BytesInitializer : public Initializer<std::string> {
+ public:
+  BytesInitializer() = default;
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<BytesInitializer, T>,
+                                   std::is_convertible<T&&, std::string&&>>,
+                int> = 0>
+  /*implicit*/ BytesInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer(std::forward<T>(str)) {}
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<BytesInitializer, T>,
+                    std::negation<std::is_convertible<T&&, std::string&&>>,
+                    std::is_convertible<T&&, BytesRef>>,
+                int> = 0>
+  /*implicit*/ BytesInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                TemporaryStorage<MakerType<absl::string_view>>&&
+                                    storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(
+            std::move(storage).emplace(BytesRef(std::forward<T>(str)))) {}
+
+  BytesInitializer(BytesInitializer&& that) = default;
+  BytesInitializer& operator=(BytesInitializer&&) = delete;
 };
 
 }  // namespace riegeli

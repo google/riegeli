@@ -33,7 +33,7 @@
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/initializer.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
 
@@ -90,9 +90,9 @@ class BrotliDictionary {
 
   // Adds a raw chunk (data which should contain sequences that are commonly
   // seen in the data being compressed). Up to `kMaxRawChunks` can be added.
-  BrotliDictionary& add_raw(Initializer<std::string>::AllowingExplicit data) &
+  BrotliDictionary& add_raw(BytesInitializer data) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  BrotliDictionary&& add_raw(Initializer<std::string>::AllowingExplicit data) &&
+  BrotliDictionary&& add_raw(BytesInitializer data) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(add_raw(std::move(data)));
   }
@@ -110,11 +110,9 @@ class BrotliDictionary {
   }
 
   // Sets a serialized chunk (prepared by shared_brotli_encode_dictionary tool).
-  BrotliDictionary& set_serialized(
-      Initializer<std::string>::AllowingExplicit data) &
+  BrotliDictionary& set_serialized(BytesInitializer data) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  BrotliDictionary&& set_serialized(
-      Initializer<std::string>::AllowingExplicit data) &&
+  BrotliDictionary&& set_serialized(BytesInitializer data) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_serialized(std::move(data)));
   }
@@ -174,7 +172,7 @@ class BrotliDictionary {
 class BrotliDictionary::Chunk {
  public:
   // Owns a copy of `data`.
-  explicit Chunk(Type type, Initializer<std::string>::AllowingExplicit data,
+  explicit Chunk(Type type, BytesInitializer data,
                  std::integral_constant<Ownership, Ownership::kCopied>)
       : type_(type), owned_data_(std::move(data)), data_(owned_data_) {}
 
@@ -249,8 +247,7 @@ inline BrotliDictionary& BrotliDictionary::Reset() &
   return *this;
 }
 
-inline BrotliDictionary& BrotliDictionary::add_raw(
-    Initializer<std::string>::AllowingExplicit data) &
+inline BrotliDictionary& BrotliDictionary::add_raw(BytesInitializer data) &
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   chunks_.emplace_back(
       riegeli::Maker(Type::kRaw, std::move(data),
@@ -268,7 +265,7 @@ inline BrotliDictionary& BrotliDictionary::add_raw_unowned(
 }
 
 inline BrotliDictionary& BrotliDictionary::set_serialized(
-    Initializer<std::string>::AllowingExplicit data) &
+    BytesInitializer data) &
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   Reset();
   chunks_.emplace_back(

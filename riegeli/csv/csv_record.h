@@ -41,10 +41,10 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/global.h"
-#include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/shared_ptr.h"
+#include "riegeli/base/string_ref.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -315,14 +315,14 @@ class CsvHeader : public WithEqual<CsvHeader> {
   // Adds the given field `name`, ordered at the end.
   //
   // Precondition: `name` was not already present
-  void Add(Initializer<std::string>::AllowingExplicit name);
+  void Add(StringInitializer name);
 
   // Equivalent to calling `Add()` for each name in order.
   //
   // Precondition: like for `Add()`
   template <typename... Names,
             std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
-  void Add(Initializer<std::string>::AllowingExplicit name, Names&&... names);
+  void Add(StringInitializer name, Names&&... names);
 
   // Adds the given field `name`, ordered at the end, reporting whether this was
   // successful.
@@ -331,15 +331,14 @@ class CsvHeader : public WithEqual<CsvHeader> {
   //  * `absl::OkStatus()`                 - `name` has been added
   //  * `absl::FailedPreconditionError(_)` - `name` was already present,
   //                                         `CsvHeader` is unchanged
-  absl::Status TryAdd(Initializer<std::string>::AllowingExplicit name);
+  absl::Status TryAdd(StringInitializer name);
 
   // Equivalent to calling `TryAdd()` for each name in order.
   //
   // Returns early in case of a failure.
   template <typename... Names,
             std::enable_if_t<(sizeof...(Names) > 0), int> = 0>
-  absl::Status TryAdd(Initializer<std::string>::AllowingExplicit name,
-                      Names&&... names);
+  absl::Status TryAdd(StringInitializer name, Names&&... names);
 
   // Returns the sequence of field names, in the order in which they have been
   // added.
@@ -1146,15 +1145,14 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CsvHeader::MaybeResetToCachedPayload(
 }
 
 template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
-inline void CsvHeader::Add(Initializer<std::string>::AllowingExplicit name,
-                           Names&&... names) {
+inline void CsvHeader::Add(StringInitializer name, Names&&... names) {
   Add(std::move(name));
   Add(std::forward<Names>(names)...);
 }
 
 template <typename... Names, std::enable_if_t<(sizeof...(Names) > 0), int>>
-inline absl::Status CsvHeader::TryAdd(
-    Initializer<std::string>::AllowingExplicit name, Names&&... names) {
+inline absl::Status CsvHeader::TryAdd(StringInitializer name,
+                                      Names&&... names) {
   if (absl::Status status = TryAdd(std::move(name)); !status.ok()) {
     return status;
   }
@@ -1375,9 +1373,9 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
   for (;;) {
     if (src_iter == src_end_iter) return absl::OkStatus();
     if (this_iter == this->end() || this_iter->first != src_iter->first) break;
-    riegeli::Reset(this_iter->second,
-                   Initializer<std::string>::AllowingExplicit(
-                       (*MaybeMakeMoveIterator<Src>(src_iter)).second));
+    riegeli::Reset(
+        this_iter->second,
+        StringInitializer((*MaybeMakeMoveIterator<Src>(src_iter)).second));
     ++this_iter;
     ++src_iter;
   }
@@ -1392,9 +1390,9 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     if (ABSL_PREDICT_FALSE(this_iter == this->end())) {
       missing_names.emplace_back(src_iter->first);
     } else {
-      riegeli::Reset(this_iter->second,
-                     Initializer<std::string>::AllowingExplicit(
-                         (*MaybeMakeMoveIterator<Src>(src_iter)).second));
+      riegeli::Reset(
+          this_iter->second,
+          StringInitializer((*MaybeMakeMoveIterator<Src>(src_iter)).second));
     }
     ++src_iter;
   } while (src_iter != src_end_iter);

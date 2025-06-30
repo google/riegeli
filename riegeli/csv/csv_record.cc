@@ -37,9 +37,9 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
+#include "riegeli/base/string_ref.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -216,13 +216,12 @@ void CsvHeader::Reserve(size_t size) {
   payload_->name_to_index.reserve(size);
 }
 
-void CsvHeader::Add(Initializer<std::string>::AllowingExplicit name) {
+void CsvHeader::Add(StringInitializer name) {
   const absl::Status status = TryAdd(std::move(name));
   RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Add()";
 }
 
-absl::Status CsvHeader::TryAdd(
-    Initializer<std::string>::AllowingExplicit name) {
+absl::Status CsvHeader::TryAdd(StringInitializer name) {
   EnsureUnique();
   std::string name_string = std::move(name);
   const size_t index = payload_->index_to_name.size();

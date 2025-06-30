@@ -29,7 +29,7 @@
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
-#include "riegeli/base/initializer.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
 
@@ -73,11 +73,9 @@ class Lz4Dictionary {
   //
   // Dictionary id can help to detect whether the correct dictionary is used.
   // 0 means unspecified.
-  Lz4Dictionary& set_data(Initializer<std::string>::AllowingExplicit data,
-                          uint32_t dict_id = 0) &
+  Lz4Dictionary& set_data(BytesInitializer data, uint32_t dict_id = 0) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  Lz4Dictionary&& set_data(Initializer<std::string>::AllowingExplicit data,
-                           uint32_t dict_id = 0) &&
+  Lz4Dictionary&& set_data(BytesInitializer data, uint32_t dict_id = 0) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_data(std::move(data), dict_id));
   }
@@ -128,7 +126,7 @@ class Lz4Dictionary {
 class Lz4Dictionary::Repr {
  public:
   // Owns a copy of `data`.
-  explicit Repr(Initializer<std::string>::AllowingExplicit data,
+  explicit Repr(BytesInitializer data,
                 std::integral_constant<Ownership, Ownership::kCopied>,
                 uint32_t dict_id)
       : owned_data_(std::move(data)), data_(owned_data_), dict_id_(dict_id) {}
@@ -172,8 +170,8 @@ inline Lz4Dictionary& Lz4Dictionary::Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return *this;
 }
 
-inline Lz4Dictionary& Lz4Dictionary::set_data(
-    Initializer<std::string>::AllowingExplicit data, uint32_t dict_id) &
+inline Lz4Dictionary& Lz4Dictionary::set_data(BytesInitializer data,
+                                              uint32_t dict_id) &
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   repr_.Reset(riegeli::Maker(
       std::move(data), std::integral_constant<Ownership, Ownership::kCopied>(),
