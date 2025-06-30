@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <array>
 #include <atomic>
 #include <limits>
 #include <list>
@@ -32,7 +31,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
-#include "absl/numeric/bits.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "riegeli/base/arithmetic.h"
@@ -47,36 +45,6 @@ namespace riegeli {
 class RecyclingPoolOptions {
  public:
   RecyclingPoolOptions() = default;
-
-  // `RecyclingPool::global()` and `KeyedRecyclingPool::global()` maintain
-  // this many shards of pools, with the shard to use based on the thread which
-  // called `global()`.
-  //
-  // A larger number of shards increases the probability that objects are
-  // recycled by the same thread which has created them, and decreases lock
-  // contention, at the cost of increasing memory usage.
-  //
-  // 1 effectively disables the sharding.
-  //
-  // This option does not affect `RecyclingPool` and `KeyedRecyclingPool`
-  // constructors.
-  //
-  // Default: `kDefaultThreadShards` (16).
-  static constexpr size_t kDefaultThreadShards = 16;
-  RecyclingPoolOptions& set_thread_shards(size_t thread_shards) &
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_GT(thread_shards, 0u)
-        << "Failed precondition of RecyclingPoolOptions::set_thread_shards(): "
-           "zero thread shards";
-    thread_shards_ =
-        absl::bit_floor(SaturatingIntCast<uint32_t>(thread_shards));
-    return *this;
-  }
-  RecyclingPoolOptions&& set_thread_shards(size_t thread_shards) &&
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return std::move(set_thread_shards(thread_shards));
-  }
-  size_t thread_shards() const { return thread_shards_; }
 
   // Maximum number of objects to keep in a pool.
   //
@@ -131,9 +99,6 @@ class RecyclingPoolOptions {
 
   static uint32_t AgeToSeconds(absl::Duration age);  // Round up.
 
-  // Use `uint32_t` instead of `size_t` to reduce the object size.
-  // This is always a power of 2.
-  uint32_t thread_shards_ = IntCast<uint32_t>(kDefaultThreadShards);
   // Use `uint32_t` instead of `size_t` to reduce the object size.
   uint32_t max_size_ = IntCast<uint32_t>(kDefaultMaxSize);
   // Use `uint32_t` instead of `absl::Duration` to reduce the object size.
@@ -413,34 +378,22 @@ class RecyclerRepr {
   RecyclingPool* pool_ = nullptr;
 };
 
-// Returns a number which does not change for the current thread, but is not
-// necessarily unique for the current thread. Numbers are assigned densely.
-inline size_t CurrentThreadNumber() {
-  static std::atomic<size_t> next_thread_number = 0;
-  thread_local const size_t current_thread_number =
-      next_thread_number.fetch_add(1, std::memory_order_relaxed);
-  return current_thread_number;
-}
-
 struct RecyclingPoolOptionsKey : WithEqual<RecyclingPoolOptionsKey> {
-  explicit RecyclingPoolOptionsKey(uint32_t shard, uint32_t max_size,
-                                   uint32_t max_age_seconds)
-      : shard(shard), max_size(max_size), max_age_seconds(max_age_seconds) {}
+  explicit RecyclingPoolOptionsKey(uint32_t max_size, uint32_t max_age_seconds)
+      : max_size(max_size), max_age_seconds(max_age_seconds) {}
 
   friend bool operator==(const RecyclingPoolOptionsKey& a,
                          const RecyclingPoolOptionsKey& b) {
-    return a.shard == b.shard && a.max_size == b.max_size &&
-           a.max_age_seconds == b.max_age_seconds;
+    return a.max_size == b.max_size && a.max_age_seconds == b.max_age_seconds;
   }
 
   template <typename HashState>
   friend HashState AbslHashValue(HashState hash_state,
                                  const RecyclingPoolOptionsKey& self) {
-    return HashState::combine(std::move(hash_state), self.shard, self.max_size,
+    return HashState::combine(std::move(hash_state), self.max_size,
                               self.max_age_seconds);
   }
 
-  uint32_t shard;
   uint32_t max_size;
   uint32_t max_age_seconds;
 };
@@ -482,12 +435,11 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
     RecyclingPoolOptions options) {
   class ABSL_CACHELINE_ALIGNED Pools {
    public:
-    RecyclingPool& GetPool(size_t shard, RecyclingPoolOptions options) {
+    RecyclingPool& GetPool(RecyclingPoolOptions options) {
       std::pair<const recycling_pool_internal::RecyclingPoolOptionsKey,
                 RecyclingPool>* cached = cache_.load(std::memory_order_acquire);
       const recycling_pool_internal::RecyclingPoolOptionsKey options_key(
-          IntCast<uint32_t>(shard), options.max_size_,
-          options.max_age_seconds_);
+          options.max_size_, options.max_age_seconds_);
       if (ABSL_PREDICT_FALSE(cached == nullptr ||
                              cached->first != options_key)) {
         absl::MutexLock lock(&mutex_);
@@ -512,17 +464,7 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
         pools_ ABSL_GUARDED_BY(mutex_);
   };
 
-  RIEGELI_ASSERT(absl::has_single_bit(options.thread_shards()))
-      << "Number of shards must be a power of 2: " << options.thread_shards();
-  const size_t shard = options.thread_shards() <= 1
-                           ? 0
-                           : recycling_pool_internal::CurrentThreadNumber() &
-                                 (options.thread_shards() - 1);
-  return Global([] {
-           return std::array<Pools,
-                             RecyclingPoolOptions::kDefaultThreadShards>();
-         })[shard % RecyclingPoolOptions::kDefaultThreadShards]
-      .GetPool(shard, options);
+  return Global([] { return Pools(); }).GetPool(options);
 }
 
 template <typename T, typename Deleter>
@@ -693,15 +635,14 @@ KeyedRecyclingPool<T, Key, Deleter>::~KeyedRecyclingPool() {
 template <typename T, typename Key, typename Deleter>
 KeyedRecyclingPool<T, Key, Deleter>&
 KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
-  class ABSL_CACHELINE_ALIGNED Pools {
+  class Pools {
    public:
-    KeyedRecyclingPool& GetPool(size_t shard, RecyclingPoolOptions options) {
+    KeyedRecyclingPool& GetPool(RecyclingPoolOptions options) {
       std::pair<const recycling_pool_internal::RecyclingPoolOptionsKey,
                 KeyedRecyclingPool>* cached =
           cache_.load(std::memory_order_acquire);
       const recycling_pool_internal::RecyclingPoolOptionsKey options_key(
-          IntCast<uint32_t>(shard), options.max_size_,
-          options.max_age_seconds_);
+          options.max_size_, options.max_age_seconds_);
       if (ABSL_PREDICT_FALSE(cached == nullptr ||
                              cached->first != options_key)) {
         absl::MutexLock lock(&mutex_);
@@ -727,17 +668,7 @@ KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
         pools_ ABSL_GUARDED_BY(mutex_);
   };
 
-  RIEGELI_ASSERT(absl::has_single_bit(options.thread_shards()))
-      << "Number of shards must be a power of 2: " << options.thread_shards();
-  const size_t shard = options.thread_shards() <= 1
-                           ? 0
-                           : recycling_pool_internal::CurrentThreadNumber() &
-                                 (options.thread_shards() - 1);
-  return Global([] {
-           return std::array<Pools,
-                             RecyclingPoolOptions::kDefaultThreadShards>();
-         })[shard % RecyclingPoolOptions::kDefaultThreadShards]
-      .GetPool(shard, options);
+  return Global([] { return Pools(); }).GetPool(options);
 }
 
 template <typename T, typename Key, typename Deleter>

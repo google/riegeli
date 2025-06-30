@@ -630,7 +630,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/container:node_hash_map",
-        "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
