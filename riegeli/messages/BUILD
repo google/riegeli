@@ -102,22 +102,7 @@ cc_library(
 
 cc_library(
     name = "message_wire_format",
-    srcs = ["message_wire_format.cc"],
     hdrs = ["message_wire_format.h"],
-    deps = [
-        "//riegeli/base:arithmetic",
-        "//riegeli/base:constexpr",
-        "//riegeli/base:object",
-        "//riegeli/base:types",
-        "//riegeli/bytes:backward_writer",
-        "//riegeli/bytes:writer",
-        "//riegeli/endian:endian_writing",
-        "//riegeli/varint:varint_writing",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-    ],
 )
 
 cc_library(
