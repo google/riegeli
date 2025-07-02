@@ -24,6 +24,7 @@
 #include "absl/base/optimization.h"
 #include "absl/numeric/int128.h"
 #include "absl/types/span.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/reader.h"
 
@@ -1082,11 +1083,7 @@ inline double ReadBigEndian<double>(const char* src) {
 
 inline void ReadLittleEndian16s(const char* src, absl::Span<uint16_t> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(uint16_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(uint16_t));
 #else
   for (uint16_t& value : dest) {
     value = ReadLittleEndian16(src);
@@ -1097,11 +1094,7 @@ inline void ReadLittleEndian16s(const char* src, absl::Span<uint16_t> dest) {
 
 inline void ReadLittleEndian32s(const char* src, absl::Span<uint32_t> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(uint32_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(uint32_t));
 #else
   for (uint32_t& value : dest) {
     value = ReadLittleEndian32(src);
@@ -1112,11 +1105,7 @@ inline void ReadLittleEndian32s(const char* src, absl::Span<uint32_t> dest) {
 
 inline void ReadLittleEndian64s(const char* src, absl::Span<uint64_t> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(uint64_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(uint64_t));
 #else
   for (uint64_t& value : dest) {
     value = ReadLittleEndian64(src);
@@ -1128,11 +1117,8 @@ inline void ReadLittleEndian64s(const char* src, absl::Span<uint64_t> dest) {
 inline void ReadLittleEndian128s(const char* src,
                                  absl::Span<absl::uint128> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(absl::uint128));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src,
+                            dest.size() * sizeof(absl::uint128));
 #else
   for (absl::uint128& value : dest) {
     value = ReadLittleEndian128(src);
@@ -1144,11 +1130,7 @@ inline void ReadLittleEndian128s(const char* src,
 inline void ReadLittleEndianSigned16s(const char* src,
                                       absl::Span<int16_t> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(int16_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(int16_t));
 #else
   for (int16_t& value : dest) {
     value = ReadLittleEndianSigned16(src);
@@ -1160,11 +1142,7 @@ inline void ReadLittleEndianSigned16s(const char* src,
 inline void ReadLittleEndianSigned32s(const char* src,
                                       absl::Span<int32_t> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(int32_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(int32_t));
 #else
   for (int32_t& value : dest) {
     value = ReadLittleEndianSigned32(src);
@@ -1176,11 +1154,7 @@ inline void ReadLittleEndianSigned32s(const char* src,
 inline void ReadLittleEndianSigned64s(const char* src,
                                       absl::Span<int64_t> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(int64_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(int64_t));
 #else
   for (int64_t& value : dest) {
     value = ReadLittleEndianSigned64(src);
@@ -1192,11 +1166,8 @@ inline void ReadLittleEndianSigned64s(const char* src,
 inline void ReadLittleEndianSigned128s(const char* src,
                                        absl::Span<absl::int128> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(absl::int128));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src,
+                            dest.size() * sizeof(absl::int128));
 #else
   for (absl::int128& value : dest) {
     value = ReadLittleEndianSigned128(src);
@@ -1207,11 +1178,7 @@ inline void ReadLittleEndianSigned128s(const char* src,
 
 inline void ReadLittleEndianFloats(const char* src, absl::Span<float> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(float));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(float));
 #else
   for (float& value : dest) {
     value = ReadLittleEndianFloat(src);
@@ -1222,11 +1189,7 @@ inline void ReadLittleEndianFloats(const char* src, absl::Span<float> dest) {
 
 inline void ReadLittleEndianDoubles(const char* src, absl::Span<double> dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(double));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(double));
 #else
   for (double& value : dest) {
     value = ReadLittleEndianDouble(src);
@@ -1237,11 +1200,7 @@ inline void ReadLittleEndianDoubles(const char* src, absl::Span<double> dest) {
 
 inline void ReadBigEndian16s(const char* src, absl::Span<uint16_t> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(uint16_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(uint16_t));
 #else
   for (uint16_t& value : dest) {
     value = ReadBigEndian16(src);
@@ -1252,11 +1211,7 @@ inline void ReadBigEndian16s(const char* src, absl::Span<uint16_t> dest) {
 
 inline void ReadBigEndian32s(const char* src, absl::Span<uint32_t> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(uint32_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(uint32_t));
 #else
   for (uint32_t& value : dest) {
     value = ReadBigEndian32(src);
@@ -1267,11 +1222,7 @@ inline void ReadBigEndian32s(const char* src, absl::Span<uint32_t> dest) {
 
 inline void ReadBigEndian64s(const char* src, absl::Span<uint64_t> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(uint64_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(uint64_t));
 #else
   for (uint64_t& value : dest) {
     value = ReadBigEndian64(src);
@@ -1282,11 +1233,8 @@ inline void ReadBigEndian64s(const char* src, absl::Span<uint64_t> dest) {
 
 inline void ReadBigEndian128s(const char* src, absl::Span<absl::uint128> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(absl::uint128));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src,
+                            dest.size() * sizeof(absl::uint128));
 #else
   for (absl::uint128& value : dest) {
     value = ReadBigEndian128(src);
@@ -1297,11 +1245,7 @@ inline void ReadBigEndian128s(const char* src, absl::Span<absl::uint128> dest) {
 
 inline void ReadBigEndianSigned16s(const char* src, absl::Span<int16_t> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(int16_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(int16_t));
 #else
   for (int16_t& value : dest) {
     value = ReadBigEndianSigned16(src);
@@ -1312,11 +1256,7 @@ inline void ReadBigEndianSigned16s(const char* src, absl::Span<int16_t> dest) {
 
 inline void ReadBigEndianSigned32s(const char* src, absl::Span<int32_t> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(int32_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(int32_t));
 #else
   for (int32_t& value : dest) {
     value = ReadBigEndianSigned32(src);
@@ -1327,11 +1267,7 @@ inline void ReadBigEndianSigned32s(const char* src, absl::Span<int32_t> dest) {
 
 inline void ReadBigEndianSigned64s(const char* src, absl::Span<int64_t> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(int64_t));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(int64_t));
 #else
   for (int64_t& value : dest) {
     value = ReadBigEndianSigned64(src);
@@ -1343,11 +1279,8 @@ inline void ReadBigEndianSigned64s(const char* src, absl::Span<int64_t> dest) {
 inline void ReadBigEndianSigned128s(const char* src,
                                     absl::Span<absl::int128> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(absl::int128));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src,
+                            dest.size() * sizeof(absl::int128));
 #else
   for (absl::int128& value : dest) {
     value = ReadBigEndianSigned128(src);
@@ -1358,11 +1291,7 @@ inline void ReadBigEndianSigned128s(const char* src,
 
 inline void ReadBigEndianFloats(const char* src, absl::Span<float> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(float));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(float));
 #else
   for (float& value : dest) {
     value = ReadBigEndianFloat(src);
@@ -1373,11 +1302,7 @@ inline void ReadBigEndianFloats(const char* src, absl::Span<float> dest) {
 
 inline void ReadBigEndianDoubles(const char* src, absl::Span<double> dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size() * sizeof(double));
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size() * sizeof(double));
 #else
   for (double& value : dest) {
     value = ReadBigEndianDouble(src);
@@ -1389,11 +1314,7 @@ inline void ReadBigEndianDoubles(const char* src, absl::Span<double> dest) {
 template <>
 inline void ReadLittleEndians<uint8_t>(const char* src,
                                        absl::Span<uint8_t> dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size());
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size());
 }
 template <>
 inline void ReadLittleEndians<uint16_t>(const char* src,
@@ -1418,11 +1339,7 @@ inline void ReadLittleEndians<absl::uint128>(const char* src,
 template <>
 inline void ReadLittleEndians<int8_t>(const char* src,
                                       absl::Span<int8_t> dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size());
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size());
 }
 template <>
 inline void ReadLittleEndians<int16_t>(const char* src,
@@ -1456,11 +1373,7 @@ inline void ReadLittleEndians<double>(const char* src,
 
 template <>
 inline void ReadBigEndians<uint8_t>(const char* src, absl::Span<uint8_t> dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size());
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size());
 }
 template <>
 inline void ReadBigEndians<uint16_t>(const char* src,
@@ -1484,11 +1397,7 @@ inline void ReadBigEndians<absl::uint128>(const char* src,
 }
 template <>
 inline void ReadBigEndians<int8_t>(const char* src, absl::Span<int8_t> dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!dest.empty())) {
-    std::memcpy(dest.data(), src, dest.size());
-  }
+  riegeli::null_safe_memcpy(dest.data(), src, dest.size());
 }
 template <>
 inline void ReadBigEndians<int16_t>(const char* src, absl::Span<int16_t> dest) {

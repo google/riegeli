@@ -44,6 +44,7 @@ cc_library(
         "//riegeli/base:dependency",
         "//riegeli/base:external_ref",
         "//riegeli/base:initializer",
+        "//riegeli/base:null_safe_memcpy",
         "//riegeli/base:object",
         "//riegeli/base:status",
         "//riegeli/base:types",

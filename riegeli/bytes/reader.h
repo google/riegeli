@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -34,6 +33,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -779,12 +779,8 @@ inline bool Reader::Read(size_t length, absl::string_view& dest,
 
 inline bool Reader::Read(size_t length, char* dest, size_t* length_read) {
   if (ABSL_PREDICT_TRUE(available() >= length)) {
-    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-    // undefined.
-    if (ABSL_PREDICT_TRUE(length > 0)) {
-      std::memcpy(dest, cursor(), length);
-      move_cursor(length);
-    }
+    riegeli::null_safe_memcpy(dest, cursor(), length);
+    move_cursor(length);
     if (length_read != nullptr) *length_read = length;
     return true;
   }
@@ -806,12 +802,8 @@ inline bool Reader::ReadSome(size_t max_length, absl::string_view& dest,
 inline bool Reader::ReadSome(size_t max_length, char* dest,
                              size_t* length_read) {
   if (ABSL_PREDICT_TRUE(available() >= max_length)) {
-    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-    // undefined.
-    if (ABSL_PREDICT_TRUE(max_length > 0)) {
-      std::memcpy(dest, cursor(), max_length);
-      move_cursor(max_length);
-    }
+    riegeli::null_safe_memcpy(dest, cursor(), max_length);
+    move_cursor(max_length);
     if (length_read != nullptr) *length_read = max_length;
     return true;
   }

@@ -9,6 +9,7 @@ cc_library(
     name = "endian_reading",
     hdrs = ["endian_reading.h"],
     deps = [
+        "//riegeli/base:null_safe_memcpy",
         "//riegeli/base:type_traits",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base",
@@ -23,6 +24,7 @@ cc_library(
     name = "endian_writing",
     hdrs = ["endian_writing.h"],
     deps = [
+        "//riegeli/base:null_safe_memcpy",
         "//riegeli/base:type_traits",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:writer",

@@ -44,6 +44,7 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/ownership.h"
 #include "riegeli/base/stream_utils.h"
 #include "riegeli/base/string_utils.h"
@@ -572,9 +573,8 @@ inline void Chain::DropPassedBlocks(PassOwnership) {
 inline void Chain::DropPassedBlocks(ShareOwnership) const {}
 
 void Chain::CopyTo(char* dest) const {
-  if (empty()) return;  // `std::memcpy(nullptr, _, 0)` is undefined.
   if (begin_ == end_) {
-    std::memcpy(dest, short_data_begin(), size_);
+    riegeli::null_safe_memcpy(dest, short_data_begin(), size_);
     return;
   }
   CopyToSlow(dest);

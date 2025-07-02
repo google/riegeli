@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -147,13 +148,10 @@ bool PullableReader::PullSlow(size_t min_length, size_t recommended_length) {
   do {
     const size_t length =
         UnsignedMin(available(), PtrDistance(dest, max_limit));
-    // `std::memcpy(_, nullptr, 0)` is undefined.
-    if (length > 0) {
-      std::memcpy(dest, cursor(), length);
-      move_cursor(length);
-      dest += length;
-      if (dest >= min_limit) break;
-    }
+    riegeli::null_safe_memcpy(dest, cursor(), length);
+    move_cursor(length);
+    dest += length;
+    if (dest >= min_limit) break;
     if (ABSL_PREDICT_FALSE(scratch_used())) {
       SyncScratch();
       if (available() > 0) continue;
@@ -178,13 +176,10 @@ bool PullableReader::ReadBehindScratch(size_t length, char* dest) {
          "scratch used";
   do {
     const size_t available_length = available();
-    // `std::memcpy(_, nullptr, 0)` is undefined.
-    if (available_length > 0) {
-      std::memcpy(dest, cursor(), available_length);
-      move_cursor(available_length);
-      dest += available_length;
-      length -= available_length;
-    }
+    riegeli::null_safe_memcpy(dest, cursor(), available_length);
+    move_cursor(available_length);
+    dest += available_length;
+    length -= available_length;
     if (ABSL_PREDICT_FALSE(!PullBehindScratch(length))) return false;
   } while (length > available());
   std::memcpy(dest, cursor(), length);
@@ -367,12 +362,8 @@ bool PullableReader::ReadSlow(size_t length, char* dest) {
       SyncScratch();
     }
     if (available() >= length) {
-      // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-      // undefined.
-      if (ABSL_PREDICT_TRUE(length > 0)) {
-        std::memcpy(dest, cursor(), length);
-        move_cursor(length);
-      }
+      riegeli::null_safe_memcpy(dest, cursor(), length);
+      move_cursor(length);
       return true;
     }
   }

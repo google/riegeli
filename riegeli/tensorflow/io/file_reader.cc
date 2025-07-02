@@ -36,6 +36,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/sized_shared_buffer.h"
@@ -153,11 +154,8 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
     // to available data.
     cursor_index = 0;
     flat_buffer = buffer_.AppendFixedBuffer(available_length + buffer_length);
-    // `std::memcpy(_, nullptr, 0)` is undefined.
-    if (available_length > 0) {
-      std::memcpy(flat_buffer.data(), cursor(), available_length);
-      flat_buffer.remove_prefix(available_length);
-    }
+    riegeli::null_safe_memcpy(flat_buffer.data(), cursor(), available_length);
+    flat_buffer.remove_prefix(available_length);
   } else {
     cursor_index = start_to_cursor();
     flat_buffer = buffer_.AppendBufferIfExisting(buffer_length);
@@ -269,12 +267,9 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
   if (length >= buffer_sizer_.BufferLength(pos())) {
     // Read directly to `dest`.
     const size_t available_length = available();
-    // `std::memcpy(_, nullptr, 0)` is undefined.
-    if (available_length > 0) {
-      std::memcpy(dest, cursor(), available_length);
-      dest += available_length;
-      length -= available_length;
-    }
+    riegeli::null_safe_memcpy(dest, cursor(), available_length);
+    dest += available_length;
+    length -= available_length;
     SyncBuffer();
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     ::tensorflow::RandomAccessFile* const src = SrcFile();

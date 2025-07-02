@@ -17,7 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
 #include <limits>
 #include <optional>
 #include <utility>
@@ -33,6 +32,7 @@
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -234,19 +234,15 @@ bool SnappyWriterBase::WriteSlow(ByteFill src) {
   const size_t first_length = UnsignedMin(
       RoundUp<kBlockSize>(IntCast<size_t>(pos())) - IntCast<size_t>(pos()),
       IntCast<size_t>(src.size()));
-  if (first_length > 0) {
-    if (ABSL_PREDICT_FALSE(!Push(first_length))) return false;
-    std::memset(cursor(), src.fill(), first_length);
-    move_cursor(first_length);
-    src.Extract(first_length);
-  }
+  if (ABSL_PREDICT_FALSE(!Push(first_length))) return false;
+  riegeli::null_safe_memset(cursor(), src.fill(), first_length);
+  move_cursor(first_length);
+  src.Extract(first_length);
   Write(src.Extract(RoundDown<kBlockSize>(IntCast<size_t>(src.size()))));
   const size_t last_length = IntCast<size_t>(src.size());
-  if (last_length > 0) {
-    if (ABSL_PREDICT_FALSE(!Push(last_length))) return false;
-    std::memset(cursor(), src.fill(), last_length);
-    move_cursor(last_length);
-  }
+  if (ABSL_PREDICT_FALSE(!Push(last_length))) return false;
+  riegeli::null_safe_memset(cursor(), src.fill(), last_length);
+  move_cursor(last_length);
   return true;
 }
 

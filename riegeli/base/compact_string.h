@@ -35,6 +35,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/new_aligned.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -598,12 +599,9 @@ inline uintptr_t CompactString::MakeRepr(size_t size) {
 inline uintptr_t CompactString::MakeRepr(absl::string_view src,
                                          size_t capacity) {
   uintptr_t repr = MakeRepr(src.size(), capacity);
-  // `std::memcpy(_, nullptr, 0)` is undefined.
-  if (ABSL_PREDICT_TRUE(!src.empty())) {
-    std::memcpy(
-        capacity <= kInlineCapacity ? inline_data(&repr) : allocated_data(repr),
-        src.data(), src.size());
-  }
+  riegeli::null_safe_memcpy(
+      capacity <= kInlineCapacity ? inline_data(&repr) : allocated_data(repr),
+      src.data(), src.size());
   return repr;
 }
 
@@ -622,11 +620,8 @@ inline void CompactString::DeleteRepr(uintptr_t repr) {
 inline CompactString& CompactString::operator=(BytesRef src) {
   if (ABSL_PREDICT_TRUE(src.size() <= capacity())) {
     set_size(src.size());
-    // `std::memmove(_, nullptr, 0)` is undefined.
-    if (ABSL_PREDICT_TRUE(!src.empty())) {
-      // Use `std::memmove()` to support assigning from a substring of `*this`.
-      std::memmove(data(), src.data(), src.size());
-    }
+    // Use `memmove()` to support assigning from a substring of `*this`.
+    riegeli::null_safe_memmove(data(), src.data(), src.size());
   } else {
     AssignSlow(src);
   }
@@ -840,17 +835,14 @@ inline char* CompactString::append(size_t length)
 }
 
 inline void CompactString::append(absl::string_view src) {
-  // `std::memcpy(_, nullptr, 0)` is undefined.
-  if (ABSL_PREDICT_TRUE(!src.empty())) {
-    const size_t old_size = size();
-    const size_t old_capacity = capacity();
-    if (ABSL_PREDICT_TRUE(src.size() <= old_capacity - old_size)) {
-      set_size(old_size + src.size());
-      std::memcpy(data() + old_size, src.data(), src.size());
-      return;
-    }
-    AppendSlow(src);
+  const size_t old_size = size();
+  const size_t old_capacity = capacity();
+  if (ABSL_PREDICT_TRUE(src.size() <= old_capacity - old_size)) {
+    set_size(old_size + src.size());
+    riegeli::null_safe_memcpy(data() + old_size, src.data(), src.size());
+    return;
   }
+  AppendSlow(src);
 }
 
 inline const char* CompactString::c_str() ABSL_ATTRIBUTE_LIFETIME_BOUND {

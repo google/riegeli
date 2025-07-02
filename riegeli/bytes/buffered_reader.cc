@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <cstring>
 #include <limits>
 #include <optional>
 #include <utility>
@@ -32,6 +31,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -146,12 +146,9 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
   if (length >= buffer_sizer_.BufferLength(pos())) {
     // Read directly to `dest`.
     const size_t available_length = available();
-    // `std::memcpy(_, nullptr, 0)` is undefined.
-    if (available_length > 0) {
-      std::memcpy(dest, cursor(), available_length);
-      dest += available_length;
-      length -= available_length;
-    }
+    riegeli::null_safe_memcpy(dest, cursor(), available_length);
+    dest += available_length;
+    length -= available_length;
     SyncBuffer();
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     size_t length_to_read = length;

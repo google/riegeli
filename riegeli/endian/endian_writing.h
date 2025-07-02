@@ -25,6 +25,7 @@
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/writer.h"
@@ -1028,27 +1029,27 @@ inline void WriteLittleEndian128(absl::uint128 data, char* dest) {
 }
 
 inline void WriteLittleEndianSigned16(int16_t data, char* dest) {
-  return WriteLittleEndian16(static_cast<uint16_t>(data), dest);
+  WriteLittleEndian16(static_cast<uint16_t>(data), dest);
 }
 
 inline void WriteLittleEndianSigned32(int32_t data, char* dest) {
-  return WriteLittleEndian32(static_cast<uint32_t>(data), dest);
+  WriteLittleEndian32(static_cast<uint32_t>(data), dest);
 }
 
 inline void WriteLittleEndianSigned64(int64_t data, char* dest) {
-  return WriteLittleEndian64(static_cast<uint64_t>(data), dest);
+  WriteLittleEndian64(static_cast<uint64_t>(data), dest);
 }
 
 inline void WriteLittleEndianSigned128(absl::int128 data, char* dest) {
-  return WriteLittleEndian128(static_cast<absl::uint128>(data), dest);
+  WriteLittleEndian128(static_cast<absl::uint128>(data), dest);
 }
 
 inline void WriteLittleEndianFloat(float data, char* dest) {
-  return WriteLittleEndian32(absl::bit_cast<uint32_t>(data), dest);
+  WriteLittleEndian32(absl::bit_cast<uint32_t>(data), dest);
 }
 
 inline void WriteLittleEndianDouble(double data, char* dest) {
-  return WriteLittleEndian64(absl::bit_cast<uint64_t>(data), dest);
+  WriteLittleEndian64(absl::bit_cast<uint64_t>(data), dest);
 }
 
 inline void WriteBigEndian16(uint16_t data, char* dest) {
@@ -1076,27 +1077,27 @@ inline void WriteBigEndian128(absl::uint128 data, char* dest) {
 }
 
 inline void WriteBigEndianSigned16(int16_t data, char* dest) {
-  return WriteBigEndian16(static_cast<uint16_t>(data), dest);
+  WriteBigEndian16(static_cast<uint16_t>(data), dest);
 }
 
 inline void WriteBigEndianSigned32(int32_t data, char* dest) {
-  return WriteBigEndian32(static_cast<uint32_t>(data), dest);
+  WriteBigEndian32(static_cast<uint32_t>(data), dest);
 }
 
 inline void WriteBigEndianSigned64(int64_t data, char* dest) {
-  return WriteBigEndian64(static_cast<uint64_t>(data), dest);
+  WriteBigEndian64(static_cast<uint64_t>(data), dest);
 }
 
 inline void WriteBigEndianSigned128(absl::int128 data, char* dest) {
-  return WriteBigEndian128(static_cast<absl::uint128>(data), dest);
+  WriteBigEndian128(static_cast<absl::uint128>(data), dest);
 }
 
 inline void WriteBigEndianFloat(float data, char* dest) {
-  return WriteBigEndian32(absl::bit_cast<uint32_t>(data), dest);
+  WriteBigEndian32(absl::bit_cast<uint32_t>(data), dest);
 }
 
 inline void WriteBigEndianDouble(double data, char* dest) {
-  return WriteBigEndian64(absl::bit_cast<uint64_t>(data), dest);
+  WriteBigEndian64(absl::bit_cast<uint64_t>(data), dest);
 }
 
 template <>
@@ -1199,11 +1200,7 @@ inline void WriteBigEndian<double>(double data, char* dest) {
 
 inline void WriteLittleEndian16s(absl::Span<const uint16_t> data, char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
 #else
   for (const uint16_t value : data) {
     WriteLittleEndian16(value, dest);
@@ -1214,11 +1211,7 @@ inline void WriteLittleEndian16s(absl::Span<const uint16_t> data, char* dest) {
 
 inline void WriteLittleEndian32s(absl::Span<const uint32_t> data, char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
 #else
   for (const uint32_t value : data) {
     WriteLittleEndian32(value, dest);
@@ -1229,11 +1222,7 @@ inline void WriteLittleEndian32s(absl::Span<const uint32_t> data, char* dest) {
 
 inline void WriteLittleEndian64s(absl::Span<const uint64_t> data, char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
 #else
   for (const uint64_t value : data) {
     WriteLittleEndian64(value, dest);
@@ -1245,11 +1234,8 @@ inline void WriteLittleEndian64s(absl::Span<const uint64_t> data, char* dest) {
 inline void WriteLittleEndian128s(absl::Span<const absl::uint128> data,
                                   char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(absl::uint128));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(),
+                            data.size() * sizeof(absl::uint128));
 #else
   for (const absl::uint128 value : data) {
     WriteLittleEndian128(value, dest);
@@ -1261,11 +1247,7 @@ inline void WriteLittleEndian128s(absl::Span<const absl::uint128> data,
 inline void WriteLittleEndianSigned16s(absl::Span<const int16_t> data,
                                        char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(int16_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int16_t));
 #else
   for (const int16_t value : data) {
     WriteLittleEndianSigned16(value, dest);
@@ -1277,11 +1259,7 @@ inline void WriteLittleEndianSigned16s(absl::Span<const int16_t> data,
 inline void WriteLittleEndianSigned32s(absl::Span<const int32_t> data,
                                        char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(int32_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int32_t));
 #else
   for (const int32_t value : data) {
     WriteLittleEndianSigned32(value, dest);
@@ -1293,11 +1271,7 @@ inline void WriteLittleEndianSigned32s(absl::Span<const int32_t> data,
 inline void WriteLittleEndianSigned64s(absl::Span<const int64_t> data,
                                        char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(int64_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int64_t));
 #else
   for (const int64_t value : data) {
     WriteLittleEndianSigned64(value, dest);
@@ -1309,11 +1283,8 @@ inline void WriteLittleEndianSigned64s(absl::Span<const int64_t> data,
 inline void WriteLittleEndianSigned128s(absl::Span<const absl::int128> data,
                                         char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(absl::int128));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(),
+                            data.size() * sizeof(absl::int128));
 #else
   for (const absl::int128 value : data) {
     WriteLittleEndianSigned128(value, dest);
@@ -1324,11 +1295,7 @@ inline void WriteLittleEndianSigned128s(absl::Span<const absl::int128> data,
 
 inline void WriteLittleEndianFloats(absl::Span<const float> data, char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(float));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(float));
 #else
   for (const float value : data) {
     WriteLittleEndianFloat(value, dest);
@@ -1340,11 +1307,7 @@ inline void WriteLittleEndianFloats(absl::Span<const float> data, char* dest) {
 inline void WriteLittleEndianDoubles(absl::Span<const double> data,
                                      char* dest) {
 #if ABSL_IS_LITTLE_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(double));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(double));
 #else
   for (const double value : data) {
     WriteLittleEndianDouble(value, dest);
@@ -1355,11 +1318,7 @@ inline void WriteLittleEndianDoubles(absl::Span<const double> data,
 
 inline void WriteBigEndian16s(absl::Span<const uint16_t> data, char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
 #else
   for (const uint16_t value : data) {
     WriteBigEndian16(value, dest);
@@ -1370,11 +1329,7 @@ inline void WriteBigEndian16s(absl::Span<const uint16_t> data, char* dest) {
 
 inline void WriteBigEndian32s(absl::Span<const uint32_t> data, char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
 #else
   for (const uint32_t value : data) {
     WriteBigEndian32(value, dest);
@@ -1385,11 +1340,7 @@ inline void WriteBigEndian32s(absl::Span<const uint32_t> data, char* dest) {
 
 inline void WriteBigEndian64s(absl::Span<const uint64_t> data, char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
 #else
   for (const uint64_t value : data) {
     WriteBigEndian64(value, dest);
@@ -1401,11 +1352,8 @@ inline void WriteBigEndian64s(absl::Span<const uint64_t> data, char* dest) {
 inline void WriteBigEndian128s(absl::Span<const absl::uint128> data,
                                char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(absl::uint128));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(),
+                            data.size() * sizeof(absl::uint128));
 #else
   for (const absl::uint128 value : data) {
     WriteBigEndian128(value, dest);
@@ -1417,11 +1365,7 @@ inline void WriteBigEndian128s(absl::Span<const absl::uint128> data,
 inline void WriteBigEndianSigned16s(absl::Span<const int16_t> data,
                                     char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(int16_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int16_t));
 #else
   for (const int16_t value : data) {
     WriteBigEndianSigned16(value, dest);
@@ -1433,11 +1377,7 @@ inline void WriteBigEndianSigned16s(absl::Span<const int16_t> data,
 inline void WriteBigEndianSigned32s(absl::Span<const int32_t> data,
                                     char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(int32_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int32_t));
 #else
   for (const int32_t value : data) {
     WriteBigEndianSigned32(value, dest);
@@ -1449,11 +1389,7 @@ inline void WriteBigEndianSigned32s(absl::Span<const int32_t> data,
 inline void WriteBigEndianSigned64s(absl::Span<const int64_t> data,
                                     char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(int64_t));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int64_t));
 #else
   for (const int64_t value : data) {
     WriteBigEndianSigned64(value, dest);
@@ -1465,11 +1401,8 @@ inline void WriteBigEndianSigned64s(absl::Span<const int64_t> data,
 inline void WriteBigEndianSigned128s(absl::Span<const absl::int128> data,
                                      char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(absl::int128));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(),
+                            data.size() * sizeof(absl::int128));
 #else
   for (const absl::int128 value : data) {
     WriteBigEndianSigned128(value, dest);
@@ -1480,11 +1413,7 @@ inline void WriteBigEndianSigned128s(absl::Span<const absl::int128> data,
 
 inline void WriteBigEndianFloats(absl::Span<const float> data, char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(float));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(float));
 #else
   for (const float value : data) {
     WriteBigEndianFloat(value, dest);
@@ -1495,11 +1424,7 @@ inline void WriteBigEndianFloats(absl::Span<const float> data, char* dest) {
 
 inline void WriteBigEndianDoubles(absl::Span<const double> data, char* dest) {
 #if ABSL_IS_BIG_ENDIAN
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size() * sizeof(double));
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(double));
 #else
   for (const double value : data) {
     WriteBigEndianDouble(value, dest);
@@ -1511,11 +1436,7 @@ inline void WriteBigEndianDoubles(absl::Span<const double> data, char* dest) {
 template <>
 inline void WriteLittleEndians<uint8_t>(absl::Span<const uint8_t> data,
                                         char* dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size());
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size());
 }
 template <>
 inline void WriteLittleEndians<uint16_t>(absl::Span<const uint16_t> data,
@@ -1540,11 +1461,7 @@ inline void WriteLittleEndians<absl::uint128>(
 template <>
 inline void WriteLittleEndians<int8_t>(absl::Span<const int8_t> data,
                                        char* dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size());
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size());
 }
 template <>
 inline void WriteLittleEndians<int16_t>(absl::Span<const int16_t> data,
@@ -1580,11 +1497,7 @@ inline void WriteLittleEndians<double>(absl::Span<const double> data,
 template <>
 inline void WriteBigEndians<uint8_t>(absl::Span<const uint8_t> data,
                                      char* dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size());
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size());
 }
 template <>
 inline void WriteBigEndians<uint16_t>(absl::Span<const uint16_t> data,
@@ -1608,11 +1521,7 @@ inline void WriteBigEndians<absl::uint128>(absl::Span<const absl::uint128> data,
 }
 template <>
 inline void WriteBigEndians<int8_t>(absl::Span<const int8_t> data, char* dest) {
-  // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-  // undefined.
-  if (ABSL_PREDICT_TRUE(!data.empty())) {
-    std::memcpy(dest, data.data(), data.size());
-  }
+  riegeli::null_safe_memcpy(dest, data.data(), data.size());
 }
 template <>
 inline void WriteBigEndians<int16_t>(absl::Span<const int16_t> data,

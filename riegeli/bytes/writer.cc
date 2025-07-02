@@ -36,6 +36,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -184,12 +185,9 @@ bool Writer::WriteSlow(absl::string_view src) {
          "enough space available, use Write(string_view) instead";
   do {
     const size_t available_length = available();
-    // `std::memcpy(nullptr, _, 0)` is undefined.
-    if (available_length > 0) {
-      std::memcpy(cursor(), src.data(), available_length);
-      move_cursor(available_length);
-      src.remove_prefix(available_length);
-    }
+    riegeli::null_safe_memcpy(cursor(), src.data(), available_length);
+    move_cursor(available_length);
+    src.remove_prefix(available_length);
     if (ABSL_PREDICT_FALSE(!PushSlow(1, src.size()))) return false;
   } while (src.size() > available());
   std::memcpy(cursor(), src.data(), src.size());
@@ -250,12 +248,9 @@ bool Writer::WriteSlow(ByteFill src) {
          "enough space available, use Write(ByteFill) instead";
   while (src.size() > available()) {
     const size_t available_length = available();
-    // `std::memset(nullptr, _, 0)` is undefined.
-    if (available_length > 0) {
-      std::memset(cursor(), src.fill(), available_length);
-      move_cursor(available_length);
-      src.Extract(available_length);
-    }
+    riegeli::null_safe_memset(cursor(), src.fill(), available_length);
+    move_cursor(available_length);
+    src.Extract(available_length);
     if (ABSL_PREDICT_FALSE(!Push(1, SaturatingIntCast<size_t>(src.size())))) {
       return false;
     }

@@ -22,6 +22,12 @@ cc_library(
 )
 
 cc_library(
+    name = "null_safe_memcpy",
+    hdrs = ["null_safe_memcpy.h"],
+    deps = ["@com_google_absl//absl/base:core_headers"],
+)
+
+cc_library(
     name = "compare",
     hdrs = ["compare.h"],
     deps = [
@@ -497,6 +503,7 @@ cc_library(
         ":initializer",
         ":memory_estimator",
         ":new_aligned",
+        ":null_safe_memcpy",
         ":shared_ptr",
         ":stream_utils",
         ":string_utils",
@@ -557,6 +564,7 @@ cc_library(
         ":estimated_allocated_size",
         ":external_data",
         ":new_aligned",
+        ":null_safe_memcpy",
         ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",

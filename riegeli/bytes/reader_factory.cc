@@ -35,6 +35,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/pullable_reader.h"
@@ -187,13 +188,10 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
          "scratch used";
   if (iter_ != secondary_buffer_.blocks().cend()) {
     const size_t available_length = available();
-    // `std::memcpy(_, nullptr, 0)` is undefined.
-    if (available_length > 0) {
-      std::memcpy(dest, cursor(), available_length);
-      move_cursor(available_length);
-      dest += available_length;
-      length -= available_length;
-    }
+    riegeli::null_safe_memcpy(dest, cursor(), available_length);
+    move_cursor(available_length);
+    dest += available_length;
+    length -= available_length;
     ++iter_;
   }
   set_buffer();

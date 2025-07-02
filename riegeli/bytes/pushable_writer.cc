@@ -33,6 +33,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -165,12 +166,9 @@ bool PushableWriter::WriteBehindScratch(absl::string_view src) {
          "scratch used";
   do {
     const size_t available_length = available();
-    // `std::memcpy(nullptr, _, 0)` is undefined.
-    if (available_length > 0) {
-      std::memcpy(cursor(), src.data(), available_length);
-      move_cursor(available_length);
-      src.remove_prefix(available_length);
-    }
+    riegeli::null_safe_memcpy(cursor(), src.data(), available_length);
+    move_cursor(available_length);
+    src.remove_prefix(available_length);
     if (ABSL_PREDICT_FALSE(!PushBehindScratch(src.size()))) return false;
   } while (src.size() > available());
   std::memcpy(cursor(), src.data(), src.size());
@@ -253,12 +251,9 @@ bool PushableWriter::WriteBehindScratch(ByteFill src) {
          "scratch used";
   while (src.size() > available()) {
     const size_t available_length = available();
-    // `std::memset(nullptr, _, 0)` is undefined.
-    if (available_length > 0) {
-      std::memset(cursor(), src.fill(), available_length);
-      move_cursor(available_length);
-      src.Extract(available_length);
-    }
+    riegeli::null_safe_memset(cursor(), src.fill(), available_length);
+    move_cursor(available_length);
+    src.Extract(available_length);
     if (ABSL_PREDICT_FALSE(
             !PushBehindScratch(SaturatingIntCast<size_t>(src.size())))) {
       return false;
@@ -316,13 +311,8 @@ bool PushableWriter::WriteSlow(absl::string_view src) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size()) {
-      if (ABSL_PREDICT_TRUE(
-              // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)`
-              // are undefined.
-              !src.empty())) {
-        std::memcpy(cursor(), src.data(), src.size());
-        move_cursor(src.size());
-      }
+      riegeli::null_safe_memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
       return true;
     }
   }
@@ -336,12 +326,8 @@ bool PushableWriter::WriteSlow(ExternalRef src) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
-      // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-      // undefined.
-      if (ABSL_PREDICT_TRUE(!src.empty())) {
-        std::memcpy(cursor(), src.data(), src.size());
-        move_cursor(src.size());
-      }
+      riegeli::null_safe_memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
       return true;
     }
   }
@@ -415,11 +401,9 @@ bool PushableWriter::WriteSlow(ByteFill src) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
     if (available() >= src.size() && src.size() <= kMaxBytesToCopy) {
-      // `std::memset(nullptr, _, 0)` is undefined.
-      if (ABSL_PREDICT_TRUE(src.size() > 0)) {
-        std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
-        move_cursor(IntCast<size_t>(src.size()));
-      }
+      riegeli::null_safe_memset(cursor(), src.fill(),
+                                IntCast<size_t>(src.size()));
+      move_cursor(IntCast<size_t>(src.size()));
       return true;
     }
   }

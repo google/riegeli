@@ -18,7 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cstring>
 #include <limits>
 #include <optional>
 #include <tuple>
@@ -39,6 +38,7 @@
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/restricted_chain_writer.h"
@@ -525,12 +525,8 @@ inline bool BackwardWriter::Write(char src) {
 inline bool BackwardWriter::Write(BytesRef src) {
   AssertInitialized(src.data(), src.size());
   if (ABSL_PREDICT_TRUE(available() >= src.size())) {
-    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-    // undefined.
-    if (ABSL_PREDICT_TRUE(!src.empty())) {
-      move_cursor(src.size());
-      std::memcpy(cursor(), src.data(), src.size());
-    }
+    move_cursor(src.size());
+    riegeli::null_safe_memcpy(cursor(), src.data(), src.size());
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());
@@ -540,12 +536,8 @@ inline bool BackwardWriter::Write(BytesRef src) {
 inline bool BackwardWriter::Write(ExternalRef src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
-    // `std::memcpy(nullptr, _, 0)` and `std::memcpy(_, nullptr, 0)` are
-    // undefined.
-    if (ABSL_PREDICT_TRUE(!src.empty())) {
-      move_cursor(src.size());
-      std::memcpy(cursor(), src.data(), src.size());
-    }
+    move_cursor(src.size());
+    riegeli::null_safe_memcpy(cursor(), src.data(), src.size());
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());
@@ -561,11 +553,9 @@ inline bool BackwardWriter::Write(Src&& src) {
 inline bool BackwardWriter::Write(ByteFill src) {
   if (ABSL_PREDICT_TRUE(available() >= src.size() &&
                         src.size() <= kMaxBytesToCopy)) {
-    // `std::memset(nullptr, _, 0)` is undefined.
-    if (ABSL_PREDICT_TRUE(src.size() > 0)) {
-      move_cursor(IntCast<size_t>(src.size()));
-      std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
-    }
+    move_cursor(IntCast<size_t>(src.size()));
+    riegeli::null_safe_memset(cursor(), src.fill(),
+                              IntCast<size_t>(src.size()));
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());

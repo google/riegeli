@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -34,6 +33,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -208,10 +208,8 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
         new_cord_buffer.SetLength(
             UnsignedMin(new_cord_buffer.capacity(),
                         std::numeric_limits<size_t>::max() - dest.size()));
-        // `std::memcpy(_, nullptr, 0)` is undefined.
-        if (cursor_index > 0) {
-          std::memcpy(new_cord_buffer.data(), start(), cursor_index);
-        }
+        riegeli::null_safe_memcpy(new_cord_buffer.data(), start(),
+                                  cursor_index);
         cord_buffer_ = std::move(new_cord_buffer);
         set_buffer(cord_buffer_.data(), cord_buffer_.length(), cursor_index);
         return true;
@@ -225,8 +223,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   Buffer new_buffer = buffer_.capacity() >= buffer_length
                           ? std::move(buffer_)
                           : Buffer(buffer_length);
-  // `std::memcpy(_, nullptr, 0)` is undefined.
-  if (cursor_index > 0) std::memcpy(new_buffer.data(), start(), cursor_index);
+  riegeli::null_safe_memcpy(new_buffer.data(), start(), cursor_index);
   buffer_ = std::move(new_buffer);
   set_buffer(buffer_.data(),
              UnsignedMin(buffer_.capacity(),
