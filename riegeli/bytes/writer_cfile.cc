@@ -36,6 +36,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 
@@ -259,10 +260,12 @@ static int WriterCFileClose(void* cookie) {
 
 }  // extern "C"
 
-FILE* WriterCFileImpl(WriterCFileCookieBase* cookie) {
-  return fopencookie(
-      cookie, cookie->OpenMode(),
-      {WriterCFileRead, WriterCFileWrite, WriterCFileSeek, WriterCFileClose});
+OwnedCFile WriterCFileImpl(WriterCFileCookieBase* cookie,
+                           absl::string_view filename) {
+  return OwnedCFile(fopencookie(cookie, cookie->OpenMode(),
+                                {WriterCFileRead, WriterCFileWrite,
+                                 WriterCFileSeek, WriterCFileClose}),
+                    filename);
 }
 
 }  // namespace riegeli::cfile_internal

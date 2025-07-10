@@ -30,10 +30,12 @@
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli::cfile_internal {
@@ -164,10 +166,12 @@ static int ReaderCFileClose(void* cookie) {
 
 }  // extern "C"
 
-FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie) {
-  return fopencookie(
-      cookie, "r",
-      {ReaderCFileRead, nullptr, ReaderCFileSeek, ReaderCFileClose});
+OwnedCFile ReaderCFileImpl(ReaderCFileCookieBase* cookie,
+                           absl::string_view filename) {
+  return OwnedCFile(fopencookie(cookie, "r",
+                                {ReaderCFileRead, nullptr, ReaderCFileSeek,
+                                 ReaderCFileClose}),
+                    filename);
 }
 
 }  // namespace riegeli::cfile_internal

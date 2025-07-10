@@ -21,15 +21,20 @@
 #include <sys/types.h>
 
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/cfile_handle.h"
+#include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -39,6 +44,22 @@ class Reader;
 class WriterCFileOptions {
  public:
   WriterCFileOptions() noexcept {}
+
+  // The filename assumed by the returned `OwnedCFile`.
+  //
+  // Default: "<unspecified>".
+  WriterCFileOptions& set_filename(PathInitializer filename) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    riegeli::Reset(filename_, std::move(filename));
+    return *this;
+  }
+  WriterCFileOptions&& set_filename(PathInitializer filename) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(set_filename(std::move(filename)));
+  }
+  absl::string_view filename() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
 
   // If `std::nullopt`, `fflush()` pushes data buffered in the `FILE` to the
   // `Writer`, but does not call `Writer::Flush()`. There is no way to trigger
@@ -65,6 +86,7 @@ class WriterCFileOptions {
   std::optional<FlushType> flush_type() const { return flush_type_; }
 
  private:
+  std::string filename_ = "<unspecified>";
   std::optional<FlushType> flush_type_;
 };
 
@@ -94,8 +116,8 @@ class WriterCFileOptions {
 template <
     typename Dest,
     std::enable_if_t<TargetSupportsDependency<Writer*, Dest>::value, int> = 0>
-FILE* WriterCFile(Dest&& dest,
-                  WriterCFileOptions options = WriterCFileOptions());
+OwnedCFile WriterCFile(Dest&& dest,
+                       WriterCFileOptions options = WriterCFileOptions());
 
 // Implementation details follow.
 
@@ -163,16 +185,18 @@ int WriterCFileCookie<Dest>::Close() {
   return 0;
 }
 
-FILE* WriterCFileImpl(WriterCFileCookieBase* cookie);
+OwnedCFile WriterCFileImpl(WriterCFileCookieBase* cookie,
+                           absl::string_view filename);
 
 }  // namespace cfile_internal
 
 template <typename Dest,
           std::enable_if_t<TargetSupportsDependency<Writer*, Dest>::value, int>>
-FILE* WriterCFile(Dest&& dest, WriterCFileOptions options) {
+OwnedCFile WriterCFile(Dest&& dest, WriterCFileOptions options) {
   return cfile_internal::WriterCFileImpl(
       new cfile_internal::WriterCFileCookie<TargetT<Dest>>(
-          std::forward<Dest>(dest), options.flush_type()));
+          std::forward<Dest>(dest), options.flush_type()),
+      options.filename());
 }
 
 }  // namespace riegeli

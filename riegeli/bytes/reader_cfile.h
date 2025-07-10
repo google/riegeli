@@ -21,15 +21,20 @@
 #include <sys/types.h>
 
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/reset.h"
+#include "riegeli/bytes/cfile_handle.h"
+#include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -37,6 +42,25 @@ namespace riegeli {
 class ReaderCFileOptions {
  public:
   ReaderCFileOptions() noexcept {}
+
+  // The filename assumed by the returned `OwnedCFile`.
+  //
+  // Default: "<unspecified>".
+  ReaderCFileOptions& set_filename(PathInitializer filename) &
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    riegeli::Reset(filename_, std::move(filename));
+    return *this;
+  }
+  ReaderCFileOptions&& set_filename(PathInitializer filename) &&
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return std::move(set_filename(std::move(filename)));
+  }
+  absl::string_view filename() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return filename_;
+  }
+
+ private:
+  std::string filename_ = "<unspecified>";
 };
 
 // A read-only `FILE` which reads data from a `Reader`.
@@ -60,7 +84,8 @@ class ReaderCFileOptions {
 template <
     typename Src,
     std::enable_if_t<TargetSupportsDependency<Reader*, Src>::value, int> = 0>
-FILE* ReaderCFile(Src&& src, ReaderCFileOptions options = ReaderCFileOptions());
+OwnedCFile ReaderCFile(Src&& src,
+                       ReaderCFileOptions options = ReaderCFileOptions());
 
 // Implementation details follow.
 
@@ -121,16 +146,18 @@ int ReaderCFileCookie<Src>::Close() {
   return 0;
 }
 
-FILE* ReaderCFileImpl(ReaderCFileCookieBase* cookie);
+OwnedCFile ReaderCFileImpl(ReaderCFileCookieBase* cookie,
+                           absl::string_view filename);
 
 }  // namespace cfile_internal
 
 template <typename Src,
           std::enable_if_t<TargetSupportsDependency<Reader*, Src>::value, int>>
-FILE* ReaderCFile(Src&& src, ReaderCFileOptions options) {
+OwnedCFile ReaderCFile(Src&& src, ReaderCFileOptions options) {
   return cfile_internal::ReaderCFileImpl(
       new cfile_internal::ReaderCFileCookie<TargetT<Src>>(
-          std::forward<Src>(src)));
+          std::forward<Src>(src)),
+      options.filename());
 }
 
 }  // namespace riegeli

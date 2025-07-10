@@ -1508,15 +1508,19 @@ cc_library(
     # files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":cfile_handle",
+        ":path_ref",
         ":reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
+        "//riegeli/base:reset",
         "//riegeli/base:status",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -1530,12 +1534,15 @@ cc_library(
     # files provide.
     features = ["-use_header_modules"],
     deps = [
+        ":cfile_handle",
+        ":path_ref",
         ":reader",
         ":writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
+        "//riegeli/base:reset",
         "//riegeli/base:status",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
