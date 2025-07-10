@@ -138,10 +138,10 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   // `absl::Span<const char>`, which includes `BytesRef`.
 };
 
-// `StringInitializer` is convertible from the same types as `StringRef`,
+// `BytesInitializer` is convertible from the same types as `BytesRef`,
 // but efficiently takes ownership of `std::string`.
 //
-// `StringInitializer` behaves like `Initializer<std::string>`.
+// `BytesInitializer` behaves like `Initializer<std::string>`.
 class BytesInitializer : public Initializer<std::string> {
  public:
   BytesInitializer() = default;
