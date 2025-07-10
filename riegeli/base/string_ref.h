@@ -45,6 +45,7 @@ namespace riegeli {
 // It is convertible from:
 //  * types convertible to `absl::string_view`
 //  * types convertible to `std::string_view`
+//  * types convertible to `std::string`, e.g. `StringInitializer`
 //
 // `StringRef` does not own string contents and is efficiently copyable.
 //
@@ -93,6 +94,23 @@ class StringRef : public WithCompare<StringRef> {
   /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : StringRef(std::string_view(std::forward<T>(str))) {}
 #endif
+
+  // Stores `str` materialized and then converted to `absl::string_view`.
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<StringRef, T>,
+                    std::negation<std::is_convertible<T&&, absl::string_view>>,
+#if !defined(ABSL_USES_STD_STRING_VIEW)
+                    std::negation<std::is_convertible<T&&, std::string_view>>,
+#endif
+                    std::is_convertible<T&&, std::string>>,
+                int> = 0>
+  /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                         TemporaryStorage<std::string>&& storage
+                             ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : str_(std::move(storage).emplace(std::forward<T>(str))) {
+  }
 
   StringRef(const StringRef& that) = default;
   StringRef& operator=(const StringRef&) = delete;
@@ -172,18 +190,18 @@ class StringInitializer : public Initializer<std::string> {
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<StringInitializer, T>,
-                                   std::is_convertible<T&&, std::string&&>>,
+                                   std::is_convertible<T&&, std::string>>,
                 int> = 0>
   /*implicit*/ StringInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer(std::forward<T>(str)) {}
 
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<StringInitializer, T>,
-                    std::negation<std::is_convertible<T&&, std::string&&>>,
-                    std::is_convertible<T&&, StringRef>>,
-                int> = 0>
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<
+                           NotSameRef<StringInitializer, T>,
+                           std::negation<std::is_convertible<T&&, std::string>>,
+                           std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   /*implicit*/ StringInitializer(
       T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
       TemporaryStorage<MakerType<absl::string_view>>&& storage

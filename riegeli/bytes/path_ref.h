@@ -40,6 +40,7 @@ namespace riegeli {
 
 // Filename used for default-constructed or moved-from objects.
 constexpr absl::string_view kDefaultFilename = "<none>";
+constexpr char kDefaultFilenameCStr[] = "<none>";
 
 // `PathRef` stores an `absl::string_view` representing a file path.
 //
@@ -50,6 +51,7 @@ constexpr absl::string_view kDefaultFilename = "<none>";
 // It is convertible from:
 //  * types convertible to `absl::string_view`
 //  * types convertible to `std::string_view`
+//  * types convertible to `std::string`, e.g. `PathInitializer`
 //  * `std::filesystem::path`
 //
 // For `std::filesystem::path` with `value_type = char`, it refers to
@@ -66,13 +68,38 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   PathRef() = default;
 
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<PathRef, T>,
-                                          std::is_convertible<T&&, StringRef>>,
-                       int> = 0>
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<PathRef, T>,
+                    std::disjunction<std::is_convertible<T&&, absl::string_view>
+#if !defined(ABSL_USES_STD_STRING_VIEW)
+                                     ,
+                                     std::is_convertible<T&&, std::string_view>
+#endif
+                                     >>,
+                int> = 0>
   /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(std::forward<T>(str)) {}
+      : StringRef(std::forward<T>(str)) {
+  }
+
+  // Stores `str` materialized, then converted to `StringRef`, and then
+  // converted to `absl::string_view`.
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<PathRef, T>,
+                    std::negation<std::is_convertible<T&&, absl::string_view>>,
+#if !defined(ABSL_USES_STD_STRING_VIEW)
+                    std::negation<std::is_convertible<T&&, std::string_view>>,
+#endif
+                    std::is_convertible<T&&, std::string>>,
+                int> = 0>
+  /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                       TemporaryStorage<std::string>&& storage
+                           ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : StringRef(std::forward<T>(str), std::move(storage)) {
+  }
 
 #if __cpp_lib_filesystem >= 201703
 
@@ -174,7 +201,7 @@ class PathInitializer : public Initializer<std::string> {
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<PathInitializer, T>,
-                                   std::is_convertible<T&&, std::string&&>>,
+                                   std::is_convertible<T&&, std::string>>,
                 int> = 0>
   /*implicit*/ PathInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer(std::forward<T>(str)) {}
@@ -187,16 +214,16 @@ class PathInitializer : public Initializer<std::string> {
       : Initializer(std::move(storage).emplace(path)) {}
 #endif
 
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<PathInitializer, T>,
-                    std::negation<std::is_convertible<T&&, std::string&&>>,
+  template <
+      typename T,
+      std::enable_if_t<std::conjunction_v<
+                           NotSameRef<PathInitializer, T>,
+                           std::negation<std::is_convertible<T&&, std::string>>,
 #if __cpp_lib_filesystem >= 201703
-                    NotSameRef<std::filesystem::path, T>,
+                           NotSameRef<std::filesystem::path, T>,
 #endif
-                    std::is_convertible<T&&, StringRef>>,
-                int> = 0>
+                           std::is_convertible<T&&, StringRef>>,
+                       int> = 0>
   /*implicit*/ PathInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                TemporaryStorage<MakerType<absl::string_view>>&&
                                    storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
