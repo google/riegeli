@@ -49,17 +49,17 @@ class Reader;
 class Writer;
 
 // An sink for `AbslStringify()` which appends to a `Writer`.
-class WriterAbslStringifySink {
+class WriterStringifySink {
  public:
-  // Creates a dummy `WriterAbslStringifySink`. It must not be used.
-  WriterAbslStringifySink() = default;
+  // Creates a dummy `WriterStringifySink`. It must not be used.
+  WriterStringifySink() = default;
 
   // Will write to `*dest`.
-  explicit WriterAbslStringifySink(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit WriterStringifySink(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(RIEGELI_EVAL_ASSERT_NOTNULL(dest)) {}
 
-  WriterAbslStringifySink(WriterAbslStringifySink&& that) = default;
-  WriterAbslStringifySink& operator=(WriterAbslStringifySink&& that) = default;
+  WriterStringifySink(WriterStringifySink&& that) = default;
+  WriterStringifySink& operator=(WriterStringifySink&& that) = default;
 
   // Returns the `Writer` being written to.
   Writer* dest() const { return dest_; }
@@ -69,7 +69,7 @@ class WriterAbslStringifySink {
       typename Src,
       std::enable_if_t<std::is_convertible_v<Src, absl::string_view>, int> = 0>
   void Append(Src&& src);
-  friend void AbslFormatFlush(WriterAbslStringifySink* dest,
+  friend void AbslFormatFlush(WriterStringifySink* dest,
                               absl::string_view src) {
     dest->Append(src);
   }
@@ -553,13 +553,13 @@ class AssociatedReader {
 
 // Implementation details follow.
 
-inline void WriterAbslStringifySink::Append(size_t length, char fill) {
+inline void WriterStringifySink::Append(size_t length, char fill) {
   dest_->Write(ByteFill(length, fill));
 }
 
 template <typename Src,
           std::enable_if_t<std::is_convertible_v<Src, absl::string_view>, int>>
-inline void WriterAbslStringifySink::Append(Src&& src) {
+inline void WriterStringifySink::Append(Src&& src) {
   dest_->Write(std::forward<Src>(src));
 }
 
@@ -702,7 +702,7 @@ template <typename Src,
                   std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
 bool Writer::Write(Src&& src) {
-  WriterAbslStringifySink sink(this);
+  WriterStringifySink sink(this);
   AbslStringify(sink, std::forward<Src>(src));
   return ok();
 }

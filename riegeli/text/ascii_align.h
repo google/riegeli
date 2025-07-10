@@ -33,10 +33,10 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
-#include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/restricted_chain_writer.h"
 #include "riegeli/bytes/stringify.h"
+#include "riegeli/bytes/stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/text/concat.h"
 
@@ -123,11 +123,9 @@ class AsciiLeftType {
   template <typename Sink>
   void Stringify(Sink& dest) &&;
 
-  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& dest) const& {
-    WriteTo(*dest.dest());
-  }
-  void Stringify(WriterAbslStringifySink& dest) && {
+  // Faster implementation if `Sink` is `WriterStringifySink`.
+  void Stringify(WriterStringifySink& dest) const& { WriteTo(*dest.dest()); }
+  void Stringify(WriterStringifySink& dest) && {
     std::move(*this).WriteTo(*dest.dest());
   }
 
@@ -249,11 +247,9 @@ class AsciiCenterType {
   template <typename Sink>
   void Stringify(Sink& dest) &&;
 
-  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& dest) const& {
-    WriteTo(*dest.dest());
-  }
-  void Stringify(WriterAbslStringifySink& dest) && {
+  // Faster implementation if `Sink` is `WriterStringifySink`.
+  void Stringify(WriterStringifySink& dest) const& { WriteTo(*dest.dest()); }
+  void Stringify(WriterStringifySink& dest) && {
     std::move(*this).WriteTo(*dest.dest());
   }
 
@@ -376,11 +372,9 @@ class AsciiRightType {
   template <typename Sink>
   void Stringify(Sink& dest) &&;
 
-  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& dest) const& {
-    WriteTo(*dest.dest());
-  }
-  void Stringify(WriterAbslStringifySink& dest) && {
+  // Faster implementation if `Sink` is `WriterStringifySink`.
+  void Stringify(WriterStringifySink& dest) const& { WriteTo(*dest.dest()); }
+  void Stringify(WriterStringifySink& dest) && {
     std::move(*this).WriteTo(*dest.dest());
   }
 
@@ -475,7 +469,7 @@ inline void WritePadding(Sink& dest, Position length, char fill) {
 template <typename... T>
 template <typename Sink>
 inline void AsciiLeftType<T...>::Stringify(Sink& dest) const& {
-  AbslStringifyWriter writer(&dest);
+  StringifyWriter writer(&dest);
   writer.Write(values_);
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
   align_internal::WritePadding(
@@ -485,7 +479,7 @@ inline void AsciiLeftType<T...>::Stringify(Sink& dest) const& {
 template <typename... T>
 template <typename Sink>
 inline void AsciiLeftType<T...>::Stringify(Sink& dest) && {
-  AbslStringifyWriter writer(&dest);
+  StringifyWriter writer(&dest);
   writer.Write(std::move(values_));
   if (ABSL_PREDICT_FALSE(!writer.Close())) return;
   align_internal::WritePadding(
@@ -519,7 +513,7 @@ inline void AsciiCenterType<T...>::Stringify(Sink& dest) const& {
     const Position padding =
         SaturatingSub(options_.width(), riegeli::StringifiedSize(values_));
     align_internal::WritePadding(dest, padding / 2, options_.fill());
-    AbslStringifyWriter writer(&dest);
+    StringifyWriter writer(&dest);
     writer.Write(values_);
     if (ABSL_PREDICT_FALSE(!writer.Close())) return;
     align_internal::WritePadding(dest, padding - padding / 2, options_.fill());
@@ -542,7 +536,7 @@ inline void AsciiCenterType<T...>::Stringify(Sink& dest) && {
     const Position padding =
         SaturatingSub(options_.width(), riegeli::StringifiedSize(values_));
     align_internal::WritePadding(dest, padding / 2, options_.fill());
-    AbslStringifyWriter writer(&dest);
+    StringifyWriter writer(&dest);
     writer.Write(std::move(values_));
     if (ABSL_PREDICT_FALSE(!writer.Close())) return;
     align_internal::WritePadding(dest, padding - padding / 2, options_.fill());
@@ -612,7 +606,7 @@ inline void AsciiRightType<T...>::Stringify(Sink& dest) const& {
         dest,
         SaturatingSub(options_.width(), riegeli::StringifiedSize(values_)),
         options_.fill());
-    AbslStringifyWriter writer(&dest);
+    StringifyWriter writer(&dest);
     writer.Write(values_);
     writer.Close();
   } else {
@@ -634,7 +628,7 @@ inline void AsciiRightType<T...>::Stringify(Sink& dest) && {
         dest,
         SaturatingSub(options_.width(), riegeli::StringifiedSize(values_)),
         options_.fill());
-    AbslStringifyWriter writer(&dest);
+    StringifyWriter writer(&dest);
     writer.Write(std::move(values_));
     writer.Close();
   } else {

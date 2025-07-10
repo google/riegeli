@@ -28,7 +28,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/string_ref.h"
-#include "riegeli/bytes/absl_stringify_writer.h"
+#include "riegeli/bytes/stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -106,7 +106,7 @@ class GcsObject : public WithEqual<GcsObject> {
   // Writes `src.uri()` to `dest`, or "<status_message>" if `!ok()`.
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const GcsObject& src) {
-    AbslStringifyWriter<Sink*> writer(&dest);
+    StringifyWriter<Sink*> writer(&dest);
     src.WriteTo(writer);
     writer.Close();
   }

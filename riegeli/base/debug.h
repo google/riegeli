@@ -122,7 +122,7 @@ class DebugStream {
   // first defined form among the following:
   //  * `RiegeliDebug(src, *this)`
   //  * `Write(src.DebugString())`
-  //  * `AbslStringify(sink, src)` for `OStreamAbslStringifySink(dest)`
+  //  * `AbslStringify(sink, src)` for `OStreamStringifySink(dest)`
   //  * `*dest << src`
   //
   // This is used to implement `riegeli::Debug()`, and to write subobjects by
@@ -137,7 +137,7 @@ class DebugStream {
       *dest_ << src;
     } else {
       static_assert(absl::HasAbslStringify<T>::value);
-      OStreamAbslStringifySink sink(dest_);
+      OStreamStringifySink sink(dest_);
       AbslStringify(sink, src);
     }
   }
@@ -274,13 +274,12 @@ class DebugType {
 
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const DebugType& src) {
-    AbslStringifyOStream stream(&dest);
+    StringifyOStream stream(&dest);
     DebugStream(&stream).Debug(src.src_);
   }
 
-  // Faster implementation if `Sink` is `OStreamAbslStringifySink`.
-  friend void AbslStringify(OStreamAbslStringifySink& dest,
-                            const DebugType& src) {
+  // Faster implementation if `Sink` is `OStreamStringifySink`.
+  friend void AbslStringify(OStreamStringifySink& dest, const DebugType& src) {
     DebugStream(dest.dest()).Debug(src.src_);
   }
 

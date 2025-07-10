@@ -1553,8 +1553,8 @@ cc_library(
 )
 
 cc_library(
-    name = "absl_stringify_writer",
-    hdrs = ["absl_stringify_writer.h"],
+    name = "stringify_writer",
+    hdrs = ["stringify_writer.h"],
     deps = [
         ":buffered_writer",
         ":prefix_limiting_writer",

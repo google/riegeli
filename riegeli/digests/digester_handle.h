@@ -441,7 +441,7 @@ class
   TypeErasedRef target() const { return target_; }
 
  private:
-  class DigesterAbslStringifySink;
+  class DigesterStringifySink;
 
   const Methods* methods_ = &kMethodsDefault;
   TypeErasedRef target_;
@@ -635,9 +635,9 @@ using AnyDigester = Any<DigesterHandle<DigestType>>;
 
 // Implementation details follow.
 
-class DigesterBaseHandle::DigesterAbslStringifySink {
+class DigesterBaseHandle::DigesterStringifySink {
  public:
-  explicit DigesterAbslStringifySink(DigesterBaseHandle digester)
+  explicit DigesterStringifySink(DigesterBaseHandle digester)
       : digester_(digester) {}
 
   void Append(size_t length, char fill) {
@@ -648,7 +648,7 @@ class DigesterBaseHandle::DigesterAbslStringifySink {
   void Append(absl::string_view src) {
     if (ABSL_PREDICT_FALSE(!digester_.Write(src))) ok_ = false;
   }
-  friend void AbslFormatFlush(DigesterAbslStringifySink* dest,
+  friend void AbslFormatFlush(DigesterStringifySink* dest,
                               absl::string_view src) {
     dest->Append(src);
   }
@@ -670,7 +670,7 @@ template <typename Src,
                   std::negation<std::is_convertible<Src&&, ByteFill>>>,
               int>>
 bool DigesterBaseHandle::Write(Src&& src) {
-  DigesterAbslStringifySink sink(*this);
+  DigesterStringifySink sink(*this);
   AbslStringify(sink, std::forward<Src>(src));
   return sink.ok();
 }

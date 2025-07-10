@@ -22,9 +22,9 @@
 
 #include "absl/base/attributes.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/bytes/absl_stringify_writer.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/stringify.h"
+#include "riegeli/bytes/stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
@@ -67,22 +67,20 @@ class ConcatType {
  private:
   template <typename Sink>
   void Stringify(Sink& dest) const& {
-    AbslStringifyWriter writer(&dest);
+    StringifyWriter writer(&dest);
     WriteTo(writer);
     writer.Close();
   }
   template <typename Sink>
   void Stringify(Sink& dest) && {
-    AbslStringifyWriter writer(&dest);
+    StringifyWriter writer(&dest);
     std::move(*this).WriteTo(writer);
     writer.Close();
   }
 
-  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& dest) const& {
-    WriteTo(*dest.dest());
-  }
-  void Stringify(WriterAbslStringifySink& dest) && {
+  // Faster implementation if `Sink` is `WriterStringifySink`.
+  void Stringify(WriterStringifySink& dest) const& { WriteTo(*dest.dest()); }
+  void Stringify(WriterStringifySink& dest) && {
     std::move(*this).WriteTo(*dest.dest());
   }
 

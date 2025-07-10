@@ -160,7 +160,7 @@ absl::Status ParseMessageWithLength(Reader& src, size_t length,
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(reader, dest);
   const absl::Status status = CheckInitialized(reader, dest, options);
   RIEGELI_EVAL_ASSERT(reader.Close())
-      << "A LimitingReader with !fail_if_longer() "
+      << "LimitingReader with !fail_if_longer() "
          "has no reason to fail only in Close(): "
       << reader.status();
   return status;
@@ -233,7 +233,7 @@ absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
-  RIEGELI_ASSERT_OK(reader) << "A ChainReader has no reason to fail";
+  RIEGELI_ASSERT_OK(reader) << "ChainReader has no reason to fail";
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
@@ -270,7 +270,7 @@ absl::Status ParseMessage(const absl::Cord& src,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
-  RIEGELI_ASSERT_OK(reader) << "A CordReader has no reason to fail";
+  RIEGELI_ASSERT_OK(reader) << "CordReader has no reason to fail";
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }

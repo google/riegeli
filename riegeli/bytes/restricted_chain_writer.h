@@ -39,7 +39,7 @@ namespace riegeli {
 // sizes, effective `SetWriteSizeHint()`, effective `Flush()`, `Seek()`,
 // `Size()`, `Truncate()`, nor `ReadMode()`.
 //
-// It is intended to be used together with `WriterAbslStringifySink` which needs
+// It is intended to be used together with `WriterStringifySink` which needs
 // only writing.
 class RestrictedChainWriter : public Writer {
  public:

@@ -246,7 +246,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   riegeli::ArrayWriter<> writer(&dest[0], size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
-  RIEGELI_EVAL_ASSERT(writer.Close()) << "An ArrayWriter has no reason to fail "
+  RIEGELI_EVAL_ASSERT(writer.Close()) << "ArrayWriter has no reason to fail "
                                          "if the size does not overflow: "
                                       << writer.status();
   return status;
@@ -285,7 +285,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   riegeli::ArrayWriter<> writer(data, size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
-  RIEGELI_EVAL_ASSERT(writer.Close()) << "An ArrayWriter has no reason to fail "
+  RIEGELI_EVAL_ASSERT(writer.Close()) << "ArrayWriter has no reason to fail "
                                          "if the size does not overflow: "
                                       << writer.status();
   return status;
@@ -329,7 +329,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close())
-      << "A ChainWriter has no reason to fail: " << writer.status();
+      << "ChainWriter has no reason to fail: " << writer.status();
   return status;
 }
 
@@ -376,7 +376,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close())
-      << "A CordWriter has no reason to fail: " << writer.status();
+      << "CordWriter has no reason to fail: " << writer.status();
   return status;
 }
 

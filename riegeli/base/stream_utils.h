@@ -27,6 +27,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/types.h"
 
 namespace riegeli {
 
@@ -39,68 +40,38 @@ void WritePadding(std::ostream& dest, size_t length, char fill);
 // `length` is the number of characters in the value. `callback()` is called
 // to write the value; it should use unformatted output, i.e. `dest.write()`.
 template <typename Callback>
-void WriteWithPadding(std::ostream& dest, size_t length, Callback&& callback) {
+void WriteWithPadding(std::ostream& dest, Position length,
+                      Callback&& callback) {
   std::ostream::sentry sentry(dest);
   if (sentry) {
     size_t left_pad = 0;
     size_t right_pad = 0;
-    if (dest.width() > 0 && static_cast<size_t>(dest.width()) > length) {
-      const size_t pad = static_cast<size_t>(dest.width()) - length;
-      if ((dest.flags() & dest.adjustfield) == dest.left) {
-        right_pad = pad;
-      } else {
-        left_pad = pad;
+    if (dest.width() > 0) {
+      if (static_cast<size_t>(dest.width()) > length) {
+        const size_t pad =
+            static_cast<size_t>(dest.width()) - static_cast<size_t>(length);
+        if ((dest.flags() & dest.adjustfield) == dest.left) {
+          right_pad = pad;
+        } else {
+          left_pad = pad;
+        }
       }
+      dest.width(0);
     }
     if (left_pad > 0) WritePadding(dest, left_pad, dest.fill());
     std::forward<Callback>(callback)();
     if (right_pad > 0) WritePadding(dest, right_pad, dest.fill());
-    dest.width(0);
   }
 }
 
-// A sink for `AbslStringify()` which writes to an array. The array must have
-// sufficient size.
-class UncheckedArrayAbslStringifySink {
- public:
-  explicit UncheckedArrayAbslStringifySink(
-      char* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : cursor_(dest) {}
-
-  UncheckedArrayAbslStringifySink(const UncheckedArrayAbslStringifySink& that) =
-      default;
-  UncheckedArrayAbslStringifySink& operator=(
-      const UncheckedArrayAbslStringifySink& that) = default;
-
-  char* cursor() { return cursor_; }
-
-  void Append(size_t length, char fill) {
-    std::memset(cursor_, fill, length);
-    cursor_ += length;
-  }
-  void Append(absl::string_view src) {
-    std::memcpy(cursor_, src.data(), src.size());
-    cursor_ += src.size();
-  }
-  friend void AbslFormatFlush(UncheckedArrayAbslStringifySink* dest,
-                              absl::string_view src) {
-    dest->Append(src);
-  }
-
- private:
-  char* cursor_;
-};
-
 // A sink for `AbslStringify()` which appends to a `std::string`.
-class StringAbslStringifySink {
+class StringStringifySink {
  public:
-  explicit StringAbslStringifySink(
-      std::string* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit StringStringifySink(std::string* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(dest) {}
 
-  StringAbslStringifySink(const StringAbslStringifySink& that) = default;
-  StringAbslStringifySink& operator=(const StringAbslStringifySink& that) =
-      default;
+  StringStringifySink(const StringStringifySink& that) = default;
+  StringStringifySink& operator=(const StringStringifySink& that) = default;
 
   std::string* dest() { return dest_; }
 
@@ -110,7 +81,7 @@ class StringAbslStringifySink {
     // `dest_->append(src)`
     dest_->append(src.data(), src.size());
   }
-  friend void AbslFormatFlush(StringAbslStringifySink* dest,
+  friend void AbslFormatFlush(StringStringifySink* dest,
                               absl::string_view src) {
     dest->Append(src);
   }
@@ -120,15 +91,14 @@ class StringAbslStringifySink {
 };
 
 // Adapts `std::ostream` to a sink for `AbslStringify()`.
-class OStreamAbslStringifySink {
+class OStreamStringifySink {
  public:
-  explicit OStreamAbslStringifySink(
+  explicit OStreamStringifySink(
       std::ostream* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(dest) {}
 
-  OStreamAbslStringifySink(const OStreamAbslStringifySink& that) = default;
-  OStreamAbslStringifySink& operator=(const OStreamAbslStringifySink& that) =
-      default;
+  OStreamStringifySink(const OStreamStringifySink& that) = default;
+  OStreamStringifySink& operator=(const OStreamStringifySink& that) = default;
 
   std::ostream* dest() const { return dest_; }
 
@@ -136,7 +106,7 @@ class OStreamAbslStringifySink {
   void Append(absl::string_view src) {
     dest_->write(src.data(), static_cast<std::streamsize>(src.size()));
   }
-  friend void AbslFormatFlush(OStreamAbslStringifySink* dest,
+  friend void AbslFormatFlush(OStreamStringifySink* dest,
                               absl::string_view src) {
     dest->Append(src);
   }
@@ -147,48 +117,47 @@ class OStreamAbslStringifySink {
 
 // Adapts a sink for `AbslStringify()` to `std::ostream`.
 template <typename Sink>
-class AbslStringifyOStream final : public std::ostream {
+class StringifyOStream final : public std::ostream {
  public:
-  explicit AbslStringifyOStream(Sink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit StringifyOStream(Sink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : std::ostream(&streambuf_), streambuf_(dest) {}
 
-  AbslStringifyOStream(AbslStringifyOStream&& that) noexcept
+  StringifyOStream(StringifyOStream&& that) noexcept
       : std::ostream(static_cast<std::ostream&&>(that)),
         streambuf_(std::move(that.streambuf_)) {
     set_rdbuf(&streambuf_);
   }
-  AbslStringifyOStream& operator=(AbslStringifyOStream&& that) noexcept {
+  StringifyOStream& operator=(StringifyOStream&& that) noexcept {
     std::ostream::operator=(static_cast<std::ostream&&>(that));
     streambuf_ = std::move(that.streambuf_);
     return *this;
   }
 
  private:
-  class AbslStringifyStreambuf;
+  class StringifyStreambuf;
 
-  AbslStringifyStreambuf streambuf_;
+  StringifyStreambuf streambuf_;
 };
 
 template <typename Sink>
-explicit AbslStringifyOStream(Sink* dest) -> AbslStringifyOStream<Sink>;
+explicit StringifyOStream(Sink* dest) -> StringifyOStream<Sink>;
 
 template <>
-class AbslStringifyOStream<StringAbslStringifySink> final
-    : public std::ostream {
+class StringifyOStream<StringStringifySink> final : public std::ostream {
  public:
-  explicit AbslStringifyOStream(std::string* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit StringifyOStream(std::string* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : std::ostream(&streambuf_), streambuf_(dest) {}
 
-  explicit AbslStringifyOStream(
-      StringAbslStringifySink* sink ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : AbslStringifyOStream(sink->dest()) {}
+  explicit StringifyOStream(
+      StringStringifySink* sink ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringifyOStream(sink->dest()) {}
 
-  AbslStringifyOStream(AbslStringifyOStream&& that) noexcept
+  StringifyOStream(StringifyOStream&& that) noexcept
       : std::ostream(static_cast<std::ostream&&>(that)),
         streambuf_(std::move(that.streambuf_)) {
     set_rdbuf(&streambuf_);
   }
-  AbslStringifyOStream& operator=(AbslStringifyOStream&& that) noexcept {
+  StringifyOStream& operator=(StringifyOStream&& that) noexcept {
     std::ostream::operator=(static_cast<std::ostream&&>(that));
     streambuf_ = std::move(that.streambuf_);
     return *this;
@@ -222,20 +191,18 @@ class AbslStringifyOStream<StringAbslStringifySink> final
 // and does not support random access.
 //
 // This is similar to `absl::strings_internal::OStringStream`.
-using StringOStream = AbslStringifyOStream<StringAbslStringifySink>;
+using StringOStream = StringifyOStream<StringStringifySink>;
 
 // Implementation details follow.
 
 template <typename Sink>
-class AbslStringifyOStream<Sink>::AbslStringifyStreambuf final
-    : public std::streambuf {
+class StringifyOStream<Sink>::StringifyStreambuf final : public std::streambuf {
  public:
-  explicit AbslStringifyStreambuf(Sink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit StringifyStreambuf(Sink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(dest) {}
 
-  AbslStringifyStreambuf(const AbslStringifyStreambuf& that) = default;
-  AbslStringifyStreambuf& operator=(const AbslStringifyStreambuf& that) =
-      default;
+  StringifyStreambuf(const StringifyStreambuf& that) = default;
+  StringifyStreambuf& operator=(const StringifyStreambuf& that) = default;
 
  protected:
   int overflow(int src) override;
@@ -246,7 +213,7 @@ class AbslStringifyOStream<Sink>::AbslStringifyStreambuf final
 };
 
 template <typename Sink>
-int AbslStringifyOStream<Sink>::AbslStringifyStreambuf::overflow(int src) {
+int StringifyOStream<Sink>::StringifyStreambuf::overflow(int src) {
   if (src != traits_type::eof()) {
     const char ch = static_cast<char>(src);
     dest_->Append(absl::string_view(&ch, 1));
@@ -255,7 +222,7 @@ int AbslStringifyOStream<Sink>::AbslStringifyStreambuf::overflow(int src) {
 }
 
 template <typename Sink>
-std::streamsize AbslStringifyOStream<Sink>::AbslStringifyStreambuf::xsputn(
+std::streamsize StringifyOStream<Sink>::StringifyStreambuf::xsputn(
     const char* src, std::streamsize length) {
   assert(length >= 0);
   dest_->Append(absl::string_view(src, static_cast<size_t>(length)));

@@ -687,7 +687,7 @@ LinearSortedStringSet LinearSortedStringSet::Builder::Build() {
       << "Failed precondition of LinearSortedStringSet::Builder::Build(): "
          "set already built or moved from";
   RIEGELI_EVAL_ASSERT(writer_.Close())
-      << "A CompactStringWriter has no reason to fail: " << writer_.status();
+      << "CompactStringWriter has no reason to fail: " << writer_.status();
   writer_.dest().shrink_to_fit();
   LinearSortedStringSet set(std::move(writer_.dest()));
   writer_.Reset();

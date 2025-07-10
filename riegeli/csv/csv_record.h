@@ -46,7 +46,7 @@
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/string_ref.h"
 #include "riegeli/base/type_traits.h"
-#include "riegeli/bytes/absl_stringify_writer.h"
+#include "riegeli/bytes/stringify_writer.h"
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli::csv_internal {
@@ -402,7 +402,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
   // Writes `src.DebugString()` to `dest`.
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const CsvHeader& src) {
-    AbslStringifyWriter<Sink*> writer(&dest);
+    StringifyWriter<Sink*> writer(&dest);
     src.WriteDebugStringTo(writer);
     writer.Close();
   }
@@ -925,7 +925,7 @@ class CsvRecord : public WithEqual<CsvRecord> {
   // Writes `src.DebugString()` to `dest`.
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const CsvRecord& src) {
-    AbslStringifyWriter<Sink*> writer(&dest);
+    StringifyWriter<Sink*> writer(&dest);
     src.WriteDebugStringTo(writer);
     writer.Close();
   }

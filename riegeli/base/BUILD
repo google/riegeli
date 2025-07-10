@@ -41,6 +41,7 @@ cc_library(
     srcs = ["stream_utils.cc"],
     hdrs = ["stream_utils.h"],
     deps = [
+        ":types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],

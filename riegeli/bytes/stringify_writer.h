@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BYTES_ABSL_STRINGIFY_WRITER_H_
-#define RIEGELI_BYTES_ABSL_STRINGIFY_WRITER_H_
+#ifndef RIEGELI_BYTES_STRINGIFY_WRITER_H_
+#define RIEGELI_BYTES_STRINGIFY_WRITER_H_
 
 #include <limits>
 #include <utility>
@@ -41,20 +41,20 @@ namespace riegeli {
 //
 // `Dest` must support `->Append(absl::string_view)`.
 template <typename Dest>
-class AbslStringifyWriter : public BufferedWriter {
+class StringifyWriter : public BufferedWriter {
  public:
-  // Creates a closed `AbslStringifyWriter`.
-  explicit AbslStringifyWriter(Closed) noexcept : BufferedWriter(kClosed) {}
+  // Creates a closed `StringifyWriter`.
+  explicit StringifyWriter(Closed) noexcept : BufferedWriter(kClosed) {}
 
   // Will write to `*dest`.
-  explicit AbslStringifyWriter(Dest dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit StringifyWriter(Dest dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(std::move(RIEGELI_EVAL_ASSERT_NOTNULL(dest))) {}
 
-  AbslStringifyWriter(AbslStringifyWriter&& that) = default;
-  AbslStringifyWriter& operator=(AbslStringifyWriter&& that) = default;
+  StringifyWriter(StringifyWriter&& that) = default;
+  StringifyWriter& operator=(StringifyWriter&& that) = default;
 
-  // Makes `*this` equivalent to a newly constructed `AbslStringifyWriter`. This
-  // avoids constructing a temporary `AbslStringifyWriter` and moving from it.
+  // Makes `*this` equivalent to a newly constructed `StringifyWriter`. This
+  // avoids constructing a temporary `StringifyWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Dest dest);
 
@@ -69,63 +69,59 @@ class AbslStringifyWriter : public BufferedWriter {
   Dest dest_{};
 };
 
-// Specialization of `AbslStringifyWriter<WriterAbslStringifySink*>` which
-// avoids wrapping a `Writer` in a `WriterAbslStringifySink` and adapting it
+// Specialization of `StringifyWriter<WriterStringifySink*>` which
+// avoids wrapping a `Writer` in a `WriterStringifySink` and adapting it
 // back to a `Writer`.
 template <>
-class AbslStringifyWriter<WriterAbslStringifySink*>
-    : public PrefixLimitingWriter<> {
+class StringifyWriter<WriterStringifySink*> : public PrefixLimitingWriter<> {
  public:
-  // Creates a closed `AbslStringifyWriter`.
-  explicit AbslStringifyWriter(Closed) noexcept
-      : PrefixLimitingWriter(kClosed) {}
+  // Creates a closed `StringifyWriter`.
+  explicit StringifyWriter(Closed) noexcept : PrefixLimitingWriter(kClosed) {}
 
   // Will write to `*dest`.
-  explicit AbslStringifyWriter(
-      WriterAbslStringifySink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit StringifyWriter(
+      WriterStringifySink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : PrefixLimitingWriter(RIEGELI_EVAL_ASSERT_NOTNULL(dest)->dest()),
         dest_(dest) {}
 
-  AbslStringifyWriter(AbslStringifyWriter&& that) = default;
-  AbslStringifyWriter& operator=(AbslStringifyWriter&& that) = default;
+  StringifyWriter(StringifyWriter&& that) = default;
+  StringifyWriter& operator=(StringifyWriter&& that) = default;
 
-  // Makes `*this` equivalent to a newly constructed `AbslStringifyWriter`. This
-  // avoids constructing a temporary `AbslStringifyWriter` and moving from it.
+  // Makes `*this` equivalent to a newly constructed `StringifyWriter`. This
+  // avoids constructing a temporary `StringifyWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(WriterAbslStringifySink* dest);
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(WriterStringifySink* dest);
 
   // Returns a pointer to the sink being written to. Unchanged by `Close()`.
-  WriterAbslStringifySink*& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return dest_;
-  }
-  WriterAbslStringifySink* const& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  WriterStringifySink*& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_; }
+  WriterStringifySink* const& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return dest_;
   }
 
  private:
-  WriterAbslStringifySink* dest_{};
+  WriterStringifySink* dest_{};
 };
 
-explicit AbslStringifyWriter(Closed) -> AbslStringifyWriter<DeleteCtad<Closed>>;
+explicit StringifyWriter(Closed) -> StringifyWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit AbslStringifyWriter(Dest dest) -> AbslStringifyWriter<Dest>;
+explicit StringifyWriter(Dest dest) -> StringifyWriter<Dest>;
 
 // Implementation details follow.
 
 template <typename Dest>
-inline void AbslStringifyWriter<Dest>::Reset(Closed) {
+inline void StringifyWriter<Dest>::Reset(Closed) {
   BufferedWriter::Reset(kClosed);
   riegeli::Reset(dest_);
 }
 
 template <typename Dest>
-inline void AbslStringifyWriter<Dest>::Reset(Dest dest) {
+inline void StringifyWriter<Dest>::Reset(Dest dest) {
   BufferedWriter::Reset();
   dest_ = std::move(dest);
 }
 
 template <typename Dest>
-bool AbslStringifyWriter<Dest>::WriteInternal(absl::string_view src) {
+bool StringifyWriter<Dest>::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
@@ -140,17 +136,17 @@ bool AbslStringifyWriter<Dest>::WriteInternal(absl::string_view src) {
   return true;
 }
 
-inline void AbslStringifyWriter<WriterAbslStringifySink*>::Reset(Closed) {
+inline void StringifyWriter<WriterStringifySink*>::Reset(Closed) {
   PrefixLimitingWriter::Reset(kClosed);
   dest_ = nullptr;
 }
 
-inline void AbslStringifyWriter<WriterAbslStringifySink*>::Reset(
-    WriterAbslStringifySink* dest) {
+inline void StringifyWriter<WriterStringifySink*>::Reset(
+    WriterStringifySink* dest) {
   PrefixLimitingWriter::Reset(dest->dest());
   dest_ = dest;
 }
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BYTES_ABSL_STRINGIFY_WRITER_H_
+#endif  // RIEGELI_BYTES_STRINGIFY_WRITER_H_

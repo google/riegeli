@@ -75,8 +75,8 @@ class DecType {
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void Stringify(Sink& dest) const;
 
-  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& dest) const { WriteTo(*dest.dest()); }
+  // Faster implementation if `Sink` is `WriterStringifySink`.
+  void Stringify(WriterStringifySink& dest) const { WriteTo(*dest.dest()); }
 
   template <typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>
@@ -188,8 +188,8 @@ class HexType {
             std::enable_if_t<IsSignedInt<DependentT>::value, int> = 0>
   void Stringify(Sink& dest) const;
 
-  // Faster implementation if `Sink` is `WriterAbslStringifySink`.
-  void Stringify(WriterAbslStringifySink& dest) const { WriteTo(*dest.dest()); }
+  // Faster implementation if `Sink` is `WriterStringifySink`.
+  void Stringify(WriterStringifySink& dest) const { WriteTo(*dest.dest()); }
 
   template <typename DependentT = T,
             std::enable_if_t<IsUnsignedInt<DependentT>::value, int> = 0>

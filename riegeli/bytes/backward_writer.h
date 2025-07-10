@@ -573,7 +573,7 @@ template <typename Src,
               int>>
 bool BackwardWriter::Write(Src&& src) {
   RestrictedChainWriter chain_writer;
-  WriterAbslStringifySink sink(&chain_writer);
+  WriterStringifySink sink(&chain_writer);
   AbslStringify(sink, std::forward<Src>(src));
   if (ABSL_PREDICT_FALSE(!chain_writer.Close())) {
     return Fail(chain_writer.status());
