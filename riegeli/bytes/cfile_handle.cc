@@ -37,7 +37,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/c_string_ref.h"
-#include "riegeli/base/compact_string.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_erased_ref.h"
 #ifdef _WIN32
@@ -74,7 +73,7 @@ absl::Status CFileHandle::CloseMethodDefault(
   return absl::OkStatus();
 }
 
-absl::Status OwnedCFile::Open(CompactString filename, CStringRef mode) {
+absl::Status OwnedCFile::Open(PathInitializer filename, CStringRef mode) {
   Reset(nullptr, std::move(filename));
 #ifndef _WIN32
 #ifndef __APPLE__

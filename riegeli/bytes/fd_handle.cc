@@ -39,9 +39,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#ifndef _WIN32
-#include "riegeli/base/compact_string.h"
-#endif
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_erased_ref.h"
 #ifdef _WIN32
@@ -77,7 +74,7 @@ absl::Status FdHandle::CloseMethodDefault(
   return absl::OkStatus();
 }
 
-absl::Status OwnedFd::Open(CompactString filename, int mode,
+absl::Status OwnedFd::Open(PathInitializer filename, int mode,
                            Permissions permissions) {
   Reset(-1, std::move(filename));
 #ifndef _WIN32
@@ -111,23 +108,16 @@ again:
 absl::Status OwnedFd::OpenAt(UnownedFd dir_fd, PathRef filename, int mode,
                              Permissions permissions) {
   absl::string_view dir_filename;
-  bool needs_slash = false;
+  absl::string_view separator;
   if (dir_fd != AT_FDCWD && (filename.empty() || filename.front() != '/')) {
     dir_filename = dir_fd.filename();
-    needs_slash = !dir_filename.empty() && dir_filename.back() != '/';
+    if (!dir_filename.empty() && dir_filename.back() != '/') separator = "/";
   }
-  CompactString full_filename;
-  const size_t relative_filename_pos =
-      dir_filename.size() + (needs_slash ? 1 : 0);
-  // Reserve one extra char so that `c_str()` does not need reallocation.
-  full_filename.reserve(relative_filename_pos + filename.size() + 1);
-  full_filename = dir_filename;
-  if (needs_slash) *full_filename.append(1) = '/';
-  full_filename.append(filename);
-  Reset(-1, std::move(full_filename));
+  Reset(-1, absl::StrCat(dir_filename, separator, filename));
 
 again:
-  const int fd = openat(dir_fd.get(), c_filename() + relative_filename_pos,
+  const int fd = openat(dir_fd.get(),
+                        c_filename() + dir_filename.size() + separator.size(),
                         mode, permissions);
   if (ABSL_PREDICT_FALSE(fd < 0)) {
     const int error_number = errno;

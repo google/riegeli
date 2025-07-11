@@ -27,7 +27,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -280,7 +279,7 @@ class CFileReader : public CFileReaderBase {
                 std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                    std::is_default_constructible<DependentSrc>>,
                 int> = 0>
-  explicit CFileReader(PathRef filename, Options options = Options());
+  explicit CFileReader(PathInitializer filename, Options options = Options());
 
   CFileReader(CFileReader&& that) = default;
   CFileReader& operator=(CFileReader&& that) = default;
@@ -299,7 +298,7 @@ class CFileReader : public CFileReaderBase {
             std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                                 SupportsReset<DependentSrc>>,
                              int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathInitializer filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being read
@@ -326,7 +325,7 @@ class CFileReader : public CFileReaderBase {
  private:
   template <typename DependentSrc = Src,
             std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
-  void OpenImpl(CompactString filename, Options&& options);
+  void OpenImpl(PathInitializer filename, Options&& options);
 
   // The object providing and possibly owning the `FILE` being read from.
   Dependency<CFileHandle, Src> src_;
@@ -338,7 +337,7 @@ explicit CFileReader(
     Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
     -> CFileReader<std::conditional_t<
         std::disjunction_v<std::is_convertible<Src&&, FILE*>,
-                           std::is_convertible<Src&&, PathRef>>,
+                           std::is_convertible<Src&&, PathInitializer>>,
         OwnedCFile, TargetT<Src>>>;
 
 // Implementation details follow.
@@ -413,10 +412,10 @@ template <typename DependentSrc,
               std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                  std::is_default_constructible<DependentSrc>>,
               int>>
-inline CFileReader<Src>::CFileReader(PathRef filename, Options options)
+inline CFileReader<Src>::CFileReader(PathInitializer filename, Options options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(riegeli::Maker()) {
-  OpenImpl(CompactString::ForCStr(filename), std::move(options));
+  OpenImpl(std::move(filename), std::move(options));
 }
 
 template <typename Src>
@@ -444,9 +443,9 @@ template <typename DependentSrc,
           std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                               SupportsReset<DependentSrc>>,
                            int>>
-inline void CFileReader<Src>::Reset(PathRef filename, Options options) {
-  CompactString filename_copy =
-      CompactString::ForCStr(filename);  // In case it gets invalidated.
+inline void CFileReader<Src>::Reset(PathInitializer filename, Options options) {
+  // In case `filename` is owned by `src_` and gets invalidated.
+  std::string filename_copy = std::move(filename);
   riegeli::Reset(src_.manager());
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   OpenImpl(std::move(filename_copy), std::move(options));
@@ -455,7 +454,7 @@ inline void CFileReader<Src>::Reset(PathRef filename, Options options) {
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int>>
-void CFileReader<Src>::OpenImpl(CompactString filename, Options&& options) {
+void CFileReader<Src>::OpenImpl(PathInitializer filename, Options&& options) {
   absl::Status status =
       src_.manager().Open(std::move(filename), options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {

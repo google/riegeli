@@ -18,17 +18,21 @@
 #include <stdio.h>
 
 #include <cstddef>
+#include <string>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/c_string_ref.h"
-#include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/reset.h"
+#include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/cfile_internal.h"
@@ -51,8 +55,8 @@ struct SupportsCFileHandle<
     : std::true_type {};
 
 // `CFileSupportsOpen<T>::value` is `true` if `T` supports `Open()` with the
-// signature like in `OwnedCFile`, but taking `absl::string_view filename` and
-// `const char* mode` is sufficient.
+// signature like in `OwnedCFile`, but taking `const char* mode` instead of
+// `CStringRef mode` is sufficient.
 
 template <typename T, typename Enable = void>
 struct CFileSupportsOpen : std::false_type {};
@@ -60,7 +64,7 @@ struct CFileSupportsOpen : std::false_type {};
 template <typename T>
 struct CFileSupportsOpen<
     T, std::enable_if_t<std::is_convertible_v<
-           decltype(std::declval<T&>().Open(std::declval<absl::string_view>(),
+           decltype(std::declval<T&>().Open(std::declval<PathInitializer>(),
                                             std::declval<const char*>())),
            absl::Status>>> : std::true_type {};
 
@@ -80,12 +84,13 @@ struct CFileSupportsOpen<
 //   // target is considered to own the `FILE*`.
 //   bool IsOwning() const;
 //
-//   // Opens a new `FILE*`, like with `fopen()`, but taking
-//   // `absl::string_view filename` and returning `absl::Status`.
+//   // Opens a new `FILE*`, like with `fopen()` but taking
+//   // `PathInitializer filename` instead of `const char* filename` and
+//   // returning `absl::Status` instead of `FILE*`.
 //   //
 //   // Optional. Not used by `CFileHandle` itself. Used by `CFileReader` and
 //   // `CFileWriter` constructors from the filename.
-//   absl::Status Open(absl::string_view filename, const char* mode);
+//   absl::Status Open(PathInitializer filename, const char* mode);
 //
 //   // Returns the filename of the `FILE*`, or "<none>" for
 //   // default-constructed or moved-from target. Unchanged by `Close()`.
@@ -254,12 +259,22 @@ class
  public:
   CFileDeleterBase() = default;
 
-  explicit CFileDeleterBase(CompactString filename)
-      : filename_(std::move(filename)) {}
+  explicit CFileDeleterBase(PathInitializer filename)
+      : metadata_(riegeli::Maker<Metadata>(std::move(filename))) {}
 
   // Supports creating a `CFileBase` converted from `UnownedCFile`.
   explicit CFileDeleterBase(const UnownedCFileDeleter& that);
   explicit CFileDeleterBase(UnownedCFileDeleter&& that);
+
+  void Reset() { metadata_ = nullptr; }
+
+  void Reset(PathInitializer filename) {
+    if (!metadata_.IsUnique()) {
+      metadata_.Reset(riegeli::Maker<Metadata>(std::move(filename)));
+    } else {
+      riegeli::Reset(metadata_->filename, std::move(filename));
+    }
+  }
 
   // Supports creating a `CFileBase` converted from `UnownedCFile`.
   void Reset(const UnownedCFileDeleter& that);
@@ -268,28 +283,33 @@ class
   // resetting `CFileBase` from the same `CFileBase`.
   void Reset(CFileDeleterBase&& that);
 
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const {
+    if (ABSL_PREDICT_FALSE(metadata_ == nullptr)) return kDefaultFilename;
+    return metadata_->filename;
+  }
 
-  CompactString&& ReleaseFilename() { return std::move(filename_); }
-
-  void set_filename(CompactString filename) { filename_ = std::move(filename); }
-
-  const char* c_filename() { return filename_.c_str(); }
+  const char* c_filename() const {
+    if (ABSL_PREDICT_FALSE(metadata_ == nullptr)) return kDefaultFilenameCStr;
+    return metadata_->filename.c_str();
+  }
 
  protected:
   CFileDeleterBase(const CFileDeleterBase& that) = default;
   CFileDeleterBase& operator=(const CFileDeleterBase& that) = default;
 
-  CFileDeleterBase(CFileDeleterBase&& that) noexcept
-      : filename_(
-            std::exchange(that.filename_, CompactString(kDefaultFilename))) {}
-  CFileDeleterBase& operator=(CFileDeleterBase&& that) noexcept {
-    filename_ = std::exchange(that.filename_, CompactString(kDefaultFilename));
-    return *this;
-  }
+  CFileDeleterBase(CFileDeleterBase&& that) = default;
+  CFileDeleterBase& operator=(CFileDeleterBase&& that) = default;
 
  private:
-  CompactString filename_{kDefaultFilename};
+  struct Metadata {
+    explicit Metadata(PathInitializer filename)
+        : filename(std::move(filename)) {}
+
+    std::string filename;
+  };
+
+  // `nullptr` means `filename = kDefaultFilename`.
+  SharedPtr<Metadata> metadata_;
 };
 
 class UnownedCFileDeleter : public CFileDeleterBase {
@@ -306,6 +326,7 @@ class UnownedCFileDeleter : public CFileDeleterBase {
   UnownedCFileDeleter(UnownedCFileDeleter&& that) = default;
   UnownedCFileDeleter& operator=(UnownedCFileDeleter&& that) = default;
 
+  using CFileDeleterBase::Reset;
   // Supports creating an `UnownedCFile` converted from any `CFileBase`.
   void Reset(const CFileDeleterBase& that) {
     CFileDeleterBase::operator=(that);
@@ -325,18 +346,17 @@ class OwnedCFileDeleter : public CFileDeleterBase {
 };
 
 inline CFileDeleterBase::CFileDeleterBase(const UnownedCFileDeleter& that)
-    : filename_(that.filename_) {}
+    : metadata_(that.metadata_) {}
 
 inline CFileDeleterBase::CFileDeleterBase(UnownedCFileDeleter&& that)
-    : filename_(
-          std::exchange(that.filename_, CompactString(kDefaultFilename))) {}
+    : metadata_(std::move(that.metadata_)) {}
 
 inline void CFileDeleterBase::Reset(const UnownedCFileDeleter& that) {
-  filename_ = that.filename_;
+  metadata_ = that.metadata_;
 }
 
 inline void CFileDeleterBase::Reset(CFileDeleterBase&& that) {
-  filename_ = std::exchange(that.filename_, CompactString(kDefaultFilename));
+  metadata_ = std::move(that.metadata_);
 }
 
 // Common parts of `UnownedCFile` and `OwnedCFile`.
@@ -356,15 +376,12 @@ class
   // the `FILE*` (or "<none>" if `file == nullptr`).
   explicit CFileBase(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : file_(file),
-        deleter_(file_ == nullptr ? CompactString(kDefaultFilename)
-                                  : FilenameForCFile(file_)) {}
+        deleter_(file_ == nullptr ? Deleter()
+                                  : Deleter(FilenameForCFile(file_))) {}
 
   // Creates a `CFileBase` which stores `file` with `filename`.
-  explicit CFileBase(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND, PathRef filename)
-      : CFileBase(file, CompactString::ForCStr(filename)) {}
-  // Creates a `CFileBase` which stores `file` with `filename`.
   explicit CFileBase(FILE* file ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                     CompactString filename)
+                     PathInitializer filename)
       : file_(file), deleter_(std::move(filename)) {}
 
   // Creates a `CFileBase` converted from `UnownedCFile`.
@@ -396,19 +413,20 @@ class
   // Makes `*this` equivalent to a newly constructed `CFileBase`.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::nullptr_t = nullptr) {
     SetFileKeepFilename();
-    deleter_.set_filename(CompactString(kDefaultFilename));
+    deleter_.Reset();
   }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file) {
     SetFileKeepFilename(file);
-    deleter_.set_filename(file == nullptr ? CompactString(kDefaultFilename)
-                                          : FilenameForCFile(file));
+    if (file == nullptr) {
+      deleter_.Reset();
+    } else {
+      deleter_.Reset(FilenameForCFile(file));
+    }
   }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file, PathRef filename) {
-    Reset(file, CompactString::ForCStr(filename));
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file, CompactString filename) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* file,
+                                          PathInitializer filename) {
     SetFileKeepFilename(file);
-    deleter_.set_filename(std::move(filename));
+    deleter_.Reset(std::move(filename));
   }
   template <
       typename OtherDeleter,
@@ -559,13 +577,11 @@ class
 
   using CFileBase::Release;
 
-  // Opens a new `FILE*`, like with `fopen()`, but taking `PathRef filename`,
-  // `CStringRef mode`, and returning `absl::Status`.
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(PathRef filename,
-                                                 CStringRef mode) {
-    return Open(CompactString::ForCStr(filename), mode);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(CompactString filename,
+  // Opens a new `FILE*`, like with `fopen()`, but taking
+  // `PathInitializer filename` instead of `const char* filename`,
+  // `CStringRef mode` instead of `const char* mode`, and returning
+  // `absl::Status` instead of `FILE*`.
+  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(PathInitializer filename,
                                                  CStringRef mode);
 
   // Closes the `FILE*` if present.

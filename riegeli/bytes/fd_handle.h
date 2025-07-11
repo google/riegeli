@@ -28,16 +28,20 @@
 #endif
 
 #include <cstddef>
+#include <string>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/maker.h"
+#include "riegeli/base/reset.h"
+#include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/fd_internal.h"
@@ -71,8 +75,7 @@ struct SupportsFdHandle<
     : std::true_type {};
 
 // `FdSupportsOpen<T>::value` is `true` if `T` supports `Open()` with the
-// signature like in `OwnedFd`, but taking `absl::string_view filename`
-// is sufficient and `permissions` can be required.
+// signature like in `OwnedFd`, but `permissions` can be required.
 
 template <typename T, typename Enable = void>
 struct FdSupportsOpen : std::false_type {};
@@ -81,7 +84,7 @@ template <typename T>
 struct FdSupportsOpen<
     T, std::enable_if_t<std::is_convertible_v<
            decltype(std::declval<T&>().Open(
-               std::declval<absl::string_view>(), std::declval<int>(),
+               std::declval<PathInitializer>(), std::declval<int>(),
                std::declval<fd_internal::Permissions>())),
            absl::Status>>> : std::true_type {};
 
@@ -116,11 +119,12 @@ struct FdSupportsOpenAt<
 //   bool IsOwning() const;
 //
 //   // Opens a new fd, like with `open()`, but taking
-//   // `absl::string_view filename` and returning `absl::Status`.
+//   // `PathInitializer filename` instead of `const char* filename` and
+//   // returning `absl::Status` instead of `int`.
 //   //
 //   // Optional. Not used by `FdHandle` itself. Used by `FdReader` and
 //   // `FdWriter` constructors from the filename.
-//   absl::Status Open(absl::string_view filename, int mode,
+//   absl::Status Open(PathInitializer filename, int mode,
 //                     OwnedFd::Permissions permissions);
 //
 //   // Returns the filename of the fd, or "<none>" for
@@ -288,12 +292,22 @@ class
  public:
   FdDeleterBase() = default;
 
-  explicit FdDeleterBase(CompactString filename)
-      : filename_(std::move(filename)) {}
+  explicit FdDeleterBase(PathInitializer filename)
+      : metadata_(riegeli::Maker<Metadata>(std::move(filename))) {}
 
   // Supports creating a `FdBase` converted from `UnownedFd`.
   explicit FdDeleterBase(const UnownedFdDeleter& that);
   explicit FdDeleterBase(UnownedFdDeleter&& that);
+
+  void Reset() { metadata_ = nullptr; }
+
+  void Reset(PathInitializer filename) {
+    if (!metadata_.IsUnique()) {
+      metadata_.Reset(riegeli::Maker<Metadata>(std::move(filename)));
+    } else {
+      riegeli::Reset(metadata_->filename, std::move(filename));
+    }
+  }
 
   // Supports creating a `FdBase` converted from `UnownedFd`.
   void Reset(const UnownedFdDeleter& that);
@@ -302,28 +316,33 @@ class
   // `FdBase` from the same `FdBase`.
   void Reset(FdDeleterBase&& that);
 
-  absl::string_view filename() const { return filename_; }
+  absl::string_view filename() const {
+    if (ABSL_PREDICT_FALSE(metadata_ == nullptr)) return kDefaultFilename;
+    return metadata_->filename;
+  }
 
-  CompactString&& ReleaseFilename() { return std::move(filename_); }
-
-  void set_filename(CompactString filename) { filename_ = std::move(filename); }
-
-  const char* c_filename() { return filename_.c_str(); }
+  const char* c_filename() const {
+    if (ABSL_PREDICT_FALSE(metadata_ == nullptr)) return kDefaultFilenameCStr;
+    return metadata_->filename.c_str();
+  }
 
  protected:
   FdDeleterBase(const FdDeleterBase& that) = default;
   FdDeleterBase& operator=(const FdDeleterBase& that) = default;
 
-  FdDeleterBase(FdDeleterBase&& that) noexcept
-      : filename_(
-            std::exchange(that.filename_, CompactString(kDefaultFilename))) {}
-  FdDeleterBase& operator=(FdDeleterBase&& that) noexcept {
-    filename_ = std::exchange(that.filename_, CompactString(kDefaultFilename));
-    return *this;
-  }
+  FdDeleterBase(FdDeleterBase&& that) = default;
+  FdDeleterBase& operator=(FdDeleterBase&& that) = default;
 
  private:
-  CompactString filename_{kDefaultFilename};
+  struct Metadata {
+    explicit Metadata(PathInitializer filename)
+        : filename(std::move(filename)) {}
+
+    std::string filename;
+  };
+
+  // `nullptr` means `filename = kDefaultFilename`.
+  SharedPtr<Metadata> metadata_;
 };
 
 class UnownedFdDeleter : public FdDeleterBase {
@@ -339,6 +358,7 @@ class UnownedFdDeleter : public FdDeleterBase {
   UnownedFdDeleter(UnownedFdDeleter&& that) = default;
   UnownedFdDeleter& operator=(UnownedFdDeleter&& that) = default;
 
+  using FdDeleterBase::Reset;
   // Supports creating an `UnownedFd` converted from any `FdBase`.
   void Reset(const FdDeleterBase& that) { FdDeleterBase::operator=(that); }
 
@@ -368,18 +388,17 @@ class OwnedFdDeleter : public FdDeleterBase {
 };
 
 inline FdDeleterBase::FdDeleterBase(const UnownedFdDeleter& that)
-    : filename_(that.filename_) {}
+    : metadata_(that.metadata_) {}
 
 inline FdDeleterBase::FdDeleterBase(UnownedFdDeleter&& that)
-    : filename_(
-          std::exchange(that.filename_, CompactString(kDefaultFilename))) {}
+    : metadata_(std::move(that.metadata_)) {}
 
 inline void FdDeleterBase::Reset(const UnownedFdDeleter& that) {
-  filename_ = that.filename_;
+  metadata_ = that.metadata_;
 }
 
 inline void FdDeleterBase::Reset(FdDeleterBase&& that) {
-  filename_ = std::exchange(that.filename_, CompactString(kDefaultFilename));
+  metadata_ = std::move(that.metadata_);
 }
 
 // Common parts of `UnownedFd` and `OwnedFd`.
@@ -398,14 +417,11 @@ class
   // Creates an `FdBase` which stores `fd` with the filename inferred from the
   // fd (or "<none>" if `fd < 0`).
   explicit FdBase(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : fd_(fd),
-        deleter_(fd_ < 0 ? CompactString(kDefaultFilename)
-                         : FilenameForFd(fd_)) {}
+      : fd_(fd), deleter_(fd_ < 0 ? Deleter() : Deleter(FilenameForFd(fd_))) {}
 
   // Creates an `FdBase` which stores `fd` with `filename`.
-  explicit FdBase(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND, PathRef filename)
-      : FdBase(fd, CompactString::ForCStr(filename)) {}
-  explicit FdBase(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND, CompactString filename)
+  explicit FdBase(int fd ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                  PathInitializer filename)
       : fd_(fd), deleter_(std::move(filename)) {}
 
   // Creates a `FdBase` converted from `UnownedFd`.
@@ -435,19 +451,19 @@ class
   // Makes `*this` equivalent to a newly constructed `FdBase`.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::nullptr_t = nullptr) {
     SetFdKeepFilename();
-    deleter_.set_filename(CompactString(kDefaultFilename));
+    deleter_.Reset();
   }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd) {
     SetFdKeepFilename(fd);
-    deleter_.set_filename(fd < 0 ? CompactString(kDefaultFilename)
-                                 : FilenameForFd(fd));
+    if (fd < 0) {
+      deleter_.Reset();
+    } else {
+      deleter_.Reset(FilenameForFd(fd));
+    }
   }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd, PathRef filename) {
-    Reset(fd, CompactString::ForCStr(filename));
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd, CompactString filename) {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int fd, PathInitializer filename) {
     SetFdKeepFilename(fd);
-    deleter_.set_filename(std::move(filename));
+    deleter_.Reset(std::move(filename));
   }
   template <typename OtherDeleter,
             std::enable_if_t<std::disjunction_v<
@@ -601,21 +617,18 @@ class
 
   using FdBase::Release;
 
-  // Opens a new fd, like with `open()`, but taking `PathRef filename` and
-  // returning `absl::Status`.
+  // Opens a new fd, like with `open()`, but taking `PathInitializer filename`
+  // instead of `const char* filename` and returning `absl::Status` instead of
+  // `int`.
   ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
-      PathRef filename, int mode,
-      Permissions permissions = kDefaultPermissions) {
-    return Open(CompactString::ForCStr(filename), mode, permissions);
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES absl::Status Open(
-      CompactString filename, int mode,
+      PathInitializer filename, int mode,
       Permissions permissions = kDefaultPermissions);
 
 #ifndef _WIN32
   // Opens a new fd with the filename interpreted relatively to the directory
   // specified by an existing fd, like with `openat()`, but taking
-  // `PathRef filename` and returning `absl::Status`.
+  // `PathRef filename` instead of `const char* filename` and returning
+  // `absl::Status` instead of `int`.
   ABSL_ATTRIBUTE_REINITIALIZES absl::Status OpenAt(
       UnownedFd dir_fd, PathRef filename, int mode,
       Permissions permissions = kDefaultPermissions);

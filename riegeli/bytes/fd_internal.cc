@@ -39,24 +39,23 @@
 #endif
 #include "absl/strings/str_cat.h"
 #ifndef _WIN32
-#include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/buffer.h"
 #endif
-#include "riegeli/base/compact_string.h"
 
 namespace riegeli::fd_internal {
 
-CompactString FilenameForFd(int fd) {
+std::string FilenameForFd(int fd) {
 #ifndef _WIN32
-  const std::string filename = absl::StrCat("/proc/self/fd/", fd);
+  std::string filename = absl::StrCat("/proc/self/fd/", fd);
   Buffer buffer(PATH_MAX);
   const ssize_t length = readlink(filename.c_str(), buffer.data(), PATH_MAX);
-  if (ABSL_PREDICT_FALSE(length < 0)) return CompactString(filename);
-  return CompactString(
-      absl::string_view(buffer.data(), IntCast<size_t>(length)));
+  if (ABSL_PREDICT_TRUE(length >= 0)) {
+    filename.assign(buffer.data(), IntCast<size_t>(length));
+  }
+  return filename;
 #else   // _WIN32
-  return CompactString(absl::StrCat("<fd ", fd, ">"));
+  return absl::StrCat("<fd ", fd, ">");
 #endif  // _WIN32
 }
 

@@ -27,6 +27,8 @@
 #include <cerrno>
 #include <limits>
 #include <optional>
+#include <string>
+#include <utility>
 
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/optimization.h"
@@ -261,11 +263,11 @@ static int WriterCFileClose(void* cookie) {
 }  // extern "C"
 
 OwnedCFile WriterCFileImpl(WriterCFileCookieBase* cookie,
-                           absl::string_view filename) {
+                           std::string&& filename) {
   return OwnedCFile(fopencookie(cookie, cookie->OpenMode(),
                                 {WriterCFileRead, WriterCFileWrite,
                                  WriterCFileSeek, WriterCFileClose}),
-                    filename);
+                    std::move(filename));
 }
 
 }  // namespace riegeli::cfile_internal

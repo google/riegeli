@@ -27,7 +27,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/errno_mapping.h"
@@ -55,7 +54,8 @@ class ReaderCFileOptions {
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_filename(std::move(filename)));
   }
-  absl::string_view filename() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  std::string& filename() ABSL_ATTRIBUTE_LIFETIME_BOUND { return filename_; }
+  const std::string& filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return filename_;
   }
 
@@ -147,7 +147,7 @@ int ReaderCFileCookie<Src>::Close() {
 }
 
 OwnedCFile ReaderCFileImpl(ReaderCFileCookieBase* cookie,
-                           absl::string_view filename);
+                           std::string&& filename);
 
 }  // namespace cfile_internal
 
@@ -157,7 +157,7 @@ OwnedCFile ReaderCFile(Src&& src, ReaderCFileOptions options) {
   return cfile_internal::ReaderCFileImpl(
       new cfile_internal::ReaderCFileCookie<TargetT<Src>>(
           std::forward<Src>(src)),
-      options.filename());
+      std::move(options.filename()));
 }
 
 }  // namespace riegeli

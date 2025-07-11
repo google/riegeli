@@ -19,14 +19,14 @@
 #include <fcntl.h>
 #endif
 
-#include "riegeli/base/compact_string.h"
+#include <string>
 
 namespace riegeli::fd_internal {
 
 // Infers a filename from fd by reading the symlink target for
 // `absl::StrCat("/proc/self/fd/", fd)` (on Windows returns a
 // `absl::StrCat("<fd ", fd, ">")` placeholder instead).
-CompactString FilenameForFd(int fd);
+std::string FilenameForFd(int fd);
 
 #ifndef _WIN32
 #ifndef __APPLE__

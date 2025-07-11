@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -27,7 +28,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -355,7 +355,7 @@ class FdReader : public FdReaderBase {
                 std::conjunction_v<FdSupportsOpen<DependentSrc>,
                                    std::is_default_constructible<DependentSrc>>,
                 int> = 0>
-  explicit FdReader(PathRef filename, Options options = Options());
+  explicit FdReader(PathInitializer filename, Options options = Options());
 
   // Opens a file for reading, with the filename interpreted relatively to the
   // directory specified by an existing fd.
@@ -387,13 +387,14 @@ class FdReader : public FdReaderBase {
             std::enable_if_t<std::conjunction_v<FdSupportsOpen<DependentSrc>,
                                                 SupportsReset<DependentSrc>>,
                              int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathInitializer filename,
                                           Options options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<std::conjunction_v<FdSupportsOpenAt<DependentSrc>,
                                                 SupportsReset<DependentSrc>>,
                              int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(UnownedFd dir_fd, PathRef filename,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(UnownedFd dir_fd,
+                                          PathInitializer filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the fd being read from.
@@ -420,11 +421,10 @@ class FdReader : public FdReaderBase {
  private:
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
-  void OpenImpl(CompactString filename, Options&& options);
+  void OpenImpl(PathInitializer filename, Options&& options);
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
-  void OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
-                  Options&& options);
+  void OpenAtImpl(UnownedFd dir_fd, PathRef filename, Options&& options);
 
   // The object providing and possibly owning the fd being read from.
   Dependency<FdHandle, Src> src_;
@@ -436,7 +436,7 @@ explicit FdReader(Src&& src,
                   FdReaderBase::Options options = FdReaderBase::Options())
     -> FdReader<std::conditional_t<
         std::disjunction_v<std::is_convertible<Src&&, int>,
-                           std::is_convertible<Src&&, PathRef>>,
+                           std::is_convertible<Src&&, PathInitializer>>,
         OwnedFd, TargetT<Src>>>;
 explicit FdReader(UnownedFd dir_fd, PathRef filename,
                   FdReaderBase::Options options = FdReaderBase::Options())
@@ -517,10 +517,10 @@ template <typename DependentSrc,
               std::conjunction_v<FdSupportsOpen<DependentSrc>,
                                  std::is_default_constructible<DependentSrc>>,
               int>>
-inline FdReader<Src>::FdReader(PathRef filename, Options options)
+inline FdReader<Src>::FdReader(PathInitializer filename, Options options)
     : FdReaderBase(options.buffer_options(), options.growing_source()),
       src_(riegeli::Maker()) {
-  OpenImpl(CompactString::ForCStr(filename), std::move(options));
+  OpenImpl(std::move(filename), std::move(options));
 }
 
 template <typename Src>
@@ -561,9 +561,9 @@ template <typename DependentSrc,
           std::enable_if_t<std::conjunction_v<FdSupportsOpen<DependentSrc>,
                                               SupportsReset<DependentSrc>>,
                            int>>
-inline void FdReader<Src>::Reset(PathRef filename, Options options) {
-  CompactString filename_copy =
-      CompactString::ForCStr(filename);  // In case it gets invalidated.
+inline void FdReader<Src>::Reset(PathInitializer filename, Options options) {
+  // In case `filename` is owned by `src_` and gets invalidated.
+  std::string filename_copy = std::move(filename);
   riegeli::Reset(src_.manager());
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   OpenImpl(std::move(filename_copy), std::move(options));
@@ -574,9 +574,10 @@ template <typename DependentSrc,
           std::enable_if_t<std::conjunction_v<FdSupportsOpenAt<DependentSrc>,
                                               SupportsReset<DependentSrc>>,
                            int>>
-inline void FdReader<Src>::Reset(UnownedFd dir_fd, PathRef filename,
+inline void FdReader<Src>::Reset(UnownedFd dir_fd, PathInitializer filename,
                                  Options options) {
-  CompactString filename_copy(filename);  // In case it gets invalidated.
+  // In case `filename` is owned by `src_` and gets invalidated.
+  std::string filename_copy = std::move(filename);
   riegeli::Reset(src_.manager());
   FdReaderBase::Reset(options.buffer_options(), options.growing_source());
   OpenAtImpl(dir_fd, filename_copy, std::move(options));
@@ -585,7 +586,7 @@ inline void FdReader<Src>::Reset(UnownedFd dir_fd, PathRef filename,
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
-void FdReader<Src>::OpenImpl(CompactString filename, Options&& options) {
+void FdReader<Src>::OpenImpl(PathInitializer filename, Options&& options) {
   absl::Status status = src_.manager().Open(std::move(filename), options.mode(),
                                             OwnedFd::kDefaultPermissions);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -604,7 +605,7 @@ void FdReader<Src>::OpenImpl(CompactString filename, Options&& options) {
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int>>
-void FdReader<Src>::OpenAtImpl(UnownedFd dir_fd, absl::string_view filename,
+void FdReader<Src>::OpenAtImpl(UnownedFd dir_fd, PathRef filename,
                                Options&& options) {
   absl::Status status =
       src_.manager().OpenAt(std::move(dir_fd), filename, options.mode(),

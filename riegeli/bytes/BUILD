@@ -1107,10 +1107,10 @@ cc_library(
         ":fd_internal",
         ":path_ref",
         "//riegeli/base:any",
-        "//riegeli/base:assert",
-        "//riegeli/base:compact_string",
         "//riegeli/base:compare",
         "//riegeli/base:initializer",
+        "//riegeli/base:reset",
+        "//riegeli/base:shared_ptr",
         "//riegeli/base:status",
         "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
@@ -1150,7 +1150,6 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
-        "//riegeli/base:compact_string",
         "//riegeli/base:dependency",
         "//riegeli/base:global",
         "//riegeli/base:initializer",
@@ -1188,7 +1187,6 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
-        "//riegeli/base:compact_string",
         "//riegeli/base:dependency",
         "//riegeli/base:external_ref",
         "//riegeli/base:initializer",
@@ -1228,7 +1226,6 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
         "//riegeli/base:byte_fill",
-        "//riegeli/base:compact_string",
         "//riegeli/base:dependency",
         "//riegeli/base:global",
         "//riegeli/base:initializer",
@@ -1255,11 +1252,7 @@ cc_library(
     # files provide.
     features = ["-use_header_modules"],
     visibility = ["//visibility:private"],
-    deps = [
-        "//riegeli/base:compact_string",
-        "//riegeli/base:constexpr",
-        "@com_google_absl//absl/strings",
-    ] + select({
+    deps = ["@com_google_absl//absl/strings"] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
             "//riegeli/base:arithmetic",
@@ -1385,12 +1378,11 @@ cc_library(
         ":cfile_internal",
         ":path_ref",
         "//riegeli/base:any",
-        "//riegeli/base:assert",
         "//riegeli/base:c_string_ref",
-        "//riegeli/base:compact_string",
         "//riegeli/base:compare",
         "//riegeli/base:initializer",
         "//riegeli/base:reset",
+        "//riegeli/base:shared_ptr",
         "//riegeli/base:status",
         "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
@@ -1425,7 +1417,6 @@ cc_library(
         ":path_ref",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:compact_string",
         "//riegeli/base:dependency",
         "//riegeli/base:global",
         "//riegeli/base:initializer",
@@ -1463,8 +1454,6 @@ cc_library(
         ":writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
-        "//riegeli/base:compact_string",
-        "//riegeli/base:constexpr",
         "//riegeli/base:dependency",
         "//riegeli/base:global",
         "//riegeli/base:initializer",
@@ -1476,12 +1465,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-    ] + select({
-        "@platforms//os:windows": [
-            "//riegeli/base:unicode",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(
@@ -1494,7 +1478,6 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         ":fd_internal",
-        "//riegeli/base:compact_string",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
     ],
@@ -1520,7 +1503,6 @@ cc_library(
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
     ],
 )
 

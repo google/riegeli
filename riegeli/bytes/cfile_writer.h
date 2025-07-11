@@ -28,7 +28,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -382,7 +381,7 @@ class CFileWriter : public CFileWriterBase {
                                  CFileSupportsOpen<DependentDest>,
                                  std::is_default_constructible<DependentDest>>,
                              int> = 0>
-  explicit CFileWriter(PathRef filename, Options options = Options());
+  explicit CFileWriter(PathInitializer filename, Options options = Options());
 
   CFileWriter(CFileWriter&& that) = default;
   CFileWriter& operator=(CFileWriter&& that) = default;
@@ -402,7 +401,7 @@ class CFileWriter : public CFileWriterBase {
       std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentDest>,
                                           SupportsReset<DependentDest>>,
                        int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathRef filename,
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathInitializer filename,
                                           Options options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being written
@@ -430,7 +429,7 @@ class CFileWriter : public CFileWriterBase {
  private:
   template <typename DependentDest = Dest,
             std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
-  void OpenImpl(CompactString filename, Options&& options);
+  void OpenImpl(PathInitializer filename, Options&& options);
 
   // The object providing and possibly owning the `FILE` being written to.
   Dependency<CFileHandle, Dest> dest_;
@@ -442,7 +441,7 @@ explicit CFileWriter(
     Dest&& dest, CFileWriterBase::Options options = CFileWriterBase::Options())
     -> CFileWriter<std::conditional_t<
         std::disjunction_v<std::is_convertible<Dest&&, FILE*>,
-                           std::is_convertible<Dest&&, PathRef>>,
+                           std::is_convertible<Dest&&, PathInitializer>>,
         OwnedCFile, TargetT<Dest>>>;
 
 // Implementation details follow.
@@ -527,9 +526,9 @@ template <typename DependentDest,
               std::conjunction_v<CFileSupportsOpen<DependentDest>,
                                  std::is_default_constructible<DependentDest>>,
               int>>
-inline CFileWriter<Dest>::CFileWriter(PathRef filename, Options options)
+inline CFileWriter<Dest>::CFileWriter(PathInitializer filename, Options options)
     : CFileWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
-  OpenImpl(CompactString::ForCStr(filename), std::move(options));
+  OpenImpl(std::move(filename), std::move(options));
 }
 
 template <typename Dest>
@@ -557,9 +556,10 @@ template <typename DependentDest,
           std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentDest>,
                                               SupportsReset<DependentDest>>,
                            int>>
-inline void CFileWriter<Dest>::Reset(PathRef filename, Options options) {
-  CompactString filename_copy =
-      CompactString::ForCStr(filename);  // In case it gets invalidated.
+inline void CFileWriter<Dest>::Reset(PathInitializer filename,
+                                     Options options) {
+  // In case `filename` is owned by `dest_` and gets invalidated.
+  std::string filename_copy = std::move(filename);
   riegeli::Reset(dest_.manager());
   CFileWriterBase::Reset(options.buffer_options());
   OpenImpl(std::move(filename_copy), std::move(options));
@@ -568,7 +568,7 @@ inline void CFileWriter<Dest>::Reset(PathRef filename, Options options) {
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int>>
-void CFileWriter<Dest>::OpenImpl(CompactString filename, Options&& options) {
+void CFileWriter<Dest>::OpenImpl(PathInitializer filename, Options&& options) {
   absl::Status status =
       dest_.manager().Open(std::move(filename), options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
