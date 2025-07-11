@@ -55,6 +55,11 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   // Stores an empty `absl::string_view`.
   BytesRef() = default;
 
+  // Stores `str` converted to `absl::string_view`.
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  /*implicit*/ BytesRef(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRef(absl::string_view(str)) {}
+
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
@@ -76,8 +81,8 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
       absl::Span<const char> str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : StringRef(absl::string_view(str.data(), str.size())) {}
 
-  // Stores `str` materialized, then converted to `StringRef`, and then
-  // converted to `absl::string_view`.
+  // Stores `str` materialized, then converted to `StringRef` and then to
+  // `absl::string_view`.
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<
@@ -146,6 +151,14 @@ class BytesInitializer : public Initializer<std::string> {
  public:
   BytesInitializer() = default;
 
+  // Stores `str` converted to `absl::string_view` and then to `std::string`.
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  /*implicit*/ BytesInitializer(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                TemporaryStorage<MakerType<absl::string_view>>&&
+                                    storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(std::move(storage).emplace(absl::string_view(str))) {}
+
+  // Stores `str` converted to `std::string`.
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<BytesInitializer, T>,
@@ -154,6 +167,8 @@ class BytesInitializer : public Initializer<std::string> {
   /*implicit*/ BytesInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer(std::forward<T>(str)) {}
 
+  // Stores `str` converted to `BytesRef`, then to `absl::string_view`, and then
+  // to `std::string`.
   template <
       typename T,
       std::enable_if_t<std::conjunction_v<

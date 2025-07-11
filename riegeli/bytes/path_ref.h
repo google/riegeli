@@ -67,6 +67,11 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   // Stores an empty `absl::string_view`.
   PathRef() = default;
 
+  // Stores `str` converted to `absl::string_view`.
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  /*implicit*/ PathRef(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRef(absl::string_view(str)) {}
+
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
@@ -83,8 +88,8 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
       : StringRef(std::forward<T>(str)) {
   }
 
-  // Stores `str` materialized, then converted to `StringRef`, and then
-  // converted to `absl::string_view`.
+  // Stores `str` materialized, then converted to `StringRef` and then to
+  // `absl::string_view`.
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<
@@ -198,6 +203,14 @@ class PathInitializer : public Initializer<std::string> {
 
   PathInitializer() = default;
 
+  // Stores `str` converted to `absl::string_view` and then to `std::string`.
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  /*implicit*/ PathInitializer(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               TemporaryStorage<MakerType<absl::string_view>>&&
+                                   storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(std::move(storage).emplace(absl::string_view(str))) {}
+
+  // Stores `str` converted to `std::string`.
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<PathInitializer, T>,
@@ -207,6 +220,7 @@ class PathInitializer : public Initializer<std::string> {
       : Initializer(std::forward<T>(str)) {}
 
 #if __cpp_lib_filesystem >= 201703
+  // Stores `path.string()`.
   /*implicit*/ PathInitializer(const std::filesystem::path& path
                                    ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                TemporaryStorage<StringFromPath>&& storage
@@ -214,6 +228,8 @@ class PathInitializer : public Initializer<std::string> {
       : Initializer(std::move(storage).emplace(path)) {}
 #endif
 
+  // Stores `str` converted to `PathRef`, then to `absl::string_view`, and then
+  // to `std::string`.
   template <
       typename T,
       std::enable_if_t<std::conjunction_v<
