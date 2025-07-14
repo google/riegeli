@@ -1,6 +1,8 @@
 """Supports writing Python modules in C++."""
 
 load("@rules_python//python:defs.bzl", "py_library")
+load("//third_party/bazel_rules/rules_cc/cc:cc_binary.bzl", "cc_binary")
+load("//third_party/bazel_rules/rules_cc/cc:cc_library.bzl", "cc_library")
 
 def py_extension(
         name = None,
@@ -27,8 +29,7 @@ def py_extension(
 
     cc_library_name = name + "_cc"
     cc_binary_name = name + ".so"
-
-    native.cc_library(
+    cc_library(
         name = cc_library_name,
         srcs = srcs,
         hdrs = hdrs,
@@ -38,8 +39,7 @@ def py_extension(
         deps = deps,
         alwayslink = True,
     )
-
-    native.cc_binary(
+    cc_binary(
         name = cc_binary_name,
         linkshared = True,
         linkstatic = True,
