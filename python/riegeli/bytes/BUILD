@@ -1,3 +1,5 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 package(
     default_visibility = ["//python/riegeli:__subpackages__"],
     features = ["header_modules"],

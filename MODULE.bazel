@@ -48,6 +48,10 @@ bazel_dep(
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
+    name = "rules_cc",
+    version = "0.1.2",
+)
+bazel_dep(
     name = "rules_python",
     version = "0.36.0",
 )
