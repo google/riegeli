@@ -3,7 +3,9 @@ load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_python//python:defs.bzl", "py_test")
 
 package(
-    default_visibility = ["//python/riegeli:__subpackages__"],
+    default_visibility = [
+        "//python/riegeli:__subpackages__",
+    ],
     features = ["header_modules"],
 )
 

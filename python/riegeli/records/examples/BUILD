@@ -1,9 +1,6 @@
 load("@rules_python//python:defs.bzl", "py_binary")
 
-package(
-    default_visibility = ["//python/riegeli:__subpackages__"],
-    features = ["header_modules"],
-)
+package(features = ["header_modules"])
 
 licenses(["notice"])
 
