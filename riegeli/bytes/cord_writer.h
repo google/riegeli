@@ -235,7 +235,10 @@ class CordWriterBase : public Writer {
   //       `start() == nullptr && (tail_ == nullptr || tail_->empty())`
 };
 
-// A `Writer` which appends to an `absl::Cord`.
+// A `Writer` which writes to an `absl::Cord`. If options.append() is false (the
+// default), replaces existing contents of the `absl::Cord`, clearing it first.
+// If options.append() is true, appends to existing contents of the
+// `absl::Cord`.
 //
 // It supports `Seek()` and `ReadMode()`.
 //
@@ -260,10 +263,10 @@ class CordWriter : public CordWriterBase {
   // Creates a closed `CordWriter`.
   explicit CordWriter(Closed) noexcept : CordWriterBase(kClosed) {}
 
-  // Will append to the `absl::Cord` provided by `dest`.
+  // Will write to the `absl::Cord` provided by `dest`.
   explicit CordWriter(Initializer<Dest> dest, Options options = Options());
 
-  // Will append to an owned `absl::Cord` which can be accessed by `dest()`.
+  // Will write to an owned `absl::Cord` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `absl::Cord`.
   template <
       typename DependentDest = Dest,
