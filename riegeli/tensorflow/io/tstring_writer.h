@@ -80,8 +80,10 @@ struct TStringResizableTraits {
 // Template parameter independent part of `TStringWriter`.
 using TStringWriterBase = ResizableWriterBase;
 
-// A `Writer` which appends to a `tensorflow::tstring`, resizing it as
-// necessary.
+// A `Writer` which writes to a `tensorflow::tstring`. If `Options::append()`
+// is `false` (the default), replaces existing contents of the
+// `tensorflow::tstring`, clearing it first. If `Options::append()` is `true`,
+// appends to existing contents of the `tensorflow::tstring`.
 //
 // It supports `Seek()` and `ReadMode()`.
 //
@@ -97,7 +99,6 @@ using TStringWriterBase = ResizableWriterBase;
 // constructor argument, except that CTAD is deleted if the first constructor
 // argument is a `tensorflow::tstring&` or `const tensorflow::tstring&` (to
 // avoid writing to an unintentionally separate copy of an existing object).
-//
 //
 // The `tensorflow::tstring` must not be accessed until the `TStringWriter` is
 // closed or no longer used, except that it is allowed to read the

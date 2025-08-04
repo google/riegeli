@@ -186,7 +186,7 @@ class ResizableWriterBase : public Writer {
   //   `ResizableTraits::Size(*dest_) >= limit_pos() - secondary_buffer_.size()`
 };
 
-// A `Writer` which appends to a resizable array, resizing it as necessary.
+// A `Writer` which writes to a resizable array, resizing it as necessary.
 // It generalizes `StringWriter` to other objects with a flat representation.
 //
 // It supports `Seek()` and `ReadMode()`.
@@ -261,10 +261,10 @@ class ResizableWriter : public ResizableWriterBase {
   // Creates a closed `ResizableWriter`.
   explicit ResizableWriter(Closed) noexcept : ResizableWriterBase(kClosed) {}
 
-  // Will append to the `Resizable` provided by `dest`.
+  // Will write to the `Resizable` provided by `dest`.
   explicit ResizableWriter(Initializer<Dest> dest, Options options = Options());
 
-  // Will append to an owned `Resizable` which can be accessed by `dest()`.
+  // Will write to an owned `Resizable` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Resizable` which is
   // default-constructible.
   template <typename DependentDest = Dest,

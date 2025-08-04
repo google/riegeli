@@ -235,9 +235,9 @@ class CordWriterBase : public Writer {
   //       `start() == nullptr && (tail_ == nullptr || tail_->empty())`
 };
 
-// A `Writer` which writes to an `absl::Cord`. If options.append() is false (the
-// default), replaces existing contents of the `absl::Cord`, clearing it first.
-// If options.append() is true, appends to existing contents of the
+// A `Writer` which writes to an `absl::Cord`. If `Options::append()` is `false`
+// (the default), replaces existing contents of the `absl::Cord`, clearing it
+// first. If `Options::append()` is `true`, appends to existing contents of the
 // `absl::Cord`.
 //
 // It supports `Seek()` and `ReadMode()`.

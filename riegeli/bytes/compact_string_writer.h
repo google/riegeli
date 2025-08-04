@@ -67,7 +67,10 @@ struct CompactStringResizableTraits {
 // Template parameter independent part of `CompactStringWriter`.
 using CompactStringWriterBase = ResizableWriterBase;
 
-// A `Writer` which appends to a `CompactString`, resizing it as necessary.
+// A `Writer` which writes to a `CompactString`. If `Options::append()` is
+// `false` (the default), replaces existing contents of the `CompactString`,
+// clearing it first. If `Options::append()` is `true`, appends to existing
+// contents of the `CompactString`.
 //
 // It supports `Seek()` and `ReadMode()`.
 //

@@ -221,7 +221,10 @@ class ChainWriterBase : public Writer {
   //       `start() == nullptr && (tail_ == nullptr || tail_->empty())`
 };
 
-// A `Writer` which appends to a `Chain`.
+// A `Writer` which writes to a `Chain`. If `Options::append()` is `false`
+// (the default), replaces existing contents of the `Chain`, clearing it first.
+// If `Options::append()` is `true`, appends to existing contents of the
+// `Chain`.
 //
 // It supports `Seek()` and `ReadMode()`.
 //
@@ -246,10 +249,10 @@ class ChainWriter : public ChainWriterBase {
   // Creates a closed `ChainWriter`.
   explicit ChainWriter(Closed) noexcept : ChainWriterBase(kClosed) {}
 
-  // Will append to the `Chain` provided by `dest`.
+  // Will write to the `Chain` provided by `dest`.
   explicit ChainWriter(Initializer<Dest> dest, Options options = Options());
 
-  // Will append to an owned `Chain` which can be accessed by `dest()`.
+  // Will write to an owned `Chain` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Chain`.
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_same_v<DependentDest, Chain>, int> = 0>

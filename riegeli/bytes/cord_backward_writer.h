@@ -178,7 +178,10 @@ class CordBackwardWriterBase : public BackwardWriter {
   //   if `ok()` then `start_pos() == DestCord()->size()`
 };
 
-// A `Writer` which prepends to an `absl::Cord`.
+// A `BackwardWriter` which writes to an `absl::Cord` backwards.
+// If `Options::prepend()` is `false` (the default), replaces existing contents
+// of the `absl::Cord`, clearing it first. If `Options::prepend()` is `true`,
+// prepends to existing contents of the `absl::Cord`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `absl::Cord` being written to. `Dest` must support
@@ -201,11 +204,11 @@ class CordBackwardWriter : public CordBackwardWriterBase {
   explicit CordBackwardWriter(Closed) noexcept
       : CordBackwardWriterBase(kClosed) {}
 
-  // Will prepend to the `absl::Cord` provided by `dest`.
+  // Will write to the `absl::Cord` provided by `dest`.
   explicit CordBackwardWriter(Initializer<Dest> dest,
                               Options options = Options());
 
-  // Will append to an owned `absl::Cord` which can be accessed by `dest()`.
+  // Will write to an owned `absl::Cord` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `absl::Cord`.
   template <
       typename DependentDest = Dest,

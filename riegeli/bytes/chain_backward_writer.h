@@ -164,7 +164,10 @@ class ChainBackwardWriterBase : public BackwardWriter {
   //   `limit_pos() == DestChain()->size()`
 };
 
-// A `BackwardWriter` which prepends to a `Chain`.
+// A `BackwardWriter` which writes to a `Chain` backwards.
+// If `Options::prepend()` is `false` (the default), replaces existing contents
+// of the `Chain`, clearing it first. If `Options::prepend()` is `true`,
+// prepends to existing contents of the `Chain`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
 // possibly owning the `Chain` being written to. `Dest` must support
@@ -187,11 +190,11 @@ class ChainBackwardWriter : public ChainBackwardWriterBase {
   explicit ChainBackwardWriter(Closed) noexcept
       : ChainBackwardWriterBase(kClosed) {}
 
-  // Will prepend to the `Chain` provided by `dest`.
+  // Will write to the `Chain` provided by `dest`.
   explicit ChainBackwardWriter(Initializer<Dest> dest,
                                Options options = Options());
 
-  // Will append to an owned `Chain` which can be accessed by `dest()`.
+  // Will write to an owned `Chain` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `Chain`.
   template <typename DependentDest = Dest,
             std::enable_if_t<std::is_same_v<DependentDest, Chain>, int> = 0>

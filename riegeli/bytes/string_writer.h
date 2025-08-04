@@ -179,7 +179,10 @@ class StringWriterBase : public Writer {
   //        DestString()->size() + secondary_buffer_.size()`
 };
 
-// A `Writer` which appends to a `std::string`, resizing it as necessary.
+// A `Writer` which writes to a `std::string`. If `Options::append()` is `false`
+// (the default), replaces existing contents of the `std::string`, clearing it
+// first. If `Options::append()` is `true`, appends to existing contents of the
+// `std::string`.
 //
 // It supports `Seek()` and `ReadMode()`.
 //
@@ -204,10 +207,10 @@ class StringWriter : public StringWriterBase {
   // Creates a closed `StringWriter`.
   explicit StringWriter(Closed) noexcept : StringWriterBase(kClosed) {}
 
-  // Will append to the `std::string` provided by `dest`.
+  // Will write to the `std::string` provided by `dest`.
   explicit StringWriter(Initializer<Dest> dest, Options options = Options());
 
-  // Will append to an owned `std::string` which can be accessed by `dest()`.
+  // Will write to an owned `std::string` which can be accessed by `dest()`.
   // This constructor is present only if `Dest` is `std::string`.
   template <
       typename DependentDest = Dest,
