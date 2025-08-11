@@ -75,7 +75,7 @@ struct DefaultFormatter {
 template <typename Function>
 class InvokingFormatter {
  public:
-  InvokingFormatter() : function_() {}
+  constexpr InvokingFormatter() : function_() {}
 
   explicit InvokingFormatter(Initializer<Function> function)
       : function_(std::move(function)) {}
@@ -103,7 +103,7 @@ explicit InvokingFormatter(Function&& function)
 template <typename ValueFormatter = DefaultFormatter>
 class DecoratingFormatter {
  public:
-  explicit DecoratingFormatter(
+  explicit constexpr DecoratingFormatter(
       absl::string_view after ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : value_formatter_(), after_(after) {}
 
@@ -112,7 +112,7 @@ class DecoratingFormatter {
                                    ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : value_formatter_(std::move(value_formatter)), after_(after) {}
 
-  explicit DecoratingFormatter(
+  explicit constexpr DecoratingFormatter(
       absl::string_view before ABSL_ATTRIBUTE_LIFETIME_BOUND,
       absl::string_view after ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : before_(before), value_formatter_(), after_(after) {}
@@ -169,17 +169,28 @@ template <typename FirstFormatter = DefaultFormatter,
           typename SecondFormatter = DefaultFormatter>
 class PairFormatter {
  public:
+  explicit constexpr PairFormatter(
+      absl::string_view separator ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : first_formatter_(), separator_(separator), second_formatter_() {}
+
   explicit PairFormatter(absl::string_view separator
                              ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                         Initializer<SecondFormatter> second_formatter = {})
+                         Initializer<SecondFormatter> second_formatter)
       : first_formatter_(),
         separator_(separator),
         second_formatter_(std::move(second_formatter)) {}
 
   explicit PairFormatter(Initializer<FirstFormatter> first_formatter,
                          absl::string_view separator
+                             ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : first_formatter_(std::move(first_formatter)),
+        separator_(separator),
+        second_formatter_() {}
+
+  explicit PairFormatter(Initializer<FirstFormatter> first_formatter,
+                         absl::string_view separator
                              ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                         Initializer<SecondFormatter> second_formatter = {})
+                         Initializer<SecondFormatter> second_formatter)
       : first_formatter_(std::move(first_formatter)),
         separator_(separator),
         second_formatter_(std::move(second_formatter)) {}
