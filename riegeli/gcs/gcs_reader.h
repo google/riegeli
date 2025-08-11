@@ -111,8 +111,8 @@ class GcsReader
     return src().storage_class();
   }
 
-  bool SupportsRandomAccess();
-  bool SupportsNewReader();
+  bool SupportsRandomAccess() override;
+  bool SupportsNewReader() override;
 
  protected:
   void Done() override;
