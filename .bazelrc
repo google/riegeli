@@ -6,7 +6,8 @@ build --cxxopt=-std=c++17
 build --host_cxxopt=-std=c++17
 
 # Make Python protos faster by backing them with C++ protos.
-build --define=use_fast_cpp_protos=true
+# TODO: Reenable or switch to upb once fixed in Protobuf.
+# build --define=use_fast_cpp_protos=true
 
 # Options from ./configure
 # This is currently disabled because TensorFlow does not support bzlmod,
