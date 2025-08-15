@@ -73,6 +73,8 @@ class
                                           std::has_virtual_destructor<T>>> {};
 
  public:
+  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   // Creates an empty `SharedPtr`.
   constexpr SharedPtr() = default;
   /*implicit*/ constexpr SharedPtr(std::nullptr_t) noexcept {}

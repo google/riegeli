@@ -57,6 +57,8 @@ class
 #endif
     CStringRef : WithEqual<CStringRef> {
  private:
+  using pointer = const char*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   template <typename T, typename Enable = void>
   struct HasCStr : std::false_type {};
 

@@ -45,6 +45,8 @@ class
 #endif
     TypeErasedRef : public WithEqual<TypeErasedRef> {
  private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   template <typename T>
   struct IsFunctionRef : std::false_type {};
 

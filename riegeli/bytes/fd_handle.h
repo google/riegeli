@@ -150,6 +150,9 @@ class
     ABSL_NULLABILITY_COMPATIBLE
 #endif
     FdHandle : public WithEqual<FdHandle> {
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   // Creates an `FdHandle` which does not refer to a target.
   FdHandle() = default;
@@ -559,6 +562,9 @@ class
 #endif
     UnownedFd : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
                 public WithEqual<UnownedFd> {
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   using FdBase::FdBase;
 
@@ -598,6 +604,9 @@ class
 #endif
     OwnedFd : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
               public WithEqual<OwnedFd> {
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   using Permissions = fd_internal::Permissions;
 #ifndef _WIN32

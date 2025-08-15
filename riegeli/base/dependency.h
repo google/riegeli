@@ -787,6 +787,10 @@ class
     Dependency : public dependency_internal::DependencyDerived<
                      dependency_internal::DependencyDeref<Handle, Manager>,
                      Handle, Manager> {
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
+
  public:
   using Dependency::DependencyDerived::DependencyDerived;
 

@@ -47,6 +47,9 @@ class
 #endif
     OptionalCompactString : public WithCompare<OptionalCompactString> {
  private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = const absl::string_view*;
+
   class StringViewPointer {
    public:
     const absl::string_view* operator->() const { return &ref_; }

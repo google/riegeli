@@ -100,6 +100,8 @@ class
 #endif
     IntrusiveSharedPtr : public WithEqual<IntrusiveSharedPtr<T>> {
  public:
+  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   // Creates an empty `IntrusiveSharedPtr`.
   constexpr IntrusiveSharedPtr() = default;
   /*implicit*/ constexpr IntrusiveSharedPtr(std::nullptr_t) noexcept {}

@@ -130,6 +130,9 @@ class
     ABSL_NULLABILITY_COMPATIBLE
 #endif
     DigesterBaseHandle : WithEqual<DigesterBaseHandle> {
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   // Creates a `DigesterBaseHandle` which does not refer to a target.
   DigesterBaseHandle() = default;
@@ -499,7 +502,14 @@ struct SupportsDigesterHandle<
 //
 // `DigestType` can be `void` for digesters used for their side effects.
 template <typename DigestTypeParam>
-class DigesterHandle : public DigesterBaseHandle {
+class
+#ifdef ABSL_NULLABILITY_COMPATIBLE
+    ABSL_NULLABILITY_COMPATIBLE
+#endif
+    DigesterHandle : public DigesterBaseHandle {
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   // The type of the digest.
   using DigestType = DigestTypeParam;

@@ -33,6 +33,9 @@ class
     ABSL_NULLABILITY_COMPATIBLE
 #endif
     TypeId : public WithCompare<TypeId> {
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   constexpr TypeId() = default;
   /*implicit*/ constexpr TypeId(std::nullptr_t) noexcept {}

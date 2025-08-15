@@ -115,6 +115,9 @@ class
     ABSL_NULLABILITY_COMPATIBLE
 #endif
     CFileHandle : public WithEqual<CFileHandle> {
+ private:
+  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   // Creates a `CFileHandle` which does not refer to a target.
   CFileHandle() = default;
@@ -524,6 +527,9 @@ class
     UnownedCFile
     : public cfile_internal::CFileBase<cfile_internal::UnownedCFileDeleter>,
       public WithEqual<UnownedCFile> {
+ private:
+  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   using CFileBase::CFileBase;
 
@@ -565,6 +571,9 @@ class
     OwnedCFile
     : public cfile_internal::CFileBase<cfile_internal::OwnedCFileDeleter>,
       public WithEqual<OwnedCFile> {
+ private:
+  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
  public:
   using CFileBase::CFileBase;
 

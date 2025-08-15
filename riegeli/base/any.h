@@ -258,6 +258,9 @@ class
 #endif
     Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
  private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
+
   // Indirection through `InliningImpl` is needed for MSVC for some reason.
   template <typename... InlineManagers>
   struct InliningImpl {
@@ -436,6 +439,10 @@ class
     ABSL_NULLABILITY_COMPATIBLE
 #endif
     AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
+
  public:
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }
