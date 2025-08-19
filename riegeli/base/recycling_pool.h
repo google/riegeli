@@ -442,7 +442,7 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
           options.max_size_, options.max_age_seconds_);
       if (ABSL_PREDICT_FALSE(cached == nullptr ||
                              cached->first != options_key)) {
-        absl::MutexLock lock(&mutex_);
+        absl::MutexLock lock(mutex_);
         const auto iter = pools_.try_emplace(options_key, options).first;
         cached = &*iter;
         cache_.store(cached, std::memory_order_release);
@@ -481,7 +481,7 @@ template <typename T, typename Deleter>
 void RecyclingPool<T, Deleter>::Clear() {
   if (cleaner_ != nullptr) cleaner_->CancelCleaning(cleaner_token_);
   absl::InlinedVector<RawHandle, 16> evicted;
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   evicted.reserve(ring_buffer_size_);
   while (ring_buffer_size_ > 0) {
     if (ring_buffer_end_ == 0) {
@@ -517,7 +517,7 @@ typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
     Factory&& factory, Refurbisher&& refurbisher) {
   RawHandle returned;
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (ABSL_PREDICT_TRUE(ring_buffer_size_ > 0)) {
       if (ring_buffer_end_ == 0) {
         ring_buffer_end_ = IntCast<uint32_t>(ring_buffer_by_age_.size());
@@ -542,7 +542,7 @@ void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
   RawHandle evicted;
   absl::Time deadline = absl::InfiniteFuture();
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     // Add a newest entry. Evict the oldest entry if the pool is full.
     if (max_age_seconds_ != std::numeric_limits<uint32_t>::max()) {
       if (ABSL_PREDICT_FALSE(cleaner_ == nullptr)) {
@@ -575,7 +575,7 @@ void RecyclingPool<T, Deleter>::Clean(absl::Time now) {
   absl::InlinedVector<RawHandle, 16> evicted;
   absl::Time deadline;
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     size_t index = ring_buffer_end_;
     if (index < ring_buffer_size_) index += ring_buffer_by_age_.size();
     index -= ring_buffer_size_;
@@ -645,7 +645,7 @@ KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
           options.max_size_, options.max_age_seconds_);
       if (ABSL_PREDICT_FALSE(cached == nullptr ||
                              cached->first != options_key)) {
-        absl::MutexLock lock(&mutex_);
+        absl::MutexLock lock(mutex_);
         const auto iter = pools_.try_emplace(options_key, options).first;
         cached = &*iter;
         cache_.store(cached, std::memory_order_release);
@@ -686,7 +686,7 @@ void KeyedRecyclingPool<T, Key, Deleter>::Clear() {
   if (cleaner_ != nullptr) cleaner_->CancelCleaning(cleaner_token_);
   ByAge evicted_by_age;
   ByKey evicted_by_key;
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   evicted_by_age = std::exchange(by_age_, ByAge());
   evicted_by_key = std::exchange(by_key_, ByKey());
   cache_ = by_key_.end();
@@ -719,7 +719,7 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
                                             Refurbisher&& refurbisher) {
   RawHandle returned;
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (cache_ != by_key_.end()) {
       // Finish erasing the cached entry.
       ByKeyEntries& by_key_entries = cache_->second;
@@ -762,7 +762,7 @@ void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
   RawHandle evicted;
   absl::Time deadline = absl::InfiniteFuture();
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     // Add a newest entry with this key.
     if (max_age_seconds_ != std::numeric_limits<uint32_t>::max()) {
       if (ABSL_PREDICT_FALSE(cleaner_ == nullptr)) {
@@ -839,7 +839,7 @@ void KeyedRecyclingPool<T, Key, Deleter>::Clean(absl::Time now) {
   absl::InlinedVector<RawHandle, 16> evicted;
   absl::Time deadline;
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     for (;; by_age_.pop_front()) {
       if (by_age_.empty()) {
         // Everything evicted, no need to schedule cleaning.

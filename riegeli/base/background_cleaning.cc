@@ -28,20 +28,20 @@ BackgroundCleanee::~BackgroundCleanee() = default;  // Key method.
 
 BackgroundCleaner::Token BackgroundCleaner::Register(
     BackgroundCleanee* cleanee) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   entries_.emplace_front(cleanee, absl::InfiniteFuture());
   return Token(entries_.begin());
 }
 
 void BackgroundCleaner::Unregister(Token token) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   CancelCleaningInternal(token);
   if (next_ == token.iter()) ++next_;
   entries_.erase(token.iter());
 }
 
 void BackgroundCleaner::CancelCleaning(Token token) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   CancelCleaningInternal(token);
   if (token.iter()->deadline == absl::InfiniteFuture()) return;
   // Move `token.iter()` before `next_`.
@@ -68,7 +68,7 @@ inline void BackgroundCleaner::CancelCleaningInternal(Token token) {
 }
 
 void BackgroundCleaner::ScheduleCleaningSlow(Token token, absl::Time deadline) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   if (token.iter()->deadline <= deadline) {
     // Cleaning is already scheduled with the same or earlier deadline.
     return;
@@ -104,7 +104,7 @@ void BackgroundCleaner::ScheduleCleaningSlow(Token token, absl::Time deadline) {
   if (!no_background_thread_) return;
   no_background_thread_ = false;
   internal::ThreadPool::global().Schedule([this] {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     BackgroundThread();
     no_background_thread_ = true;
   });
@@ -129,9 +129,9 @@ inline void BackgroundCleaner::BackgroundThread()
       next_->deadline = absl::InfiniteFuture();
       ++next_;
       current_cleanee_ = cleanee;
-      mutex_.Unlock();
+      mutex_.unlock();
       cleanee->Clean(now);
-      mutex_.Lock();
+      mutex_.lock();
       current_cleanee_ = nullptr;
       if (next_ == entries_.end()) return;
     }
@@ -142,7 +142,7 @@ BackgroundCleaner::~BackgroundCleaner() {
   RIEGELI_CHECK(entries_.empty())
       << "Failed precondition of BackgroundCleaner::~BackgroundCleaner(): "
          "some cleanees remain registered";
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   // Request the background thread to exit.
   deadline_reduced_ = true;
   mutex_.Await(absl::Condition(&no_background_thread_));

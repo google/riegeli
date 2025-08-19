@@ -53,7 +53,7 @@ ZstdDictionary::Repr::PrepareCompressionDictionary(
     int compression_level) const {
   SharedPtr<const ZSTD_CDictCache> compression_cache;
   {
-    absl::MutexLock lock(&compression_cache_mutex_);
+    absl::MutexLock lock(compression_cache_mutex_);
     if (compression_cache_ == nullptr ||
         compression_cache_->compression_level != compression_level) {
       compression_cache_.Reset(riegeli::Maker(compression_level));

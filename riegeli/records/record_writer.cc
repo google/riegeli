@@ -595,7 +595,7 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
       ParallelWorker* self;
     };
 
-    mutex_.Lock();
+    mutex_.lock();
     for (;;) {
       mutex_.Await(absl::Condition(
           +[](std::deque<ChunkWriterRequest>* chunk_writer_requests) {
@@ -603,9 +603,9 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
           },
           &chunk_writer_requests_));
       ChunkWriterRequest& request = chunk_writer_requests_.front();
-      mutex_.Unlock();
+      mutex_.unlock();
       if (ABSL_PREDICT_FALSE(!std::visit(Visitor{this}, request))) return;
-      mutex_.Lock();
+      mutex_.lock();
       chunk_writer_requests_.pop_front();
       pos_before_chunks_ = chunk_writer_->pos();
     }
@@ -621,25 +621,25 @@ void RecordWriterBase::ParallelWorker::Done() {
   std::promise<void> done_promise;
   std::future<void> done_future = done_promise.get_future();
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     chunk_writer_requests_.emplace_back(DoneRequest{std::move(done_promise)});
   }
   done_future.get();
 }
 
 inline bool RecordWriterBase::ParallelWorker::ok() const {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   return state_.ok();
 }
 
 inline absl::Status RecordWriterBase::ParallelWorker::status() const {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   return state_.status();
 }
 
 bool RecordWriterBase::ParallelWorker::FailWithoutAnnotation(
     absl::Status status) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   return state_.Fail(std::move(status));
 }
 
@@ -649,7 +649,7 @@ absl::Status RecordWriterBase::ParallelWorker::AnnotateStatus(
   std::future<absl::Status> done_future = done_promise.get_future();
   {
     absl::MutexLock lock(
-        &mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+        mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
     chunk_writer_requests_.emplace_back(
         AnnotateStatusRequest{std::move(status), std::move(done_promise)});
   }
@@ -670,7 +670,7 @@ bool RecordWriterBase::ParallelWorker::WriteSignature() {
   chunk_promises.chunk.set_value(std::move(chunk));
   {
     absl::MutexLock lock(
-        &mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+        mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
     chunk_writer_requests_.emplace_back(
         WriteChunkRequest{chunk_promises.chunk_header.get_future(),
                           chunk_promises.chunk.get_future()});
@@ -687,7 +687,7 @@ bool RecordWriterBase::ParallelWorker::WriteMetadata() {
   ChunkPromises* const chunk_promises = new ChunkPromises();
   {
     absl::MutexLock lock(
-        &mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+        mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
     chunk_writer_requests_.emplace_back(
         WriteChunkRequest{chunk_promises->chunk_header.get_future(),
                           chunk_promises->chunk.get_future()});
@@ -708,7 +708,7 @@ bool RecordWriterBase::ParallelWorker::CloseChunk() {
   ChunkPromises* const chunk_promises = new ChunkPromises();
   {
     absl::MutexLock lock(
-        &mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+        mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
     chunk_writer_requests_.emplace_back(
         WriteChunkRequest{chunk_promises->chunk_header.get_future(),
                           chunk_promises->chunk.get_future()});
@@ -729,7 +729,7 @@ bool RecordWriterBase::ParallelWorker::PadToBlockBoundary() {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   {
     absl::MutexLock lock(
-        &mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+        mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
     chunk_writer_requests_.emplace_back(PadToBlockBoundaryRequest());
   }
   return true;
@@ -745,7 +745,7 @@ RecordWriterBase::FutureStatus RecordWriterBase::ParallelWorker::FutureFlush(
   FutureStatus done_future = done_promise.get_future();
   {
     absl::MutexLock lock(
-        &mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
+        mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
     chunk_writer_requests_.emplace_back(
         FlushRequest{flush_type, std::move(done_promise)});
   }
@@ -769,7 +769,7 @@ RecordWriterBase::ParallelWorker::ChunkBegin() const {
     std::vector<records_internal::FutureChunkBegin::Action> actions;
   };
   Visitor visitor;
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   visitor.actions.reserve(chunk_writer_requests_.size());
   for (const ChunkWriterRequest& request : chunk_writer_requests_) {
     std::visit(visitor, request);
@@ -798,7 +798,7 @@ FutureRecordPosition RecordWriterBase::ParallelWorker::Pos() const {
 }
 
 Position RecordWriterBase::ParallelWorker::EstimatedSize() const {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   return pos_before_chunks_;
 }
 

@@ -30,7 +30,7 @@
 namespace riegeli::internal {
 
 ThreadPool::~ThreadPool() {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   exiting_ = true;
   mutex_.Await(absl::Condition(
       +[](size_t* num_threads) { return *num_threads == 0; }, &num_threads_));
@@ -38,7 +38,7 @@ ThreadPool::~ThreadPool() {
 
 void ThreadPool::Schedule(absl::AnyInvocable<void() &&> task) {
   {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     RIEGELI_ASSERT(!exiting_)
         << "Failed precondition of ThreadPool::Schedule(): no new threads may "
            "be scheduled while the thread pool is exiting";
@@ -48,7 +48,7 @@ void ThreadPool::Schedule(absl::AnyInvocable<void() &&> task) {
   }
   std::thread([this] {
     for (;;) {
-      absl::ReleasableMutexLock lock(&mutex_);
+      absl::ReleasableMutexLock lock(mutex_);
       ++num_idle_threads_;
       mutex_.AwaitWithTimeout(
           absl::Condition(

@@ -1131,7 +1131,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool CsvHeader::MaybeResetToCachedPayload(
   }
   SharedPtr<Payload> payload;
   {
-    absl::MutexLock lock(&payload_cache_mutex_);
+    absl::MutexLock lock(payload_cache_mutex_);
     payload = payload_cache_;
   }
   if (payload != nullptr &&

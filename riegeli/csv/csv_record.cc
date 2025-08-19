@@ -202,7 +202,7 @@ absl::Status CsvHeader::TryResetUncached(
   if (payload_->normalizer == nullptr) {
     SharedPtr<Payload> old_payload_cache;
     {
-      absl::MutexLock lock(&payload_cache_mutex_);
+      absl::MutexLock lock(payload_cache_mutex_);
       old_payload_cache = std::exchange(payload_cache_, payload_);
     }
     // Destroy `old_payload_cache` after releasing `payload_cache_mutex_`.
