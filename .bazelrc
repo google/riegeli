@@ -6,7 +6,9 @@ build --cxxopt=-std=c++17
 build --host_cxxopt=-std=c++17
 
 # Make Python protos faster by backing them with C++ protos.
-# TODO: Reenable or switch to upb once fixed in Protobuf.
+# TODO: Reenable once protobuf releases
+# https://github.com/protocolbuffers/protobuf/pull/22633
+# i.e. in version > 32.0. Or possibly switch to upb.
 # build --define=use_fast_cpp_protos=true
 
 # Options from ./configure
