@@ -109,12 +109,7 @@ constexpr size_t UsedSize() {
   if (sizeof(Dependency<Handle, Manager>) <=
           sizeof(Repr<Handle, 0, alignof(Dependency<Handle, Manager>)>) &&
       Dependency<Handle, Manager>::kIsStable &&
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-      absl::is_trivially_relocatable<Dependency<Handle, Manager>>::value
-#else
-      std::is_trivially_copyable_v<Dependency<Handle, Manager>>
-#endif
-  ) {
+      absl::is_trivially_relocatable<Dependency<Handle, Manager>>::value) {
     return 0;
   }
   return sizeof(Dependency<Handle, Manager>);

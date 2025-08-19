@@ -31,11 +31,7 @@
 namespace riegeli {
 
 // Dynamically allocated byte buffer.
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    Buffer {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI Buffer {
  public:
   Buffer() = default;
 

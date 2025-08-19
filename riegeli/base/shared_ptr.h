@@ -55,15 +55,11 @@ namespace riegeli {
 // conversion to an `IntrusiveSharedPtr` to a non-leftmost or virtual base
 // class. Prefer `SharedPtr` unless `IntrusiveSharedPtr` is needed.
 template <typename T>
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    SharedPtr : public WithEqual<SharedPtr<T>> {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
+    : public WithEqual<SharedPtr<T>> {
  private:
+  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   template <typename SubT>
   struct IsCompatibleProperSubtype
       : std::conjunction<std::negation<std::is_same<SubT, T>>,
@@ -73,8 +69,6 @@ class
                                           std::has_virtual_destructor<T>>> {};
 
  public:
-  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
   // Creates an empty `SharedPtr`.
   constexpr SharedPtr() = default;
   /*implicit*/ constexpr SharedPtr(std::nullptr_t) noexcept {}

@@ -145,11 +145,7 @@ struct FdSupportsOpenAt<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    FdHandle : public WithEqual<FdHandle> {
+class ABSL_NULLABILITY_COMPATIBLE FdHandle : public WithEqual<FdHandle> {
  private:
   using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
@@ -287,11 +283,7 @@ namespace fd_internal {
 class UnownedFdDeleter;
 
 // Common parts of `UnownedFdDeleter` and `OwnedFdDeleter`.
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    FdDeleterBase {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI FdDeleterBase {
  public:
   FdDeleterBase() = default;
 
@@ -406,11 +398,7 @@ inline void FdDeleterBase::Reset(FdDeleterBase&& that) {
 
 // Common parts of `UnownedFd` and `OwnedFd`.
 template <typename Deleter>
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    FdBase {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI FdBase {
  public:
   // Creates an `FdBase` which does not store a fd and stores "<none>" as the
   // filename.
@@ -556,12 +544,9 @@ extern template class FdBase<OwnedFdDeleter>;
 // closing it.
 //
 // The fd can be negative which means absent.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    UnownedFd : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
-                public WithEqual<UnownedFd> {
+class ABSL_NULLABILITY_COMPATIBLE UnownedFd
+    : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
+      public WithEqual<UnownedFd> {
  private:
   using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
@@ -598,12 +583,9 @@ class
 // Owns a file descriptor, i.e. stores it and is responsible for closing it.
 //
 // The fd can be negative which means absent.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    OwnedFd : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
-              public WithEqual<OwnedFd> {
+class ABSL_NULLABILITY_COMPATIBLE OwnedFd
+    : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
+      public WithEqual<OwnedFd> {
  private:
   using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 

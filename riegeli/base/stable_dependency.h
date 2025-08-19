@@ -187,13 +187,14 @@ class StableDependencyNoDefault
 // Specialization of `StableDependency<Handle, Manager>` when
 // `Dependency<Handle, Manager>` is already stable: delegate to it.
 template <typename Handle, typename Manager>
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
+class ABSL_NULLABILITY_COMPATIBLE
     StableDependency<Handle, Manager,
                      std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
     : public Dependency<Handle, Manager> {
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
+
  public:
   using StableDependency::Dependency::Dependency;
 
@@ -205,15 +206,11 @@ class
 // `Dependency<Handle, Manager>` is not stable but default-constructible:
 // allocate the dependency dynamically and conditionally.
 template <typename Handle, typename Manager>
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    StableDependency<
-        Handle, Manager,
-        std::enable_if_t<std::conjunction_v<
-            std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
-            std::is_default_constructible<Dependency<Handle, Manager>>>>>
+class ABSL_NULLABILITY_COMPATIBLE StableDependency<
+    Handle, Manager,
+    std::enable_if_t<std::conjunction_v<
+        std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
+        std::is_default_constructible<Dependency<Handle, Manager>>>>>
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyDefault<Handle, Manager>, Handle,
           Manager> {
@@ -232,16 +229,12 @@ class
 // `Dependency<Handle, Manager>` is not stable and not default-constructible:
 // allocate the dependency dynamically and always keep it allocated.
 template <typename Handle, typename Manager>
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    StableDependency<
-        Handle, Manager,
-        std::enable_if_t<std::conjunction_v<
-            std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
-            std::negation<
-                std::is_default_constructible<Dependency<Handle, Manager>>>>>>
+class ABSL_NULLABILITY_COMPATIBLE StableDependency<
+    Handle, Manager,
+    std::enable_if_t<std::conjunction_v<
+        std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
+        std::negation<
+            std::is_default_constructible<Dependency<Handle, Manager>>>>>>
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyNoDefault<Handle, Manager>,
           Handle, Manager>,

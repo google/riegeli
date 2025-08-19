@@ -53,12 +53,9 @@ namespace any_internal {
 //
 // `ABSL_ATTRIBUTE_TRIVIAL_ABI` is effective if `inline_size == 0`.
 template <typename Handle, size_t inline_size, size_t inline_align>
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>>,
-              public ConditionallyTrivialAbi<inline_size == 0> {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI AnyBase
+    : public WithEqual<AnyBase<Handle, inline_size, inline_align>>,
+      public ConditionallyTrivialAbi<inline_size == 0> {
  public:
   // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyBase`.
@@ -252,11 +249,8 @@ class
 // `Any<Handle>` holds a `Dependency<Handle, Manager>` for some `Manager` type,
 // erasing the `Manager` parameter from the type of the `Any`, or is empty.
 template <typename Handle, size_t inline_size = 0, size_t inline_align = 0>
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    Any : public any_internal::AnyBase<Handle, inline_size, inline_align> {
+class ABSL_NULLABILITY_COMPATIBLE Any
+    : public any_internal::AnyBase<Handle, inline_size, inline_align> {
  private:
   // For `ABSL_NULLABILITY_COMPATIBLE`.
   using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
@@ -376,18 +370,11 @@ template <typename Handle, size_t inline_size, size_t inline_align,
 class DependencyManagerImpl<
     std::unique_ptr<Any<Handle, inline_size, inline_align>, NullDeleter>,
     ManagerStorage>
-    : public DependencyBase<
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-          std::conditional_t<
-              absl::is_trivially_relocatable<std::unique_ptr<
-                  Any<Handle, inline_size, inline_align>, NullDeleter>>::value,
-              std::unique_ptr<Any<Handle, inline_size, inline_align>,
-                              NullDeleter>,
-              ManagerStorage>
-#else
-          ManagerStorage
-#endif
-          > {
+    : public DependencyBase<std::conditional_t<
+          absl::is_trivially_relocatable<std::unique_ptr<
+              Any<Handle, inline_size, inline_align>, NullDeleter>>::value,
+          std::unique_ptr<Any<Handle, inline_size, inline_align>, NullDeleter>,
+          ManagerStorage>> {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
@@ -434,11 +421,8 @@ class DependencyManagerImpl<
 // an owned dependency by rvalue reference instead of by value, which avoids
 // moving it.
 template <typename Handle>
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    AnyRef : public any_internal::AnyBase<Handle, 0, 0> {
+class ABSL_NULLABILITY_COMPATIBLE AnyRef
+    : public any_internal::AnyBase<Handle, 0, 0> {
  private:
   // For `ABSL_NULLABILITY_COMPATIBLE`.
   using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
@@ -542,16 +526,10 @@ class DependencyManagerImpl<AnyRef<Handle>, ManagerStorage>
 template <typename Handle, typename ManagerStorage>
 class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, NullDeleter>,
                             ManagerStorage>
-    : public DependencyBase<
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-          std::conditional_t<
-              absl::is_trivially_relocatable<
-                  std::unique_ptr<AnyRef<Handle>, NullDeleter>>::value,
-              std::unique_ptr<AnyRef<Handle>, NullDeleter>, ManagerStorage>
-#else
-          ManagerStorage
-#endif
-          > {
+    : public DependencyBase<std::conditional_t<
+          absl::is_trivially_relocatable<
+              std::unique_ptr<AnyRef<Handle>, NullDeleter>>::value,
+          std::unique_ptr<AnyRef<Handle>, NullDeleter>, ManagerStorage>> {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 

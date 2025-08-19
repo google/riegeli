@@ -33,11 +33,7 @@ namespace riegeli {
 // Dynamically allocated byte buffer.
 //
 // Like `SharedBuffer`, but keeps track of the substring which is used.
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    SizedSharedBuffer {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI SizedSharedBuffer {
  public:
   // A sentinel value for the `max_length` parameter of
   // `AppendBuffer()`/`PrependBuffer()`.

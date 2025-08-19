@@ -110,11 +110,7 @@ struct CFileSupportsOpen<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    CFileHandle : public WithEqual<CFileHandle> {
+class ABSL_NULLABILITY_COMPATIBLE CFileHandle : public WithEqual<CFileHandle> {
  private:
   using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
@@ -254,11 +250,7 @@ namespace cfile_internal {
 class UnownedCFileDeleter;
 
 // Common parts of `UnownedCFileDeleter` and `OwnedCFileDeleter`.
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    CFileDeleterBase {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI CFileDeleterBase {
  public:
   CFileDeleterBase() = default;
 
@@ -364,11 +356,7 @@ inline void CFileDeleterBase::Reset(CFileDeleterBase&& that) {
 
 // Common parts of `UnownedCFile` and `OwnedCFile`.
 template <typename Deleter>
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    CFileBase {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI CFileBase {
  public:
   // Creates a `CFileBase` which does not store a `FILE*` and stores "<none>"
   // as the filename.
@@ -520,11 +508,7 @@ extern template class CFileBase<OwnedCFileDeleter>;
 // Stores a `FILE*` but does not own it, i.e. is not responsible for closing it.
 //
 // The `FILE*` can be `nullptr` which means absent.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    UnownedCFile
+class ABSL_NULLABILITY_COMPATIBLE UnownedCFile
     : public cfile_internal::CFileBase<cfile_internal::UnownedCFileDeleter>,
       public WithEqual<UnownedCFile> {
  private:
@@ -564,11 +548,7 @@ class
 // Owns a `FILE*`, i.e. stores it and is responsible for closing it.
 //
 // The `FILE*` can be `nullptr` which means absent.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    OwnedCFile
+class ABSL_NULLABILITY_COMPATIBLE OwnedCFile
     : public cfile_internal::CFileBase<cfile_internal::OwnedCFileDeleter>,
       public WithEqual<OwnedCFile> {
  private:

@@ -130,11 +130,7 @@ class RecordPosition : public WithCompare<RecordPosition> {
 
 namespace records_internal {
 
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    FutureChunkBegin {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI FutureChunkBegin {
  public:
   struct PadToBlockBoundary {};
   using Action =
@@ -185,11 +181,7 @@ class
 // `RecordWriter` returns `FutureRecordPosition` instead of `RecordPosition`
 // because with `parallelism > 0` the actual position is not known until pending
 // chunks finish encoding in background.
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    FutureRecordPosition {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI FutureRecordPosition {
  public:
   constexpr FutureRecordPosition() = default;
 

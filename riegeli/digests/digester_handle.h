@@ -125,11 +125,8 @@ struct SupportsDigesterBaseHandle<
 //
 // For digesting many small values it is better to use `DigestingWriter` which
 // adds a buffering layer.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    DigesterBaseHandle : WithEqual<DigesterBaseHandle> {
+class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
+    : WithEqual<DigesterBaseHandle> {
  private:
   using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
@@ -502,11 +499,7 @@ struct SupportsDigesterHandle<
 //
 // `DigestType` can be `void` for digesters used for their side effects.
 template <typename DigestTypeParam>
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    DigesterHandle : public DigesterBaseHandle {
+class ABSL_NULLABILITY_COMPATIBLE DigesterHandle : public DigesterBaseHandle {
  private:
   using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 

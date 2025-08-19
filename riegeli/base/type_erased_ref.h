@@ -39,11 +39,8 @@ namespace riegeli {
 // and references to functions.
 //
 // Specifying `T` or `T&&` for recovery is interchangeable.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    TypeErasedRef : public WithEqual<TypeErasedRef> {
+class ABSL_NULLABILITY_COMPATIBLE TypeErasedRef
+    : public WithEqual<TypeErasedRef> {
  private:
   using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 

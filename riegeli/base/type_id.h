@@ -28,11 +28,7 @@ namespace riegeli {
 // `A` and `B` are the same type.
 //
 // `TypeId()` is another value not equal to any other.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    TypeId : public WithCompare<TypeId> {
+class ABSL_NULLABILITY_COMPATIBLE TypeId : public WithCompare<TypeId> {
  private:
   using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 

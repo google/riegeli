@@ -51,11 +51,7 @@ namespace riegeli {
 // to the constructor.
 //
 // `CStringRef` does not own string contents and is efficiently copyable.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    CStringRef : WithEqual<CStringRef> {
+class ABSL_NULLABILITY_COMPATIBLE CStringRef : WithEqual<CStringRef> {
  private:
   using pointer = const char*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 

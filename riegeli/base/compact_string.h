@@ -75,11 +75,8 @@ namespace riegeli {
 //
 // For sizes up to 255 this is less than libc++ `std::string` by about 15, and
 // less than libstdc++ `std::string` by about 23.
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-    CompactString : public WithCompare<CompactString> {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
+    : public WithCompare<CompactString> {
  public:
   static constexpr size_t max_size() {
     return std::numeric_limits<size_t>::max() - 2 * sizeof(size_t);

@@ -91,17 +91,12 @@ struct HasGetCount<T,
 // conversion to an `IntrusiveSharedPtr` to a non-leftmost or virtual base
 // class. Prefer `SharedPtr` unless `IntrusiveSharedPtr` is needed.
 template <typename T>
-class
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    IntrusiveSharedPtr : public WithEqual<IntrusiveSharedPtr<T>> {
- public:
+class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
+    : public WithEqual<IntrusiveSharedPtr<T>> {
+ private:
   using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
+ public:
   // Creates an empty `IntrusiveSharedPtr`.
   constexpr IntrusiveSharedPtr() = default;
   /*implicit*/ constexpr IntrusiveSharedPtr(std::nullptr_t) noexcept {}

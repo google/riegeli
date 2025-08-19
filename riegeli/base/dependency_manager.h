@@ -113,17 +113,11 @@ class DependencyManagerImpl<std::nullptr_t, ManagerStorage>
 // an owned dependency stored by `std::unique_ptr`.
 template <typename T, typename Deleter, typename ManagerStorage>
 class DependencyManagerImpl<std::unique_ptr<T, Deleter>, ManagerStorage>
-    : public DependencyBase<
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-          std::conditional_t<
-              std::conjunction_v<
-                  std::is_empty<Deleter>,
-                  absl::is_trivially_relocatable<std::unique_ptr<T, Deleter>>>,
-              std::unique_ptr<T, Deleter>, ManagerStorage>
-#else
-          ManagerStorage
-#endif
-          > {
+    : public DependencyBase<std::conditional_t<
+          std::conjunction_v<
+              std::is_empty<Deleter>,
+              absl::is_trivially_relocatable<std::unique_ptr<T, Deleter>>>,
+          std::unique_ptr<T, Deleter>, ManagerStorage>> {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 

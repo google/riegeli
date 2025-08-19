@@ -38,13 +38,7 @@ namespace riegeli {
 // `OptionalCompactString` is either null or stores data equivalent to a
 // `CompactString`. It allows examining the contents as `absl::string_view` or
 // `const char*`, but not as `CompactString`, except by copying or moving from.
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-#ifdef ABSL_ATTRIBUTE_TRIVIAL_ABI
-    ABSL_ATTRIBUTE_TRIVIAL_ABI
-#endif
+class ABSL_NULLABILITY_COMPATIBLE ABSL_ATTRIBUTE_TRIVIAL_ABI
     OptionalCompactString : public WithCompare<OptionalCompactString> {
  private:
   // For `ABSL_NULLABILITY_COMPATIBLE`.

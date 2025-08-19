@@ -780,13 +780,10 @@ class DependencyDerived
 }  // namespace dependency_internal
 
 template <typename Handle, typename Manager>
-class
-#ifdef ABSL_NULLABILITY_COMPATIBLE
-    ABSL_NULLABILITY_COMPATIBLE
-#endif
-    Dependency : public dependency_internal::DependencyDerived<
-                     dependency_internal::DependencyDeref<Handle, Manager>,
-                     Handle, Manager> {
+class ABSL_NULLABILITY_COMPATIBLE Dependency
+    : public dependency_internal::DependencyDerived<
+          dependency_internal::DependencyDeref<Handle, Manager>, Handle,
+          Manager> {
  private:
   // For `ABSL_NULLABILITY_COMPATIBLE`.
   using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
