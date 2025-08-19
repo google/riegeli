@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -255,13 +256,6 @@ inline void CsvReaderBase::SkipLine(Reader& src) {
       src.set_cursor(ptr + 1);
       return;
     }
-    if (*ptr == '\r') {
-      ++line_number_;
-      src.set_cursor(ptr + 1);
-      if (ABSL_PREDICT_FALSE(!src.Pull())) return;
-      if (*src.cursor() == '\n') src.move_cursor(1);
-      return;
-    }
     ++ptr;
   }
 }
@@ -300,25 +294,6 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         ++line_number_;
         continue;
       case CharClass::kCr:
-        ++line_number_;
-        if (ABSL_PREDICT_FALSE(ptr == src.limit())) {
-          if (ABSL_PREDICT_FALSE(src.available() >
-                                 max_field_length_ - field.size())) {
-            return FailMaxFieldLengthExceeded();
-          }
-          field.append(src.cursor(), src.available());
-          src.move_cursor(src.available());
-          if (ABSL_PREDICT_FALSE(!src.Pull())) {
-            if (ABSL_PREDICT_FALSE(!src.ok())) {
-              return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
-            }
-            recoverable_ = true;
-            return Fail(absl::InvalidArgumentError("Missing closing quote"));
-          }
-          ptr = src.cursor();
-        }
-        if (*ptr == '\n') ++ptr;
-        continue;
       case CharClass::kComment:
       case CharClass::kFieldSeparator:
         continue;
@@ -445,6 +420,20 @@ next_field:
       case CharClass::kOther:
       case CharClass::kComment:
         RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
+      case CharClass::kCr:
+        if (ABSL_PREDICT_FALSE(!src.Pull())) {
+          if (ABSL_PREDICT_FALSE(!src.ok())) {
+            return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+          }
+          recoverable_ = true;
+          return Fail(absl::InvalidArgumentError("Missing LF after CR"));
+        }
+        if (ABSL_PREDICT_FALSE(*src.cursor() != '\n')) {
+          recoverable_ = true;
+          return Fail(absl::InvalidArgumentError("Missing LF after CR"));
+        }
+        src.move_cursor(1);
+        ABSL_FALLTHROUGH_INTENDED;
       case CharClass::kLf:
         ++line_number_;
         if (skip_empty_lines_ && field_index == 0 && field.empty()) {
@@ -453,30 +442,6 @@ next_field:
         if (ABSL_PREDICT_FALSE(standalone_record_)) {
           return Fail(absl::InvalidArgumentError("Unexpected newline"));
         }
-        return true;
-      case CharClass::kCr:
-        ++line_number_;
-        if (skip_empty_lines_ && field_index == 0 && field.empty()) {
-          if (ABSL_PREDICT_FALSE(!src.Pull())) {
-            last_line_number_ = line_number_;
-            if (ABSL_PREDICT_FALSE(!src.ok())) {
-              return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
-            }
-            return standalone_record_;
-          }
-          if (*src.cursor() == '\n') src.move_cursor(1);
-          goto next_record;
-        }
-        if (ABSL_PREDICT_FALSE(standalone_record_)) {
-          return Fail(absl::InvalidArgumentError("Unexpected newline"));
-        }
-        if (ABSL_PREDICT_FALSE(!src.Pull())) {
-          // If `src` failed after a CR, do not propagate the failure yet. The
-          // last record was correctly terminated, no matter whether a LF would
-          // follow.
-          return true;
-        }
-        if (*src.cursor() == '\n') src.move_cursor(1);
         return true;
       case CharClass::kFieldSeparator:
         ++field_index;
@@ -504,24 +469,25 @@ next_field:
           case CharClass::kFieldSeparator:
             ++field_index;
             goto next_field;
+          case CharClass::kCr:
+            if (ABSL_PREDICT_FALSE(!src.Pull())) {
+              if (ABSL_PREDICT_FALSE(!src.ok())) {
+                return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+              }
+              recoverable_ = true;
+              return Fail(absl::InvalidArgumentError("Missing LF after CR"));
+            }
+            if (ABSL_PREDICT_FALSE(*src.cursor() != '\n')) {
+              recoverable_ = true;
+              return Fail(absl::InvalidArgumentError("Missing LF after CR"));
+            }
+            src.move_cursor(1);
+            ABSL_FALLTHROUGH_INTENDED;
           case CharClass::kLf:
             ++line_number_;
             if (ABSL_PREDICT_FALSE(standalone_record_)) {
               return Fail(absl::InvalidArgumentError("Unexpected newline"));
             }
-            return true;
-          case CharClass::kCr:
-            ++line_number_;
-            if (ABSL_PREDICT_FALSE(standalone_record_)) {
-              return Fail(absl::InvalidArgumentError("Unexpected newline"));
-            }
-            if (ABSL_PREDICT_FALSE(!src.Pull())) {
-              // If `src` failed after a CR, do not propagate the failure yet.
-              // The last record was correctly terminated, no matter whether a
-              // LF would follow.
-              return true;
-            }
-            if (*src.cursor() == '\n') src.move_cursor(1);
             return true;
           case CharClass::kQuote:
             RIEGELI_ASSUME_UNREACHABLE() << "Handled by ReadQuoted()";
@@ -655,25 +621,20 @@ bool CsvReaderBase::HasNextRecord() {
     const CharClass char_class =
         char_classes_[static_cast<unsigned char>(*src.cursor())];
     switch (char_class) {
+      case CharClass::kCr:
+        src.move_cursor(1);
+        if (ABSL_PREDICT_FALSE(!src.Pull())) {
+          if (ABSL_PREDICT_FALSE(!src.ok())) {
+            return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
+          }
+          return false;
+        }
+        if (ABSL_PREDICT_FALSE(*src.cursor() != '\n')) return false;
+        ABSL_FALLTHROUGH_INTENDED;
       case CharClass::kLf:
         if (skip_empty_lines_) {
           ++line_number_;
           src.move_cursor(1);
-          continue;
-        }
-        return true;
-      case CharClass::kCr:
-        if (skip_empty_lines_) {
-          ++line_number_;
-          src.move_cursor(1);
-          if (ABSL_PREDICT_FALSE(!src.Pull())) {
-            last_line_number_ = line_number_;
-            if (ABSL_PREDICT_FALSE(!src.ok())) {
-              return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
-            }
-            return false;
-          }
-          if (*src.cursor() == '\n') src.move_cursor(1);
           continue;
         }
         return true;
