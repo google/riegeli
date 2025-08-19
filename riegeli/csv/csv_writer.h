@@ -623,8 +623,7 @@ std::string WriteCsvRecordToString(const Record& record,
       << "Failed precondition of WriteCsvRecordToString(): "
          "options.header() != std::nullopt not applicable";
   std::string dest;
-  CsvWriter<StringWriter<>> csv_writer(riegeli::Maker(&dest),
-                                       std::move(options));
+  CsvWriter csv_writer(riegeli::Maker<StringWriter>(&dest), std::move(options));
   csv_internal::WriteStandaloneRecord(record, csv_writer);
   // This can fail if `std::string` overflows, or if quoting is turned off and
   // fields include inexpressible characters.

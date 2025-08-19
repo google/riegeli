@@ -73,7 +73,7 @@ class StringStringifySink {
   StringStringifySink(const StringStringifySink& that) = default;
   StringStringifySink& operator=(const StringStringifySink& that) = default;
 
-  std::string* dest() { return dest_; }
+  std::string* dest() const { return dest_; }
 
   void Append(size_t length, char fill) { dest_->append(length, fill); }
   void Append(absl::string_view src) {

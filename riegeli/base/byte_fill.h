@@ -103,7 +103,7 @@ class ByteFill {
 
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
-  friend void AbslStringify(Sink& dest, const ByteFill& src) {
+  friend void AbslStringify(Sink& dest, ByteFill src) {
     Position length = src.size_;
     while (ABSL_PREDICT_FALSE(length > std::numeric_limits<size_t>::max())) {
       dest.Append(std::numeric_limits<size_t>::max(), src.fill_);
@@ -113,7 +113,7 @@ class ByteFill {
   }
 
   // Writes the occurrences to `out` as unformatted bytes.
-  friend std::ostream& operator<<(std::ostream& dest, const ByteFill& src) {
+  friend std::ostream& operator<<(std::ostream& dest, ByteFill src) {
     src.Output(dest);
     return dest;
   }

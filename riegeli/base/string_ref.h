@@ -124,7 +124,10 @@ class StringRef : public WithCompare<StringRef> {
 
   bool empty() const { return size() == 0; }
   const char* data() const { return str_.data(); };
-  size_t size() const { return str_.size(); }
+  size_t size() const {
+    RIEGELI_ASSUME_LE(str_.size(), str_.max_size());
+    return str_.size();
+  }
 
   const char& operator[](size_t index) const;
   const char& at(size_t index) const;

@@ -572,9 +572,8 @@ class CsvHeaderConstant {
   }
 
  private:
-  // For `normalizer_` and `fields_`.
   template <size_t other_num_fields>
-  friend class CsvHeaderConstant;
+  friend class CsvHeaderConstant;  // For `normalizer_` and `fields_`.
 
   template <size_t base_num_fields, size_t... base_indices, typename... Fields>
   explicit constexpr CsvHeaderConstant(
@@ -945,7 +944,7 @@ class CsvRecord : public WithEqual<CsvRecord> {
   }
 
  private:
-  friend class CsvReaderBase;
+  friend class CsvReaderBase;  // For `fields_`.
 
   template <typename Fields>
   absl::Status TryResetInternal(CsvHeader&& header, Fields&& fields);

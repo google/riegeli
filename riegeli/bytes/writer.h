@@ -48,7 +48,7 @@ namespace riegeli {
 class Reader;
 class Writer;
 
-// An sink for `AbslStringify()` which appends to a `Writer`.
+// A sink for `AbslStringify()` which appends to a `Writer`.
 class WriterStringifySink {
  public:
   // Creates a dummy `WriterStringifySink`. It must not be used.
@@ -65,10 +65,7 @@ class WriterStringifySink {
   Writer* dest() const { return dest_; }
 
   void Append(size_t length, char fill);
-  template <
-      typename Src,
-      std::enable_if_t<std::is_convertible_v<Src, absl::string_view>, int> = 0>
-  void Append(Src&& src);
+  void Append(absl::string_view src);
   friend void AbslFormatFlush(WriterStringifySink* dest,
                               absl::string_view src) {
     dest->Append(src);
@@ -557,10 +554,8 @@ inline void WriterStringifySink::Append(size_t length, char fill) {
   dest_->Write(ByteFill(length, fill));
 }
 
-template <typename Src,
-          std::enable_if_t<std::is_convertible_v<Src, absl::string_view>, int>>
-inline void WriterStringifySink::Append(Src&& src) {
-  dest_->Write(std::forward<Src>(src));
+inline void WriterStringifySink::Append(absl::string_view src) {
+  dest_->Write(src);
 }
 
 inline Writer::Writer(Writer&& that) noexcept

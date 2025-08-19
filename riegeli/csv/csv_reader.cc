@@ -692,7 +692,7 @@ absl::Status ReadCsvRecordFromString(absl::string_view src,
   RIEGELI_ASSERT(options.required_header() == std::nullopt)
       << "Failed precondition of ReadCsvRecordFromString(): "
          "CsvReaderBase::Options::required_header() != nullopt not applicable";
-  CsvReader<StringReader<>> csv_reader(riegeli::Maker(src), std::move(options));
+  CsvReader csv_reader(riegeli::Maker<StringReader>(src), std::move(options));
   if (ABSL_PREDICT_FALSE(
           !csv_internal::ReadStandaloneRecord(csv_reader, record))) {
     RIEGELI_ASSERT(!csv_reader.ok())
