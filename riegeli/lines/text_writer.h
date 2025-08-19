@@ -72,7 +72,6 @@ class TextWriterImpl : public TextWriterBase {
   bool WriteInternal(absl::string_view src) override;
 };
 
-extern template class TextWriterImpl<WriteNewline::kCr>;
 extern template class TextWriterImpl<WriteNewline::kCrLf>;
 
 }  // namespace text_writer_internal
@@ -157,7 +156,6 @@ explicit TextWriter(Dest&& dest,
 template <typename Dest = Writer*>
 using AnyTextWriter =
     Any<Writer*>::Inlining<TextWriter<WriteNewline::kLf, Dest>,
-                           TextWriter<WriteNewline::kCr, Dest>,
                            TextWriter<WriteNewline::kCrLf, Dest>>;
 
 // Options for `MakeAnyTextWriter()`.
@@ -270,9 +268,6 @@ AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(Dest&& dest,
   switch (options.newline()) {
     case WriteNewline::kLf:
       return riegeli::Maker<TextWriter<WriteNewline::kLf, TargetT<Dest>>>(
-          std::forward<Dest>(dest), options.buffer_options());
-    case WriteNewline::kCr:
-      return riegeli::Maker<TextWriter<WriteNewline::kCr, TargetT<Dest>>>(
           std::forward<Dest>(dest), options.buffer_options());
     case WriteNewline::kCrLf:
       return riegeli::Maker<TextWriter<WriteNewline::kCrLf, TargetT<Dest>>>(

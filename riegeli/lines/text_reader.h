@@ -92,26 +92,6 @@ class TextReaderImpl<ReadNewline::kCrLfOrLf> : public TextReaderBase {
   bool pending_cr_ = false;
 };
 
-template <>
-class TextReaderImpl<ReadNewline::kAny> : public TextReaderBase {
- protected:
-  using TextReaderBase::TextReaderBase;
-
-  TextReaderImpl(TextReaderImpl&& that) = default;
-  TextReaderImpl& operator=(TextReaderImpl&& that) = default;
-
-  void Initialize(Reader* src);
-
-  bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
-  bool SeekBehindBuffer(Position new_pos) override;
-
- private:
-  // If `true`, a CR at the end of a buffer has been read from the source and
-  // LF has been written to the destination. If LF follows in the source, it
-  // will be skipped.
-  bool pending_cr_ = false;
-};
-
 }  // namespace text_reader_internal
 
 // A `Reader` which converts line terminators from the given representation to
@@ -211,8 +191,7 @@ explicit TextReader(Src&& src,
 template <typename Src = Reader*>
 using AnyTextReader =
     Any<Reader*>::Inlining<TextReader<ReadNewline::kLf, Src>,
-                           TextReader<ReadNewline::kCrLfOrLf, Src>,
-                           TextReader<ReadNewline::kAny, Src>>;
+                           TextReader<ReadNewline::kCrLfOrLf, Src>>;
 
 // Options for `MakeAnyTextReader()`.
 class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
@@ -317,9 +296,6 @@ AnyTextReader<TargetT<Src>> MakeAnyTextReader(Src&& src,
           std::forward<Src>(src), options.buffer_options());
     case ReadNewline::kCrLfOrLf:
       return riegeli::Maker<TextReader<ReadNewline::kCrLfOrLf, TargetT<Src>>>(
-          std::forward<Src>(src), options.buffer_options());
-    case ReadNewline::kAny:
-      return riegeli::Maker<TextReader<ReadNewline::kAny, TargetT<Src>>>(
           std::forward<Src>(src), options.buffer_options());
   }
   RIEGELI_ASSUME_UNREACHABLE()

@@ -105,8 +105,6 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
   switch (options.newline()) {
     case WriteNewline::kLf:
       return dest.Write('\n');
-    case WriteNewline::kCr:
-      return dest.Write('\r');
     case WriteNewline::kCrLf:
       return dest.Write("\r\n");
   }

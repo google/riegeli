@@ -79,7 +79,6 @@ bool TextWriterImpl<newline>::WriteInternal(absl::string_view src) {
   return true;
 }
 
-template class TextWriterImpl<WriteNewline::kCr>;
 template class TextWriterImpl<WriteNewline::kCrLf>;
 
 }  // namespace text_writer_internal

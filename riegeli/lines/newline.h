@@ -21,15 +21,13 @@ namespace riegeli {
 
 // Line terminator representations to recognize.
 enum class ReadNewline {
-  kLf,        // LF              ("\n")
-  kCrLfOrLf,  // LF |      CR-LF ("\n" |        "\r\n")
-  kAny,       // LF | CR | CR-LF ("\n" | "\r" | "\r\n")
+  kLf,        //         LF          ("\n")
+  kCrLfOrLf,  // CR-LF | LF ("\r\n" | "\n")
 };
 
 // Line terminator representation to write.
 enum class WriteNewline {
   kLf,    // LF    ("\n")
-  kCr,    // CR    ("\r")
   kCrLf,  // CR-LF ("\r\n")
 
 #ifndef _WIN32

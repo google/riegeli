@@ -161,37 +161,6 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
               std::memchr(src.cursor() + 2, '\n', src.available() - 2));
         }
       }
-      case ReadNewline::kAny:
-        for (const char* newline = src.cursor(); newline < src.limit();
-             ++newline) {
-          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
-            return FoundNewline(src, dest, options,
-                                PtrDistance(src.cursor(), newline), 1);
-          }
-          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-            length = PtrDistance(src.cursor(), newline);
-            if (ABSL_PREDICT_FALSE(newline + 1 == src.limit())) {
-              // The CR is last in the buffer.
-              if (ABSL_PREDICT_TRUE(length > 0)) {
-                // The CR is not first in the buffer. Move line read so far to
-                // `dest` to avoid copying that part during flattening of the CR
-                // together with the next buffer.
-                goto continue_reading;
-              }
-              // The buffer contains only CR.
-              return FoundNewline(
-                  src, dest, options, 0,
-                  ABSL_PREDICT_TRUE(src.Pull(2) && src.cursor()[1] == '\n')
-                      ? size_t{2}
-                      : size_t{1});
-            }
-            return FoundNewline(
-                src, dest, options, length,
-                ABSL_PREDICT_TRUE(newline[1] == '\n') ? size_t{2} : size_t{1});
-          }
-        }
-        length = src.available();
-        goto continue_reading;
     }
     RIEGELI_ASSUME_UNREACHABLE()
         << "Unknown newline: " << static_cast<int>(options.newline());
@@ -258,24 +227,6 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
           // terminator. Search for LF again.
           length += 2;
         }
-      case ReadNewline::kAny:
-        for (const char* newline = src.cursor() + length; newline < src.limit();
-             ++newline) {
-          if (ABSL_PREDICT_FALSE(*newline == '\n')) {
-            return FoundNewline(src, dest, options,
-                                PtrDistance(src.cursor(), newline), 1);
-          }
-          if (ABSL_PREDICT_FALSE(*newline == '\r')) {
-            length = PtrDistance(src.cursor(), newline);
-            return FoundNewline(
-                src, dest, options, length,
-                ABSL_PREDICT_TRUE(src.Pull(length + 2) &&
-                                  src.cursor()[length + 1] == '\n')
-                    ? size_t{2}
-                    : size_t{1});
-          }
-        }
-        goto continue_reading;
     }
     RIEGELI_ASSUME_UNREACHABLE()
         << "Unknown newline: " << static_cast<int>(options.newline());

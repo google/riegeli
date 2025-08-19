@@ -96,12 +96,6 @@ class ReadLineOptions {
 //
 // Line terminator after the last line is optional.
 //
-// Warning: if `options.newline()` is `ReadNewline::kAny`, for lines terminated
-// with CR, `ReadLine()` reads ahead one character after the CR. If reading
-// ahead only as much as needed is required, e.g. when reading from an
-// interactive stream, another implementation would be required (which would
-// keep state between calls).
-//
 // Return values:
 //  * `true`                     - success (`dest` is set)
 //  * `false` (when `src.ok()`)  - source ends (`dest` is empty)
