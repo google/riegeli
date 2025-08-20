@@ -20,7 +20,9 @@
 #include <algorithm>
 #include <cstring>
 #include <initializer_list>
+#include <ios>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -37,6 +39,7 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/debug.h"
+#include "riegeli/base/stream_utils.h"
 #include "riegeli/bytes/compact_string_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -48,7 +51,7 @@ namespace riegeli {
 
 namespace {
 
-inline size_t SharedLength(absl::string_view a, absl::string_view b) {
+inline size_t CommonPrefix(absl::string_view a, absl::string_view b) {
   const size_t min_length = UnsignedMin(a.size(), b.size());
   size_t length = 0;
   if (min_length < sizeof(uint64_t)) {
@@ -177,7 +180,7 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
     RIEGELI_ASSUME_LE(common_length, element.size())
         << "The invariant common_length <= element.size() should hold";
     if (common_length < found.prefix().size()) {
-      common_length += SharedLength(found.prefix().substr(common_length),
+      common_length += CommonPrefix(found.prefix().substr(common_length),
                                     element.substr(common_length));
       if (common_length < found.prefix().size()) {
         RIEGELI_ASSUME_LE(common_length, element.size())
@@ -212,7 +215,7 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
     RIEGELI_ASSUME_LE(common_length, element.size())
         << "The invariant common_length <= element.size() should hold";
     common_length +=
-        SharedLength(found.suffix().substr(common_length_in_suffix),
+        CommonPrefix(found.suffix().substr(common_length_in_suffix),
                      element.substr(common_length));
     common_length_in_suffix = common_length - found.prefix().size();
     RIEGELI_ASSUME_LE(common_length_in_suffix, found.suffix().size())
@@ -222,7 +225,7 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
     // The first difference, if any, is at
     // `found.suffix().data() + (common_length - found_prefix().size())`.
     RIEGELI_ASSERT_EQ(
-        absl::StrCat(found.prefix(),
+        SplitElement(found.prefix(),
                      found.suffix().substr(0, common_length_in_suffix)),
         element.substr(0, common_length))
         << "common_length should cover an equal prefix";
@@ -247,15 +250,16 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
 
 bool LinearSortedStringSet::Equal(const LinearSortedStringSet& a,
                                   const LinearSortedStringSet& b) {
-  return std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
+  return std::equal(a.split_elements().cbegin(), SplitElementIterator(),
+                    b.split_elements().cbegin(), SplitElementIterator());
 }
 
 StrongOrdering LinearSortedStringSet::Compare(const LinearSortedStringSet& a,
                                               const LinearSortedStringSet& b) {
-  Iterator a_iter = a.cbegin();
-  Iterator b_iter = b.cbegin();
-  while (a_iter != a.cend()) {
-    if (b_iter == b.cend()) return StrongOrdering::greater;
+  SplitElementIterator a_iter = a.split_elements().cbegin();
+  SplitElementIterator b_iter = b.split_elements().cbegin();
+  while (a_iter != SplitElementIterator()) {
+    if (b_iter == SplitElementIterator()) return StrongOrdering::greater;
     if (const StrongOrdering ordering = riegeli::Compare(*a_iter, *b_iter);
         ordering != 0) {
       return ordering;
@@ -263,7 +267,8 @@ StrongOrdering LinearSortedStringSet::Compare(const LinearSortedStringSet& a,
     ++a_iter;
     ++b_iter;
   }
-  return b_iter == b.cend() ? StrongOrdering::equal : StrongOrdering::less;
+  return b_iter == SplitElementIterator() ? StrongOrdering::equal
+                                          : StrongOrdering::less;
 }
 
 absl::Status LinearSortedStringSet::EncodeImpl(Writer& dest) const {
@@ -366,7 +371,7 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
           return src.AnnotateStatus(absl::InvalidArgumentError(absl::StrCat(
               "Elements are not sorted and unique: new ",
               riegeli::Debug(
-                  absl::StrCat(current_if_validated->substr(0, shared_length),
+                  SplitElement(current_if_validated->substr(0, shared_length),
                                absl::string_view(ptr, unshared_length))),
               " <= last ", riegeli::Debug(*current_if_validated))));
         }
@@ -477,6 +482,17 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   return *this;
 }
 
+LinearSortedStringSet::SplitElement::operator std::string() const {
+  return absl::StrCat(prefix(), suffix());
+}
+
+void LinearSortedStringSet::SplitElement::Output(std::ostream& dest) const {
+  WriteWithPadding(dest, size(), [&] {
+    dest.write(prefix().data(), IntCast<std::streamsize>(prefix().size()));
+    dest.write(suffix().data(), IntCast<std::streamsize>(suffix().size()));
+  });
+}
+
 LinearSortedStringSet::SplitElementIterator&
 LinearSortedStringSet::SplitElementIterator::operator++() {
   RIEGELI_ASSERT_NE(cursor_, nullptr)
@@ -569,6 +585,99 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   return *this;
 }
 
+bool LinearSortedStringSet::SplitElement::Equal(const SplitElement& a,
+                                                const SplitElement& b) {
+  if (a.size() != b.size()) return false;
+  if (a.prefix().size() < b.prefix().size()) {
+    const size_t split_point_distance = b.prefix().size() - a.prefix().size();
+    RIEGELI_ASSUME_LE(split_point_distance, a.suffix().size())
+        << "implied by a.size() == b.size()";
+    RIEGELI_ASSUME_EQ(a.suffix().size() - split_point_distance,
+                      b.suffix().size())
+        << "implied by a.size() == b.size()";
+    return a.prefix() != b.prefix().substr(0, a.prefix().size()) &&
+           a.suffix().substr(0, split_point_distance) !=
+               b.prefix().substr(a.prefix().size()) &&
+           a.suffix().substr(split_point_distance) == b.suffix();
+  } else if (a.prefix().size() == b.prefix().size()) {
+    RIEGELI_ASSUME_EQ(a.suffix().size(), b.suffix().size())
+        << "implied by a.size() == b.size() "
+           "and a.prefix().size() == b.prefix().size()";
+    return a.prefix() == b.prefix() && a.suffix() == b.suffix();
+  } else {
+    const size_t split_point_distance = a.prefix().size() - b.prefix().size();
+    RIEGELI_ASSUME_LE(split_point_distance, b.suffix().size())
+        << "implied by a.size() == b.size()";
+    RIEGELI_ASSUME_EQ(b.suffix().size() - split_point_distance,
+                      a.suffix().size())
+        << "implied by a.size() == b.size()";
+    return a.prefix().substr(0, b.prefix().size()) == b.prefix() &&
+           a.prefix().substr(b.prefix().size()) ==
+               b.suffix().substr(0, split_point_distance) &&
+           a.suffix() == b.suffix().substr(split_point_distance);
+  }
+}
+
+StrongOrdering LinearSortedStringSet::SplitElement::Compare(
+    const SplitElement& a, const SplitElement& b) {
+  if (a.prefix().size() < b.prefix().size()) {
+    if (const StrongOrdering ordering = riegeli::Compare(
+            a.prefix(), b.prefix().substr(0, a.prefix().size()));
+        ordering != 0) {
+      return ordering;
+    }
+    return riegeli::Compare(
+        a.suffix(),
+        SplitElement(b.prefix().substr(a.prefix().size()), b.suffix()));
+  } else if (a.prefix().size() == b.prefix().size()) {
+    if (const StrongOrdering ordering =
+            riegeli::Compare(a.prefix(), b.prefix());
+        ordering != 0) {
+      return ordering;
+    }
+    return riegeli::Compare(a.suffix(), b.suffix());
+  } else {
+    if (const StrongOrdering ordering = riegeli::Compare(
+            a.prefix().substr(0, b.prefix().size()), b.prefix());
+        ordering != 0) {
+      return ordering;
+    }
+    return riegeli::Compare(
+        SplitElement(a.prefix().substr(b.prefix().size()), a.suffix()),
+        b.suffix());
+  }
+}
+
+bool LinearSortedStringSet::SplitElement::Equal(const SplitElement& a,
+                                                absl::string_view b) {
+  if (a.size() != b.size()) return false;
+  RIEGELI_ASSUME_LE(a.prefix().size(), b.size())
+      << "implied by a.size() == b.size()";
+  RIEGELI_ASSUME_EQ(a.suffix().size(), b.size() - a.prefix().size())
+      << "implied by a.size() == b.size()";
+  return a.prefix() == b.substr(0, a.prefix().size()) &&
+         a.suffix() == b.substr(a.prefix().size());
+}
+
+StrongOrdering LinearSortedStringSet::SplitElement::Compare(
+    const SplitElement& a, absl::string_view b) {
+  if (a.prefix().size() <= b.size()) {
+    if (const StrongOrdering ordering =
+            riegeli::Compare(a.prefix(), b.substr(0, a.prefix().size()));
+        ordering != 0) {
+      return ordering;
+    }
+    return riegeli::Compare(a.suffix(), b.substr(a.prefix().size()));
+  } else {
+    if (const StrongOrdering ordering =
+            riegeli::Compare(a.prefix().substr(0, b.size()), b);
+        ordering != 0) {
+      return ordering;
+    }
+    return StrongOrdering::greater;
+  }
+}
+
 LinearSortedStringSet::Builder::Builder() = default;
 
 LinearSortedStringSet::Builder::Builder(Builder&& that) noexcept
@@ -651,7 +760,7 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
       << "Failed precondition of "
          "LinearSortedStringSet::Builder::TryInsertNext(): "
          "set already built or moved from";
-  size_t shared_length = SharedLength(last_, element);
+  size_t shared_length = CommonPrefix(last_, element);
   const absl::string_view unshared_element(element.data() + shared_length,
                                            element.size() - shared_length);
   const absl::string_view unshared_last(last_.data() + shared_length,

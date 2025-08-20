@@ -92,15 +92,16 @@ bool ChunkedSortedStringSet::ContainsWithIndexImpl(absl::string_view element,
 bool ChunkedSortedStringSet::Equal(const ChunkedSortedStringSet& a,
                                    const ChunkedSortedStringSet& b) {
   return a.size() == b.size() &&
-         std::equal(a.cbegin(), a.cend(), b.cbegin(), b.cend());
+         std::equal(a.split_elements().cbegin(), SplitElementIterator(),
+                    b.split_elements().cbegin(), SplitElementIterator());
 }
 
 StrongOrdering ChunkedSortedStringSet::Compare(
     const ChunkedSortedStringSet& a, const ChunkedSortedStringSet& b) {
-  Iterator a_iter = a.cbegin();
-  Iterator b_iter = b.cbegin();
-  while (a_iter != a.cend()) {
-    if (b_iter == b.cend()) return StrongOrdering::greater;
+  SplitElementIterator a_iter = a.split_elements().cbegin();
+  SplitElementIterator b_iter = b.split_elements().cbegin();
+  while (a_iter != SplitElementIterator()) {
+    if (b_iter == SplitElementIterator()) return StrongOrdering::greater;
     if (const StrongOrdering ordering = riegeli::Compare(*a_iter, *b_iter);
         ordering != 0) {
       return ordering;
@@ -108,7 +109,8 @@ StrongOrdering ChunkedSortedStringSet::Compare(
     ++a_iter;
     ++b_iter;
   }
-  return b_iter == b.cend() ? StrongOrdering::equal : StrongOrdering::less;
+  return b_iter == SplitElementIterator() ? StrongOrdering::equal
+                                          : StrongOrdering::less;
 }
 
 size_t ChunkedSortedStringSet::EncodedSize() const {
@@ -167,14 +169,15 @@ absl::Status ChunkedSortedStringSet::DecodeImpl(Reader& src,
   return absl::OkStatus();
 }
 
-ChunkedSortedStringSet::Iterator&
-ChunkedSortedStringSet::Iterator::operator++() {
-  RIEGELI_ASSERT(current_iterator_ != LinearSortedStringSet::Iterator())
-      << "Failed precondition of ChunkedSortedStringSet::Iterator::operator++: "
+template <typename LinearIterator>
+ChunkedSortedStringSet::IteratorImpl<LinearIterator>&
+ChunkedSortedStringSet::IteratorImpl<LinearIterator>::operator++() {
+  RIEGELI_ASSERT(current_iterator_ != LinearIterator())
+      << "Failed precondition of "
+         "ChunkedSortedStringSet::IteratorImpl::operator++: "
          "iterator is end()";
   ++current_iterator_;
-  if (ABSL_PREDICT_TRUE(current_iterator_ !=
-                        LinearSortedStringSet::Iterator())) {
+  if (ABSL_PREDICT_TRUE(current_iterator_ != LinearIterator())) {
     // Staying in the same chunk.
     return *this;
   }
@@ -187,9 +190,18 @@ ChunkedSortedStringSet::Iterator::operator++() {
     return *this;
   }
   // Moving to the next chunk.
-  current_iterator_ = current_chunk_iterator_->set.cbegin();
+  current_iterator_ =
+      GetLinearIterator<LinearIterator>(current_chunk_iterator_->set);
   return *this;
 }
+
+template ChunkedSortedStringSet::IteratorImpl<LinearSortedStringSet::Iterator>&
+ChunkedSortedStringSet::IteratorImpl<
+    LinearSortedStringSet::Iterator>::operator++();
+template ChunkedSortedStringSet::IteratorImpl<
+    LinearSortedStringSet::SplitElementIterator>&
+ChunkedSortedStringSet::IteratorImpl<
+    LinearSortedStringSet::SplitElementIterator>::operator++();
 
 ChunkedSortedStringSet::Builder::Builder(Options options)
     : chunk_size_(options.chunk_size()) {
