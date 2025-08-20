@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "riegeli/base/any_internal.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -55,10 +56,16 @@ class AnyBase;
 // consider `riegeli::OwningMaker<Manager>(manager_args...)`,
 // `MakerTypeFor<Manager, ManagerArgs...>`, or `Any<Handle>`.
 template <typename Handle>
-class AnyInitializer {
+class ABSL_NULLABILITY_COMPATIBLE AnyInitializer {
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
+
  public:
   // An `Any` will be empty.
   AnyInitializer() noexcept : construct_(ConstructMethodEmpty) {}
+  /*implicit*/ AnyInitializer(std::nullptr_t)
+      : construct_(ConstructMethodEmpty) {}
 
   // An `Any` will hold a `Dependency<Handle, TargetT<Manager>>`.
   //

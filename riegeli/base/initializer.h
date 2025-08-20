@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "riegeli/base/initializer_internal.h"
 #include "riegeli/base/invoker.h"
 #include "riegeli/base/maker.h"
@@ -441,8 +442,12 @@ struct InitializerImpl<T, std::enable_if_t<std::is_reference_v<T>>> {
 // `Initializer<T>` in a variable or returning it from a function, consider
 // `riegeli::OwningMaker<T>(args...)`, `MakerTypeFor<T, Args...>`, or `T`.
 template <typename T>
-class Initializer : public initializer_internal::InitializerImpl<T>::type {
+class ABSL_NULLABILITY_COMPATIBLE Initializer
+    : public initializer_internal::InitializerImpl<T>::type {
  private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<T>, T, void*>;
+
   using Base = typename initializer_internal::InitializerImpl<T>::type;
 
  public:

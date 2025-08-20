@@ -161,7 +161,7 @@ class ABSL_NULLABILITY_COMPATIBLE CFileHandle : public WithEqual<CFileHandle> {
   }
   friend bool operator==(CFileHandle a, FILE* b) { return a.get() == b; }
   friend bool operator==(CFileHandle a, std::nullptr_t) {
-    return a.target_ == nullptr || a.get() == nullptr;
+    return a.target_.empty() || a.get() == nullptr;
   }
 
  private:

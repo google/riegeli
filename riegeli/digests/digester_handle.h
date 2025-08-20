@@ -148,7 +148,7 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
   DigesterBaseHandle& operator=(const DigesterBaseHandle& that) = default;
 
   friend bool operator==(DigesterBaseHandle a, std::nullptr_t) {
-    return a.target() == nullptr;
+    return a.target().empty();
   }
 
   // If `write_size_hint` is not `std::nullopt`, hints that this amount of data

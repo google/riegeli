@@ -15,15 +15,12 @@
 #ifndef RIEGELI_BASE_TYPE_ERASED_REF_H_
 #define RIEGELI_BASE_TYPE_ERASED_REF_H_
 
-#include <cstddef>
 #include <memory>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
-#include "riegeli/base/compare.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -39,11 +36,8 @@ namespace riegeli {
 // and references to functions.
 //
 // Specifying `T` or `T&&` for recovery is interchangeable.
-class ABSL_NULLABILITY_COMPATIBLE TypeErasedRef
-    : public WithEqual<TypeErasedRef> {
+class TypeErasedRef {
  private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
   template <typename T>
   struct IsFunctionRef : std::false_type {};
 
@@ -51,10 +45,11 @@ class ABSL_NULLABILITY_COMPATIBLE TypeErasedRef
   struct IsFunctionRef<T&> : std::is_function<T> {};
 
  public:
-  // Creates an empty `TypeErasedRef`.
+  // Creates an empty `TypeErasedRef`. It cannot be recovered as any type.
+  //
+  // Conversion from `std::nullptr_t` is not supported because that binds
+  // to a reference to `nullptr` instead of being empty.
   TypeErasedRef() = default;
-  // There is no conversion from `std::nullptr_t` because that should bind to a
-  // reference to `nullptr` instead of being empty.
 
   // Wraps `std::forward<T>(value)`.
   template <typename T, std::enable_if_t<
@@ -91,9 +86,8 @@ class ABSL_NULLABILITY_COMPATIBLE TypeErasedRef
     return *reinterpret_cast<std::remove_reference_t<T>*>(ptr_);
   }
 
-  friend bool operator==(TypeErasedRef a, std::nullptr_t) {
-    return a.ptr_ == nullptr;
-  }
+  // Returns `true` if the `TypeErasedRef` is empty, i.e. default-constructed.
+  bool empty() const { return ptr_ == nullptr; }
 
  private:
   void* ptr_ = nullptr;

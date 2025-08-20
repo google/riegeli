@@ -194,7 +194,7 @@ class ABSL_NULLABILITY_COMPATIBLE FdHandle : public WithEqual<FdHandle> {
   friend bool operator==(FdHandle a, FdHandle b) { return a.get() == b.get(); }
   friend bool operator==(FdHandle a, int b) { return a.get() == b; }
   friend bool operator==(FdHandle a, std::nullptr_t) {
-    return a.target_ == nullptr || a.get() < 0;
+    return a.target_.empty() || a.get() < 0;
   }
 
  private:
