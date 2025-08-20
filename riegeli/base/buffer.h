@@ -63,7 +63,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI Buffer {
   friend ExternalStorage RiegeliToExternalStorage(Buffer* self) {
     self->capacity_ = 0;
     return ExternalStorage(
-        std::exchange(self->data_, nullptr), operator delete);
+        std::exchange(self->data_, nullptr),
+        +[](void* ptr) { operator delete(ptr); });
   }
 
   // Supports `ExternalRef` and `Chain::Block`.
