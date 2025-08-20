@@ -58,8 +58,6 @@ template <typename T>
 class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
     : public WithEqual<SharedPtr<T>> {
  private:
-  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
   template <typename SubT>
   struct IsCompatibleProperSubtype
       : std::conjunction<std::negation<std::is_same<SubT, T>>,
@@ -244,6 +242,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   // For converting from a `SharedPtr` with a compatible type.
   template <typename SubT>
   friend class SharedPtr;
+
+  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
   // An object of type `SubT` is allocated together with `RefCount` if
   // `!std::has_virtual_destructor_v<SubT>`, or `Control` otherwise.

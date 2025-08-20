@@ -191,15 +191,15 @@ class ABSL_NULLABILITY_COMPATIBLE
     StableDependency<Handle, Manager,
                      std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
     : public Dependency<Handle, Manager> {
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
-
  public:
   using StableDependency::Dependency::Dependency;
 
   StableDependency(StableDependency&& that) = default;
   StableDependency& operator=(StableDependency&& that) = default;
+
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
@@ -214,15 +214,15 @@ class ABSL_NULLABILITY_COMPATIBLE StableDependency<
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyDefault<Handle, Manager>, Handle,
           Manager> {
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
-
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
 
   StableDependency(StableDependency&& that) = default;
   StableDependency& operator=(StableDependency&& that) = default;
+
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
@@ -239,15 +239,15 @@ class ABSL_NULLABILITY_COMPATIBLE StableDependency<
           dependency_internal::StableDependencyNoDefault<Handle, Manager>,
           Handle, Manager>,
       public CopyableLike<Dependency<Handle, Manager>> {
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
-
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
 
   StableDependency(StableDependency&& that) = default;
   StableDependency& operator=(StableDependency&& that) = default;
+
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Implementation details follow.

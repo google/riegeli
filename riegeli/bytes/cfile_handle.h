@@ -111,9 +111,6 @@ struct CFileSupportsOpen<
 //   absl::Status Close();
 // ```
 class ABSL_NULLABILITY_COMPATIBLE CFileHandle : public WithEqual<CFileHandle> {
- private:
-  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   // Creates a `CFileHandle` which does not refer to a target.
   CFileHandle() = default;
@@ -165,6 +162,8 @@ class ABSL_NULLABILITY_COMPATIBLE CFileHandle : public WithEqual<CFileHandle> {
   }
 
  private:
+  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   struct Methods {
     FILE* (*get)(TypeErasedRef target);
     bool (*is_owning)(TypeErasedRef target);
@@ -511,9 +510,6 @@ extern template class CFileBase<OwnedCFileDeleter>;
 class ABSL_NULLABILITY_COMPATIBLE UnownedCFile
     : public cfile_internal::CFileBase<cfile_internal::UnownedCFileDeleter>,
       public WithEqual<UnownedCFile> {
- private:
-  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   using CFileBase::CFileBase;
 
@@ -543,6 +539,9 @@ class ABSL_NULLABILITY_COMPATIBLE UnownedCFile
   friend bool operator==(const UnownedCFile& a, FILE* b) {
     return a.get() == b;
   }
+
+ private:
+  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Owns a `FILE*`, i.e. stores it and is responsible for closing it.
@@ -551,9 +550,6 @@ class ABSL_NULLABILITY_COMPATIBLE UnownedCFile
 class ABSL_NULLABILITY_COMPATIBLE OwnedCFile
     : public cfile_internal::CFileBase<cfile_internal::OwnedCFileDeleter>,
       public WithEqual<OwnedCFile> {
- private:
-  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   using CFileBase::CFileBase;
 
@@ -579,6 +575,9 @@ class ABSL_NULLABILITY_COMPATIBLE OwnedCFile
   absl::Status Close();
 
   friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
+
+ private:
+  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Type-erased object like `UnownedCFile` or `OwnedCFile` which stores and

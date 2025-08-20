@@ -41,9 +41,6 @@ namespace riegeli {
 class ABSL_NULLABILITY_COMPATIBLE ABSL_ATTRIBUTE_TRIVIAL_ABI
     OptionalCompactString : public WithCompare<OptionalCompactString> {
  private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = const absl::string_view*;
-
   class StringViewPointer {
    public:
     const absl::string_view* operator->() const { return &ref_; }
@@ -203,6 +200,9 @@ class ABSL_NULLABILITY_COMPATIBLE ABSL_ATTRIBUTE_TRIVIAL_ABI
   }
 
  private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = const absl::string_view*;
+
   static constexpr uintptr_t kNullRepr = 0;
 
   uintptr_t repr_ = kNullRepr;

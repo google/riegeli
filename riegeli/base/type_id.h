@@ -29,9 +29,6 @@ namespace riegeli {
 //
 // `TypeId()` is another value not equal to any other.
 class ABSL_NULLABILITY_COMPATIBLE TypeId : public WithCompare<TypeId> {
- private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   constexpr TypeId() = default;
   /*implicit*/ constexpr TypeId(std::nullptr_t) noexcept {}
@@ -57,6 +54,8 @@ class ABSL_NULLABILITY_COMPATIBLE TypeId : public WithCompare<TypeId> {
   }
 
  private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   template <typename T>
   struct TypeIdToken;
 

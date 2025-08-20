@@ -146,9 +146,6 @@ struct FdSupportsOpenAt<
 //   absl::Status Close();
 // ```
 class ABSL_NULLABILITY_COMPATIBLE FdHandle : public WithEqual<FdHandle> {
- private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   // Creates an `FdHandle` which does not refer to a target.
   FdHandle() = default;
@@ -198,6 +195,8 @@ class ABSL_NULLABILITY_COMPATIBLE FdHandle : public WithEqual<FdHandle> {
   }
 
  private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
   struct Methods {
     int (*get)(TypeErasedRef target);
     bool (*is_owning)(TypeErasedRef target);
@@ -547,9 +546,6 @@ extern template class FdBase<OwnedFdDeleter>;
 class ABSL_NULLABILITY_COMPATIBLE UnownedFd
     : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
       public WithEqual<UnownedFd> {
- private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   using FdBase::FdBase;
 
@@ -578,6 +574,9 @@ class ABSL_NULLABILITY_COMPATIBLE UnownedFd
   friend bool operator==(const UnownedFd& a, std::nullptr_t) {
     return a.get() < 0;
   }
+
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Owns a file descriptor, i.e. stores it and is responsible for closing it.
@@ -586,9 +585,6 @@ class ABSL_NULLABILITY_COMPATIBLE UnownedFd
 class ABSL_NULLABILITY_COMPATIBLE OwnedFd
     : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
       public WithEqual<OwnedFd> {
- private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   using Permissions = fd_internal::Permissions;
 #ifndef _WIN32
@@ -634,6 +630,9 @@ class ABSL_NULLABILITY_COMPATIBLE OwnedFd
   friend bool operator==(const OwnedFd& a, std::nullptr_t) {
     return a.get() < 0;
   }
+
+ private:
+  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Type-erased object like `UnownedFd` or `OownedFd` which stores and possibly

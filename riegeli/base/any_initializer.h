@@ -57,10 +57,6 @@ class AnyBase;
 // `MakerTypeFor<Manager, ManagerArgs...>`, or `Any<Handle>`.
 template <typename Handle>
 class ABSL_NULLABILITY_COMPATIBLE AnyInitializer {
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
-
  public:
   // An `Any` will be empty.
   AnyInitializer() noexcept : construct_(ConstructMethodEmpty) {}
@@ -89,6 +85,9 @@ class ABSL_NULLABILITY_COMPATIBLE AnyInitializer {
   // For `Construct()`.
   template <typename OtherHandle, size_t inline_size, size_t inline_align>
   friend class any_internal::AnyBase;
+
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 
   using Storage = any_internal::Storage;
   using MethodsAndHandle = any_internal::MethodsAndHandle<Handle>;

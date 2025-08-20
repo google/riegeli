@@ -93,9 +93,6 @@ struct HasGetCount<T,
 template <typename T>
 class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
     : public WithEqual<IntrusiveSharedPtr<T>> {
- private:
-  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
  public:
   // Creates an empty `IntrusiveSharedPtr`.
   constexpr IntrusiveSharedPtr() = default;
@@ -304,6 +301,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
   // For converting from a `SharedPtr` with a compatible type.
   template <typename SubT>
   friend class IntrusiveSharedPtr;
+
+  using pointer = T*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
   struct Unrefer {
     void operator()(T* ptr) const { ptr->Unref(); }

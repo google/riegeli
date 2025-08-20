@@ -445,9 +445,6 @@ template <typename T>
 class ABSL_NULLABILITY_COMPATIBLE Initializer
     : public initializer_internal::InitializerImpl<T>::type {
  private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<T>, T, void*>;
-
   using Base = typename initializer_internal::InitializerImpl<T>::type;
 
  public:
@@ -594,6 +591,9 @@ class ABSL_NULLABILITY_COMPATIBLE Initializer
 
   Initializer(Initializer&& that) = default;
   Initializer& operator=(Initializer&&) = delete;
+
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<T>, T, void*>;
 };
 
 // `Target<T>::type` and `TargetT<T>` deduce the appropriate target type such

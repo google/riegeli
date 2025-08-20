@@ -252,9 +252,6 @@ template <typename Handle, size_t inline_size = 0, size_t inline_align = 0>
 class ABSL_NULLABILITY_COMPATIBLE Any
     : public any_internal::AnyBase<Handle, inline_size, inline_align> {
  private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
-
   // Indirection through `InliningImpl` is needed for MSVC for some reason.
   template <typename... InlineManagers>
   struct InliningImpl {
@@ -333,6 +330,10 @@ class ABSL_NULLABILITY_COMPATIBLE Any
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(std::nullptr_t = nullptr) {
     Any::AnyBase::Reset();
   }
+
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Specialization of `DependencyManagerImpl<Any<Handle>>`:
@@ -423,10 +424,6 @@ class DependencyManagerImpl<
 template <typename Handle>
 class ABSL_NULLABILITY_COMPATIBLE AnyRef
     : public any_internal::AnyBase<Handle, 0, 0> {
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
-
  public:
   // Creates an empty `AnyRef`.
   AnyRef() noexcept { this->Initialize(); }
@@ -493,6 +490,10 @@ class ABSL_NULLABILITY_COMPATIBLE AnyRef
 
   AnyRef(AnyRef&& that) = default;
   AnyRef& operator=(AnyRef&&) = delete;
+
+ private:
+  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Specialization of `DependencyManagerImpl<AnyRef<Handle>>`:
