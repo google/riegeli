@@ -46,8 +46,13 @@ class AnyBase;
 // also avoids specifying `::Inlining<...>` in the interface while benefiting
 // from that in the implementation.
 //
-// This is similar to `Initializer<Any<Handle>>`, except that it efficiently
-// handles `Any<Handle>` specializations with any inline storage constraints.
+// `AnyInitializer<Handle>` also allows to initialize an `Any<Handle>` for a
+// `Handle` type which is neither default-constructible nor supporting
+// `RiegeliDependencySentinel()`, which makes `Any<Handle>` immovable.
+//
+// `AnyInitializer<Handle>` is similar to `Initializer<Any<Handle>>`, except
+// that it efficiently handles `Any<Handle>` specializations with any inline
+// storage constraints.
 //
 // `AnyInitializer<Handle>(manager)` does not own `manager`, even if it involves
 // temporaries, hence it should be used only as a parameter of a function or
