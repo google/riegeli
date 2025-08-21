@@ -794,8 +794,10 @@ class ABSL_NULLABILITY_COMPATIBLE Dependency
   Dependency& operator=(Dependency&& that) = default;
 
  private:
+  // TODO: Temporarily disable to work around a clang_tidy crash.
   // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
+  // using pointer =
+  //     std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // `DependencyRef<Handle, Manager>` is an alias for

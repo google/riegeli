@@ -162,7 +162,8 @@ class ABSL_NULLABILITY_COMPATIBLE CFileHandle : public WithEqual<CFileHandle> {
   }
 
  private:
-  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  // TODO: Temporarily disable to work around a clang_tidy crash.
+  // using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
   struct Methods {
     FILE* (*get)(TypeErasedRef target);
@@ -541,7 +542,8 @@ class ABSL_NULLABILITY_COMPATIBLE UnownedCFile
   }
 
  private:
-  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  // TODO: Temporarily disable to work around a clang_tidy crash.
+  // using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Owns a `FILE*`, i.e. stores it and is responsible for closing it.
@@ -577,7 +579,8 @@ class ABSL_NULLABILITY_COMPATIBLE OwnedCFile
   friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
 
  private:
-  using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+  // TODO: Temporarily disable to work around a clang_tidy crash.
+  // using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Type-erased object like `UnownedCFile` or `OwnedCFile` which stores and
