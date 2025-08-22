@@ -94,10 +94,9 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     size_t size_hint_ = 0;
   };
 
-  using Iterator = IteratorImpl<LinearSortedStringSet::Iterator>;
+  class Iterator;
   using SplitElement = LinearSortedStringSet::SplitElement;
-  using SplitElementIterator =
-      IteratorImpl<LinearSortedStringSet::SplitElementIterator>;
+  class SplitElementIterator;
   class SplitElements;
   class Builder;
   class NextInsertIterator;
@@ -335,8 +334,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
 // Iterates over a `LinearSortedStringSet` in the sorted order.
 template <typename LinearIterator>
-class ChunkedSortedStringSet::IteratorImpl
-    : public WithEqual<IteratorImpl<LinearIterator>> {
+class ChunkedSortedStringSet::IteratorImpl {
  public:
   // `iterator_concept` is only `std::input_iterator_tag` because the
   // `std::forward_iterator` requirement and above require references to remain
@@ -397,10 +395,8 @@ class ChunkedSortedStringSet::IteratorImpl
     return tmp;
   }
 
-  // Iterators can be compared even if they are associated with different
-  // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
-  // other values are not equal.
-  friend bool operator==(const IteratorImpl& a, const IteratorImpl& b) {
+ protected:
+  static bool Equal(const IteratorImpl& a, const IteratorImpl& b) {
     return a.current_iterator_ == b.current_iterator_;
   }
 
@@ -423,6 +419,35 @@ class ChunkedSortedStringSet::IteratorImpl
   LinearIterator current_iterator_;
   Chunks::const_iterator current_chunk_iterator_ = Chunks::const_iterator();
   const ChunkedSortedStringSet* set_ = nullptr;
+};
+
+class ChunkedSortedStringSet::Iterator
+    : public IteratorImpl<LinearSortedStringSet::Iterator>,
+      public WithEqual<Iterator> {
+ public:
+  using Iterator::IteratorImpl::IteratorImpl;
+
+  // Iterators can be compared even if they are associated with different
+  // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
+  // other values are not equal.
+  friend bool operator==(const Iterator& a, const Iterator& b) {
+    return Equal(a, b);
+  }
+};
+
+class ChunkedSortedStringSet::SplitElementIterator
+    : public IteratorImpl<LinearSortedStringSet::SplitElementIterator>,
+      public WithEqual<SplitElementIterator> {
+ public:
+  using SplitElementIterator::IteratorImpl::IteratorImpl;
+
+  // Iterators can be compared even if they are associated with different
+  // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
+  // other values are not equal.
+  friend bool operator==(const SplitElementIterator& a,
+                         const SplitElementIterator& b) {
+    return Equal(a, b);
+  }
 };
 
 // A proxy for `ChunkedSortedStringSet` where each element is represented as
