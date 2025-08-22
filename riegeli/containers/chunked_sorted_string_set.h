@@ -314,16 +314,6 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
   template <typename LinearIterator>
   static LinearIterator GetLinearIterator(const LinearSortedStringSet& set);
-  template <>
-  LinearSortedStringSet::Iterator GetLinearIterator(
-      const LinearSortedStringSet& set) {
-    return set.cbegin();
-  }
-  template <>
-  LinearSortedStringSet::SplitElementIterator GetLinearIterator(
-      const LinearSortedStringSet& set) {
-    return set.split_elements().cbegin();
-  }
 
   explicit ChunkedSortedStringSet(Chunks&& chunks);
 
@@ -713,6 +703,20 @@ inline bool ChunkedSortedStringSet::contains(absl::string_view element,
 inline ChunkedSortedStringSet::SplitElements
 ChunkedSortedStringSet::split_elements() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return SplitElements(this);
+}
+
+template <>
+inline LinearSortedStringSet::Iterator
+ChunkedSortedStringSet::GetLinearIterator<LinearSortedStringSet::Iterator>(
+    const LinearSortedStringSet& set) {
+  return set.cbegin();
+}
+
+template <>
+inline LinearSortedStringSet::SplitElementIterator ChunkedSortedStringSet::
+    GetLinearIterator<LinearSortedStringSet::SplitElementIterator>(
+        const LinearSortedStringSet& set) {
+  return set.split_elements().cbegin();
 }
 
 template <typename HashState>
