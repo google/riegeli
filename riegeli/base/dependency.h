@@ -22,7 +22,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
-#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -780,10 +779,9 @@ class DependencyDerived
 }  // namespace dependency_internal
 
 template <typename Handle, typename Manager>
-class ABSL_NULLABILITY_COMPATIBLE Dependency
-    : public dependency_internal::DependencyDerived<
-          dependency_internal::DependencyDeref<Handle, Manager>, Handle,
-          Manager> {
+class Dependency : public dependency_internal::DependencyDerived<
+                       dependency_internal::DependencyDeref<Handle, Manager>,
+                       Handle, Manager> {
  public:
   using Dependency::DependencyDerived::DependencyDerived;
 
@@ -792,12 +790,6 @@ class ABSL_NULLABILITY_COMPATIBLE Dependency
 
   Dependency(Dependency&& that) = default;
   Dependency& operator=(Dependency&& that) = default;
-
- private:
-  // TODO: Temporarily disable to work around a clang_tidy crash.
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  // using pointer =
-  //     std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // `DependencyRef<Handle, Manager>` is an alias for

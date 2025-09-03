@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
@@ -187,26 +186,21 @@ class StableDependencyNoDefault
 // Specialization of `StableDependency<Handle, Manager>` when
 // `Dependency<Handle, Manager>` is already stable: delegate to it.
 template <typename Handle, typename Manager>
-class ABSL_NULLABILITY_COMPATIBLE
-    StableDependency<Handle, Manager,
-                     std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
+class StableDependency<Handle, Manager,
+                       std::enable_if_t<Dependency<Handle, Manager>::kIsStable>>
     : public Dependency<Handle, Manager> {
  public:
   using StableDependency::Dependency::Dependency;
 
   StableDependency(StableDependency&& that) = default;
   StableDependency& operator=(StableDependency&& that) = default;
-
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
 // `Dependency<Handle, Manager>` is not stable but default-constructible:
 // allocate the dependency dynamically and conditionally.
 template <typename Handle, typename Manager>
-class ABSL_NULLABILITY_COMPATIBLE StableDependency<
+class StableDependency<
     Handle, Manager,
     std::enable_if_t<std::conjunction_v<
         std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
@@ -219,17 +213,13 @@ class ABSL_NULLABILITY_COMPATIBLE StableDependency<
 
   StableDependency(StableDependency&& that) = default;
   StableDependency& operator=(StableDependency&& that) = default;
-
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Specialization of `StableDependency<Handle, Manager>` when
 // `Dependency<Handle, Manager>` is not stable and not default-constructible:
 // allocate the dependency dynamically and always keep it allocated.
 template <typename Handle, typename Manager>
-class ABSL_NULLABILITY_COMPATIBLE StableDependency<
+class StableDependency<
     Handle, Manager,
     std::enable_if_t<std::conjunction_v<
         std::bool_constant<!Dependency<Handle, Manager>::kIsStable>,
@@ -244,10 +234,6 @@ class ABSL_NULLABILITY_COMPATIBLE StableDependency<
 
   StableDependency(StableDependency&& that) = default;
   StableDependency& operator=(StableDependency&& that) = default;
-
- private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = std::conditional_t<std::is_pointer_v<Handle>, Handle, void*>;
 };
 
 // Implementation details follow.
