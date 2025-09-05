@@ -78,9 +78,9 @@ absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
         "Invalid file metadata chunk: number of records is not zero: ",
         chunk.header.num_records()));
   }
-  ChainReader<> data_reader(&chunk.data);
+  ChainReader data_reader(&chunk.data);
   TransposeDecoder transpose_decoder;
-  ChainBackwardWriter<Chain> serialized_metadata_writer;
+  ChainBackwardWriter serialized_metadata_writer;
   serialized_metadata_writer.SetWriteSizeHint(chunk.header.decoded_data_size());
   std::vector<size_t> limits;
   const bool decode_ok = transpose_decoder.Decode(
@@ -119,7 +119,7 @@ absl::Status ReadRecords(
 
 absl::Status DescribeSimpleChunk(const Chunk& chunk,
                                  summary::SimpleChunk& simple_chunk) {
-  ChainReader<> src(&chunk.data);
+  ChainReader src(&chunk.data);
   const bool show_record_sizes = absl::GetFlag(FLAGS_show_record_sizes);
   const bool show_records = absl::GetFlag(FLAGS_show_records);
 
@@ -208,7 +208,7 @@ absl::Status DescribeSimpleChunk(const Chunk& chunk,
 
 absl::Status DescribeTransposedChunk(
     const Chunk& chunk, summary::TransposedChunk& transposed_chunk) {
-  ChainReader<> src(&chunk.data);
+  ChainReader src(&chunk.data);
   const bool show_record_sizes = absl::GetFlag(FLAGS_show_record_sizes);
   const bool show_records = absl::GetFlag(FLAGS_show_records);
 
@@ -228,7 +228,7 @@ absl::Status DescribeTransposedChunk(
     Any<BackwardWriter*>::Inlining<ChainBackwardWriter<>, NullBackwardWriter>
         dest_writer;
     if (show_records) {
-      dest_writer = riegeli::Maker<ChainBackwardWriter<>>(&dest);
+      dest_writer = riegeli::Maker<ChainBackwardWriter>(&dest);
     } else {
       dest_writer = riegeli::Maker<NullBackwardWriter>();
     }
@@ -257,7 +257,7 @@ absl::Status DescribeTransposedChunk(
     }
 
     if (show_records) {
-      ChainReader<> records_reader(&dest);
+      ChainReader records_reader(&dest);
       if (absl::Status status = ReadRecords(
               records_reader, limits, *transposed_chunk.mutable_records());
           !status.ok()) {
@@ -275,7 +275,7 @@ absl::Status DescribeTransposedChunk(
 void DescribeFile(absl::string_view filename, Writer& report) {
   WriteLine("file {", report);
   WriteLine("  filename: \"", absl::Utf8SafeCEscape(filename), '"', report);
-  DefaultChunkReader<FdReader<>> chunk_reader(riegeli::Maker(filename));
+  DefaultChunkReader chunk_reader(riegeli::Maker<FdReader>(filename));
   if (chunk_reader.SupportsRandomAccess()) {
     const std::optional<Position> size = chunk_reader.Size();
     if (size != std::nullopt) WriteLine("  file_size: ", *size, report);
@@ -332,7 +332,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
       }
     }
     WriteLine("  chunk {", report);
-    TextPrintMessage(chunk_summary, TextWriter<>(&report), print_options)
+    TextPrintMessage(chunk_summary, TextWriter(&report), print_options)
         .IgnoreError();
     WriteLine("  }", report);
   }
