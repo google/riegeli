@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -387,6 +388,9 @@ class ScopedLimiter {
   ScopedLimiter(const ScopedLimiter&) = delete;
   ScopedLimiter& operator=(const ScopedLimiter&) = delete;
 
+  // Returns the underlying `LimitingReaderBase`.
+  LimitingReaderBase& reader() const { return *reader_; }
+
   // Restores the options.
   //
   // Precondition:
@@ -400,6 +404,76 @@ class ScopedLimiter {
   bool old_exact_;
   bool fail_if_longer_;
 };
+
+// If `src` is a `LimitingReaderBase`, creates a `ScopedLimiter`, otherwise
+// creates a new `LimitingReader`.
+//
+// The primary template applies if `Src` is a `Reader` other than
+// `LimitingReaderBase`.
+template <typename Src, typename Enable = void>
+class ScopedLimiterOrLimitingReader {
+ public:
+  using Options = LimitingReaderBase::Options;
+
+  explicit ScopedLimiterOrLimitingReader(Src* src, Options options)
+      : reader_(src, options) {}
+
+  ScopedLimiterOrLimitingReader(const ScopedLimiterOrLimitingReader&) = delete;
+  ScopedLimiterOrLimitingReader& operator=(
+      const ScopedLimiterOrLimitingReader&) = delete;
+
+  // Returns the `LimitingReaderBase` from which data should be read.
+  LimitingReaderBase& reader() { return reader_; }
+
+  // Closes the `LimitingReaderBase`. If this fails, `reader().status()` can be
+  // used.
+  //
+  // For consistency with the specialization if `Src` is a `LimitingReaderBase`,
+  // the original `Reader` must not be changed between `Close()` and destroying
+  // the `ScopedLimiterOrLimitingReader`.
+  bool Close() { return reader_.Close(); }
+
+ private:
+  LimitingReader<> reader_;
+};
+
+// Specialization of `ScopedLimiterOrLimitingReader` if `Src` is a
+// `LimitingReaderBase`.
+//
+// In this specialization the original `LimitingReaderBase` is accessed directly
+// while its limits have been changed.
+template <typename Src>
+class ScopedLimiterOrLimitingReader<
+    Src, std::enable_if_t<std::is_base_of_v<LimitingReaderBase, Src>>> {
+ public:
+  using Options = LimitingReaderBase::Options;
+
+  explicit ScopedLimiterOrLimitingReader(Src* src, Options options)
+      : limiter_(src, options) {}
+
+  ScopedLimiterOrLimitingReader(const ScopedLimiterOrLimitingReader&) = delete;
+  ScopedLimiterOrLimitingReader& operator=(
+      const ScopedLimiterOrLimitingReader&) = delete;
+
+  // Returns the `LimitingReaderBase` from which data should be read.
+  LimitingReaderBase& reader() { return limiter_.reader(); }
+
+  // Does nothing. The state of the original `LimitingReaderBase` is restored by
+  // the destructor.instead.
+  //
+  // For consistency with the primary template, `Close()` should still be
+  // called. The original `Reader` must not be changed between `Close()` and
+  // destroying the `ScopedLimiterOrLimitingReader`.
+  bool Close() { return reader().ok(); }
+
+ private:
+  ScopedLimiter limiter_;
+};
+
+template <typename Src>
+explicit ScopedLimiterOrLimitingReader(Src* src,
+                                       LimitingReaderBase::Options options)
+    -> ScopedLimiterOrLimitingReader<Src>;
 
 // Implementation details follow.
 

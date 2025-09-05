@@ -25,7 +25,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
@@ -33,6 +32,7 @@
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -136,6 +136,9 @@ absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
 absl::Status ParseMessageWithLength(
     Reader& src, size_t length, google::protobuf::MessageLite& dest,
     ParseMessageOptions options = ParseMessageOptions());
+absl::Status ParseMessageWithLength(
+    LimitingReaderBase& src, size_t length, google::protobuf::MessageLite& dest,
+    ParseMessageOptions options = ParseMessageOptions());
 
 // Reads a message length as varint32 (at most 2G), then a message in binary
 // format with that length from the given `Reader`.
@@ -145,6 +148,9 @@ absl::Status ParseMessageWithLength(
 //  * `!status.ok()` - failure (`dest` is unspecified)
 absl::Status ParseLengthPrefixedMessage(
     Reader& src, google::protobuf::MessageLite& dest,
+    ParseMessageOptions options = ParseMessageOptions());
+absl::Status ParseLengthPrefixedMessage(
+    LimitingReaderBase& src, google::protobuf::MessageLite& dest,
     ParseMessageOptions options = ParseMessageOptions());
 
 // Reads a message in binary format from `src`.
