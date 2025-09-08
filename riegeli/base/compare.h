@@ -17,10 +17,13 @@
 
 #include <type_traits>
 
+#include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"  // IWYU pragma: keep
 #if !__cpp_impl_three_way_comparison
 #include "absl/types/compare.h"
 #endif
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 // Emulate C++20 `operator<=>` machinery for earlier C++ versions.
 

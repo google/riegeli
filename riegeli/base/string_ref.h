@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
+#include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
@@ -32,6 +33,8 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -123,7 +126,7 @@ class StringRef : public WithCompare<StringRef> {
   /*implicit*/ operator absl::string_view() const { return str_; }
 
   bool empty() const { return size() == 0; }
-  const char* data() const { return str_.data(); };
+  const char* absl_nullable data() const { return str_.data(); };
   size_t size() const {
     RIEGELI_ASSUME_LE(str_.size(), str_.max_size());
     return str_.size();

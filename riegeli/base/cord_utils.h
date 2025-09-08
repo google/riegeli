@@ -20,12 +20,15 @@
 
 #include <string>
 
+#include "absl/base/nullability.h"
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/buffering.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli::cord_internal {
 
@@ -67,7 +70,10 @@ inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
 }
 
 // Copies `src` to `dest[]`.
-void CopyCordToArray(const absl::Cord& src, char* dest);
+//
+// `dest[]` must have sufficient size for `src.size()`, and `dest` may be
+// `nullptr` only if `src.empty()`.
+void CopyCordToArray(const absl::Cord& src, char* absl_nullable dest);
 
 // Appends `src` to `dest`.
 void AppendCordToString(const absl::Cord& src, std::string& dest);

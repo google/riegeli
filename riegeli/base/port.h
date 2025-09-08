@@ -15,6 +15,10 @@
 #ifndef RIEGELI_BASE_PORT_H_
 #define RIEGELI_BASE_PORT_H_
 
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
+
 // Clang has `__has_builtin()`. Other compilers need other means to detect
 // availability of builtins.
 #ifdef __has_builtin

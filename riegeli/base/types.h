@@ -21,6 +21,10 @@
 #include <ios>
 #include <type_traits>
 
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 // Position in a stream of bytes, used also for stream sizes.

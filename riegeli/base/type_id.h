@@ -22,6 +22,8 @@
 #include "absl/base/nullability.h"
 #include "riegeli/base/compare.h"
 
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 // `TypeId::For<A>()` is a token which is equal to `TypeId::For<B>()` whenever
@@ -61,7 +63,7 @@ class ABSL_NULLABILITY_COMPATIBLE TypeId : public WithCompare<TypeId> {
 
   explicit constexpr TypeId(const void* ptr) : ptr_(ptr) {}
 
-  const void* ptr_ = nullptr;
+  const void* absl_nullable ptr_ = nullptr;
 };
 
 // Implementation details follow.

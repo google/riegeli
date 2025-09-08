@@ -23,9 +23,12 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 

@@ -19,9 +19,12 @@
 
 #include <optional>
 
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/types.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 

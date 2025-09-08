@@ -20,15 +20,19 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/nullability.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/string_utils.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli::cord_internal {
 
-void CopyCordToArray(const absl::Cord& src, char* dest) {
+void CopyCordToArray(const absl::Cord& src, char* absl_nullable dest) {
   for (const absl::string_view fragment : src.Chunks()) {
     std::memcpy(dest, fragment.data(), fragment.size());
     dest += fragment.size();

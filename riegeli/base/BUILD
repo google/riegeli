@@ -12,6 +12,7 @@ cc_library(
     hdrs = ["type_traits.h"],
     deps = [
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/utility",
     ],
@@ -21,18 +22,23 @@ cc_library(
     name = "constexpr",
     srcs = ["port.h"],
     hdrs = ["constexpr.h"],
+    deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 cc_library(
     name = "null_safe_memcpy",
     hdrs = ["null_safe_memcpy.h"],
-    deps = ["@com_google_absl//absl/base:core_headers"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+    ],
 )
 
 cc_library(
     name = "compare",
     hdrs = ["compare.h"],
     deps = [
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:compare",
     ],
@@ -45,6 +51,7 @@ cc_library(
     deps = [
         ":types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -56,6 +63,7 @@ cc_library(
     deps = [
         ":stream_utils",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/types:span",
@@ -73,6 +81,7 @@ cc_library(
         ":debug",
         ":stream_utils",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log:absl_log",
     ],
 )
@@ -80,6 +89,7 @@ cc_library(
 cc_library(
     name = "types",
     hdrs = ["types.h"],
+    deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 cc_library(
@@ -89,6 +99,7 @@ cc_library(
         ":assert",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
     ],
@@ -101,6 +112,7 @@ cc_library(
         ":arithmetic",
         ":types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
     ],
 )
 
@@ -110,6 +122,7 @@ cc_library(
     deps = [
         ":arithmetic",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
     ],
 )
 
@@ -121,6 +134,7 @@ cc_library(
         ":assert",
         ":estimated_allocated_size",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/numeric:bits",
     ],
 )
@@ -129,7 +143,10 @@ cc_library(
     name = "string_utils",
     srcs = ["string_utils.cc"],
     hdrs = ["string_utils.h"],
-    deps = [":arithmetic"],
+    deps = [
+        ":arithmetic",
+        "@com_google_absl//absl/base:nullability",
+    ],
 )
 
 cc_library(
@@ -138,8 +155,10 @@ cc_library(
     hdrs = ["cord_utils.h"],
     deps = [
         ":arithmetic",
+        ":assert",
         ":buffering",
         ":string_utils",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
@@ -160,6 +179,7 @@ cc_library(
         "@platforms//os:windows": [
             ":arithmetic",
             "@com_google_absl//absl/base:core_headers",
+            "@com_google_absl//absl/base:nullability",
             "@com_google_absl//absl/strings",
             "@com_google_absl//absl/types:span",
         ],
@@ -180,6 +200,8 @@ cc_library(
     name = "reset",
     hdrs = ["reset.h"],
     deps = [
+        ":assert",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
     ],
@@ -191,6 +213,7 @@ cc_library(
     deps = [
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/meta:type_traits",
     ],
 )
@@ -218,6 +241,7 @@ cc_library(
 cc_library(
     name = "global",
     hdrs = ["global.h"],
+    deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 cc_library(
@@ -230,6 +254,7 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -244,6 +269,7 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
@@ -271,6 +297,7 @@ cc_library(
         ":arithmetic",
         ":estimated_allocated_size",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
@@ -284,7 +311,10 @@ cc_library(
 cc_library(
     name = "closing_ptr",
     hdrs = ["closing_ptr.h"],
-    deps = ["@com_google_absl//absl/base:core_headers"],
+    deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+    ],
 )
 
 cc_library(

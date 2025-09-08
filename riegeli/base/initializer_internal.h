@@ -21,6 +21,9 @@
 #include <utility>
 
 #include "absl/base/casts.h"
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli::initializer_internal {
 

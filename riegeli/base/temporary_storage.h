@@ -22,7 +22,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "riegeli/base/assert.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -208,17 +211,29 @@ class TemporaryStorage<T, std::enable_if_t<std::is_reference_v<T>>> {
     return std::forward<T>(*value_);
   }
 
-  T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND { return *value_; }
-  const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND { return *value_; }
+  T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    RIEGELI_ASSERT(value_ != nullptr)
+        << "Failed precondition of TemporaryStorage::operator*";
+    return *value_;
+  }
+  const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    RIEGELI_ASSERT(value_ != nullptr)
+        << "Failed precondition of TemporaryStorage::operator*";
+    return *value_;
+  }
   T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    RIEGELI_ASSERT(value_ != nullptr)
+        << "Failed precondition of TemporaryStorage::operator*";
     return std::forward<T>(*value_);
   }
   const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    RIEGELI_ASSERT(value_ != nullptr)
+        << "Failed precondition of TemporaryStorage::operator*";
     return std::forward<T>(*value_);
   }
 
  private:
-  std::remove_reference_t<T>* value_;
+  std::remove_reference_t<T>* absl_nullable value_;
 };
 
 }  // namespace riegeli

@@ -19,7 +19,10 @@
 
 #include <cstring>
 
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"  // IWYU pragma: keep
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -61,7 +64,8 @@ namespace riegeli {
 #ifdef __clang__
 __attribute__((no_sanitize("nonnull-attribute")))
 #endif
-inline void null_safe_memcpy(void* dest, const void* src, size_t length) {
+inline void null_safe_memcpy(void* absl_nullable dest,
+                             const void* absl_nullable src, size_t length) {
 #ifndef __clang__
   if (ABSL_PREDICT_FALSE(length == 0)) return;
 #endif
@@ -71,7 +75,8 @@ inline void null_safe_memcpy(void* dest, const void* src, size_t length) {
 #ifdef __clang__
 __attribute__((no_sanitize("nonnull-attribute")))
 #endif
-inline void null_safe_memmove(void* dest, const void* src, size_t length) {
+inline void null_safe_memmove(void* absl_nullable dest,
+                              const void* absl_nullable src, size_t length) {
 #ifndef __clang__
   if (ABSL_PREDICT_FALSE(length == 0)) return;
 #endif
@@ -81,7 +86,7 @@ inline void null_safe_memmove(void* dest, const void* src, size_t length) {
 #ifdef __clang__
 __attribute__((no_sanitize("nonnull-attribute")))
 #endif
-inline void null_safe_memset(void* dest, int c, size_t length) {
+inline void null_safe_memset(void* absl_nullable dest, int c, size_t length) {
 #ifndef __clang__
   if (ABSL_PREDICT_FALSE(length == 0)) return;
 #endif

@@ -26,8 +26,11 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/types.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -178,7 +181,8 @@ class StringifyOStream<StringStringifySink> final : public std::ostream {
 
    protected:
     int overflow(int src) override;
-    std::streamsize xsputn(const char* src, std::streamsize length) override;
+    std::streamsize xsputn(const char* absl_nullable src,
+                           std::streamsize length) override;
 
    private:
     std::string* dest_;
@@ -206,7 +210,8 @@ class StringifyOStream<Sink>::StringifyStreambuf final : public std::streambuf {
 
  protected:
   int overflow(int src) override;
-  std::streamsize xsputn(const char* src, std::streamsize length) override;
+  std::streamsize xsputn(const char* absl_nullable src,
+                         std::streamsize length) override;
 
  private:
   Sink* dest_;
@@ -223,8 +228,9 @@ int StringifyOStream<Sink>::StringifyStreambuf::overflow(int src) {
 
 template <typename Sink>
 std::streamsize StringifyOStream<Sink>::StringifyStreambuf::xsputn(
-    const char* src, std::streamsize length) {
+    const char* absl_nullable src, std::streamsize length) {
   assert(length >= 0);
+  assert(src != nullptr || length == 0);
   dest_->Append(absl::string_view(src, static_cast<size_t>(length)));
   return length;
 }

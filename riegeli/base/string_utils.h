@@ -19,6 +19,10 @@
 
 #include <string>
 
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 // Resizes `dest` to `new_size`, ensuring that repeated growth has the cost

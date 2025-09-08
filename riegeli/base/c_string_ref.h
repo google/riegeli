@@ -28,6 +28,8 @@
 #include "riegeli/base/temporary_storage.h"
 #include "riegeli/base/type_traits.h"
 
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 // `CStringRef` stores a pointer to a C-style NUL-terminated string
@@ -67,7 +69,8 @@ class ABSL_NULLABILITY_COMPATIBLE CStringRef : WithEqual<CStringRef> {
   /*implicit*/ CStringRef(std::nullptr_t) {}
 
   // Stores `str`.
-  /*implicit*/ CStringRef(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  /*implicit*/ CStringRef(
+      const char* absl_nullable str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : c_str_(str) {}
 
   // Stores `str` converted to `const char*`.
@@ -115,7 +118,7 @@ class ABSL_NULLABILITY_COMPATIBLE CStringRef : WithEqual<CStringRef> {
   CStringRef& operator=(const CStringRef&) = delete;
 
   // Returns the pointer to the C-style NUL-terminated string, or `nullptr`.
-  const char* c_str() const { return c_str_; }
+  const char* absl_nullable c_str() const { return c_str_; }
 
   friend bool operator==(CStringRef a, std::nullptr_t) {
     return a.c_str_ == nullptr;
@@ -124,7 +127,7 @@ class ABSL_NULLABILITY_COMPATIBLE CStringRef : WithEqual<CStringRef> {
  private:
   using pointer = const char*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 
-  const char* c_str_ = nullptr;
+  const char* absl_nullable c_str_ = nullptr;
 };
 
 }  // namespace riegeli

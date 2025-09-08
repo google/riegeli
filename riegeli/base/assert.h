@@ -17,15 +17,19 @@
 
 #include <stddef.h>
 
+#include <cassert>
 #include <ostream>  // IWYU pragma: export
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/debug.h"
 #include "riegeli/base/port.h"
 #include "riegeli/base/stream_utils.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -74,10 +78,13 @@ class CheckResult {
   // Returns the header stream.
   //
   // Precondition: the check failed, i.e. `*this` is `false`.
-  StringOStream& header() { return *header_; }
+  StringOStream& header() {
+    assert(header_ != nullptr);
+    return *header_;
+  }
 
  private:
-  StringOStream* header_ = nullptr;
+  StringOStream* absl_nullable header_ = nullptr;
 };
 
 // Stores a `CheckResult` and a stream for adding details to the message.

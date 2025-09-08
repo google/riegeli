@@ -16,8 +16,11 @@
 
 #include <string>
 
+#include "absl/base/nullability.h"
 #include "absl/log/absl_log.h"
 #include "riegeli/base/stream_utils.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli::assert_internal {
 

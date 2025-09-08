@@ -21,8 +21,12 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/nullability.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/assert.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -63,7 +67,10 @@ inline void RiegeliReset(std::string& dest, const char* src) {
   dest.assign(src);
 }
 
-inline void RiegeliReset(std::string& dest, const char* src, size_t length) {
+inline void RiegeliReset(std::string& dest, const char* absl_nullable src,
+                         size_t length) {
+  RIEGELI_ASSERT(src != nullptr || length == 0)
+      << "Failed precondition of RiegeliReset(): non-empty span from nullptr";
   dest.assign(src, length);
 }
 

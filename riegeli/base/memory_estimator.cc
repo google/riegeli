@@ -26,11 +26,14 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_set.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-bool MemoryEstimatorDefault::RegisterNodeImpl(const void* ptr) {
+bool MemoryEstimatorDefault::RegisterNodeImpl(const void* absl_nullable ptr) {
   return ptr != nullptr && objects_seen_.insert(ptr).second;
 }
 
@@ -51,7 +54,7 @@ std::vector<std::string> MemoryEstimatorReportingUnknownTypes::UnknownTypes()
   for (const std::type_index index : unknown_types_) {
 #ifdef __GXX_RTTI
     int status = 0;
-    char* const demangled =
+    char* const absl_nullable demangled =
         abi::__cxa_demangle(index.name(), nullptr, nullptr, &status);
     if (status == 0 && demangled != nullptr) {
       result.emplace_back(demangled);

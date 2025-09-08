@@ -24,8 +24,11 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"  // IWYU pragma: keep
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 

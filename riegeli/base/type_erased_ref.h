@@ -20,8 +20,11 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/type_traits.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -90,7 +93,7 @@ class TypeErasedRef {
   bool empty() const { return ptr_ == nullptr; }
 
  private:
-  void* ptr_ = nullptr;
+  void* absl_nullable ptr_ = nullptr;
 };
 
 }  // namespace riegeli

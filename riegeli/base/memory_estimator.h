@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
@@ -40,6 +41,8 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/estimated_allocated_size.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace google::protobuf {
 class Message;
@@ -128,7 +131,9 @@ class MemoryEstimator {
   // caller should register its memory and subobjects.
   //
   // If `ptr == nullptr` then always returns `false`.
-  bool RegisterNode(const void* ptr) { return RegisterNodeImpl(ptr); }
+  bool RegisterNode(const void* absl_nullable ptr) {
+    return RegisterNodeImpl(ptr);
+  }
 
   // Adds `T` to the stored set of unknown types, to be returned by
   // `UnknownTypes()`.
@@ -212,7 +217,7 @@ class MemoryEstimator {
  protected:
   virtual void RegisterDynamicMemoryImpl(const void* ptr, size_t memory) = 0;
   virtual void RegisterDynamicMemoryImpl(size_t memory) = 0;
-  virtual bool RegisterNodeImpl(const void* ptr) = 0;
+  virtual bool RegisterNodeImpl(const void* absl_nullable ptr) = 0;
   virtual void RegisterUnknownTypeImpl() = 0;
   virtual void RegisterUnknownTypeImpl(std::type_index index) = 0;
 
@@ -240,7 +245,7 @@ class MemoryEstimatorDefault : public MemoryEstimator {
   void RegisterDynamicMemoryImpl(size_t memory) override {
     RegisterMemory(EstimatedAllocatedSize(memory));
   }
-  bool RegisterNodeImpl(const void* ptr) override;
+  bool RegisterNodeImpl(const void* absl_nullable ptr) override;
   void RegisterUnknownTypeImpl() override {}
   void RegisterUnknownTypeImpl(
       ABSL_ATTRIBUTE_UNUSED std::type_index index) override {}
@@ -271,7 +276,9 @@ class MemoryEstimatorSimplified : public MemoryEstimator {
   void RegisterDynamicMemoryImpl(size_t memory) override {
     RegisterMemory(memory);
   }
-  bool RegisterNodeImpl(const void* ptr) override { return ptr != nullptr; }
+  bool RegisterNodeImpl(const void* absl_nullable ptr) override {
+    return ptr != nullptr;
+  }
   void RegisterUnknownTypeImpl() override {}
   void RegisterUnknownTypeImpl(
       ABSL_ATTRIBUTE_UNUSED std::type_index index) override {}
@@ -448,8 +455,9 @@ template <typename T, typename Deleter,
           std::enable_if_t<std::conjunction_v<std::negation<std::is_void<T>>,
                                               std::negation<std::is_array<T>>>,
                            int> = 0>
-inline void RiegeliRegisterSubobjects(const std::unique_ptr<T, Deleter>* self,
-                                      MemoryEstimator& memory_estimator) {
+inline void RiegeliRegisterSubobjects(
+    const absl_nullable std::unique_ptr<T, Deleter>* self,
+    MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterSubobjects<Deleter>(&self->get_deleter());
   if (*self != nullptr) memory_estimator.RegisterDynamicObject(self->get());
 }
@@ -469,7 +477,8 @@ template <typename T,
           std::enable_if_t<std::conjunction_v<std::negation<std::is_void<T>>,
                                               std::negation<std::is_array<T>>>,
                            int> = 0>
-inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
+inline void RiegeliRegisterSubobjects(const
+                                      absl_nullable std::shared_ptr<T>* self,
                                       MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(self->get())) {
     memory_estimator.RegisterDynamicMemory(
@@ -480,8 +489,9 @@ inline void RiegeliRegisterSubobjects(const std::shared_ptr<T>* self,
 }
 
 template <typename T, size_t size>
-inline void RiegeliRegisterSubobjects(const std::shared_ptr<T[size]>* self,
-                                      MemoryEstimator& memory_estimator) {
+inline void RiegeliRegisterSubobjects(
+    const absl_nullable std::shared_ptr<T[size]>* self,
+    MemoryEstimator& memory_estimator) {
   if (memory_estimator.RegisterNode(self->get())) {
     memory_estimator.RegisterDynamicMemory(
         sizeof(memory_estimator_internal::SharedPtrControlBlock) +

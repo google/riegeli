@@ -18,6 +18,9 @@
 #include <memory>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 

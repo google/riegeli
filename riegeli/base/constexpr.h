@@ -15,7 +15,10 @@
 #ifndef RIEGELI_BASE_CONSTEXPR_H_
 #define RIEGELI_BASE_CONSTEXPR_H_
 
+#include "absl/base/nullability.h"
 #include "riegeli/base/port.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 

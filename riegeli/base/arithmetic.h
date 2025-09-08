@@ -20,11 +20,14 @@
 #include <limits>
 #include <type_traits>
 
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -367,7 +370,11 @@ constexpr T RoundUp(T value) {
 // `PtrDistance(first, last)` returns `last - first` as `size_t`, asserting that
 // `first <= last`.
 template <typename A>
-constexpr size_t PtrDistance(const A* first, const A* last) {
+constexpr size_t PtrDistance(const A* absl_nullable first,
+                             const A* absl_nullable last) {
+  RIEGELI_ASSERT_EQ(first == nullptr, last == nullptr)
+      << "Failed precondition of PtrDistance(): "
+         "nullptr compared with non-nullptr";
   RIEGELI_ASSERT_LE(first, last)
       << "Failed precondition of PtrDistance(): pointers in the wrong order";
   return IntCast<size_t>(last - first);

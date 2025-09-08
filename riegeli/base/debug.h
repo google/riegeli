@@ -27,10 +27,13 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/stream_utils.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -225,19 +228,21 @@ void RiegeliDebug(const absl::Cord& src, DebugStream& dest);
 // pointers, as well as function pointers, are written using `operator<<` for
 // `const void*`.
 void RiegeliDebug(std::nullptr_t src, DebugStream& dest);
-void RiegeliDebug(const void* src, DebugStream& dest);
+void RiegeliDebug(const void* absl_nullable src, DebugStream& dest);
 template <typename T, std::enable_if_t<std::is_function_v<T>, int> = 0>
-void RiegeliDebug(T* src, DebugStream& dest) {
+void RiegeliDebug(T* absl_nullable src, DebugStream& dest) {
   dest.Debug(reinterpret_cast<void*>(src));
 }
 
 // `std::unique_ptr` and `std::shared_ptr` are written like pointers.
 template <typename T, typename Deleter>
-void RiegeliDebug(const std::unique_ptr<T, Deleter>& src, DebugStream& dest) {
+void RiegeliDebug(const absl_nullable std::unique_ptr<T, Deleter>& src,
+                  DebugStream& dest) {
   dest.Debug(src.get());
 }
 template <typename T>
-void RiegeliDebug(const std::shared_ptr<T>& src, DebugStream& dest) {
+void RiegeliDebug(const absl_nullable std::shared_ptr<T>& src,
+                  DebugStream& dest) {
   dest.Debug(src.get());
 }
 

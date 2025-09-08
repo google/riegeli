@@ -19,6 +19,10 @@
 #include <new>
 #include <type_traits>
 
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 // `Global<T>()` returns a const reference to a default-constructed object of

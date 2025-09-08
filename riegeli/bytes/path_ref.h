@@ -33,7 +33,7 @@
 #include "riegeli/base/type_traits.h"
 
 #if defined(__cpp_lib_filesystem) && __cpp_lib_filesystem >= 201703
-#include <filesystem>  // NOLINT(build/c++17)
+#include <filesystem>
 #endif
 
 namespace riegeli {

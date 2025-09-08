@@ -32,6 +32,8 @@
 #include "riegeli/base/type_erased_ref.h"
 #include "riegeli/base/type_traits.h"
 
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 template <typename T>

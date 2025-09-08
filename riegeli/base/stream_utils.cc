@@ -21,6 +21,10 @@
 #include <ios>
 #include <ostream>
 
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 void WritePadding(std::ostream& dest, size_t length, char fill) {
@@ -39,7 +43,7 @@ int StringifyOStream<StringStringifySink>::StringStreambuf::overflow(int src) {
 }
 
 std::streamsize StringifyOStream<StringStringifySink>::StringStreambuf::xsputn(
-    const char* src, std::streamsize length) {
+    const char* absl_nullable src, std::streamsize length) {
   assert(length >= 0);
   dest_->append(src, static_cast<size_t>(length));
   return length;

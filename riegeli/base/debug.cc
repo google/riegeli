@@ -21,9 +21,12 @@
 #include <type_traits>
 
 #include "absl/base/attributes.h"
+#include "absl/base/nullability.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -167,7 +170,7 @@ void RiegeliDebug(const absl::Cord& src, DebugStream& dest) {
   dest.DebugStringQuote();
 }
 
-void RiegeliDebug(const void* src, DebugStream& dest) {
+void RiegeliDebug(const void* absl_nullable src, DebugStream& dest) {
   if (src == nullptr) {
     dest.Write("nullptr");
   } else {
