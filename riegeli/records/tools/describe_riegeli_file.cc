@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
@@ -286,9 +287,9 @@ void DescribeFile(absl::string_view filename, Writer& report) {
   print_options.printer().SetUseUtf8StringEscaping(true);
   for (;;) {
     report.Flush();
-    const Position chunk_begin = chunk_reader.pos();
-    Chunk chunk;
-    if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
+
+    const ChunkHeader* chunk_header;
+    if (ABSL_PREDICT_FALSE(!chunk_reader.PullChunkHeader(&chunk_header))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
         WriteLine("  # FILE CORRUPTED: ", skipped_region.ToString(), report);
@@ -296,45 +297,59 @@ void DescribeFile(absl::string_view filename, Writer& report) {
       }
       break;
     }
+
     summary::Chunk chunk_summary;
-    chunk_summary.set_chunk_begin(chunk_begin);
+    chunk_summary.set_chunk_begin(chunk_reader.pos());
     chunk_summary.set_chunk_type(
-        static_cast<summary::ChunkType>(chunk.header.chunk_type()));
-    chunk_summary.set_data_size(chunk.header.data_size());
-    chunk_summary.set_num_records(chunk.header.num_records());
-    chunk_summary.set_decoded_data_size(chunk.header.decoded_data_size());
-    {
-      absl::Status status;
-      switch (chunk.header.chunk_type()) {
-        case ChunkType::kFileMetadata:
-          if (absl::GetFlag(FLAGS_show_records_metadata)) {
-            status = DescribeFileMetadataChunk(
-                chunk, *chunk_summary.mutable_file_metadata_chunk());
-          }
-          break;
-        case ChunkType::kSimple:
-          status =
-              DescribeSimpleChunk(chunk, *chunk_summary.mutable_simple_chunk());
-          break;
-        case ChunkType::kTransposed:
-          status = DescribeTransposedChunk(
-              chunk, *chunk_summary.mutable_transposed_chunk());
-          break;
-        default:
-          break;
-      }
-      if (ABSL_PREDICT_FALSE(!status.ok())) {
-        WriteLine("  # FILE CORRUPTED: ",
-                  Annotate(chunk_reader.AnnotateStatus(status),
-                           absl::StrCat("at record ", chunk_begin, "/0"))
-                      .message(),
-                  report);
-      }
-    }
+        static_cast<summary::ChunkType>(chunk_header->chunk_type()));
+    chunk_summary.set_data_size(chunk_header->data_size());
+    chunk_summary.set_num_records(chunk_header->num_records());
+    chunk_summary.set_decoded_data_size(chunk_header->decoded_data_size());
+
     WriteLine("  chunk {", report);
-    TextPrintMessage(chunk_summary, TextWriter(&report), print_options)
-        .IgnoreError();
-    WriteLine("  }", report);
+    absl::Cleanup report_chunk = [&] {
+      TextPrintMessage(chunk_summary, TextWriter(&report), print_options)
+          .IgnoreError();
+      WriteLine("  }", report);
+    };
+
+    Chunk chunk;
+    if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
+      SkippedRegion skipped_region;
+      if (chunk_reader.Recover(&skipped_region)) {
+        WriteLine("    # FILE CORRUPTED: ", skipped_region.ToString(), report);
+        continue;
+      }
+      break;
+    }
+
+    absl::Status status;
+    switch (chunk_summary.chunk_type()) {
+      case summary::FILE_METADATA:
+        if (absl::GetFlag(FLAGS_show_records_metadata)) {
+          status = DescribeFileMetadataChunk(
+              chunk, *chunk_summary.mutable_file_metadata_chunk());
+        }
+        break;
+      case summary::SIMPLE:
+        status =
+            DescribeSimpleChunk(chunk, *chunk_summary.mutable_simple_chunk());
+        break;
+      case summary::TRANSPOSED:
+        status = DescribeTransposedChunk(
+            chunk, *chunk_summary.mutable_transposed_chunk());
+        break;
+      default:
+        break;
+    }
+    if (ABSL_PREDICT_FALSE(!status.ok())) {
+      WriteLine("    # FILE CORRUPTED: ",
+                Annotate(chunk_reader.AnnotateStatus(status),
+                         absl::StrCat("at record ", chunk_summary.chunk_begin(),
+                                      "/0"))
+                    .message(),
+                report);
+    }
   }
   if (!chunk_reader.Close()) {
     WriteLine("  # FILE READ ERROR: ", chunk_reader.status().message(), report);
