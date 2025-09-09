@@ -21,8 +21,8 @@ cc_library(
         "//riegeli/messages:serialize_message",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -53,6 +53,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf_lite",
     ],
@@ -77,7 +78,7 @@ cc_library(
         "//riegeli/endian:endian_reading",
         "//riegeli/endian:endian_writing",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -88,7 +89,7 @@ cc_library(
     deps = [
         "//riegeli/base:chain",
         "@com_google_absl//absl/container:inlined_vector",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@highwayhash//:hh_types",
         "@highwayhash//:highwayhash_dynamic",
         "@highwayhash//:instruction_sets",
@@ -109,7 +110,7 @@ cc_library(
         "//riegeli/zstd:zstd_writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -202,8 +203,8 @@ cc_library(
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )
@@ -264,8 +265,8 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -297,7 +298,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -340,8 +341,8 @@ cc_library(
         "//riegeli/messages:serialize_message",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )

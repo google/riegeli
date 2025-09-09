@@ -37,7 +37,7 @@ py_extension(
         "//riegeli/records:skipped_region",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
@@ -58,7 +58,7 @@ py_extension(
         "//riegeli/records:record_writer",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
@@ -78,6 +78,7 @@ py_extension(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@rules_python//python/cc:current_py_cc_headers",
     ],
 )

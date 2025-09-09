@@ -32,7 +32,7 @@ cc_binary(
         "//riegeli/tensorflow/io:file_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/synchronization",
         "@local_config_tf//:libtensorflow_framework",
         "@local_config_tf//:tf_header_lib",

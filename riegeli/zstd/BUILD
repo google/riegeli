@@ -59,6 +59,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@net_zstd//:zstd",
     ],
 )
@@ -78,7 +79,7 @@ cc_library(
         "//riegeli/base:shared_ptr",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/synchronization",
         "@net_zstd//:zstd",
     ],
