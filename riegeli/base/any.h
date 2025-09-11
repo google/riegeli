@@ -22,6 +22,7 @@
 #include <cstring>
 #include <memory>
 #include <new>  // IWYU pragma: keep
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -550,6 +551,14 @@ class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, NullDeleter>,
     return this->manager()->get();
   }
 };
+
+// Type-erased object like `absl::string_view`, `std::string` or `const char*`
+// which stores and possibly owns a string.
+//
+// Do not mutate a stored `std::string` in-place through `GetIf()` if its length
+// changes. Assign a new one.
+using AnyString =
+    Any<absl::string_view>::Inlining<absl::string_view, std::string>;
 
 // Implementation details follow.
 
