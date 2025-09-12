@@ -133,24 +133,19 @@ struct HasStatus<T, std::void_t<decltype(std::declval<T>().status())>>
 
 }  // namespace assert_internal
 
-template <
-    typename StatusType,
-    std::enable_if_t<!assert_internal::HasStatus<StatusType>::value, int> = 0>
+template <typename StatusType>
 ABSL_ATTRIBUTE_COLD CheckResult CheckOkResult(const char* function,
                                               const char* expression,
                                               const StatusType& status) {
-  CheckResult check_result(function, expression);
-  check_result.header() << " is OK (" << status << ")";
-  return check_result;
-}
-
-template <
-    typename StatusType,
-    std::enable_if_t<assert_internal::HasStatus<StatusType>::value, int> = 0>
-ABSL_ATTRIBUTE_COLD CheckResult CheckOkResult(const char* function,
-                                              const char* expression,
-                                              const StatusType& status_or) {
-  return CheckOkResult(function, expression, status_or.status());
+  if constexpr (!assert_internal::HasStatus<StatusType>::value) {
+    // `absl::Status`.
+    CheckResult check_result(function, expression);
+    check_result.header() << " is OK (" << status << ")";
+    return check_result;
+  } else {
+    // `absl::StatusOr<T>`.
+    return CheckOkResult(function, expression, status.status());
+  }
 }
 
 // Writes "Check failed in function: expression != nullptr" and terminates

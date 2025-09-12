@@ -399,19 +399,16 @@ class BackwardWriter : public Object {
   virtual bool TruncateImpl(Position new_size);
 
  private:
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index > 0), int> = 0>
+  template <size_t index, typename... Srcs>
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(std::tuple<Srcs...>&& srcs) {
-    return Write(std::forward<
-                 std::tuple_element_t<index - 1, std::tuple<Srcs...>>>(
-               std::get<index - 1>(srcs))) &&
-           WriteInternal<index - 1>(std::move(srcs));
-  }
-  template <size_t index, typename... Srcs,
-            std::enable_if_t<(index == 0), int> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool WriteInternal(
-      ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...>&& srcs) {
-    return true;
+    if constexpr (index > 0) {
+      return Write(std::forward<
+                   std::tuple_element_t<index - 1, std::tuple<Srcs...>>>(
+                 std::get<index - 1>(srcs))) &&
+             WriteInternal<index - 1>(std::move(srcs));
+    } else {
+      return true;
+    }
   }
 
   char* start_ = nullptr;

@@ -286,85 +286,71 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
     return super_ptr;
   }
 
-  template <typename SubT,
-            std::enable_if_t<!std::has_virtual_destructor_v<SubT>, int> = 0>
+  template <typename SubT>
   static SubT* New(Initializer<SubT> value) {
-    static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(RefCount));
-    void* const allocated_ptr =
-        NewAligned<void, UnsignedMax(alignof(RefCount), alignof(SubT))>(
-            kOffset + sizeof(SubT));
-    void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
-    new (static_cast<RefCount*>(ptr) - 1) RefCount();
-    new (ptr) SubT(std::move(value).Construct());
-    return std::launder(static_cast<SubT*>(ptr));
-  }
-  template <typename SubT,
-            std::enable_if_t<std::has_virtual_destructor_v<SubT>, int> = 0>
-  static SubT* New(Initializer<SubT> value) {
-    static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(Control));
-    void* const allocated_ptr =
-        NewAligned<void, UnsignedMax(alignof(Control), alignof(SubT))>(
-            kOffset + sizeof(SubT));
-    void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
-    new (static_cast<Control*>(ptr) - 1) Control(DestroyMethod<SubT>);
-    new (ptr) SubT(std::move(value).Construct());
-    return std::launder(static_cast<SubT*>(ptr));
+    if constexpr (!std::has_virtual_destructor_v<SubT>) {
+      static constexpr size_t kOffset =
+          RoundUp<alignof(SubT)>(sizeof(RefCount));
+      void* const allocated_ptr =
+          NewAligned<void, UnsignedMax(alignof(RefCount), alignof(SubT))>(
+              kOffset + sizeof(SubT));
+      void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
+      new (static_cast<RefCount*>(ptr) - 1) RefCount();
+      new (ptr) SubT(std::move(value).Construct());
+      return std::launder(static_cast<SubT*>(ptr));
+    } else {
+      static constexpr size_t kOffset = RoundUp<alignof(SubT)>(sizeof(Control));
+      void* const allocated_ptr =
+          NewAligned<void, UnsignedMax(alignof(Control), alignof(SubT))>(
+              kOffset + sizeof(SubT));
+      void* const ptr = static_cast<char*>(allocated_ptr) + kOffset;
+      new (static_cast<Control*>(ptr) - 1) Control(DestroyMethod<SubT>);
+      new (ptr) SubT(std::move(value).Construct());
+      return std::launder(static_cast<SubT*>(ptr));
+    }
   }
 
-  template <
-      typename DependentT = T,
-      std::enable_if_t<!std::has_virtual_destructor_v<DependentT>, int> = 0>
   static void Delete(T* ptr) {
-    ptr->~T();
-    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
-    void* const allocated_ptr =
-        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr)) -
-        kOffset;
-    DeleteAligned<void, UnsignedMax(alignof(RefCount), alignof(T))>(
-        allocated_ptr, kOffset + sizeof(T));
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::conjunction_v<std::has_virtual_destructor<DependentT>,
-                                   std::is_final<DependentT>>,
-                int> = 0>
-  static void Delete(T* ptr) {
-    ptr->~T();
-    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
-    void* const allocated_ptr =
-        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr)) -
-        kOffset;
-    DeleteAligned<void, UnsignedMax(alignof(Control), alignof(T))>(
-        allocated_ptr, kOffset + sizeof(T));
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<
-                std::conjunction_v<std::has_virtual_destructor<DependentT>,
-                                   std::negation<std::is_final<DependentT>>>,
-                int> = 0>
-  static void Delete(T* ptr) {
-    control(ptr).destroy(const_cast<std::remove_cv_t<T>*>(ptr));
+    if constexpr (!std::has_virtual_destructor_v<T>) {
+      ptr->~T();
+      static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
+      void* const allocated_ptr =
+          reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr)) -
+          kOffset;
+      DeleteAligned<void, UnsignedMax(alignof(RefCount), alignof(T))>(
+          allocated_ptr, kOffset + sizeof(T));
+    } else if constexpr (std::is_final_v<T>) {
+      ptr->~T();
+      static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
+      void* const allocated_ptr =
+          reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr)) -
+          kOffset;
+      DeleteAligned<void, UnsignedMax(alignof(Control), alignof(T))>(
+          allocated_ptr, kOffset + sizeof(T));
+    } else {
+      control(ptr).destroy(const_cast<std::remove_cv_t<T>*>(ptr));
+    }
   }
 
-  template <typename SubT,
-            std::enable_if_t<std::has_virtual_destructor_v<SubT>, int> = 0>
+  template <typename SubT>
   static Control& control(SubT* ptr) {
+    static_assert(
+        std::has_virtual_destructor_v<SubT>,
+        "control() is used only with a type with a virtual destructor");
     return *std::launder(
         reinterpret_cast<Control*>(const_cast<std::remove_cv_t<SubT>*>(ptr)) -
         1);
   }
 
-  template <typename SubT,
-            std::enable_if_t<!std::has_virtual_destructor_v<SubT>, int> = 0>
+  template <typename SubT>
   static RefCount& ref_count(SubT* ptr) {
-    return *std::launder(
-        reinterpret_cast<RefCount*>(const_cast<std::remove_cv_t<SubT>*>(ptr)) -
-        1);
-  }
-  template <typename SubT,
-            std::enable_if_t<std::has_virtual_destructor_v<SubT>, int> = 0>
-  static RefCount& ref_count(SubT* ptr) {
-    return control(ptr).ref_count;
+    if constexpr (!std::has_virtual_destructor_v<SubT>) {
+      return *std::launder(reinterpret_cast<RefCount*>(
+                               const_cast<std::remove_cv_t<SubT>*>(ptr)) -
+                           1);
+    } else {
+      return control(ptr).ref_count;
+    }
   }
 
   template <typename SubT>
@@ -381,58 +367,45 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
                 std::is_final<DependentT>>,
             std::is_move_assignable<DependentT>> {};
 
-  template <typename DependentT = T,
-            std::enable_if_t<IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
-    if (IsUnique()) {
-      *ptr_ = std::move(value);
-      return;
+    if constexpr (IsAssignable<T>::value) {
+      if (IsUnique()) {
+        *ptr_ = std::move(value);
+        return;
+      }
     }
     ptr_.reset(New(std::move(value)));
   }
-  template <typename DependentT = T,
-            std::enable_if_t<!IsAssignable<DependentT>::value, int> = 0>
-  void ResetImpl(Initializer<T> value) {
-    ptr_.reset(New(std::move(value)));
-  }
 
-  template <
-      typename MemoryEstimator, typename DependentT = T,
-      std::enable_if_t<!std::has_virtual_destructor_v<DependentT>, int> = 0>
+  template <typename MemoryEstimator>
   void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
-    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
-    void* const allocated_ptr =
-        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_.get())) -
-        kOffset;
-    memory_estimator.RegisterDynamicMemory(allocated_ptr, kOffset + sizeof(T));
-    memory_estimator.RegisterSubobjects(ptr_.get());
-  }
-  template <typename MemoryEstimator, typename DependentT = T,
-            std::enable_if_t<
-                std::conjunction_v<std::has_virtual_destructor<DependentT>,
-                                   std::is_final<DependentT>>,
-                int> = 0>
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
-    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
-    void* const allocated_ptr =
-        reinterpret_cast<char*>(const_cast<std::remove_cv_t<T>*>(ptr_.get())) -
-        kOffset;
-    memory_estimator.RegisterDynamicMemory(allocated_ptr, kOffset + sizeof(T));
-    memory_estimator.RegisterSubobjects(ptr_.get());
-  }
-  template <typename MemoryEstimator, typename DependentT = T,
-            std::enable_if_t<
-                std::conjunction_v<std::has_virtual_destructor<DependentT>,
-                                   std::negation<std::is_final<DependentT>>>,
-                int> = 0>
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const {
-    static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
-    // `kOffset` is not necessarily accurate because the object can be of a
-    // subtype of `T`, so do not pass `allocated_ptr` to
-    // `RegisterDynamicMemory()`.
-    memory_estimator.RegisterDynamicMemory(
-        kOffset + memory_estimator.DynamicSizeOf(ptr_.get()));
-    memory_estimator.RegisterSubobjects(ptr_.get());
+    if constexpr (!std::has_virtual_destructor_v<T>) {
+      static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(RefCount));
+      void* const allocated_ptr =
+          reinterpret_cast<char*>(
+              const_cast<std::remove_cv_t<T>*>(ptr_.get())) -
+          kOffset;
+      memory_estimator.RegisterDynamicMemory(allocated_ptr,
+                                             kOffset + sizeof(T));
+      memory_estimator.RegisterSubobjects(ptr_.get());
+    } else if constexpr (std::is_final_v<T>) {
+      static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
+      void* const allocated_ptr =
+          reinterpret_cast<char*>(
+              const_cast<std::remove_cv_t<T>*>(ptr_.get())) -
+          kOffset;
+      memory_estimator.RegisterDynamicMemory(allocated_ptr,
+                                             kOffset + sizeof(T));
+      memory_estimator.RegisterSubobjects(ptr_.get());
+    } else {
+      static constexpr size_t kOffset = RoundUp<alignof(T)>(sizeof(Control));
+      // `kOffset` is not necessarily accurate because the object can be of a
+      // subtype of `T`, so do not pass `allocated_ptr` to
+      // `RegisterDynamicMemory()`.
+      memory_estimator.RegisterDynamicMemory(
+          kOffset + memory_estimator.DynamicSizeOf(ptr_.get()));
+      memory_estimator.RegisterSubobjects(ptr_.get());
+    }
   }
 
   std::unique_ptr<T, Unrefer> ptr_;

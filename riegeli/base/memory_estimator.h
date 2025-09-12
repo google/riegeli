@@ -379,40 +379,23 @@ struct HasRiegeliDynamicSizeOf<
            decltype(RiegeliDynamicSizeOf(std::declval<const T*>())), size_t>>>
     : std::true_type {};
 
-template <typename T,
-          std::enable_if_t<HasRiegeliDynamicSizeOf<T>::value, int> = 0>
+template <typename T>
 inline size_t DynamicSizeOf(const T* object) {
-  return RiegeliDynamicSizeOf(object);
-}
-template <typename T,
-          std::enable_if_t<!HasRiegeliDynamicSizeOf<T>::value, int> = 0>
-inline size_t DynamicSizeOf(ABSL_ATTRIBUTE_UNUSED const T* object) {
-  return sizeof(T);
+  if constexpr (HasRiegeliDynamicSizeOf<T>::value) {
+    return RiegeliDynamicSizeOf(object);
+  } else {
+    return sizeof(T);
+  }
 }
 
-template <typename T,
-          std::enable_if_t<HasRiegeliRegisterSubobjects<T>::value, int> = 0>
+template <typename T>
 inline void RegisterSubobjects(const T* object,
                                MemoryEstimator& memory_estimator) {
-  RiegeliRegisterSubobjects(object, memory_estimator);
-}
-template <typename T,
-          std::enable_if_t<
-              std::conjunction_v<std::negation<HasRiegeliRegisterSubobjects<T>>,
-                                 std::is_trivially_destructible<T>>,
-              int> = 0>
-inline void RegisterSubobjects(
-    ABSL_ATTRIBUTE_UNUSED const T* object,
-    ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
-template <
-    typename T,
-    std::enable_if_t<
-        std::conjunction_v<std::negation<HasRiegeliRegisterSubobjects<T>>,
-                           std::negation<std::is_trivially_destructible<T>>>,
-        int> = 0>
-inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
-                               MemoryEstimator& memory_estimator) {
-  memory_estimator.RegisterUnknownType<T>();
+  if constexpr (HasRiegeliRegisterSubobjects<T>::value) {
+    RiegeliRegisterSubobjects(object, memory_estimator);
+  } else if constexpr (!std::is_trivially_destructible<T>::value) {
+    memory_estimator.RegisterUnknownType<T>();
+  }
 }
 
 }  // namespace memory_estimator_internal
@@ -565,20 +548,15 @@ inline void RiegeliRegisterSubobjects(const std::pair<T, U>* self,
 
 namespace memory_estimator_internal {
 
-template <size_t index, typename... T,
-          std::enable_if_t<(index == sizeof...(T)), int> = 0>
-inline void RegisterTupleElements(
-    ABSL_ATTRIBUTE_UNUSED const std::tuple<T...>* self,
-    ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
-
-template <size_t index, typename... T,
-          std::enable_if_t<(index < sizeof...(T)), int> = 0>
+template <size_t index, typename... T>
 inline void RegisterTupleElements(const std::tuple<T...>* self,
                                   MemoryEstimator& memory_estimator) {
-  memory_estimator
-      .RegisterSubobjects<std::tuple_element_t<index, std::tuple<T...>>>(
-          &std::get<index>(*self));
-  RegisterTupleElements<index + 1>(self, memory_estimator);
+  if constexpr (index < sizeof...(T)) {
+    memory_estimator
+        .RegisterSubobjects<std::tuple_element_t<index, std::tuple<T...>>>(
+            &std::get<index>(*self));
+    RegisterTupleElements<index + 1>(self, memory_estimator);
+  }
 }
 
 }  // namespace memory_estimator_internal

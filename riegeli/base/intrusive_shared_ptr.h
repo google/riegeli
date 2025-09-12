@@ -323,18 +323,13 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
                 std::is_final<DependentT>>,
             std::is_move_assignable<DependentT>> {};
 
-  template <typename DependentT = T,
-            std::enable_if_t<IsAssignable<DependentT>::value, int> = 0>
   void ResetImpl(Initializer<T> value) {
-    if (IsUnique()) {
-      *ptr_ = std::move(value);
-      return;
+    if constexpr (IsAssignable<T>::value) {
+      if (IsUnique()) {
+        *ptr_ = std::move(value);
+        return;
+      }
     }
-    ptr_ = std::move(value);
-  }
-  template <typename DependentT = T,
-            std::enable_if_t<!IsAssignable<DependentT>::value, int> = 0>
-  void ResetImpl(Initializer<T> value) {
     ptr_ = std::move(value);
   }
 

@@ -107,63 +107,55 @@ namespace {
 
 // `copy_file_range()` is supported by Linux and FreeBSD.
 
-template <typename FirstArg, typename Enable = void>
+template <typename DependentInt, typename Enable = void>
 struct HaveCopyFileRange : std::false_type {};
 
-template <typename FirstArg>
+template <typename DependentInt>
 struct HaveCopyFileRange<
-    FirstArg,
+    DependentInt,
     std::void_t<decltype(copy_file_range(
-        std::declval<FirstArg>(), std::declval<fd_internal::Offset*>(),
+        std::declval<DependentInt>(), std::declval<fd_internal::Offset*>(),
         std::declval<int>(), std::declval<fd_internal::Offset*>(),
         std::declval<size_t>(), std::declval<unsigned>()))>> : std::true_type {
 };
 
-template <typename FirstArg,
-          std::enable_if_t<HaveCopyFileRange<FirstArg>::value, int> = 0>
-inline ssize_t CopyFileRange(FirstArg src, fd_internal::Offset* src_offset,
+template <typename DependentInt>
+inline ssize_t CopyFileRange(DependentInt src, fd_internal::Offset* src_offset,
                              int dest, fd_internal::Offset* dest_offset,
                              size_t length, unsigned flags) {
-  return copy_file_range(src, src_offset, dest, dest_offset, length, flags);
-}
-
-template <typename FirstArg,
-          std::enable_if_t<!HaveCopyFileRange<FirstArg>::value, int> = 0>
-inline ssize_t CopyFileRange(FirstArg src, fd_internal::Offset* src_offset,
-                             int dest, fd_internal::Offset* dest_offset,
-                             size_t length, unsigned flags) {
-  errno = EOPNOTSUPP;
-  return -1;
+  if constexpr (HaveCopyFileRange<DependentInt>::value) {
+    return copy_file_range(src, src_offset, dest, dest_offset, length, flags);
+  } else {
+    errno = EOPNOTSUPP;
+    return -1;
+  }
 }
 
 #endif  // !RIEGELI_DISABLE_COPY_FILE_RANGE
 
 // `posix_fadvise()` is supported by POSIX systems but not MacOS.
 
-template <typename FirstArg, typename Enable = void>
+template <typename DependentInt, typename Enable = void>
 struct HavePosixFadvise : std::false_type {};
 
-template <typename FirstArg>
+template <typename DependentInt>
 struct HavePosixFadvise<
-    FirstArg, std::void_t<decltype(posix_fadvise(
-                  std::declval<FirstArg>(), std::declval<fd_internal::Offset>(),
-                  std::declval<fd_internal::Offset>(), std::declval<int>()))>>
+    DependentInt,
+    std::void_t<decltype(posix_fadvise(
+        std::declval<DependentInt>(), std::declval<fd_internal::Offset>(),
+        std::declval<fd_internal::Offset>(), std::declval<int>()))>>
     : std::true_type {};
 
-template <typename FirstArg,
-          std::enable_if_t<HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
+template <typename DependentInt>
+inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED DependentInt src,
                              ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {
+  if constexpr (HavePosixFadvise<DependentInt>::value) {
 #ifdef POSIX_FADV_SEQUENTIAL
-  posix_fadvise(src, 0, 0,
-                read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
+    posix_fadvise(src, 0, 0,
+                  read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
 #endif
+  }
 }
-
-template <typename FirstArg,
-          std::enable_if_t<!HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
-                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {}
 
 }  // namespace
 

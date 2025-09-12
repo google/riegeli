@@ -135,12 +135,7 @@ class InitializerBase {
   static T&& ReferenceMethodDefault(TypeErasedRef context,
                                     TemporaryStorage<T>&& storage);
 
-  template <typename Arg,
-            std::enable_if_t<CanBindReference<T&&, Arg&&>::value, int> = 0>
-  static T&& ReferenceMethodFromObject(TypeErasedRef context,
-                                       TemporaryStorage<T>&& storage);
-  template <typename Arg,
-            std::enable_if_t<!CanBindReference<T&&, Arg&&>::value, int> = 0>
+  template <typename Arg>
   static T&& ReferenceMethodFromObject(TypeErasedRef context,
                                        TemporaryStorage<T>&& storage);
 
@@ -746,20 +741,14 @@ T&& InitializerBase<T>::ReferenceMethodDefault(
 }
 
 template <typename T>
-template <typename Arg,
-          std::enable_if_t<CanBindReference<T&&, Arg&&>::value, int>>
-T&& InitializerBase<T>::ReferenceMethodFromObject(
-    TypeErasedRef context,
-    ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) {
-  return BindReference<T&&>(context.Cast<Arg>());
-}
-
-template <typename T>
-template <typename Arg,
-          std::enable_if_t<!CanBindReference<T&&, Arg&&>::value, int>>
+template <typename Arg>
 T&& InitializerBase<T>::ReferenceMethodFromObject(
     TypeErasedRef context, TemporaryStorage<T>&& storage) {
-  return std::move(storage).emplace(context.Cast<Arg>());
+  if constexpr (CanBindReference<T&&, Arg&&>::value) {
+    return BindReference<T&&>(context.Cast<Arg>());
+  } else {
+    return std::move(storage).emplace(context.Cast<Arg>());
+  }
 }
 
 template <typename T>

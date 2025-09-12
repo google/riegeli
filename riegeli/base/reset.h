@@ -128,44 +128,22 @@ struct SupportsReset
                                         std::is_move_assignable<T>>> {};
 
 template <typename T, typename... Args,
-          std::enable_if_t<reset_internal::HasRiegeliReset<T, Args...>::value,
-                           int> = 0>
+          std::enable_if_t<SupportsReset<T, Args...>::value, int> = 0>
 inline void Reset(T& dest, Args&&... args) {
-  RiegeliReset(dest, std::forward<Args>(args)...);
-}
-
-template <typename T, typename... Args,
-          std::enable_if_t<
-              std::conjunction_v<
-                  std::negation<reset_internal::HasRiegeliReset<T, Args...>>,
-                  reset_internal::HasReset<T, Args...>>,
-              int> = 0>
-inline void Reset(T& dest, Args&&... args) {
-  dest.Reset(std::forward<Args>(args)...);
-}
-
-template <
-    typename T, typename Arg,
-    std::enable_if_t<std::conjunction_v<
-                         std::negation<reset_internal::HasRiegeliReset<T, Arg>>,
-                         std::negation<reset_internal::HasReset<T, Arg>>,
-                         reset_internal::HasAssignment<T, Arg>>,
-                     int> = 0>
-inline void Reset(T& dest, Arg&& arg) {
-  dest = std::forward<Arg>(arg);
-}
-
-template <
-    typename T, typename... Args,
-    std::enable_if_t<
-        std::conjunction_v<
-            std::negation<reset_internal::HasRiegeliReset<T, Args...>>,
-            std::negation<reset_internal::HasReset<T, Args...>>,
-            std::negation<reset_internal::HasAssignment<T, Args...>>,
-            std::is_constructible<T, Args...>, std::is_move_assignable<T>>,
-        int> = 0>
-inline void Reset(T& dest, Args&&... args) {
-  dest = T(std::forward<Args>(args)...);
+  if constexpr (reset_internal::HasRiegeliReset<T, Args...>::value) {
+    RiegeliReset(dest, std::forward<Args>(args)...);
+  } else if constexpr (reset_internal::HasReset<T, Args...>::value) {
+    dest.Reset(std::forward<Args>(args)...);
+  } else if constexpr (reset_internal::HasAssignment<T, Args...>::value) {
+    static_assert(sizeof...(Args) == 1, "Implied by HasAssignment");
+    dest = std::forward<Args...>(args...);
+  } else if constexpr (std::conjunction_v<std::is_constructible<T, Args...>,
+                                          std::is_move_assignable<T>>) {
+    dest = T(std::forward<Args>(args)...);
+  } else {
+    static_assert(std::is_void_v<std::void_t<T>>,
+                  "Parameters excluded by function signature");
+  }
 }
 
 }  // namespace riegeli

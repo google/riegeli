@@ -173,11 +173,7 @@ class SerializedMessageReaderBase {
     absl::flat_hash_map<int, Field> children;
   };
 
-  template <typename EnumType,
-            std::enable_if_t<std::is_enum_v<EnumType>, int> = 0>
-  static EnumType CastToEnum(uint64_t repr);
-  template <typename EnumType,
-            std::enable_if_t<!std::is_enum_v<EnumType>, int> = 0>
+  template <typename EnumType>
   static EnumType CastToEnum(uint64_t repr);
 
   ABSL_ATTRIBUTE_COLD static absl::Status ReadVarintError(Reader& src);
@@ -542,17 +538,16 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
 
 // Implementation details follow.
 
-template <typename EnumType, std::enable_if_t<std::is_enum_v<EnumType>, int>>
+template <typename EnumType>
 inline EnumType SerializedMessageReaderBase::CastToEnum(uint64_t repr) {
-  // Casting an out of range value to an enum has undefined behavior.
-  // Casting such a value to an integral type wraps around.
-  return static_cast<EnumType>(
-      static_cast<std::underlying_type_t<EnumType>>(repr));
-}
-
-template <typename EnumType, std::enable_if_t<!std::is_enum_v<EnumType>, int>>
-inline EnumType SerializedMessageReaderBase::CastToEnum(uint64_t repr) {
-  return static_cast<EnumType>(repr);
+  if constexpr (std::is_enum_v<EnumType>) {
+    // Casting an out of range value to an enum has undefined behavior.
+    // Casting such a value to an integral type wraps around.
+    return static_cast<EnumType>(
+        static_cast<std::underlying_type_t<EnumType>>(repr));
+  } else {
+    return static_cast<EnumType>(repr);
+  }
 }
 
 template <typename EnumType>

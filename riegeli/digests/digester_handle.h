@@ -244,7 +244,6 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasSetWriteSizeHint : std::false_type {};
-
   template <typename T>
   struct DigesterTargetHasSetWriteSizeHint<
       T, std::void_t<decltype(std::declval<T&>().SetWriteSizeHint(
@@ -252,7 +251,6 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasWriteChain : std::false_type {};
-
   template <typename T>
   struct DigesterTargetHasWriteChain<
       T, std::void_t<decltype(std::declval<T&>().Write(
@@ -260,7 +258,6 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasWriteCord : std::false_type {};
-
   template <typename T>
   struct DigesterTargetHasWriteCord<
       T, std::void_t<decltype(std::declval<T&>().Write(
@@ -268,7 +265,6 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasWriteByteFill : std::false_type {};
-
   template <typename T>
   struct DigesterTargetHasWriteByteFill<
       T,
@@ -277,14 +273,12 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasClose : std::false_type {};
-
   template <typename T>
   struct DigesterTargetHasClose<
       T, std::void_t<decltype(std::declval<T&>().Close())>> : std::true_type {};
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasStatus : std::false_type {};
-
   template <typename T>
   struct DigesterTargetHasStatus<
       T, std::enable_if_t<std::is_convertible_v<
@@ -301,19 +295,13 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
   static bool CloseMethodDefault(TypeErasedRef target);
   static absl::Status StatusMethodDefault(TypeErasedRef target);
 
-  template <
-      typename T,
-      std::enable_if_t<DigesterTargetHasSetWriteSizeHint<T>::value, int> = 0>
+  template <typename T>
   static void SetWriteSizeHintMethod(TypeErasedRef target,
                                      std::optional<Position> write_size_hint) {
-    target.Cast<T&>().SetWriteSizeHint(write_size_hint);
+    if constexpr (DigesterTargetHasSetWriteSizeHint<T>::value) {
+      target.Cast<T&>().SetWriteSizeHint(write_size_hint);
+    }
   }
-  template <
-      typename T,
-      std::enable_if_t<!DigesterTargetHasSetWriteSizeHint<T>::value, int> = 0>
-  static void SetWriteSizeHintMethod(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-      ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
 
   template <typename T>
   static auto RawWriteMethod(TypeErasedRef target, absl::string_view src) {
@@ -332,16 +320,15 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
                                  void (*write)(TypeErasedRef target,
                                                absl::string_view src));
 
-  template <typename T,
-            std::enable_if_t<DigesterTargetHasWriteChain<T>::value, int> = 0>
+  template <typename T>
   static bool WriteChainMethod(TypeErasedRef target, const Chain& src) {
-    return ConvertToBool([&] { return target.Cast<T&>().Write(src); });
-  }
-  template <typename T,
-            std::enable_if_t<!DigesterTargetHasWriteChain<T>::value, int> = 0>
-  static bool WriteChainMethod(TypeErasedRef target, const Chain& src) {
-    return ConvertToBool(
-        [&] { return WriteChainFallback(target, src, RawWriteMethod<T>); });
+    return ConvertToBool([&] {
+      if constexpr (DigesterTargetHasWriteChain<T>::value) {
+        return target.Cast<T&>().Write(src);
+      } else {
+        return WriteChainFallback(target, src, RawWriteMethod<T>);
+      }
+    });
   }
 
   static bool WriteCordFallback(TypeErasedRef target, const absl::Cord& src,
@@ -351,16 +338,15 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
                                 void (*write)(TypeErasedRef target,
                                               absl::string_view src));
 
-  template <typename T,
-            std::enable_if_t<DigesterTargetHasWriteCord<T>::value, int> = 0>
+  template <typename T>
   static bool WriteCordMethod(TypeErasedRef target, const absl::Cord& src) {
-    return ConvertToBool([&] { return target.Cast<T&>().Write(src); });
-  }
-  template <typename T,
-            std::enable_if_t<!DigesterTargetHasWriteCord<T>::value, int> = 0>
-  static bool WriteCordMethod(TypeErasedRef target, const absl::Cord& src) {
-    return ConvertToBool(
-        [&] { return WriteCordFallback(target, src, RawWriteMethod<T>); });
+    return ConvertToBool([&] {
+      if constexpr (DigesterTargetHasWriteCord<T>::value) {
+        return target.Cast<T&>().Write(src);
+      } else {
+        return WriteCordFallback(target, src, RawWriteMethod<T>);
+      }
+    });
   }
 
   static bool WriteByteFillFallback(TypeErasedRef target, ByteFill src,
@@ -370,38 +356,33 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
                                     void (*write)(TypeErasedRef target,
                                                   absl::string_view src));
 
-  template <typename T,
-            std::enable_if_t<DigesterTargetHasWriteByteFill<T>::value, int> = 0>
+  template <typename T>
   static bool WriteByteFillMethod(TypeErasedRef target, ByteFill src) {
-    return ConvertToBool([&] { return target.Cast<T&>().Write(src); });
-  }
-  template <typename T, std::enable_if_t<
-                            !DigesterTargetHasWriteByteFill<T>::value, int> = 0>
-  static bool WriteByteFillMethod(TypeErasedRef target, ByteFill src) {
-    return ConvertToBool(
-        [&] { return WriteByteFillFallback(target, src, RawWriteMethod<T>); });
+    return ConvertToBool([&] {
+      if constexpr (DigesterTargetHasWriteByteFill<T>::value) {
+        return target.Cast<T&>().Write(src);
+      } else {
+        return WriteByteFillFallback(target, src, RawWriteMethod<T>);
+      }
+    });
   }
 
-  template <typename T,
-            std::enable_if_t<DigesterTargetHasClose<T>::value, int> = 0>
+  template <typename T>
   static bool CloseMethod(TypeErasedRef target) {
-    return ConvertToBool([&] { return target.Cast<T&>().Close(); });
-  }
-  template <typename T,
-            std::enable_if_t<!DigesterTargetHasClose<T>::value, int> = 0>
-  static bool CloseMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return true;
+    if constexpr (DigesterTargetHasClose<T>::value) {
+      return ConvertToBool([&] { return target.Cast<T&>().Close(); });
+    } else {
+      return true;
+    }
   }
 
-  template <typename T,
-            std::enable_if_t<DigesterTargetHasStatus<T>::value, int> = 0>
+  template <typename T>
   static absl::Status StatusMethod(TypeErasedRef target) {
-    return target.Cast<const T&>().status();
-  }
-  template <typename T,
-            std::enable_if_t<!DigesterTargetHasStatus<T>::value, int> = 0>
-  static absl::Status StatusMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return absl::OkStatus();
+    if constexpr (DigesterTargetHasStatus<T>::value) {
+      return target.Cast<const T&>().status();
+    } else {
+      return absl::OkStatus();
+    }
   }
 
  protected:
@@ -538,35 +519,28 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterHandle : public DigesterBaseHandle {
 
   template <typename T, typename Enable = void>
   struct DigesterTargetHasDigest : std::false_type {};
-
   template <typename T>
   struct DigesterTargetHasDigest<
       T, std::void_t<decltype(std::declval<T&>().Digest())>> : std::true_type {
   };
 
-  template <typename DependentDigestType = DigestType,
-            std::enable_if_t<std::is_void_v<DependentDigestType>, int> = 0>
-  static DigestType DigestMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {}
-  template <typename DependentDigestType = DigestType,
-            std::enable_if_t<!std::is_void_v<DependentDigestType>, int> = 0>
   static DigestType DigestMethodDefault(
       ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    FailedDigestMethodDefault();
+    if constexpr (!std::is_void_v<DigestType>) {
+      FailedDigestMethodDefault();
+    }
   }
 
-  template <typename T,
-            std::enable_if_t<DigesterTargetHasDigest<T>::value, int> = 0>
+  template <typename T>
   static DigestType DigestMethod(TypeErasedRef target) {
-    return ConvertDigest<DigestType>(
-        [&]() -> decltype(auto) { return target.Cast<T&>().Digest(); });
+    if constexpr (DigesterTargetHasDigest<T>::value) {
+      return ConvertDigest<DigestType>(
+          [&]() -> decltype(auto) { return target.Cast<T&>().Digest(); });
+    } else {
+      static_assert(std::is_void_v<DigestType>,
+                    "DigestType must be void for digesters without Digest().");
+    }
   }
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<std::negation<DigesterTargetHasDigest<T>>,
-                                   std::is_void<DigestType>>,
-                int> = 0>
-  static DigestType DigestMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {}
 
   struct Methods : DigesterBaseHandle::Methods {
     // MSVC does not like the `DigestType` alias here for some reason.

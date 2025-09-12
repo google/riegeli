@@ -241,32 +241,33 @@ class ABSL_NULLABILITY_COMPATIBLE FdHandle : public WithEqual<FdHandle> {
     return target.Cast<const T&>().get();
   }
 
-  template <typename T, std::enable_if_t<HasIsOwning<T>::value, int> = 0>
+  template <typename T>
   static bool IsOwningMethod(TypeErasedRef target) {
-    return target.Cast<const T&>().IsOwning();
-  }
-  template <typename T, std::enable_if_t<!HasIsOwning<T>::value, int> = 0>
-  static bool IsOwningMethod(TypeErasedRef target) {
-    return HasClose<T>::value && target.Cast<const T&>().get() >= 0;
+    if constexpr (HasIsOwning<T>::value) {
+      return target.Cast<const T&>().IsOwning();
+    } else if constexpr (HasClose<T>::value) {
+      return target.Cast<const T&>().get() >= 0;
+    } else {
+      return false;
+    }
   }
 
-  template <typename T, std::enable_if_t<HasFilename<T>::value, int> = 0>
+  template <typename T>
   static absl::string_view FilenameMethod(TypeErasedRef target) {
-    return target.Cast<const T&>().filename();
-  }
-  template <typename T, std::enable_if_t<!HasFilename<T>::value, int> = 0>
-  static absl::string_view FilenameMethod(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return "<unsupported>";
+    if constexpr (HasFilename<T>::value) {
+      return target.Cast<const T&>().filename();
+    } else {
+      return "<unsupported>";
+    }
   }
 
-  template <typename T, std::enable_if_t<HasClose<T>::value, int> = 0>
+  template <typename T>
   static absl::Status CloseMethod(TypeErasedRef target) {
-    return target.Cast<T&>().Close();
-  }
-  template <typename T, std::enable_if_t<!HasClose<T>::value, int> = 0>
-  static absl::Status CloseMethod(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    return absl::OkStatus();
+    if constexpr (HasClose<T>::value) {
+      return target.Cast<T&>().Close();
+    } else {
+      return absl::OkStatus();
+    }
   }
 
   template <typename T>

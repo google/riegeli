@@ -36,39 +36,38 @@ namespace riegeli::cfile_internal {
 // Use `fseeko()` and `ftello()` when available, otherwise `fseek()` and
 // `ftell()`.
 
-template <typename File, typename Enable = void>
+template <typename DependentFILE, typename Enable = void>
 struct HaveFSeekO : std::false_type {};
 
-template <typename File>
-struct HaveFSeekO<File, std::void_t<decltype(fseeko(std::declval<File*>(),
-                                                    std::declval<off_t>(),
-                                                    std::declval<int>())),
-                                    decltype(ftello(std::declval<File*>()))>>
+template <typename DependentFILE>
+struct HaveFSeekO<
+    DependentFILE,
+    std::void_t<decltype(fseeko(std::declval<DependentFILE*>(),
+                                std::declval<off_t>(), std::declval<int>())),
+                decltype(ftello(std::declval<DependentFILE*>()))>>
     : std::true_type {};
 
 using Offset = std::conditional_t<HaveFSeekO<FILE>::value, off_t, long>;
 
-template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
-inline int FSeek(File* file, Offset offset, int whence) {
-  return fseeko(file, offset, whence);
-}
-
-template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline int FSeek(File* file, Offset offset, int whence) {
-  return fseek(file, offset, whence);
+template <typename DependentFILE>
+inline int FSeek(DependentFILE* file, Offset offset, int whence) {
+  if constexpr (HaveFSeekO<DependentFILE>::value) {
+    return fseeko(file, offset, whence);
+  } else {
+    return fseek(file, offset, whence);
+  }
 }
 
 inline constexpr absl::string_view kFSeekFunctionName =
     HaveFSeekO<FILE>::value ? "fseeko()" : "fseek()";
 
-template <typename File, std::enable_if_t<HaveFSeekO<File>::value, int> = 0>
-inline Offset FTell(File* file) {
-  return ftello(file);
-}
-
-template <typename File, std::enable_if_t<!HaveFSeekO<File>::value, int> = 0>
-inline Offset FTell(File* file) {
-  return ftell(file);
+template <typename DependentFILE>
+inline Offset FTell(DependentFILE* file) {
+  if constexpr (HaveFSeekO<DependentFILE>::value) {
+    return ftello(file);
+  } else {
+    return ftell(file);
+  }
 }
 
 inline constexpr absl::string_view kFTellFunctionName =

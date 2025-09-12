@@ -76,19 +76,16 @@ struct HasAvailableLength<
                          std::declval<DependentFILE>()._IO_read_ptr)>>
     : std::true_type {};
 
-template <typename DependentFILE,
-          std::enable_if_t<HasAvailableLength<DependentFILE>::value, int> = 0>
+template <typename DependentFILE>
 inline size_t AvailableLength(DependentFILE* src) {
-  // Msan does not properly track initialization performed by precompiled
-  // libraries.
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(src, sizeof(DependentFILE));
-  return PtrDistance(src->_IO_read_ptr, src->_IO_read_end);
-}
-
-template <typename DependentFILE,
-          std::enable_if_t<!HasAvailableLength<DependentFILE>::value, int> = 0>
-inline size_t AvailableLength(DependentFILE* src) {
-  return 0;
+  if constexpr (HasAvailableLength<DependentFILE>::value) {
+    // Msan does not properly track initialization performed by precompiled
+    // libraries.
+    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(src, sizeof(DependentFILE));
+    return PtrDistance(src->_IO_read_ptr, src->_IO_read_end);
+  } else {
+    return 0;
+  }
 }
 
 }  // namespace

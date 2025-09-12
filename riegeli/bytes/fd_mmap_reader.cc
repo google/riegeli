@@ -131,30 +131,27 @@ inline Position GetPageSize() {
 
 // `posix_fadvise()` is supported by POSIX systems but not MacOS.
 
-template <typename FirstArg, typename Enable = void>
+template <typename DependentInt, typename Enable = void>
 struct HavePosixFadvise : std::false_type {};
 
-template <typename FirstArg>
+template <typename DependentInt>
 struct HavePosixFadvise<
-    FirstArg, std::void_t<decltype(posix_fadvise(
-                  std::declval<FirstArg>(), std::declval<fd_internal::Offset>(),
-                  std::declval<fd_internal::Offset>(), std::declval<int>()))>>
+    DependentInt,
+    std::void_t<decltype(posix_fadvise(
+        std::declval<DependentInt>(), std::declval<fd_internal::Offset>(),
+        std::declval<fd_internal::Offset>(), std::declval<int>()))>>
     : std::true_type {};
 
-template <typename FirstArg,
-          std::enable_if_t<HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
+template <typename DependentInt>
+inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED DependentInt src,
                              ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {
+  if constexpr (HavePosixFadvise<DependentInt>::value) {
 #ifdef POSIX_FADV_SEQUENTIAL
-  posix_fadvise(src, 0, 0,
-                read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
+    posix_fadvise(src, 0, 0,
+                  read_all_hint ? POSIX_FADV_SEQUENTIAL : POSIX_FADV_NORMAL);
 #endif
+  }
 }
-
-template <typename FirstArg,
-          std::enable_if_t<!HavePosixFadvise<FirstArg>::value, int> = 0>
-inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED FirstArg src,
-                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {}
 
 #endif  // !_WIN32
 

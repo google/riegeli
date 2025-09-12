@@ -77,16 +77,14 @@ class TypeErasedRef {
   TypeErasedRef& operator=(const TypeErasedRef& that) = default;
 
   // Recovers the `T&&`.
-  template <typename T, std::enable_if_t<!IsFunctionRef<T>::value, int> = 0>
+  template <typename T>
   T&& Cast() const {
-    return std::forward<T>(
-        *reinterpret_cast<std::remove_reference_t<T>*>(ptr_));
-  }
-
-  // Recovers a function reference.
-  template <typename T, std::enable_if_t<IsFunctionRef<T>::value, int> = 0>
-  T&& Cast() const {
-    return *reinterpret_cast<std::remove_reference_t<T>*>(ptr_);
+    if constexpr (!IsFunctionRef<T>::value) {
+      return std::forward<T>(
+          *reinterpret_cast<std::remove_reference_t<T>*>(ptr_));
+    } else {
+      return *reinterpret_cast<std::remove_reference_t<T>*>(ptr_);
+    }
   }
 
   // Returns `true` if the `TypeErasedRef` is empty, i.e. default-constructed.

@@ -449,13 +449,7 @@ class CsvHeader : public WithEqual<CsvHeader> {
     //                           : normalizer(index_to_name[i])] == i`
   };
 
-  template <typename Names,
-            std::enable_if_t<IsRandomAccessIterable<Names>::value, int> = 0>
-  absl::Status TryResetInternal(
-      std::function<std::string(absl::string_view)>&& normalizer,
-      Names&& names);
-  template <typename Names,
-            std::enable_if_t<!IsRandomAccessIterable<Names>::value, int> = 0>
+  template <typename Names>
   absl::Status TryResetInternal(
       std::function<std::string(absl::string_view)>&& normalizer,
       Names&& names);
@@ -1083,29 +1077,25 @@ absl::Status CsvHeader::TryReset(
   return TryResetInternal(std::move(normalizer), std::forward<Names>(names));
 }
 
-template <typename Names,
-          std::enable_if_t<IsRandomAccessIterable<Names>::value, int>>
+template <typename Names>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status CsvHeader::TryResetInternal(
     std::function<std::string(absl::string_view)>&& normalizer, Names&& names) {
-  // Iterable supports random access, which allows `std::equal()` in
-  // `MaybeResetToCachedPayload()` to compare the size first, which makes it
-  // efficient to call `MaybeResetToCachedPayload()` before converting `names`
-  // to `std::vector<std::string>`.
-  if (normalizer == nullptr && MaybeResetToCachedPayload(names)) {
-    return absl::OkStatus();
+  if constexpr (IsRandomAccessIterable<Names>::value) {
+    // Iterable supports random access, which allows `std::equal()` in
+    // `MaybeResetToCachedPayload()` to compare the size first, which makes it
+    // efficient to call `MaybeResetToCachedPayload()` before converting `names`
+    // to `std::vector<std::string>`.
+    if (normalizer == nullptr && MaybeResetToCachedPayload(names)) {
+      return absl::OkStatus();
+    }
+    return TryResetUncached(
+        std::move(normalizer),
+        csv_internal::ToStringVector(std::forward<Names>(names)));
+  } else {
+    return TryResetInternal(
+        std::move(normalizer),
+        csv_internal::ToStringVector(std::forward<Names>(names)));
   }
-  return TryResetUncached(
-      std::move(normalizer),
-      csv_internal::ToStringVector(std::forward<Names>(names)));
-}
-
-template <typename Names,
-          std::enable_if_t<!IsRandomAccessIterable<Names>::value, int>>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status CsvHeader::TryResetInternal(
-    std::function<std::string(absl::string_view)>&& normalizer, Names&& names) {
-  return TryResetInternal(
-      std::move(normalizer),
-      csv_internal::ToStringVector(std::forward<Names>(names)));
 }
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE

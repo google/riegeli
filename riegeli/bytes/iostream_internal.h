@@ -19,8 +19,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
-
 namespace riegeli::iostream_internal {
 
 // There is no `std::istream::close()` nor `std::ostream::close()`, but some
@@ -38,24 +36,20 @@ template <typename T>
 struct HasClose<T, std::void_t<decltype(std::declval<T>().close())>>
     : std::true_type {};
 
-template <typename Stream, std::enable_if_t<!HasClose<Stream>::value, int> = 0>
-inline void Close(ABSL_ATTRIBUTE_UNUSED Stream& stream) {}
-
-template <typename Stream, std::enable_if_t<HasClose<Stream>::value, int> = 0>
+template <typename Stream>
 inline void Close(Stream& stream) {
-  stream.close();
+  if constexpr (HasClose<Stream>::value) {
+    stream.close();
+  }
 }
 
-template <typename T,
-          std::enable_if_t<std::is_base_of_v<std::istream, T>, int> = 0>
+template <typename T>
 inline std::istream* DetectIStream(T* stream) {
-  return stream;
-}
-
-template <typename T,
-          std::enable_if_t<!std::is_base_of_v<std::istream, T>, int> = 0>
-inline std::istream* DetectIStream(ABSL_ATTRIBUTE_UNUSED T* stream) {
-  return nullptr;
+  if constexpr (std::is_base_of_v<std::istream, T>) {
+    return stream;
+  } else {
+    return nullptr;
+  }
 }
 
 }  // namespace riegeli::iostream_internal
