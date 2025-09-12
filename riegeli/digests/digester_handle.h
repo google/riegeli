@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
@@ -125,8 +124,7 @@ struct SupportsDigesterBaseHandle<
 //
 // For digesting many small values it is better to use `DigestingWriter` which
 // adds a buffering layer.
-class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
-    : WithEqual<DigesterBaseHandle> {
+class DigesterBaseHandle : WithEqual<DigesterBaseHandle> {
  public:
   // Creates a `DigesterBaseHandle` which does not refer to a target.
   DigesterBaseHandle() = default;
@@ -224,8 +222,6 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterBaseHandle
   ABSL_ATTRIBUTE_NORETURN static void FailedDigestMethodDefault();
 
  private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
   template <typename Function,
             std::enable_if_t<
                 std::is_same_v<decltype(std::declval<Function&&>()()), bool>,
@@ -479,7 +475,7 @@ struct SupportsDigesterHandle<
 //
 // `DigestType` can be `void` for digesters used for their side effects.
 template <typename DigestTypeParam>
-class ABSL_NULLABILITY_COMPATIBLE DigesterHandle : public DigesterBaseHandle {
+class DigesterHandle : public DigesterBaseHandle {
  public:
   // The type of the digest.
   using DigestType = DigestTypeParam;
@@ -515,8 +511,6 @@ class ABSL_NULLABILITY_COMPATIBLE DigesterHandle : public DigesterBaseHandle {
   }
 
  private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
   template <typename T, typename Enable = void>
   struct DigesterTargetHasDigest : std::false_type {};
   template <typename T>

@@ -1128,7 +1128,6 @@ cc_library(
         "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ] + select({
@@ -1409,7 +1408,6 @@ cc_library(
         "//riegeli/base:type_erased_ref",
         "//riegeli/base:type_traits",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",

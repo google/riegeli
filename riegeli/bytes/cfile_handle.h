@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -110,7 +109,7 @@ struct CFileSupportsOpen<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class ABSL_NULLABILITY_COMPATIBLE CFileHandle : public WithEqual<CFileHandle> {
+class CFileHandle : public WithEqual<CFileHandle> {
  public:
   // Creates a `CFileHandle` which does not refer to a target.
   CFileHandle() = default;
@@ -162,9 +161,6 @@ class ABSL_NULLABILITY_COMPATIBLE CFileHandle : public WithEqual<CFileHandle> {
   }
 
  private:
-  // TODO: Temporarily disable to work around a clang_tidy crash.
-  // using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
   struct Methods {
     FILE* (*get)(TypeErasedRef target);
     bool (*is_owning)(TypeErasedRef target);
@@ -509,7 +505,7 @@ extern template class CFileBase<OwnedCFileDeleter>;
 // Stores a `FILE*` but does not own it, i.e. is not responsible for closing it.
 //
 // The `FILE*` can be `nullptr` which means absent.
-class ABSL_NULLABILITY_COMPATIBLE UnownedCFile
+class UnownedCFile
     : public cfile_internal::CFileBase<cfile_internal::UnownedCFileDeleter>,
       public WithEqual<UnownedCFile> {
  public:
@@ -541,16 +537,12 @@ class ABSL_NULLABILITY_COMPATIBLE UnownedCFile
   friend bool operator==(const UnownedCFile& a, FILE* b) {
     return a.get() == b;
   }
-
- private:
-  // TODO: Temporarily disable to work around a clang_tidy crash.
-  // using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Owns a `FILE*`, i.e. stores it and is responsible for closing it.
 //
 // The `FILE*` can be `nullptr` which means absent.
-class ABSL_NULLABILITY_COMPATIBLE OwnedCFile
+class OwnedCFile
     : public cfile_internal::CFileBase<cfile_internal::OwnedCFileDeleter>,
       public WithEqual<OwnedCFile> {
  public:
@@ -578,10 +570,6 @@ class ABSL_NULLABILITY_COMPATIBLE OwnedCFile
   absl::Status Close();
 
   friend bool operator==(const OwnedCFile& a, FILE* b) { return a.get() == b; }
-
- private:
-  // TODO: Temporarily disable to work around a clang_tidy crash.
-  // using pointer = FILE*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Type-erased object like `UnownedCFile` or `OwnedCFile` which stores and

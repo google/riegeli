@@ -33,7 +33,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -145,7 +144,7 @@ struct FdSupportsOpenAt<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class ABSL_NULLABILITY_COMPATIBLE FdHandle : public WithEqual<FdHandle> {
+class FdHandle : public WithEqual<FdHandle> {
  public:
   // Creates an `FdHandle` which does not refer to a target.
   FdHandle() = default;
@@ -195,8 +194,6 @@ class ABSL_NULLABILITY_COMPATIBLE FdHandle : public WithEqual<FdHandle> {
   }
 
  private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
-
   struct Methods {
     int (*get)(TypeErasedRef target);
     bool (*is_owning)(TypeErasedRef target);
@@ -544,9 +541,8 @@ extern template class FdBase<OwnedFdDeleter>;
 // closing it.
 //
 // The fd can be negative which means absent.
-class ABSL_NULLABILITY_COMPATIBLE UnownedFd
-    : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
-      public WithEqual<UnownedFd> {
+class UnownedFd : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
+                  public WithEqual<UnownedFd> {
  public:
   using FdBase::FdBase;
 
@@ -575,17 +571,13 @@ class ABSL_NULLABILITY_COMPATIBLE UnownedFd
   friend bool operator==(const UnownedFd& a, std::nullptr_t) {
     return a.get() < 0;
   }
-
- private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Owns a file descriptor, i.e. stores it and is responsible for closing it.
 //
 // The fd can be negative which means absent.
-class ABSL_NULLABILITY_COMPATIBLE OwnedFd
-    : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
-      public WithEqual<OwnedFd> {
+class OwnedFd : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
+                public WithEqual<OwnedFd> {
  public:
   using Permissions = fd_internal::Permissions;
 #ifndef _WIN32
@@ -631,9 +623,6 @@ class ABSL_NULLABILITY_COMPATIBLE OwnedFd
   friend bool operator==(const OwnedFd& a, std::nullptr_t) {
     return a.get() < 0;
   }
-
- private:
-  using pointer = void*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
 };
 
 // Type-erased object like `UnownedFd` or `OownedFd` which stores and possibly
