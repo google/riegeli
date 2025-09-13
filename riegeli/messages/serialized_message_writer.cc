@@ -22,12 +22,12 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/cord_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/restricted_chain_writer.h"
 
 namespace riegeli {
 
@@ -71,7 +71,7 @@ absl::Status SerializedMessageWriter::CloseLengthDelimited(int field_number) {
   RIEGELI_ASSERT_EQ(writer_, &submessages_.back())
       << "Failed invariant of SerializedMessageWriter: "
          "writer() does not point to the most recently open submessage";
-  RestrictedChainWriter& submessage = submessages_.back();
+  CordWriter<absl::Cord>& submessage = submessages_.back();
   if (ABSL_PREDICT_FALSE(!submessage.Close())) return submessage.status();
   writer_ = submessages_.size() > 1 ? &submessages_.end()[-2] : dest_;
   if (absl::Status status =
@@ -95,7 +95,7 @@ absl::Status SerializedMessageWriter::CloseOptionalLengthDelimited(
   RIEGELI_ASSERT_EQ(writer_, &submessages_.back())
       << "Failed invariant of SerializedMessageWriter: "
          "writer() does not point to the most recently open submessage";
-  RestrictedChainWriter& submessage = submessages_.back();
+  CordWriter<absl::Cord>& submessage = submessages_.back();
   if (ABSL_PREDICT_FALSE(!submessage.Close())) return submessage.status();
   writer_ = submessages_.size() > 1 ? &submessages_.end()[-2] : dest_;
   if (!submessage.dest().empty()) {

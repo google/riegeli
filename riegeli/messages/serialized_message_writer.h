@@ -26,14 +26,14 @@
 #include "absl/base/casts.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/chain.h"
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/cord_writer.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/bytes/restricted_chain_writer.h"
 #include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
@@ -195,7 +195,7 @@ class SerializedMessageWriter {
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
 
   Writer* dest_ = nullptr;
-  std::vector<RestrictedChainWriter> submessages_;
+  std::vector<CordWriter<absl::Cord>> submessages_;
   Writer* writer_ = nullptr;
 
   // Invariant:
@@ -445,18 +445,18 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
       return writer().status();
     }
   } else {
-    RestrictedChainWriter chain_writer;
+    CordWriter<absl::Cord> cord_writer;
     if (ABSL_PREDICT_FALSE(
-            !chain_writer.Write(std::forward<Values>(values)...) ||
-            !chain_writer.Close())) {
-      return chain_writer.status();
+            !cord_writer.Write(std::forward<Values>(values)...) ||
+            !cord_writer.Close())) {
+      return cord_writer.status();
     }
     if (absl::Status status =
-            WriteLengthUnchecked(field_number, chain_writer.dest().size());
+            WriteLengthUnchecked(field_number, cord_writer.dest().size());
         ABSL_PREDICT_FALSE(!status.ok())) {
       return status;
     }
-    if (ABSL_PREDICT_FALSE(!writer().Write(std::move(chain_writer.dest())))) {
+    if (ABSL_PREDICT_FALSE(!writer().Write(std::move(cord_writer.dest())))) {
       return writer().status();
     }
   }
