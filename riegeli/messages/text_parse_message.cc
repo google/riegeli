@@ -76,18 +76,18 @@ absl::Status TextParseMessageImpl(Reader& src, google::protobuf::Message& dest,
 
 absl::Status TextParseMessage(BytesRef src, google::protobuf::Message& dest,
                               const TextParseMessageOptions& options) {
-  return TextParseMessage(StringReader<>(src), dest, options);
+  return TextParseMessage(StringReader(src), dest, options);
 }
 
 absl::Status TextParseMessage(const Chain& src, google::protobuf::Message& dest,
                               const TextParseMessageOptions& options) {
-  return TextParseMessage(ChainReader<>(&src), dest, options);
+  return TextParseMessage(ChainReader(&src), dest, options);
 }
 
 absl::Status TextParseMessage(const absl::Cord& src,
                               google::protobuf::Message& dest,
                               const TextParseMessageOptions& options) {
-  return TextParseMessage(CordReader<>(&src), dest, options);
+  return TextParseMessage(CordReader(&src), dest, options);
 }
 
 }  // namespace riegeli

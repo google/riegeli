@@ -99,7 +99,7 @@ absl::Status ParseMessageWithLengthImpl(Src& src, size_t length,
       return CheckInitialized(src, dest, options);
     }
   }
-  ScopedLimiterOrLimitingReader<Src> scoped_limiter(
+  ScopedLimiterOrLimitingReader scoped_limiter(
       &src, LimitingReaderBase::Options().set_exact_length(length));
   ReaderInputStream input_stream(&scoped_limiter.reader());
   bool parse_ok;
@@ -251,7 +251,7 @@ absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
       return CheckInitialized(dest, options);
     }
   }
-  ChainReader<> reader(&src);
+  ChainReader reader(&src);
   ReaderInputStream input_stream(&reader);
   bool parse_ok;
   if (!options.merge() &&
@@ -288,7 +288,7 @@ absl::Status ParseMessage(const absl::Cord& src,
       return CheckInitialized(dest, options);
     }
   }
-  CordReader<> reader(&src);
+  CordReader reader(&src);
   ReaderInputStream input_stream(&reader);
   bool parse_ok;
   if (!options.merge() &&

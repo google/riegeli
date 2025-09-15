@@ -65,18 +65,18 @@ absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
 absl::Status TextPrintMessage(const google::protobuf::Message& src,
                               std::string& dest,
                               const TextPrintMessageOptions& options) {
-  return TextPrintMessage(src, StringWriter<>(&dest), options);
+  return TextPrintMessage(src, StringWriter(&dest), options);
 }
 
 absl::Status TextPrintMessage(const google::protobuf::Message& src, Chain& dest,
                               const TextPrintMessageOptions& options) {
-  return TextPrintMessage(src, ChainWriter<>(&dest), options);
+  return TextPrintMessage(src, ChainWriter(&dest), options);
 }
 
 absl::Status TextPrintMessage(const google::protobuf::Message& src,
                               absl::Cord& dest,
                               const TextPrintMessageOptions& options) {
-  return TextPrintMessage(src, CordWriter<>(&dest), options);
+  return TextPrintMessage(src, CordWriter(&dest), options);
 }
 
 }  // namespace riegeli

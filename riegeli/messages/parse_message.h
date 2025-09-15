@@ -129,8 +129,9 @@ absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
 //
 // ```
 // ParseMessage(
-//     LimitingReader<>(&src,
-//                      LimitingReaderBase::Options().set_exact_length(length)),
+//     ScopedLimiterOrLimitingReader(
+//         &src, LimitingReaderBase::Options().set_exact_length(length))
+//         .reader(),
 //     dest, options)
 // ```
 absl::Status ParseMessageWithLength(

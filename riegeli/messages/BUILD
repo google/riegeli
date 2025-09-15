@@ -50,7 +50,6 @@ cc_library(
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:chain_writer",
         "//riegeli/bytes:cord_writer",
-        "//riegeli/bytes:restricted_chain_writer",
         "//riegeli/bytes:writer",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",

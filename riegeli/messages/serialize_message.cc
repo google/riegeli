@@ -41,7 +41,6 @@
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_writer.h"
-#include "riegeli/bytes/restricted_chain_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/varint/varint_writing.h"
 
@@ -141,14 +140,14 @@ inline absl::Status SerializeMessageHavingSize(
         << src.GetTypeName();
     return absl::OkStatus();
   }
-  RestrictedChainWriter chain_writer;
+  riegeli::CordWriter cord_writer;
   if (absl::Status status =
-          SerializeMessageUsingStream(src, chain_writer, deterministic, size);
+          SerializeMessageUsingStream(src, cord_writer, deterministic, size);
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  if (ABSL_PREDICT_FALSE(!chain_writer.Close())) return chain_writer.status();
-  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(chain_writer.dest())))) {
+  if (ABSL_PREDICT_FALSE(!cord_writer.Close())) return cord_writer.status();
+  if (ABSL_PREDICT_FALSE(!dest.Write(std::move(cord_writer.dest())))) {
     return dest.status();
   }
   return absl::OkStatus();
@@ -243,7 +242,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
         << src.GetTypeName();
     return absl::OkStatus();
   }
-  riegeli::ArrayWriter<> writer(&dest[0], size);
+  riegeli::ArrayWriter writer(&dest[0], size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close()) << "ArrayWriter has no reason to fail "
@@ -282,7 +281,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
         << src.GetTypeName();
     return absl::OkStatus();
   }
-  riegeli::ArrayWriter<> writer(data, size);
+  riegeli::ArrayWriter writer(data, size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
   RIEGELI_EVAL_ASSERT(writer.Close()) << "ArrayWriter has no reason to fail "
@@ -324,7 +323,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
         << src.GetTypeName();
     return absl::OkStatus();
   }
-  riegeli::ChainWriter<> writer(&dest);
+  riegeli::ChainWriter writer(&dest);
   writer.SetWriteSizeHint(size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
@@ -371,7 +370,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     dest.Append(std::move(buffer));
     return absl::OkStatus();
   }
-  riegeli::CordWriter<> writer(&dest);
+  riegeli::CordWriter writer(&dest);
   writer.SetWriteSizeHint(size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
