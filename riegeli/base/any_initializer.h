@@ -230,21 +230,8 @@ void AnyInitializer<Handle>::ConstructMethod(
         (TargetValue::kAvailableAlign == 0 ||
          target.methods_and_handle_.methods->used_align <= available_align)) {
       // Adopt `target` instead of wrapping it.
-      if (TargetValue::kAvailableSize == 0) {
-        // Replace an indirect call to `move()` with a plain assignment and a
-        // memory copy.
-        //
-        // This would safe whenever
-        // `target.methods_and_handle_.methods->used_size == 0`, but this is
-        // handled specially only if the condition can be determined at compile
-        // time.
-        std::memcpy(dest, &target.repr_, sizeof(target.repr_));
-        dest_methods_and_handle->methods = target.methods_and_handle_.methods;
-        dest_methods_and_handle->handle = target.methods_and_handle_.handle;
-      } else {
-        target.methods_and_handle_.methods->move(target.repr_.storage, dest,
-                                                 dest_methods_and_handle);
-      }
+      target.methods_and_handle_.methods->move(target.repr_.storage, dest,
+                                               dest_methods_and_handle);
       target.methods_and_handle_.methods = &NullMethods::kMethods;
       target.methods_and_handle_.handle =
           any_internal::SentinelHandle<Handle>();

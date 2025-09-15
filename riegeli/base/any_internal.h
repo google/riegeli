@@ -102,14 +102,12 @@ constexpr size_t AvailableAlign() {
 
 // Returns `used_size`: `sizeof` the `Dependency`, except that 0 indicates
 // compatibility with `inline_size == 0`, which means fitting under the minimal
-// size of any inline storage with the given alignment, and satisfying
-// additional constraints (stability and trivial relocatability).
+// size of any inline storage with the given alignment, and being stable.
 template <typename Handle, typename Manager>
 constexpr size_t UsedSize() {
   if (sizeof(Dependency<Handle, Manager>) <=
           sizeof(Repr<Handle, 0, alignof(Dependency<Handle, Manager>)>) &&
-      Dependency<Handle, Manager>::kIsStable &&
-      absl::is_trivially_relocatable<Dependency<Handle, Manager>>::value) {
+      Dependency<Handle, Manager>::kIsStable) {
     return 0;
   }
   return sizeof(Dependency<Handle, Manager>);
@@ -141,20 +139,6 @@ constexpr bool IsInline() {
       AvailableSize<Handle, inline_size, inline_align>(),
       AvailableAlign<Handle, inline_size, inline_align>());
 }
-
-// Conditionally make the ABI trivial. To be used as a base class, with the
-// derived class having an unconditional `ABSL_ATTRIBUTE_TRIVIAL_ABI` (it will
-// not be effective if a base class does not have trivial ABI).
-template <bool is_trivial>
-class ConditionallyTrivialAbi;
-
-template <>
-class ConditionallyTrivialAbi<false> {
- public:
-  ~ConditionallyTrivialAbi() {}
-};
-template <>
-class ConditionallyTrivialAbi<true> {};
 
 template <typename Handle>
 struct MethodsAndHandle;

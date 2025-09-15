@@ -29,7 +29,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any_initializer.h"
 #include "riegeli/base/any_internal.h"
@@ -51,12 +50,8 @@ namespace riegeli {
 namespace any_internal {
 
 // Common base class of `Any` and `AnyRef`.
-//
-// `ABSL_ATTRIBUTE_TRIVIAL_ABI` is effective if `inline_size == 0`.
 template <typename Handle, size_t inline_size, size_t inline_align>
-class ABSL_ATTRIBUTE_TRIVIAL_ABI AnyBase
-    : public WithEqual<AnyBase<Handle, inline_size, inline_align>>,
-      public ConditionallyTrivialAbi<inline_size == 0> {
+class AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>> {
  public:
   // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyBase`.
@@ -372,11 +367,8 @@ template <typename Handle, size_t inline_size, size_t inline_align,
 class DependencyManagerImpl<
     std::unique_ptr<Any<Handle, inline_size, inline_align>, NullDeleter>,
     ManagerStorage>
-    : public DependencyBase<std::conditional_t<
-          absl::is_trivially_relocatable<std::unique_ptr<
-              Any<Handle, inline_size, inline_align>, NullDeleter>>::value,
-          std::unique_ptr<Any<Handle, inline_size, inline_align>, NullDeleter>,
-          ManagerStorage>> {
+    : public DependencyBase<std::unique_ptr<
+          Any<Handle, inline_size, inline_align>, NullDeleter>> {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
@@ -528,10 +520,7 @@ class DependencyManagerImpl<AnyRef<Handle>, ManagerStorage>
 template <typename Handle, typename ManagerStorage>
 class DependencyManagerImpl<std::unique_ptr<AnyRef<Handle>, NullDeleter>,
                             ManagerStorage>
-    : public DependencyBase<std::conditional_t<
-          absl::is_trivially_relocatable<
-              std::unique_ptr<AnyRef<Handle>, NullDeleter>>::value,
-          std::unique_ptr<AnyRef<Handle>, NullDeleter>, ManagerStorage>> {
+    : public DependencyBase<std::unique_ptr<AnyRef<Handle>, NullDeleter>> {
  public:
   using DependencyManagerImpl::DependencyBase::DependencyBase;
 
@@ -567,15 +556,8 @@ namespace any_internal {
 template <typename Handle, size_t inline_size, size_t inline_align>
 inline AnyBase<Handle, inline_size, inline_align>::AnyBase(
     AnyBase&& that) noexcept {
-  if (inline_size == 0) {
-    // Replace an indirect call to `move()` with plain assignments.
-    methods_and_handle_.methods = that.methods_and_handle_.methods;
-    methods_and_handle_.handle = that.methods_and_handle_.handle;
-    repr_ = that.repr_;
-  } else {
-    that.methods_and_handle_.methods->move(that.repr_.storage, repr_.storage,
-                                           &methods_and_handle_);
-  }
+  that.methods_and_handle_.methods->move(that.repr_.storage, repr_.storage,
+                                         &methods_and_handle_);
   that.methods_and_handle_.methods = &NullMethods::kMethods;
   that.methods_and_handle_.handle = SentinelHandle<Handle>();
 }
@@ -585,15 +567,8 @@ inline AnyBase<Handle, inline_size, inline_align>&
 AnyBase<Handle, inline_size, inline_align>::operator=(AnyBase&& that) noexcept {
   if (ABSL_PREDICT_TRUE(&that != this)) {
     Destroy();
-    if (inline_size == 0) {
-      // Replace an indirect call to `move()` with plain assignments.
-      methods_and_handle_.methods = that.methods_and_handle_.methods;
-      methods_and_handle_.handle = that.methods_and_handle_.handle;
-      repr_ = that.repr_;
-    } else {
-      that.methods_and_handle_.methods->move(that.repr_.storage, repr_.storage,
-                                             &methods_and_handle_);
-    }
+    that.methods_and_handle_.methods->move(that.repr_.storage, repr_.storage,
+                                           &methods_and_handle_);
     that.methods_and_handle_.methods = &NullMethods::kMethods;
     that.methods_and_handle_.handle = SentinelHandle<Handle>();
   }
@@ -635,22 +610,8 @@ inline void AnyBase<Handle, inline_size, inline_align>::Initialize(
       (ManagerValue::kAvailableAlign <= kAvailableAlign ||
        manager.methods_and_handle_.methods->used_align <= kAvailableAlign)) {
     // Adopt `manager` by moving its representation as is.
-    if (inline_size == 0 || ManagerValue::kAvailableSize == 0) {
-      // Replace an indirect call to `move()` with plain assignments and
-      // a memory copy.
-      //
-      // This would be safe if `ManagerValue::kAvailableSize != 0` while
-      // `that.manager.methods_and_handle_.methods->used_size == 0`, but this is
-      // handled specially only if the condition can be determined at compile
-      // time.
-      std::memcpy(&repr_, &manager.repr_,
-                  UnsignedMin(sizeof(repr_), sizeof(manager.repr_)));
-      methods_and_handle_.methods = manager.methods_and_handle_.methods;
-      methods_and_handle_.handle = manager.methods_and_handle_.handle;
-    } else {
-      manager.methods_and_handle_.methods->move(
-          manager.repr_.storage, repr_.storage, &methods_and_handle_);
-    }
+    manager.methods_and_handle_.methods->move(
+        manager.repr_.storage, repr_.storage, &methods_and_handle_);
     manager.methods_and_handle_.methods = &NullMethods::kMethods;
     manager.methods_and_handle_.handle = SentinelHandle<Handle>();
     return;
