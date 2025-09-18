@@ -34,6 +34,7 @@
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
+#include "riegeli/bytes/null_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
@@ -194,6 +195,56 @@ class SerializedMessageWriter {
   // `SerializedMessageWriter` and its `dest()` are no longer used.
   absl::Status OpenGroup(int field_number);
   absl::Status CloseGroup(int field_number);
+
+  // Returns the length of the field which would be written.
+  //
+  // This is useful for `WriteLengthUnchecked()`.
+  //
+  // If writing would fail due to overflow of a length delimited field,
+  // an unspecified value is returned.
+  static Position LengthOfInt32(int field_number, int32_t value);
+  static Position LengthOfInt64(int field_number, int64_t value);
+  static Position LengthOfUInt32(int field_number, uint32_t value);
+  static Position LengthOfUInt64(int field_number, uint64_t value);
+  static Position LengthOfSInt32(int field_number, int32_t value);
+  static Position LengthOfSInt64(int field_number, int64_t value);
+  static Position LengthOfBool(int field_number);
+  static Position LengthOfFixed32(int field_number);
+  static Position LengthOfFixed64(int field_number);
+  static Position LengthOfSFixed32(int field_number);
+  static Position LengthOfSFixed64(int field_number);
+  static Position LengthOfFloat(int field_number);
+  static Position LengthOfDouble(int field_number);
+  template <typename EnumType,
+            std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                                std::is_integral<EnumType>>,
+                             int> = 0>
+  static Position LengthOfEnum(int field_number, EnumType value);
+  template <typename... Values,
+            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
+  static Position LengthOfString(int field_number, Values&&... values);
+  static Position LengthOfLengthDelimited(int field_number, Position length);
+  static Position LengthOfOptionalLengthDelimited(int field_number,
+                                                  Position length);
+  static Position LengthOfPackedInt32(int32_t value);
+  static Position LengthOfPackedInt64(int64_t value);
+  static Position LengthOfPackedUInt32(uint32_t value);
+  static Position LengthOfPackedUInt64(uint64_t value);
+  static Position LengthOfPackedSInt32(int32_t value);
+  static Position LengthOfPackedSInt64(int64_t value);
+  static Position LengthOfPackedBool();
+  static Position LengthOfPackedFixed32();
+  static Position LengthOfPackedFixed64();
+  static Position LengthOfPackedSFixed32();
+  static Position LengthOfPackedSFixed64();
+  static Position LengthOfPackedFloat();
+  static Position LengthOfPackedDouble();
+  template <typename EnumType,
+            std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                                std::is_integral<EnumType>>,
+                             int> = 0>
+  static Position LengthOfPackedEnum(EnumType value);
+  static Position LengthOfOpenPlusCloseGroup(int field_number);
 
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
@@ -449,7 +500,7 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
       return writer().status();
     }
   } else {
-    CordWriter<absl::Cord> cord_writer;
+    CordWriter cord_writer;
     if (ABSL_PREDICT_FALSE(
             !cord_writer.Write(std::forward<Values>(values)...) ||
             !cord_writer.Close())) {
@@ -516,6 +567,166 @@ inline absl::Status SerializedMessageWriter::CloseGroup(int field_number) {
     return writer().status();
   }
   return absl::OkStatus();
+}
+
+inline Position SerializedMessageWriter::LengthOfInt32(int field_number,
+                                                       int32_t value) {
+  return LengthOfUInt64(field_number, static_cast<uint64_t>(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfInt64(int field_number,
+                                                       int64_t value) {
+  return LengthOfUInt64(field_number, static_cast<uint64_t>(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfUInt32(int field_number,
+                                                        uint32_t value) {
+  return LengthVarint32(MakeTag(field_number, WireType::kVarint)) +
+         LengthVarint32(value);
+}
+
+inline Position SerializedMessageWriter::LengthOfUInt64(int field_number,
+                                                        uint64_t value) {
+  return LengthVarint32(MakeTag(field_number, WireType::kVarint)) +
+         LengthVarint64(value);
+}
+
+inline Position SerializedMessageWriter::LengthOfSInt32(int field_number,
+                                                        int32_t value) {
+  return LengthOfUInt32(field_number, EncodeVarintSigned32(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfSInt64(int field_number,
+                                                        int64_t value) {
+  return LengthOfUInt64(field_number, EncodeVarintSigned64(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfBool(int field_number) {
+  return LengthVarint32(MakeTag(field_number, WireType::kVarint)) + 1;
+}
+
+inline Position SerializedMessageWriter::LengthOfFixed32(int field_number) {
+  return LengthVarint32(MakeTag(field_number, WireType::kFixed32)) +
+         sizeof(uint32_t);
+}
+
+inline Position SerializedMessageWriter::LengthOfFixed64(int field_number) {
+  return LengthVarint32(MakeTag(field_number, WireType::kFixed64)) +
+         sizeof(uint64_t);
+}
+
+inline Position SerializedMessageWriter::LengthOfSFixed32(int field_number) {
+  return LengthOfFixed32(field_number);
+}
+
+inline Position SerializedMessageWriter::LengthOfSFixed64(int field_number) {
+  return LengthOfFixed64(field_number);
+}
+
+inline Position SerializedMessageWriter::LengthOfFloat(int field_number) {
+  return LengthOfFixed32(field_number);
+}
+
+inline Position SerializedMessageWriter::LengthOfDouble(int field_number) {
+  return LengthOfFixed64(field_number);
+}
+
+template <typename EnumType,
+          std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                              std::is_integral<EnumType>>,
+                           int>>
+inline Position SerializedMessageWriter::LengthOfEnum(int field_number,
+                                                      EnumType value) {
+  return LengthOfUInt64(field_number, static_cast<uint64_t>(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedInt32(int32_t value) {
+  return LengthOfPackedUInt64(static_cast<uint64_t>(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedInt64(int64_t value) {
+  return LengthOfPackedUInt64(static_cast<uint64_t>(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedUInt32(uint32_t value) {
+  return LengthVarint32(value);
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedUInt64(uint64_t value) {
+  return LengthVarint64(value);
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedSInt32(int32_t value) {
+  return LengthOfPackedUInt32(EncodeVarintSigned32(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedSInt64(int64_t value) {
+  return LengthOfPackedUInt64(EncodeVarintSigned64(value));
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedBool() { return 1; }
+
+inline Position SerializedMessageWriter::LengthOfPackedFixed32() {
+  return sizeof(uint32_t);
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedFixed64() {
+  return sizeof(uint64_t);
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedSFixed32() {
+  return LengthOfPackedFixed32();
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedSFixed64() {
+  return LengthOfPackedFixed64();
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedFloat() {
+  return LengthOfPackedFixed32();
+}
+
+inline Position SerializedMessageWriter::LengthOfPackedDouble() {
+  return LengthOfPackedFixed64();
+}
+
+template <typename EnumType,
+          std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                              std::is_integral<EnumType>>,
+                           int>>
+inline Position SerializedMessageWriter::LengthOfPackedEnum(EnumType value) {
+  return LengthOfPackedUInt64(static_cast<uint64_t>(value));
+}
+
+template <typename... Values,
+          std::enable_if_t<IsStringifiable<Values...>::value, int>>
+inline Position SerializedMessageWriter::LengthOfString(int field_number,
+                                                        Values&&... values) {
+  if constexpr (HasStringifiedSize<Values...>::value) {
+    return LengthOfLengthDelimited(field_number,
+                                   riegeli::StringifiedSize(values...));
+  } else {
+    NullWriter null_writer;
+    null_writer.Write(std::forward<Values>(values)...);
+    null_writer.Close();
+    return LengthOfLengthDelimited(field_number, null_writer.pos());
+  }
+}
+
+inline Position SerializedMessageWriter::LengthOfLengthDelimited(
+    int field_number, Position length) {
+  return LengthVarint32(MakeTag(field_number, WireType::kLengthDelimited)) +
+         LengthVarint32(IntCast<uint32_t>(length)) + length;
+}
+
+inline Position SerializedMessageWriter::LengthOfOptionalLengthDelimited(
+    int field_number, Position length) {
+  return length == 0 ? 0 : LengthOfLengthDelimited(field_number, length);
+}
+
+inline Position SerializedMessageWriter::LengthOfOpenPlusCloseGroup(
+    int field_number) {
+  return 2 * LengthVarint32(MakeTag(field_number, WireType::kStartGroup));
 }
 
 }  // namespace riegeli

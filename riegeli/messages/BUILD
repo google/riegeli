@@ -121,6 +121,7 @@ cc_library(
         "//riegeli/base:constexpr",
         "//riegeli/base:types",
         "//riegeli/bytes:cord_writer",
+        "//riegeli/bytes:null_writer",
         "//riegeli/bytes:read_all",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:stringify",
