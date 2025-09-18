@@ -18,6 +18,8 @@
 #include <stdint.h>
 
 #include <functional>
+#include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -30,9 +32,11 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/any.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/type_erased_ref.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -90,7 +94,9 @@ absl::Status SerializedMessageReaderBase::SkipField(
       return absl::OkStatus();
     case WireType::kLengthDelimited: {
       uint32_t length;
-      if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
+      if (ABSL_PREDICT_FALSE(
+              !ReadVarint32(src, length) ||
+              length > uint32_t{std::numeric_limits<int32_t>::max()})) {
         return src.StatusOrAnnotate(absl::InvalidArgumentError(
             "Could not read a length-delimited field length"));
       }
@@ -338,15 +344,16 @@ void SerializedMessageReaderBase::OnStringView(
     std::function<absl::Status(absl::string_view value, LimitingReaderBase& src,
                                TypeErasedRef context)>
         action) {
-  OnLengthUnchecked(field_path, [action = std::move(action)](
-                                    size_t length, LimitingReaderBase& src,
-                                    TypeErasedRef context) {
-    absl::string_view value;
-    if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return ReadLengthDelimitedError(src);
-    }
-    return action(value, src, context);
-  });
+  OnLengthDelimited(
+      field_path, [action = std::move(action)](LimitingReaderBase& src,
+                                               TypeErasedRef context) {
+        absl::string_view value;
+        if (ABSL_PREDICT_FALSE(
+                !src.Read(IntCast<size_t>(src.max_length()), value))) {
+          return ReadLengthDelimitedError(src);
+        }
+        return action(value, src, context);
+      });
 }
 
 void SerializedMessageReaderBase::OnString(
@@ -354,15 +361,16 @@ void SerializedMessageReaderBase::OnString(
     std::function<absl::Status(std::string&& value, LimitingReaderBase& src,
                                TypeErasedRef context)>
         action) {
-  OnLengthUnchecked(field_path, [action = std::move(action)](
-                                    size_t length, LimitingReaderBase& src,
-                                    TypeErasedRef context) {
-    std::string value;
-    if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return ReadLengthDelimitedError(src);
-    }
-    return action(std::move(value), src, context);
-  });
+  OnLengthDelimited(
+      field_path, [action = std::move(action)](LimitingReaderBase& src,
+                                               TypeErasedRef context) {
+        std::string value;
+        if (ABSL_PREDICT_FALSE(
+                !src.Read(IntCast<size_t>(src.max_length()), value))) {
+          return ReadLengthDelimitedError(src);
+        }
+        return action(std::move(value), src, context);
+      });
 }
 
 void SerializedMessageReaderBase::OnChain(
@@ -370,15 +378,16 @@ void SerializedMessageReaderBase::OnChain(
     std::function<absl::Status(Chain&& value, LimitingReaderBase& src,
                                TypeErasedRef context)>
         action) {
-  OnLengthUnchecked(field_path, [action = std::move(action)](
-                                    size_t length, LimitingReaderBase& src,
-                                    TypeErasedRef context) {
-    Chain value;
-    if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return ReadLengthDelimitedError(src);
-    }
-    return action(std::move(value), src, context);
-  });
+  OnLengthDelimited(
+      field_path, [action = std::move(action)](LimitingReaderBase& src,
+                                               TypeErasedRef context) {
+        Chain value;
+        if (ABSL_PREDICT_FALSE(
+                !src.Read(IntCast<size_t>(src.max_length()), value))) {
+          return ReadLengthDelimitedError(src);
+        }
+        return action(std::move(value), src, context);
+      });
 }
 
 void SerializedMessageReaderBase::OnCord(
@@ -386,46 +395,37 @@ void SerializedMessageReaderBase::OnCord(
     std::function<absl::Status(absl::Cord&& value, LimitingReaderBase& src,
                                TypeErasedRef context)>
         action) {
-  OnLengthUnchecked(field_path, [action = std::move(action)](
-                                    size_t length, LimitingReaderBase& src,
-                                    TypeErasedRef context) {
-    absl::Cord value;
-    if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
-      return ReadLengthDelimitedError(src);
-    }
-    return action(std::move(value), src, context);
-  });
+  OnLengthDelimited(
+      field_path, [action = std::move(action)](LimitingReaderBase& src,
+                                               TypeErasedRef context) {
+        absl::Cord value;
+        if (ABSL_PREDICT_FALSE(
+                !src.Read(IntCast<size_t>(src.max_length()), value))) {
+          return ReadLengthDelimitedError(src);
+        }
+        return action(std::move(value), src, context);
+      });
 }
 
 void SerializedMessageReaderBase::OnLengthDelimited(
     absl::Span<const int> field_path,
     std::function<absl::Status(LimitingReaderBase& src, TypeErasedRef context)>
         action) {
-  OnLengthUnchecked(field_path, [action = std::move(action)](
-                                    size_t length, LimitingReaderBase& src,
-                                    TypeErasedRef context) {
-    ScopedLimiter scoped_limiter(
-        &src, ScopedLimiter::Options().set_exact_length(length));
-    absl::Status status = action(src, context);
-    src.Seek(src.max_pos());
-    return status;
-  });
-}
-
-void SerializedMessageReaderBase::OnLengthUnchecked(
-    absl::Span<const int> field_path,
-    std::function<absl::Status(size_t length, LimitingReaderBase& src,
-                               TypeErasedRef context)>
-        action) {
   SetAction(field_path, WireType::kLengthDelimited,
             [action = std::move(action)](LimitingReaderBase& src,
                                          TypeErasedRef context) {
               uint32_t length;
-              if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
+              if (ABSL_PREDICT_FALSE(
+                      !ReadVarint32(src, length) ||
+                      length > uint32_t{std::numeric_limits<int32_t>::max()})) {
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     "Could not read a length-delimited field length"));
               }
-              return action(size_t{length}, src, context);
+              ScopedLimiter scoped_limiter(
+                  &src, ScopedLimiter::Options().set_exact_length(length));
+              absl::Status status = action(src, context);
+              src.Seek(src.max_pos());
+              return status;
             });
 }
 
@@ -500,7 +500,14 @@ SerializedMessageReaderBase::GetField(absl::Span<const int> field_path) {
 absl::Status SerializedMessageReaderBase::Read(AnyRef<Reader*> src,
                                                TypeErasedRef context) const {
   if (src.IsOwning()) src->SetReadAllHint(true);
-  LimitingReader<AnyRef<Reader*>> src_limiting(std::move(src));
+  LimitingReaderBase::Options options;
+  if (src->SupportsSize()) {
+    // Make `OnLengthDelimited()` safer for processing untrusted input.
+    // It will fail early if the stored length exceeds the remaining size.
+    const std::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_TRUE(size != std::nullopt)) options.set_max_pos(*size);
+  }
+  LimitingReader src_limiting(std::move(src), std::move(options));
   absl::Status status = ReadRootMessage(src_limiting, context);
   if (ABSL_PREDICT_TRUE(status.ok())) src_limiting.VerifyEnd();
   if (ABSL_PREDICT_FALSE(!src_limiting.Close())) {
@@ -552,7 +559,9 @@ absl::Status SerializedMessageReaderBase::ReadMessage(
            iter->second.after_message != nullptr ||
            !iter->second.children.empty())) {
         uint32_t length;
-        if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
+        if (ABSL_PREDICT_FALSE(
+                !ReadVarint32(src, length) ||
+                length > uint32_t{std::numeric_limits<int32_t>::max()})) {
           return src.StatusOrAnnotate(absl::InvalidArgumentError(
               "Could not read a length-delimited field length"));
         }

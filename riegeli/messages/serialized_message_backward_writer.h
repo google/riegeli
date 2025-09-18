@@ -180,6 +180,8 @@ class SerializedMessageBackwardWriter {
   // `length` bytes, unless the `SerializedMessageBackwardWriter` and its
   // `dest()` are no longer used. This is unchecked.
   //
+  // Fails if `length` exceeds 2GiB.
+  //
   // `WriteLengthUnchecked()` is more efficient than `OpenLengthDelimited()`
   // and `CloseLengthDelimited()`, although the difference is smaller than in
   // `SerializedMessageWriter`.
@@ -194,10 +196,6 @@ class SerializedMessageBackwardWriter {
   // `SerializedMessageBackwardWriter` and its `dest()` are no longer used.
   absl::Status OpenGroup(int field_number);
   absl::Status CloseGroup(int field_number);
-
-  // Copies field contents from `src` positioned between the field tag and field
-  // contents, and writes the field tag.
-  absl::Status CopyFieldFrom(uint32_t tag, Reader& src);
 
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);

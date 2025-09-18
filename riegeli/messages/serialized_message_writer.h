@@ -180,6 +180,8 @@ class SerializedMessageWriter {
   // bytes, unless the `SerializedMessageWriter` and its `dest()` are no longer
   // used. This is unchecked.
   //
+  // Fails if `length` exceeds 2GiB.
+  //
   // `WriteLengthUnchecked()` is more efficient than `OpenLengthDelimited()` or
   // `NewLengthDelimited()`, and `CloseLengthDelimited()`.
   absl::Status WriteLengthUnchecked(int field_number, Position length);

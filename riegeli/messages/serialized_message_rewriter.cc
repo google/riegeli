@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 
 #include "absl/base/optimization.h"
@@ -94,7 +95,9 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
         return context.ExtendUnchanged(src);
       case WireType::kLengthDelimited: {
         uint32_t length;
-        if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
+        if (ABSL_PREDICT_FALSE(
+                !ReadVarint32(src, length) ||
+                length > uint32_t{std::numeric_limits<int32_t>::max()})) {
           return src.StatusOrAnnotate(absl::InvalidArgumentError(
               "Could not read a length-delimited field length"));
         }
@@ -140,7 +143,9 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
         return absl::OkStatus();
       case WireType::kLengthDelimited: {
         uint32_t length;
-        if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
+        if (ABSL_PREDICT_FALSE(
+                !ReadVarint32(src, length) ||
+                length > uint32_t{std::numeric_limits<int32_t>::max()})) {
           return src.StatusOrAnnotate(absl::InvalidArgumentError(
               "Could not read a length-delimited field length"));
         }

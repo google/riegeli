@@ -134,9 +134,9 @@ absl::Status ParseLengthPrefixedMessageImpl(Src& src,
                                             google::protobuf::MessageLite& dest,
                                             ParseMessageOptions options) {
   uint32_t length;
-  if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length)) ||
-      ABSL_PREDICT_FALSE(length >
-                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+  if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length) ||
+                         length >
+                             uint32_t{std::numeric_limits<int32_t>::max()})) {
     return src.StatusOrAnnotate(
         absl::InvalidArgumentError("Failed to parse message length"));
   }

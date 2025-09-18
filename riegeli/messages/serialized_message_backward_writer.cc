@@ -26,8 +26,6 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/messages/message_wire_format.h"
-#include "riegeli/varint/varint_reading.h"
 #include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
@@ -71,10 +69,6 @@ absl::Status SerializedMessageBackwardWriter::CloseLengthDelimited(
          "writer().pos() decreased since OpenLengthDelimited()";
   const Position length = dest_->pos() - submessages_.back();
   submessages_.pop_back();
-  if (ABSL_PREDICT_FALSE(length >
-                         uint32_t{std::numeric_limits<int32_t>::max()})) {
-    return LengthOverflowError(length);
-  }
   return WriteLengthUnchecked(field_number, length);
 }
 
@@ -99,58 +93,6 @@ inline absl::Status SerializedMessageBackwardWriter::WriteTag(uint32_t tag) {
     return writer().status();
   }
   return absl::OkStatus();
-}
-
-absl::Status SerializedMessageBackwardWriter::CopyFieldFrom(uint32_t tag,
-                                                            Reader& src) {
-  switch (GetTagWireType(tag)) {
-    case WireType::kVarint: {
-      uint64_t value;
-      if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
-        return src.StatusOrAnnotate(
-            absl::InvalidArgumentError("Could not read a varint field"));
-      }
-      if (ABSL_PREDICT_FALSE(!WriteVarint64(value, writer()))) {
-        return writer().status();
-      }
-      return WriteTag(tag);
-    }
-    case WireType::kFixed32:
-      if (ABSL_PREDICT_FALSE(!src.Copy(sizeof(uint32_t), writer()))) {
-        return !writer().ok() ? writer().status()
-                              : src.StatusOrAnnotate(absl::InvalidArgumentError(
-                                    "Could not read a fixed32 field"));
-      }
-      return WriteTag(tag);
-    case WireType::kFixed64:
-      if (ABSL_PREDICT_FALSE(!src.Copy(sizeof(uint64_t), writer()))) {
-        return !writer().ok() ? writer().status()
-                              : src.StatusOrAnnotate(absl::InvalidArgumentError(
-                                    "Could not read a fixed64 field"));
-      }
-      return WriteTag(tag);
-    case WireType::kLengthDelimited: {
-      uint32_t length;
-      if (ABSL_PREDICT_FALSE(!ReadVarint32(src, length))) {
-        return src.StatusOrAnnotate(absl::InvalidArgumentError(
-            "Could not read a length-delimited field length"));
-      }
-      if (ABSL_PREDICT_FALSE(!src.Copy(length, writer()))) {
-        return !writer().ok() ? writer().status()
-                              : src.StatusOrAnnotate(absl::InvalidArgumentError(
-                                    "Could not read a length-delimited field"));
-      }
-      if (ABSL_PREDICT_FALSE(!WriteVarint32(length, writer()))) {
-        return writer().status();
-      }
-      return WriteTag(tag);
-    }
-    case WireType::kStartGroup:
-    case WireType::kEndGroup:
-      return WriteTag(tag);
-  }
-  return src.StatusOrAnnotate(absl::InvalidArgumentError(
-      absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
 }
 
 }  // namespace riegeli
