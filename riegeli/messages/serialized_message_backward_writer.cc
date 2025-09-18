@@ -18,13 +18,16 @@
 #include <stdint.h>
 
 #include <limits>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/copy_all.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/varint/varint_writing.h"
 
@@ -39,8 +42,8 @@ absl::Status SerializedMessageBackwardWriter::LengthOverflowError(
 }
 
 absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
-                                                         Position length,
-                                                         Reader& src) {
+                                                         Reader& src,
+                                                         Position length) {
   if (ABSL_PREDICT_FALSE(length >
                          uint32_t{std::numeric_limits<int32_t>::max()})) {
     return LengthOverflowError(length);
@@ -51,6 +54,19 @@ absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
                                 "Could not read a length-delimited field"));
   }
   return WriteLengthUnchecked(field_number, length);
+}
+
+absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
+                                                         AnyRef<Reader*> src) {
+  if (src.IsOwning()) src->SetReadAllHint(true);
+  const Position pos_after = dest_->pos();
+  if (absl::Status status = CopyAll(std::move(src), *dest_);
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
+  }
+  RIEGELI_ASSERT_GE(dest_->pos(), pos_after)
+      << "CopyAll() decreased dest.pos()";
+  return WriteLengthUnchecked(field_number, dest_->pos() - pos_after);
 }
 
 void SerializedMessageBackwardWriter::OpenLengthDelimited() {

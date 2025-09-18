@@ -28,6 +28,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "google/protobuf/message_lite.h"
+#include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
@@ -127,7 +128,8 @@ class SerializedMessageBackwardWriter {
   template <typename... Values,
             std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
   absl::Status WriteString(int field_number, Values&&... values);
-  absl::Status CopyString(int field_number, Position length, Reader& src);
+  absl::Status CopyString(int field_number, Reader& src, Position length);
+  absl::Status CopyString(int field_number, AnyRef<Reader*> src);
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
       SerializeMessageOptions options = {});

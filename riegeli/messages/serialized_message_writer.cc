@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -24,9 +25,12 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
+#include "riegeli/base/any.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
+#include "riegeli/bytes/read_all.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -38,8 +42,8 @@ absl::Status SerializedMessageWriter::LengthOverflowError(Position length) {
                    length));
 }
 
-absl::Status SerializedMessageWriter::CopyString(int field_number,
-                                                 Position length, Reader& src) {
+absl::Status SerializedMessageWriter::CopyString(int field_number, Reader& src,
+                                                 Position length) {
   if (absl::Status status = WriteLengthUnchecked(field_number, length);
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
@@ -50,6 +54,31 @@ absl::Status SerializedMessageWriter::CopyString(int field_number,
                                 "Could not read a length-delimited field"));
   }
   return absl::OkStatus();
+}
+
+absl::Status SerializedMessageWriter::CopyString(int field_number,
+                                                 AnyRef<Reader*> src) {
+  if (src.IsOwning()) src->SetReadAllHint(true);
+  if (src->SupportsSize()) {
+    const std::optional<Position> size = src->Size();
+    if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src->status();
+    if (absl::Status status =
+            CopyString(field_number, *src, SaturatingSub(*size, src->pos()));
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    if (src.IsOwning()) {
+      if (ABSL_PREDICT_FALSE(!src->Close())) return src->status();
+    }
+    return absl::OkStatus();
+  } else {
+    absl::Cord contents;
+    if (absl::Status status = ReadAll(std::move(src), contents);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    return WriteString(field_number, std::move(contents));
+  }
 }
 
 void SerializedMessageWriter::OpenLengthDelimited() {
