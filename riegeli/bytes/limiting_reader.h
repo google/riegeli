@@ -55,12 +55,11 @@ class LimitingReaderBase : public Reader {
     //
     // `std::nullopt` means no limit, unless `max_length()` is set.
     //
-    // `max_pos()` and `max_length()` must not be both set.
-    //
     // Default: `std::nullopt`.
     Options& set_max_pos(std::optional<Position> max_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_pos_ = max_pos;
+      max_length_ = std::nullopt;
       return *this;
     }
     Options&& set_max_pos(std::optional<Position> max_pos) &&
@@ -82,12 +81,11 @@ class LimitingReaderBase : public Reader {
     //
     // `std::nullopt` means no limit, unless `max_pos()` is set.
     //
-    // `max_pos()` and `max_length()` must not be both set.
-    //
     // Default: `std::nullopt`.
     Options& set_max_length(std::optional<Position> max_length) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_length_ = max_length;
+      max_pos_ = std::nullopt;
       return *this;
     }
     Options&& set_max_length(std::optional<Position> max_length) &&
@@ -161,8 +159,8 @@ class LimitingReaderBase : public Reader {
   //
   // If no limit is set, returns `std::numeric_limits<Position>::max()`.
   //
-  // If possible, `ScopedLimiter` is recommended over using `set_max_pos()`
-  // directly.
+  // `ScopedLimiter` is often easier to use correctly than calling
+  // `set_max_pos()` directly.
   void set_max_pos(Position max_pos);
   Position max_pos() const { return max_pos_; }
 
@@ -174,8 +172,8 @@ class LimitingReaderBase : public Reader {
   //
   // If no limit is set, returns `std::numeric_limits<Position>::max() - pos()`.
   //
-  // If possible, `ScopedLimiter` is recommended over using `set_max_length()`
-  // directly.
+  // `ScopedLimiter` is often easier to use correctly than calling
+  // `set_max_length()` directly.
   void set_max_length(Position max_length);
   Position max_length() const;
 
@@ -192,7 +190,7 @@ class LimitingReaderBase : public Reader {
   // Reading will end cleanly when the limit is reached, but will fail if the
   // source ends before the limit.
   //
-  // If possible, `ScopedLimiter` is recommended over using `set_exact()`
+  // `ScopedLimiter` is often easier to use correctly than calling `set_exact()`
   // directly.
   void set_exact(bool exact) { exact_ = exact; }
   bool exact() const { return exact_; }
@@ -206,9 +204,6 @@ class LimitingReaderBase : public Reader {
   // or at the limit (depending on `exact()`), but will fail if the original
   // source exceeds the limit. This is checked when `LimitingReader` is closed
   // while positioned at its end.
-  //
-  // If possible, `ScopedLimiter` is recommended over using
-  // `set_fail_if_longer()` directly.
   void set_fail_if_longer(bool fail_if_longer) {
     fail_if_longer_ = fail_if_longer;
   }
@@ -230,7 +225,7 @@ class LimitingReaderBase : public Reader {
 
   void Reset(Closed);
   void Reset(bool exact, bool fail_if_longer);
-  void Initialize(Reader* src, Options&& options);
+  void Initialize(Reader* src, const Options& options);
 
   // Sets cursor of `src` to cursor of `*this`.
   void SyncBuffer(Reader& src);
@@ -366,21 +361,10 @@ class ScopedLimiter {
   // smaller, and `exact()` can change only from `false` to `true`.
   //
   // This is similar to making a new `LimitingReader` reading from the previous
-  // `LimitingReader` but more efficient. Differences:
-  //
-  //  * If `options.exact()` is `true`, the limit should not exceed the previous
-  //    limit. If it does, i.e. the previous `LimitingReader` ends before the
-  //    new limit, the `LimitingReader` fails immediately rather than when the
-  //    previous limit is reached.
-  //
-  //  * If `options.exact()` is `true`, either `options.max_pos()` or
-  //    `options.max_length()` must be set.
-  //
-  // The reason of the differences is that providing the expected semantics of
-  // `options.exact()`, with the source being the previous `LimitingReader`,
-  // would require an unusual behavior of failing when the limit is exceeded.
-  // That behavior would not be useful in practice because reading would never
-  // end cleanly.
+  // `LimitingReader` but more efficient. A difference is when `options.exact()`
+  // is `true` and the new limit exceeds the old limit. In this case the
+  // `LimitingReader` fails immediately rather than when the old limit is
+  // reached, because it is already known that it cannot eventually succeed.
   explicit ScopedLimiter(LimitingReaderBase* reader
                              ABSL_ATTRIBUTE_LIFETIME_BOUND,
                          Options options);
@@ -505,59 +489,9 @@ inline void LimitingReaderBase::Reset(Closed) {
 
 inline void LimitingReaderBase::Reset(bool exact, bool fail_if_longer) {
   Reader::Reset();
-  // `max_pos_` will be set by `Initialize()`.
+  max_pos_ = std::numeric_limits<Position>::max();
   exact_ = exact;
   fail_if_longer_ = fail_if_longer;
-}
-
-inline void LimitingReaderBase::Initialize(Reader* src, Options&& options) {
-  RIEGELI_ASSERT_NE(src, nullptr)
-      << "Failed precondition of LimitingReader: null Reader pointer";
-  RIEGELI_ASSERT(options.max_pos() == std::nullopt ||
-                 options.max_length() == std::nullopt)
-      << "Failed precondition of LimitingReader: "
-         "Options::max_pos() and Options::max_length() are both set";
-  set_buffer(src->start(), src->start_to_limit(), src->start_to_cursor());
-  set_limit_pos(src->limit_pos());
-  if (ABSL_PREDICT_FALSE(!src->ok())) FailWithoutAnnotation(src->status());
-  if (options.max_pos() != std::nullopt) {
-    set_max_pos(*options.max_pos());
-  } else if (options.max_length() != std::nullopt) {
-    set_max_length(*options.max_length());
-  } else {
-    clear_limit();
-  }
-}
-
-inline void LimitingReaderBase::set_max_pos(Position max_pos) {
-  max_pos_ = max_pos;
-  if (ABSL_PREDICT_FALSE(limit_pos() > max_pos_)) {
-    if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
-      set_buffer(cursor());
-      set_limit_pos(max_pos_);
-      return;
-    }
-    set_buffer(start(),
-               start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
-               start_to_cursor());
-    set_limit_pos(max_pos_);
-  }
-}
-
-inline void LimitingReaderBase::set_max_length(Position max_length) {
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - pos())) {
-    max_pos_ = std::numeric_limits<Position>::max();
-    if (exact_) FailLengthOverflow(max_length);
-    return;
-  }
-  max_pos_ = pos() + max_length;
-  if (limit_pos() > max_pos_) {
-    set_buffer(start(),
-               start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
-               start_to_cursor());
-    set_limit_pos(max_pos_);
-  }
 }
 
 inline Position LimitingReaderBase::max_length() const {
@@ -575,7 +509,7 @@ inline void LimitingReaderBase::MakeBuffer(Reader& src) {
   set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());
   set_limit_pos(src.limit_pos());
   if (ABSL_PREDICT_FALSE(limit_pos() > max_pos_)) {
-    if (ABSL_PREDICT_FALSE(pos() > max_pos_)) {
+    if (pos() > max_pos_) {
       set_buffer(cursor());
     } else {
       set_buffer(start(),
@@ -585,11 +519,6 @@ inline void LimitingReaderBase::MakeBuffer(Reader& src) {
     set_limit_pos(max_pos_);
   }
   if (ABSL_PREDICT_FALSE(!src.ok())) FailWithoutAnnotation(src.status());
-}
-
-inline bool LimitingReaderBase::CheckEnough() {
-  if (ABSL_PREDICT_FALSE(exact_)) return FailNotEnough();
-  return false;
 }
 
 template <typename Src>
@@ -617,7 +546,7 @@ inline LimitingReader<Src>::LimitingReader(Initializer<Src> src,
                                            Options options)
     : LimitingReaderBase(options.exact(), options.fail_if_longer()),
       src_(std::move(src)) {
-  Initialize(src_.get(), std::move(options));
+  Initialize(src_.get(), options);
 }
 
 template <typename Src>
@@ -630,7 +559,7 @@ template <typename Src>
 inline void LimitingReader<Src>::Reset(Initializer<Src> src, Options options) {
   LimitingReaderBase::Reset(options.exact(), options.fail_if_longer());
   src_.Reset(std::move(src));
-  Initialize(src_.get(), std::move(options));
+  Initialize(src_.get(), options);
 }
 
 template <typename Src>
@@ -653,58 +582,6 @@ bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
   }
   MakeBuffer(*src_);
   return sync_ok;
-}
-
-inline ScopedLimiter::ScopedLimiter(
-    LimitingReaderBase* reader ABSL_ATTRIBUTE_LIFETIME_BOUND, Options options)
-    : reader_(RIEGELI_EVAL_ASSERT_NOTNULL(reader)),
-      old_max_pos_(reader_->max_pos()),
-      old_exact_(reader_->exact()),
-      fail_if_longer_(options.fail_if_longer()) {
-  RIEGELI_ASSERT(options.max_pos() == std::nullopt ||
-                 options.max_length() == std::nullopt)
-      << "Failed precondition of ScopedLimiter: "
-         "Options::max_pos() and Options::max_length() are both set";
-  if (options.max_pos() != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(*options.max_pos() > reader_->max_pos())) {
-      if (options.exact()) reader_->FailNotEnoughEarly(*options.max_pos());
-    } else {
-      reader_->set_max_pos(*options.max_pos());
-    }
-  } else if (options.max_length() != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(*options.max_length() >
-                           std::numeric_limits<Position>::max() -
-                               reader_->pos())) {
-      if (options.exact()) reader_->FailLengthOverflow(*options.max_length());
-    } else {
-      const Position max_pos = reader_->pos() + *options.max_length();
-      if (ABSL_PREDICT_FALSE(max_pos > reader_->max_pos())) {
-        if (options.exact()) reader_->FailNotEnoughEarly(max_pos);
-      } else {
-        reader_->set_max_pos(max_pos);
-      }
-    }
-  } else {
-    RIEGELI_ASSERT(!options.exact())
-        << "Failed precondtion of ScopedLimiter: "
-           "Options::exact() requires Options::max_pos() or "
-           "Options::max_length()";
-  }
-  reader_->set_exact(reader_->exact() || options.exact());
-}
-
-inline ScopedLimiter::~ScopedLimiter() {
-  RIEGELI_ASSERT_GE(old_max_pos_, reader_->max_pos())
-      << "Failed precondtion of ~ScopedLimiter: "
-         "The underlying LimitingReader increased its limit "
-         "while the ScopedLimiter was active";
-  const Position inner_max_pos = reader_->max_pos();
-  reader_->set_max_pos(old_max_pos_);
-  reader_->set_exact(old_exact_);
-  if (fail_if_longer_ && reader_->pos() == inner_max_pos &&
-      ABSL_PREDICT_FALSE(!reader_->Pull())) {
-    reader_->FailPositionLimitExceeded();
-  }
 }
 
 }  // namespace riegeli

@@ -27,7 +27,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -51,12 +50,11 @@ class LimitingBackwardWriterBase : public BackwardWriter {
     //
     // `std::nullopt` means no limit, unless `max_length()` is set.
     //
-    // `max_pos()` and `max_length()` must not be both set.
-    //
     // Default: `std::nullopt`.
     Options& set_max_pos(std::optional<Position> max_pos) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_pos_ = max_pos;
+      max_length_ = std::nullopt;
       return *this;
     }
     Options&& set_max_pos(std::optional<Position> max_pos) &&
@@ -78,12 +76,11 @@ class LimitingBackwardWriterBase : public BackwardWriter {
     //
     // `std::nullopt` means no limit, unless `max_pos()` is set.
     //
-    // `max_pos()` and `max_length()` must not be both set.
-    //
     // Default: `std::nullopt`.
     Options& set_max_length(std::optional<Position> max_length) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       max_length_ = max_length;
+      max_pos_ = std::nullopt;
       return *this;
     }
     Options&& set_max_length(std::optional<Position> max_length) &&
@@ -164,7 +161,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
 
   void Reset(Closed);
   void Reset(bool exact);
-  void Initialize(BackwardWriter* dest, Options&& options, bool is_owning);
+  void Initialize(BackwardWriter* dest, const Options& options, bool is_owning);
   bool exact() const { return exact_; }
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
@@ -305,50 +302,8 @@ inline void LimitingBackwardWriterBase::Reset(Closed) {
 
 inline void LimitingBackwardWriterBase::Reset(bool exact) {
   BackwardWriter::Reset();
-  // `max_pos_` will be set by `Initialize()`.
+  max_pos_ = std::numeric_limits<Position>::max();
   exact_ = exact;
-}
-
-inline void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
-                                                   Options&& options,
-                                                   bool is_owning) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
-      << "Failed precondition of LimitingBackwardWriter: "
-         "null BackwardWriter pointer";
-  RIEGELI_ASSERT(options.max_pos() == std::nullopt ||
-                 options.max_length() == std::nullopt)
-      << "Failed precondition of LimitingBackwardWriter: "
-         "Options::max_pos() and Options::max_length() are both set";
-  if (is_owning && exact()) {
-    if (options.max_pos() != std::nullopt) {
-      dest->SetWriteSizeHint(SaturatingSub(*options.max_pos(), dest->pos()));
-    } else if (options.max_length() != std::nullopt) {
-      dest->SetWriteSizeHint(options.max_length());
-    }
-  }
-  MakeBuffer(*dest);
-  if (options.max_pos() != std::nullopt) {
-    set_max_pos(*options.max_pos());
-  } else if (options.max_length() != std::nullopt) {
-    set_max_length(*options.max_length());
-  } else {
-    clear_limit();
-  }
-}
-
-inline void LimitingBackwardWriterBase::set_max_pos(Position max_pos) {
-  max_pos_ = max_pos;
-  if (ABSL_PREDICT_FALSE(pos() > max_pos_)) FailLimitExceeded();
-}
-
-inline void LimitingBackwardWriterBase::set_max_length(Position max_length) {
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - pos())) {
-    max_pos_ = std::numeric_limits<Position>::max();
-    if (exact_) FailLengthOverflow(max_length);
-    return;
-  }
-  max_pos_ = pos() + max_length;
 }
 
 inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
@@ -363,6 +318,11 @@ inline bool LimitingBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
 inline void LimitingBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
   set_buffer(dest.limit(), dest.start_to_limit(), dest.start_to_cursor());
   set_start_pos(dest.start_pos());
+  if (ABSL_PREDICT_FALSE(start_pos() > max_pos_)) {
+    set_buffer(cursor());
+    set_start_pos(max_pos_);
+    FailLimitExceeded();
+  }
   if (ABSL_PREDICT_FALSE(!dest.ok())) FailWithoutAnnotation(dest.status());
 }
 
@@ -394,7 +354,7 @@ template <typename Dest>
 inline LimitingBackwardWriter<Dest>::LimitingBackwardWriter(
     Initializer<Dest> dest, Options options)
     : LimitingBackwardWriterBase(options.exact()), dest_(std::move(dest)) {
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
+  Initialize(dest_.get(), options, dest_.IsOwning());
 }
 
 template <typename Dest>
@@ -408,7 +368,7 @@ inline void LimitingBackwardWriter<Dest>::Reset(Initializer<Dest> dest,
                                                 Options options) {
   LimitingBackwardWriterBase::Reset(options.exact());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), std::move(options), dest_.IsOwning());
+  Initialize(dest_.get(), options, dest_.IsOwning());
 }
 
 template <typename Dest>

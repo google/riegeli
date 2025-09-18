@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -35,6 +36,46 @@
 #include "riegeli/bytes/writer.h"
 
 namespace riegeli {
+
+void LimitingWriterBase::Initialize(Writer* dest, const Options& options,
+                                    bool is_owning) {
+  RIEGELI_ASSERT_NE(dest, nullptr)
+      << "Failed precondition of LimitingWriter: null Writer pointer";
+  if (is_owning && exact()) {
+    if (options.max_pos() != std::nullopt) {
+      dest->SetWriteSizeHint(SaturatingSub(*options.max_pos(), dest->pos()));
+    } else if (options.max_length() != std::nullopt) {
+      dest->SetWriteSizeHint(*options.max_length());
+    }
+  }
+  set_buffer(dest->start(), dest->start_to_limit(), dest->start_to_cursor());
+  set_start_pos(dest->start_pos());
+  if (ABSL_PREDICT_FALSE(!dest->ok())) FailWithoutAnnotation(dest->status());
+  if (options.max_pos() != std::nullopt) {
+    set_max_pos(*options.max_pos());
+  } else if (options.max_length() != std::nullopt) {
+    set_max_length(*options.max_length());
+  }
+}
+
+void LimitingWriterBase::set_max_pos(Position max_pos) {
+  max_pos_ = max_pos;
+  if (ABSL_PREDICT_FALSE(start_pos() > max_pos_)) {
+    set_buffer(cursor());
+    set_start_pos(max_pos_);
+    FailLimitExceeded();
+  }
+}
+
+void LimitingWriterBase::set_max_length(Position max_length) {
+  if (ABSL_PREDICT_FALSE(max_length >
+                         std::numeric_limits<Position>::max() - pos())) {
+    if (exact_) FailLengthOverflow(max_length);
+    max_pos_ = std::numeric_limits<Position>::max();
+    return;
+  }
+  set_max_pos(pos() + max_length);
+}
 
 void LimitingWriterBase::Done() {
   Writer& dest = *DestWriter();
@@ -62,7 +103,7 @@ bool LimitingWriterBase::FailLimitExceeded(Writer& dest) {
       absl::ResourceExhaustedError("Position limit exceeded")));
 }
 
-void LimitingWriterBase::FailLengthOverflow(Position max_length) {
+inline void LimitingWriterBase::FailLengthOverflow(Position max_length) {
   Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected ", pos(), " + ", max_length,
                    " which overflows the Writer position")));
