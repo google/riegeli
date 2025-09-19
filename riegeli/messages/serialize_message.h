@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -69,22 +70,25 @@ class SerializeMessageOptions {
   // does not change in inappropriate ways and there are no unknown fields)
   // but serialization can be slower.
   //
+  // `std::nullopt` is equivalent to
+  // `google::protobuf::io::CodedOutputStream::IsDefaultSerializationDeterministic()`.
+  //
   // This matches
   // `google::protobuf::io::CodedOutputStream::SetSerializationDeterministic()`.
   //
-  // Default:
-  // `google::protobuf::io::CodedOutputStream::IsDefaultSerializationDeterministic()`
-  // (usually `false`).
-  SerializeMessageOptions& set_deterministic(bool deterministic) &
+  // Default: `std::nullopt`.
+  SerializeMessageOptions& set_deterministic(
+      std::optional<bool> deterministic) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     deterministic_ = deterministic;
     return *this;
   }
-  SerializeMessageOptions&& set_deterministic(bool deterministic) &&
+  SerializeMessageOptions&& set_deterministic(
+      std::optional<bool> deterministic) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_deterministic(deterministic));
   }
-  bool deterministic() const { return deterministic_; }
+  std::optional<bool> deterministic() const { return deterministic_; }
 
   // If `true`, promises that `ByteSizeLong()` has been called on the message
   // being serialized after its last modification, and that its result does not
@@ -116,8 +120,7 @@ class SerializeMessageOptions {
 
  private:
   bool partial_ = false;
-  bool deterministic_ = google::protobuf::io::CodedOutputStream::
-      IsDefaultSerializationDeterministic();
+  std::optional<bool> deterministic_;
   bool has_cached_size_ = false;
 };
 

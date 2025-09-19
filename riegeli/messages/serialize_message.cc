@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -67,11 +68,13 @@ ABSL_ATTRIBUTE_COLD inline absl::Status FailSizeOverflow(
 }
 
 inline absl::Status SerializeMessageUsingStream(
-    const google::protobuf::MessageLite& src, Writer& dest, bool deterministic,
-    size_t size) {
+    const google::protobuf::MessageLite& src, Writer& dest,
+    std::optional<bool> deterministic, size_t size) {
   WriterOutputStream output_stream(&dest);
   google::protobuf::io::CodedOutputStream coded_stream(&output_stream);
-  coded_stream.SetSerializationDeterministic(deterministic);
+  if (deterministic != std::nullopt) {
+    coded_stream.SetSerializationDeterministic(*deterministic);
+  }
   src.SerializeWithCachedSizes(&coded_stream);
   RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
       << src.GetTypeName() << " was modified concurrently during serialization";
@@ -90,11 +93,9 @@ inline absl::Status SerializeMessageUsingStream(
 }
 
 inline absl::Status SerializeMessageHavingSize(
-    const google::protobuf::MessageLite& src, Writer& dest, bool deterministic,
-    size_t size) {
-  if (size <= kMaxBytesToCopy &&
-      deterministic == google::protobuf::io::CodedOutputStream::
-                           IsDefaultSerializationDeterministic()) {
+    const google::protobuf::MessageLite& src, Writer& dest,
+    std::optional<bool> deterministic, size_t size) {
+  if (size <= kMaxBytesToCopy && deterministic == std::nullopt) {
     // The data are small, so making a flat output is harmless.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
@@ -118,10 +119,8 @@ inline absl::Status SerializeMessageHavingSize(
 
 inline absl::Status SerializeMessageHavingSize(
     const google::protobuf::MessageLite& src, BackwardWriter& dest,
-    bool deterministic, size_t size) {
-  if (size <= kMaxBytesToCopy &&
-      deterministic == google::protobuf::io::CodedOutputStream::
-                           IsDefaultSerializationDeterministic()) {
+    std::optional<bool> deterministic, size_t size) {
+  if (size <= kMaxBytesToCopy && deterministic == std::nullopt) {
     // The data are small, so making a flat output is harmless.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
@@ -224,8 +223,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   }
   dest.clear();
   ResizeStringAmortized(dest, size);
-  if (options.deterministic() == google::protobuf::io::CodedOutputStream::
-                                     IsDefaultSerializationDeterministic()) {
+  if (options.deterministic() == std::nullopt) {
     // Creating a string, which is necessarily flat.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
@@ -264,8 +262,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     return FailSizeOverflow(src, size);
   }
   char* const data = dest.resize(size, 0);
-  if (options.deterministic() == google::protobuf::io::CodedOutputStream::
-                                     IsDefaultSerializationDeterministic()) {
+  if (options.deterministic() == std::nullopt) {
     // Creating a string, which is necessarily flat.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
@@ -301,9 +298,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                          uint32_t{std::numeric_limits<int32_t>::max()})) {
     return FailSizeOverflow(src, size);
   }
-  if (size <= kMaxBytesToCopy &&
-      options.deterministic() == google::protobuf::io::CodedOutputStream::
-                                     IsDefaultSerializationDeterministic()) {
+  if (size <= kMaxBytesToCopy && options.deterministic() == std::nullopt) {
     // The data are small, so making a flat output is harmless.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
@@ -344,9 +339,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                          uint32_t{std::numeric_limits<int32_t>::max()})) {
     return FailSizeOverflow(src, size);
   }
-  if (size <= kMaxBytesToCopy &&
-      options.deterministic() == google::protobuf::io::CodedOutputStream::
-                                     IsDefaultSerializationDeterministic()) {
+  if (size <= kMaxBytesToCopy && options.deterministic() == std::nullopt) {
     // The data are small, so making a flat output is harmless.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
