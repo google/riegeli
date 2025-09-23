@@ -44,10 +44,10 @@ class NullWriter : public Writer {
    public:
     Options() noexcept {}
 
-    // `NullWriter` has a smaller default buffer size (256) so that writing
+    // `NullWriter` has a smaller default buffer size (1024) so that writing
     // larger values is skipped altogether.
-    static constexpr size_t kDefaultMinBufferSize = kMaxBytesToCopy + 1;
-    static constexpr size_t kDefaultMaxBufferSize = kMaxBytesToCopy + 1;
+    static constexpr size_t kDefaultMinBufferSize = 1 << 10;
+    static constexpr size_t kDefaultMaxBufferSize = 1 << 10;
   };
 
   // Creates a closed `NullWriter`.
