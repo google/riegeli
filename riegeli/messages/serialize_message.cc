@@ -346,6 +346,8 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     absl::CordBuffer buffer = dest.GetAppendBuffer(0, 0);
     dest.Clear();
     if (buffer.capacity() < size) {
+      static_assert(kMaxBytesToCopy <= absl::CordBuffer::kDefaultLimit,
+                    "Guarantees that buffer.capacity() will be at least size");
       buffer = absl::CordBuffer::CreateWithDefaultLimit(size);
     }
     buffer.SetLength(size);

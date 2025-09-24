@@ -38,7 +38,7 @@ inline constexpr size_t kDefaultMaxBlockSize = size_t{64} << 10;
 // Copying can often be done in an inlined fast path. Sharing has more overhead,
 // especially in a virtual slow path, so copying sufficiently short lengths
 // performs better.
-inline constexpr size_t kMaxBytesToCopy = 255;
+inline constexpr size_t kMaxBytesToCopy = 511;
 
 // Recommends the length of a buffer by modifying the base recommendation.
 //
