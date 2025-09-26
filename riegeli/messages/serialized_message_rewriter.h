@@ -131,7 +131,8 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
 // Parameters of the actions are as follows (optional parameters are passed
 // if the action is invocable with them):
 //  * parameters specific to the action type
-//  * `LimitingReaderBase& src` or `Reader& src` (optional)
+//  * `LimitingReaderBase& src` or `Reader& src`
+//     (optional; required in `OnLengthUnchecked()`)
 //  * `SerializedMessageWriter& dest` (optional)
 //  * `Context& context` (optional; always absent if `Context` is `void`)
 
@@ -343,6 +344,29 @@ class SerializedMessageRewriter {
                     Context, Action>::value,
                 int> = 0>
   void OnLengthDelimited(absl::Span<const int> field_path, Action action);
+
+  // Sets the action to be performed when encountering a length-delimited field
+  // identified by `field_path` of field numbers from the root through
+  // submessages.
+  //
+  // `action` is invoked with `length`, `src` from which the value will be read,
+  // and `dest` positioned between fields. The first `length` bytes of `src`
+  // will contain the field contents. `action` must read exactly `length` bytes
+  // from `src`, unless it fails. This is unchecked.
+  //
+  // The field will not be implicitly copied. `action` can write replacement
+  // fields to `dest`, or do nothing to remove the field.
+  //
+  // `OnLengthUnchecked()` is more efficient than `OnLengthDelimited()`.
+  //
+  // Precondition: `!field_path.empty()`
+  template <
+      typename Action,
+      std::enable_if_t<
+          serialized_message_internal::IsActionWithRequiredSrcAndOptionalDest<
+              Context, Action, size_t>::value,
+          int> = 0>
+  void OnLengthUnchecked(absl::Span<const int> field_path, Action action);
 
   // Sets the action to be performed when encountering a submessage field
   // identified by `field_path` of field numbers from the root through
@@ -916,12 +940,13 @@ template <typename MessageType, typename Action,
 inline void SerializedMessageRewriter<Context>::OnParsedMessage(
     absl::Span<const int> field_path, Action action,
     ParseMessageOptions parse_options) {
-  message_reader_.OnLengthDelimited(
+  message_reader_.OnLengthUnchecked(
       field_path, [action = std::move(action), parse_options](
-                      LimitingReaderBase& src, MessageReaderContext& context) {
+                      size_t length, LimitingReaderBase& src,
+                      MessageReaderContext& context) {
         MessageType message;
-        if (absl::Status status =
-                riegeli::ParseMessage(src, message, parse_options);
+        if (absl::Status status = riegeli::ParseMessageWithLength(
+                src, length, message, parse_options);
             ABSL_PREDICT_FALSE(!status.ok())) {
           return status;
         }
@@ -954,6 +979,29 @@ inline void SerializedMessageRewriter<Context>::OnLengthDelimited(
         return serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
             src, context.message_writer(), context.message_rewriter_context(),
             action);
+      });
+}
+
+template <typename Context>
+template <
+    typename Action,
+    std::enable_if_t<
+        serialized_message_internal::IsActionWithRequiredSrcAndOptionalDest<
+            Context, Action, size_t>::value,
+        int>>
+inline void SerializedMessageRewriter<Context>::OnLengthUnchecked(
+    absl::Span<const int> field_path, Action action) {
+  message_reader_.OnLengthUnchecked(
+      field_path,
+      [action = std::move(action)](size_t length, LimitingReaderBase& src,
+                                   MessageReaderContext& context) {
+        if (absl::Status status = context.CommitUnchanged(src, length);
+            ABSL_PREDICT_FALSE(!status.ok())) {
+          return status;
+        }
+        return serialized_message_internal::InvokeActionWithSrcAndDest<Context>(
+            src, context.message_writer(), context.message_rewriter_context(),
+            action, length);
       });
 }
 

@@ -85,7 +85,8 @@ void LimitingBackwardWriterBase::Done() {
     // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the
     // buffer again.
     FailWithoutAnnotation(dest.AnnotateStatus(absl::InvalidArgumentError(
-        absl::StrCat("Not enough data: expected ", max_pos_))));
+        absl::StrCat("Not enough data: expected ", max_pos(), " or ",
+                     max_length(), " more"))));
   }
   BackwardWriter::Done();
 }
@@ -106,9 +107,9 @@ bool LimitingBackwardWriterBase::FailLimitExceeded(BackwardWriter& dest) {
 
 inline void LimitingBackwardWriterBase::FailLengthOverflow(
     Position max_length) {
-  Fail(absl::InvalidArgumentError(
-      absl::StrCat("Not enough data: expected ", pos(), " + ", max_length,
-                   " which overflows the BackwardWriter position")));
+  Fail(absl::InvalidArgumentError(absl::StrCat(
+      "Not enough data: expected ", max_length,
+      " more, which overflows the BackwardWriter position range")));
 }
 
 absl::Status LimitingBackwardWriterBase::AnnotateStatusImpl(

@@ -103,19 +103,35 @@ inline bool LimitingReaderBase::CheckEnough() {
 
 inline bool LimitingReaderBase::FailNotEnough() {
   return Fail(absl::InvalidArgumentError(
-      absl::StrCat("Not enough data: expected at least ", max_pos_)));
+      max_pos() == std::numeric_limits<Position>::max()
+          ? "Not enough data: expected impossibly much"
+          : absl::StrCat("Not enough data: expected at least ", max_pos(),
+                         " or ", max_length(), " more")));
 }
 
-inline void LimitingReaderBase::FailNotEnoughEarly(Position expected) {
+inline void LimitingReaderBase::FailNotEnoughAtPos(Position expected_pos) {
   Fail(absl::InvalidArgumentError(
-      absl::StrCat("Not enough data: expected at least ", expected,
-                   ", will have at most ", max_pos_)));
+      absl::StrCat("Not enough data: expected at least ", expected_pos,
+                   ", will have at most ", max_pos())));
+}
+
+inline void LimitingReaderBase::FailNotEnoughAtLength(
+    Position expected_length) {
+  Fail(absl::InvalidArgumentError(
+      absl::StrCat("Not enough data: expected at least ", expected_length,
+                   " more, will have at most ", max_length(), " more")));
+}
+
+inline void LimitingReaderBase::FailNotEnoughAtEnd() {
+  Fail(absl::InvalidArgumentError(absl::StrCat(
+      "Not enough data: expected impossibly much, will have at most ",
+      max_pos())));
 }
 
 inline void LimitingReaderBase::FailLengthOverflow(Position max_length) {
   Fail(absl::InvalidArgumentError(
-      absl::StrCat("Not enough data: expected at least ", pos(), " + ",
-                   max_length, " which overflows the Reader position")));
+      absl::StrCat("Not enough data: expected at least ", max_length,
+                   " more, which overflows the Reader position range")));
 }
 
 inline void LimitingReaderBase::FailPositionLimitExceeded() {
@@ -376,27 +392,21 @@ ScopedLimiter::ScopedLimiter(
       fail_if_longer_(options.fail_if_longer()) {
   if (options.max_pos() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(*options.max_pos() > reader_->max_pos())) {
-      if (options.exact()) reader_->FailNotEnoughEarly(*options.max_pos());
+      if (options.exact()) reader_->FailNotEnoughAtPos(*options.max_pos());
     } else {
       reader_->set_max_pos(*options.max_pos());
     }
   } else if (options.max_length() != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(*options.max_length() >
-                           std::numeric_limits<Position>::max() -
-                               reader_->pos())) {
-      if (options.exact()) reader_->FailLengthOverflow(*options.max_length());
+    if (ABSL_PREDICT_FALSE(*options.max_length() > reader_->max_length())) {
+      if (options.exact())
+        reader_->FailNotEnoughAtLength(*options.max_length());
     } else {
-      const Position max_pos = reader_->pos() + *options.max_length();
-      if (ABSL_PREDICT_FALSE(max_pos > reader_->max_pos())) {
-        if (options.exact()) reader_->FailNotEnoughEarly(max_pos);
-      } else {
-        reader_->set_max_pos(max_pos);
-      }
+      reader_->set_max_length(*options.max_length());
     }
   } else if (ABSL_PREDICT_FALSE(reader_->max_pos() <
                                     std::numeric_limits<Position>::max() &&
                                 options.exact())) {
-    reader_->FailNotEnoughEarly(std::numeric_limits<Position>::max());
+    reader_->FailNotEnoughAtPos(std::numeric_limits<Position>::max());
   }
   reader_->exact_ |= options.exact();
 }

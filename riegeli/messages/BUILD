@@ -174,7 +174,6 @@ cc_library(
         ":message_wire_format",
         ":parse_message",
         "//riegeli/base:any",
-        "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:global",

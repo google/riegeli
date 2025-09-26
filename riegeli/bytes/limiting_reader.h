@@ -254,13 +254,16 @@ class LimitingReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
-  // For `FailNotEnoughEarly()`, `FailLengthOverflow()`, and
+  // For `FailNotEnoughAtPos()`, `FailNotEnoughAtLength()`,
+  // `FailNotEnoughAtEnd()`, `FailLengthOverflow()`, and
   // `FailPositionLimitExceeded()`.
   friend class ScopedLimiter;
 
   bool CheckEnough();
   ABSL_ATTRIBUTE_COLD bool FailNotEnough();
-  ABSL_ATTRIBUTE_COLD void FailNotEnoughEarly(Position expected);
+  ABSL_ATTRIBUTE_COLD void FailNotEnoughAtPos(Position expected_pos);
+  ABSL_ATTRIBUTE_COLD void FailNotEnoughAtLength(Position expected_length);
+  ABSL_ATTRIBUTE_COLD void FailNotEnoughAtEnd();
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
   ABSL_ATTRIBUTE_COLD void FailPositionLimitExceeded();
 

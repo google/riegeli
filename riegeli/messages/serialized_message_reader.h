@@ -118,6 +118,11 @@ class SerializedMessageReaderBase {
                          std::function<absl::Status(LimitingReaderBase& src,
                                                     TypeErasedRef context)>
                              action);
+  void OnLengthUnchecked(
+      absl::Span<const int> field_path,
+      std::function<absl::Status(size_t length, LimitingReaderBase& src,
+                                 TypeErasedRef context)>
+          action);
   void BeforeMessage(absl::Span<const int> field_path,
                      std::function<absl::Status(LimitingReaderBase& src,
                                                 TypeErasedRef context)>
@@ -226,7 +231,7 @@ class SerializedMessageReaderBase {
 // if the action is invocable with them):
 //  * parameters specific to the action type
 //  * `LimitingReaderBase& src` or `Reader& src`
-//    (optional; required in `OnOther()`)
+//    (optional; required in `OnLengthUnchecked()` and `OnOther()`)
 //  * `Context& context` (optional; always absent if `Context` is `void`)
 //
 // An action returns `absl::Status`, non-OK causing an early exit.
@@ -428,6 +433,24 @@ class SerializedMessageReader : public SerializedMessageReaderBase {
                            Context, Action>::value,
                        int> = 0>
   void OnLengthDelimited(absl::Span<const int> field_path, Action action);
+
+  // Sets the action to be performed when encountering a length-delimited field
+  // identified by `field_path` of field numbers from the root through
+  // submessages.
+  //
+  // `action` is invoked with `length`, and `src` from which the value will be
+  // read. The first `length` bytes of `src` will contain the field contents.
+  // `action` must read exactly `length` bytes from `src`, unless it fails.
+  // This is unchecked.
+  //
+  // `OnLengthUnchecked()` is more efficient than `OnLengthDelimited()`.
+  //
+  // Precondition: `!field_path.empty()`
+  template <typename Action,
+            std::enable_if_t<serialized_message_internal::IsActionWithSrc<
+                                 Context, Action, size_t>::value,
+                             int> = 0>
+  void OnLengthUnchecked(absl::Span<const int> field_path, Action action);
 
   // Sets the action to be performed when encountering a submessage field
   // identified by `field_path` of field numbers from the root through
@@ -879,12 +902,13 @@ template <typename MessageType, typename Action,
 inline void SerializedMessageReader<Context>::OnParsedMessage(
     absl::Span<const int> field_path, Action action,
     ParseMessageOptions parse_options) {
-  SerializedMessageReaderBase::OnLengthDelimited(
-      field_path, [action = std::move(action), parse_options](
-                      LimitingReaderBase& src, TypeErasedRef context) {
+  SerializedMessageReaderBase::OnLengthUnchecked(
+      field_path,
+      [action = std::move(action), parse_options](
+          size_t length, LimitingReaderBase& src, TypeErasedRef context) {
         MessageType message;
-        if (absl::Status status =
-                riegeli::ParseMessage(src, message, parse_options);
+        if (absl::Status status = riegeli::ParseMessageWithLength(
+                src, length, message, parse_options);
             ABSL_PREDICT_FALSE(!status.ok())) {
           return status;
         }
@@ -905,6 +929,22 @@ inline void SerializedMessageReader<Context>::OnLengthDelimited(
                                                TypeErasedRef context) {
         return serialized_message_internal::InvokeActionWithSrc<Context>(
             src, context, action);
+      });
+}
+
+template <typename Context>
+template <typename Action,
+          std::enable_if_t<serialized_message_internal::IsActionWithSrc<
+                               Context, Action, size_t>::value,
+                           int>>
+inline void SerializedMessageReader<Context>::OnLengthUnchecked(
+    absl::Span<const int> field_path, Action action) {
+  SerializedMessageReaderBase::OnLengthUnchecked(
+      field_path,
+      [action = std::move(action)](size_t length, LimitingReaderBase& src,
+                                   TypeErasedRef context) {
+        return serialized_message_internal::InvokeActionWithSrc<Context>(
+            src, context, action, length);
       });
 }
 

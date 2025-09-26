@@ -84,7 +84,8 @@ void LimitingWriterBase::Done() {
     // Do not call `Fail()` because `AnnotateStatusImpl()` synchronizes the
     // buffer again.
     FailWithoutAnnotation(dest.AnnotateStatus(absl::InvalidArgumentError(
-        absl::StrCat("Not enough data: expected ", max_pos_))));
+        absl::StrCat("Not enough data: expected ", max_pos(), " or ",
+                     max_length(), " more"))));
   }
   Writer::Done();
 }
@@ -105,8 +106,8 @@ bool LimitingWriterBase::FailLimitExceeded(Writer& dest) {
 
 inline void LimitingWriterBase::FailLengthOverflow(Position max_length) {
   Fail(absl::InvalidArgumentError(
-      absl::StrCat("Not enough data: expected ", pos(), " + ", max_length,
-                   " which overflows the Writer position")));
+      absl::StrCat("Not enough data: expected ", max_length,
+                   "more, which overflows the Writer position range")));
 }
 
 absl::Status LimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
