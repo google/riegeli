@@ -100,7 +100,6 @@ void SetRecordType(const google::protobuf::Descriptor& descriptor,
 
 absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   std::string compressor_text;
-  uint64_t chunk_size;
   OptionsParser options_parser;
   options_parser.AddOption("default", ValueParser::FailIfAnySeen());
   options_parser.AddOption(
@@ -115,6 +114,7 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
   options_parser.AddOption("window_log", ValueParser::CopyTo(&compressor_text));
   options_parser.AddOption("brotli_encoder",
                            ValueParser::CopyTo(&compressor_text));
+  uint64_t chunk_size;
   options_parser.AddOption(
       "chunk_size",
       ValueParser::Or(
@@ -122,19 +122,58 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
           ValueParser::And(
               ValueParser::Bytes(1, std::numeric_limits<uint64_t>::max(),
                                  &chunk_size),
-              [this, &chunk_size](ValueParser& value_parser) {
+              [this, &chunk_size](ValueParser&) {
                 chunk_size_ = chunk_size;
                 return true;
               })));
   options_parser.AddOption("bucket_fraction",
                            ValueParser::Real(0.0, 1.0, &bucket_fraction_));
+  uint64_t padding;
+  options_parser.AddOption(
+      "padding",
+      ValueParser::And(
+          ValueParser::Or(
+              ValueParser::Empty(uint64_t{kImplicitPadding}, &padding),
+              ValueParser::Bytes(1, std::numeric_limits<uint64_t>::max(),
+                                 &padding)),
+          [this, &padding](ValueParser&) {
+            set_padding(padding);
+            return true;
+          }));
+  options_parser.AddOption(
+      "initial_padding",
+      ValueParser::And(
+          ValueParser::Or(
+              ValueParser::Empty(uint64_t{kImplicitPadding}, &padding),
+              ValueParser::Bytes(1, std::numeric_limits<uint64_t>::max(),
+                                 &padding)),
+          [this, &padding](ValueParser&) {
+            set_initial_padding(padding);
+            return true;
+          }));
+  options_parser.AddOption(
+      "final_padding",
+      ValueParser::And(
+          ValueParser::Or(
+              ValueParser::Empty(uint64_t{kImplicitPadding}, &padding),
+              ValueParser::Bytes(1, std::numeric_limits<uint64_t>::max(),
+                                 &padding)),
+          [this, &padding](ValueParser&) {
+            set_final_padding(padding);
+            return true;
+          }));
+  Padding pad_to_block_boundary;
   options_parser.AddOption(
       "pad_to_block_boundary",
-      ValueParser::Enum({{"", Padding::kTrue},
-                         {"true", Padding::kTrue},
-                         {"false", Padding::kFalse},
-                         {"initially", Padding::kInitially}},
-                        &pad_to_block_boundary_));
+      ValueParser::And(ValueParser::Enum({{"", Padding::kTrue},
+                                          {"true", Padding::kTrue},
+                                          {"false", Padding::kFalse},
+                                          {"initially", Padding::kInitially}},
+                                         &pad_to_block_boundary),
+                       [this, &pad_to_block_boundary](ValueParser&) {
+                         TranslatePadding(pad_to_block_boundary);
+                         return true;
+                       }));
   options_parser.AddOption(
       "parallelism",
       ValueParser::Int(0, std::numeric_limits<int>::max(), &parallelism_));
@@ -170,7 +209,7 @@ class RecordWriterBase::Worker {
   // If the result is `false` then `!ok()`.
   virtual bool CloseChunk() = 0;
 
-  bool MaybePadToBlockBoundary();
+  bool MaybePadToFinalBoundary();
 
   // Precondition: chunk is not open.
   virtual bool Flush(FlushType flush_type) = 0;
@@ -194,7 +233,7 @@ class RecordWriterBase::Worker {
 
   virtual bool WriteSignature() = 0;
   virtual bool WriteMetadata() = 0;
-  virtual bool PadToBlockBoundary() = 0;
+  virtual bool WritePadding(Position padding) = 0;
 
   std::unique_ptr<ChunkEncoder> MakeChunkEncoder();
   void EncodeSignature(Chunk& chunk);
@@ -237,17 +276,13 @@ inline void RecordWriterBase::Worker::Initialize(Position initial_pos) {
   if (initial_pos == 0) {
     if (ABSL_PREDICT_FALSE(!WriteSignature())) return;
     if (ABSL_PREDICT_FALSE(!WriteMetadata())) return;
-  } else if (options_.pad_to_block_boundary() != Padding::kFalse) {
-    PadToBlockBoundary();
+  } else {
+    WritePadding(options_.initial_padding());
   }
 }
 
-inline bool RecordWriterBase::Worker::MaybePadToBlockBoundary() {
-  if (options_.pad_to_block_boundary() == Padding::kTrue) {
-    return PadToBlockBoundary();
-  } else {
-    return true;
-  }
+inline bool RecordWriterBase::Worker::MaybePadToFinalBoundary() {
+  return WritePadding(options_.final_padding());
 }
 
 inline std::unique_ptr<ChunkEncoder>
@@ -377,7 +412,7 @@ class RecordWriterBase::SerialWorker : public Worker {
 
   bool WriteSignature() override;
   bool WriteMetadata() override;
-  bool PadToBlockBoundary() override;
+  bool WritePadding(Position padding) override;
 };
 
 inline RecordWriterBase::SerialWorker::SerialWorker(ChunkWriter* chunk_writer,
@@ -436,9 +471,9 @@ bool RecordWriterBase::SerialWorker::CloseChunk() {
   return true;
 }
 
-bool RecordWriterBase::SerialWorker::PadToBlockBoundary() {
+bool RecordWriterBase::SerialWorker::WritePadding(Position padding) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(!chunk_writer_->PadToBlockBoundary())) {
+  if (ABSL_PREDICT_FALSE(!chunk_writer_->WritePadding(padding))) {
     return FailWithoutAnnotation(chunk_writer_->status());
   }
   return true;
@@ -502,7 +537,7 @@ class RecordWriterBase::ParallelWorker : public Worker {
 
   bool WriteSignature() override;
   bool WriteMetadata() override;
-  bool PadToBlockBoundary() override;
+  bool WritePadding(Position padding) override;
 
  private:
   struct ChunkPromises {
@@ -522,14 +557,16 @@ class RecordWriterBase::ParallelWorker : public Worker {
     std::shared_future<ChunkHeader> chunk_header;
     std::future<Chunk> chunk;
   };
-  struct PadToBlockBoundaryRequest {};
+  struct WritePaddingRequest {
+    Position padding;
+  };
   struct FlushRequest {
     FlushType flush_type;
     std::promise<absl::Status> done;
   };
   using ChunkWriterRequest =
       std::variant<DoneRequest, AnnotateStatusRequest, WriteChunkRequest,
-                   PadToBlockBoundaryRequest, FlushRequest>;
+                   WritePaddingRequest, FlushRequest>;
 
   bool HasCapacityForRequest() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   records_internal::FutureChunkBegin ChunkBegin() const;
@@ -569,9 +606,10 @@ inline RecordWriterBase::ParallelWorker::ParallelWorker(
         return true;
       }
 
-      bool operator()(PadToBlockBoundaryRequest& request) const {
+      bool operator()(WritePaddingRequest& request) const {
         if (ABSL_PREDICT_FALSE(!self->ok())) return true;
-        if (ABSL_PREDICT_FALSE(!self->chunk_writer_->PadToBlockBoundary())) {
+        if (ABSL_PREDICT_FALSE(
+                !self->chunk_writer_->WritePadding(request.padding))) {
           self->FailWithoutAnnotation(self->chunk_writer_->status());
         }
         return true;
@@ -725,12 +763,12 @@ bool RecordWriterBase::ParallelWorker::CloseChunk() {
   return true;
 }
 
-bool RecordWriterBase::ParallelWorker::PadToBlockBoundary() {
+bool RecordWriterBase::ParallelWorker::WritePadding(Position padding) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   {
     absl::MutexLock lock(
         mutex_, absl::Condition(this, &ParallelWorker::HasCapacityForRequest));
-    chunk_writer_requests_.emplace_back(PadToBlockBoundaryRequest());
+    chunk_writer_requests_.emplace_back(WritePaddingRequest{padding});
   }
   return true;
 }
@@ -760,9 +798,9 @@ RecordWriterBase::ParallelWorker::ChunkBegin() const {
     void operator()(const WriteChunkRequest& request) {
       actions.emplace_back(request.chunk_header);
     }
-    void operator()(const PadToBlockBoundaryRequest&) {
+    void operator()(const WritePaddingRequest& request) {
       actions.emplace_back(
-          records_internal::FutureChunkBegin::PadToBlockBoundary());
+          records_internal::FutureChunkBegin::WritePadding{request.padding});
     }
     void operator()(const FlushRequest&) {}
 
@@ -877,7 +915,7 @@ void RecordWriterBase::Done() {
     }
     chunk_size_so_far_ = 0;
   }
-  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
+  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToFinalBoundary())) {
     FailWithoutAnnotation(worker_->status());
   }
   if (ABSL_PREDICT_FALSE(!worker_->Close())) {
@@ -988,7 +1026,7 @@ bool RecordWriterBase::Flush(FlushType flush_type) {
       return FailWithoutAnnotation(worker_->status());
     }
   }
-  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
+  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToFinalBoundary())) {
     return FailWithoutAnnotation(worker_->status());
   }
   if (flush_type != FlushType::kFromObject || IsOwning()) {
@@ -1021,7 +1059,7 @@ RecordWriterBase::FutureStatus RecordWriterBase::FutureFlush(
       return promise.get_future();
     }
   }
-  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToBlockBoundary())) {
+  if (ABSL_PREDICT_FALSE(!worker_->MaybePadToFinalBoundary())) {
     FailWithoutAnnotation(worker_->status());
     std::promise<absl::Status> promise;
     promise.set_value(status());

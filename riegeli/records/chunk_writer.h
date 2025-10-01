@@ -34,6 +34,11 @@
 
 namespace riegeli {
 
+namespace records_internal {
+// Returns the position after `padding` is written after `pos`.
+Position PosAfterPadding(Position pos, Position padding);
+}  // namespace records_internal
+
 class Reader;
 
 // A `ChunkWriter` writes chunks of a Riegeli/records file (rather than
@@ -58,7 +63,15 @@ class ChunkWriter : public Object {
   // Return values:
   //  * `true`  - success (`ok()`)
   //  * `false` - failure (`!ok()`)
+  ABSL_DEPRECATED("Use `WritePadding()` instead.")
   virtual bool PadToBlockBoundary() = 0;
+
+  // Writes padding to reach a position which is a multiple of `padding`.
+  //
+  // Return values:
+  //  * `true`  - success (`ok()`)
+  //  * `false` - failure (`!ok()`)
+  virtual bool WritePadding(Position padding) = 0;
 
   // Pushes buffered data to the destination.
   //
@@ -107,10 +120,6 @@ class ChunkWriter : public Object {
   // Returns the expected position after `WriteChunk()` at the current position.
   Position PosAfterWriteChunk(const ChunkHeader& chunk_header) const;
 
-  // Returns the expected position after `PadToBlockBoundary()` at the current
-  // position.
-  Position PosAfterPadToBlockBoundary() const;
-
  private:
   Position pos_ = 0;
 };
@@ -150,6 +159,7 @@ class DefaultChunkWriterBase : public ChunkWriter {
 
   bool WriteChunk(const Chunk& chunk) override;
   bool PadToBlockBoundary() override;
+  bool WritePadding(Position padding) override;
 
  protected:
   using ChunkWriter::ChunkWriter;
@@ -302,16 +312,6 @@ inline bool ChunkWriter::Flush(FlushType flush_type) {
 inline Position ChunkWriter::PosAfterWriteChunk(
     const ChunkHeader& chunk_header) const {
   return records_internal::ChunkEnd(chunk_header, pos_);
-}
-
-inline Position ChunkWriter::PosAfterPadToBlockBoundary() const {
-  Position length = records_internal::RemainingInBlock(pos_);
-  if (length == 0) return pos_;
-  if (length < ChunkHeader::size()) {
-    // Not enough space for a padding chunk in this block. Write one more block.
-    length += records_internal::kBlockSize;
-  }
-  return pos_ + length;
 }
 
 inline DefaultChunkWriterBase::DefaultChunkWriterBase(

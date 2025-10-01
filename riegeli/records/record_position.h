@@ -132,9 +132,10 @@ namespace records_internal {
 
 class ABSL_ATTRIBUTE_TRIVIAL_ABI FutureChunkBegin {
  public:
-  struct PadToBlockBoundary {};
-  using Action =
-      std::variant<std::shared_future<ChunkHeader>, PadToBlockBoundary>;
+  struct WritePadding {
+    Position padding;
+  };
+  using Action = std::variant<std::shared_future<ChunkHeader>, WritePadding>;
 
   constexpr FutureChunkBegin() = default;
 

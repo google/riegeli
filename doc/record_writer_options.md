@@ -15,7 +15,9 @@ Options for writing Riegeli/records files can be specified as a string:
     "brotli_encoder" ":" ("rbrotli_or_cbrotli" | "cbrotli" | "rbrotli") |
     "chunk_size" ":" chunk_size |
     "bucket_fraction" ":" bucket_fraction |
-    "pad_to_block_boundary" (":" ("true" | "false" | "initially"))? |
+    "padding" (":" padding)? |
+    "initial_padding" (":" padding)? |
+    "final_padding" (":" padding)? |
     "parallelism" ":" parallelism
   brotli_level ::= integer in the range [0..11] (default 6)
   zstd_level ::= integer in the range [-131072..22] (default 3)
@@ -24,6 +26,8 @@ Options for writing Riegeli/records files can be specified as a string:
   chunk_size ::= "auto" or positive integer expressed as real with optional
     suffix [BkKMGTPE]
   bucket_fraction ::= real in the range [0..1]
+  padding ::= positive integer expressed as real with optional suffix [BkKMGTPE]
+    (default 64K)
   parallelism ::= non-negative integer
 ```
 
@@ -63,13 +67,13 @@ compression level which tunes the tradeoff between compression density and
 compression speed (higher = better density but slower).
 
 `zstd_level` must be between -131072 and 22. Level 0 is currently equivalent to
-3. Default: `3`.
+3. Default: 3.
 
 ### `snappy`
 
 Changes compression algorithm to [Snappy](https://google.github.io/snappy/).
 
-`snappy_level` must be between 1 and 2. Default: `1`.
+`snappy_level` must be between 1 and 2. Default: 1.
 
 ## `window_log`
 
@@ -111,26 +115,50 @@ size improves compression density; a smaller bucket size makes reading with
 projection faster, allowing to skip decompression of values of fields which are
 not included.
 
-Default `1.0`.
+Default 1.0.
 
-## `pad_to_block_boundary`
+## `padding`
 
-If `true` (`pad_to_block_boundary` is the same as `pad_to_block_boundary:true`),
-padding is written to reach a 64KB block boundary when the `RecordWriter` is
-created, closed, or flushed. Consequences:
+If `padding > 1`, padding is written at the beginning, when flushing, and at the
+end of the file, for the absolute position to reach a multiple of `padding`.
 
-1.  Even if the existing file was corrupted or truncated, data appended to it
-    will be readable.
-2.  Physical concatenation of separately written files yields a valid file
+Consequences if `padding` is a multiple of 64KB:
+
+1.  Physical concatenation of separately written files yields a valid file
     (setting metadata in subsequent files is wasteful but harmless).
-3.  The cost is that up to 64KB is wasted when padding is written.
 
-If `initially`, padding is written when the `RecordWriter` is created. This can
-be used for the 1st purpose above.
+2.  Even if the existing file was corrupted or truncated, data appended to it
+    will be recoverable.
 
-If `false`, padding is never written.
+The cost is that up to `padding` bytes is wasted when padding is written.
 
-Default: `false`.
+`padding` is a shortcut for `set_initial_padding` with `set_final_padding`.
+
+`padding` without the parameter assumes 64KB.
+
+Default: 1 (no padding).
+
+## `initial_padding`
+
+If `initial_padding > 1`, padding is written at the beginning of the file, for
+the absolute position to reach a multiple of `initial_padding`.
+
+See `padding` for details.
+
+`initial_padding` without the parameter assumes 64KB.
+
+Default: 1 (no padding).
+
+## `final_padding`
+
+If `final_padding > 1`, padding is written when flushing and at the end of the
+file, for the absolute position to reach a multiple of `final_padding`.
+
+See `padding` for details.
+
+`final_padding` without the parameter assumes 64KB.
+
+Default: 1 (no padding).
 
 ## `parallelism`
 
@@ -141,4 +169,4 @@ matters; smaller parallelism reduces memory usage.
 If `parallelism > 0`, chunks are written in background and reporting writing
 errors is delayed.
 
-Default: `0`.
+Default: 0.

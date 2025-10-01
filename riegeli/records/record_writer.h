@@ -47,6 +47,7 @@
 #include "riegeli/chunk_encoding/compressor_options.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/messages/serialize_message.h"
+#include "riegeli/records/block.h"
 #include "riegeli/records/chunk_writer.h"
 #include "riegeli/records/record_position.h"
 #include "riegeli/records/records_metadata.pb.h"
@@ -71,6 +72,8 @@ class RecordWriterBase : public Object {
     kInitially,  // Initially.
   };
 
+  constexpr static Position kImplicitPadding = records_internal::kBlockSize;
+
   class Options {
    public:
     Options() noexcept {}
@@ -89,6 +92,9 @@ class RecordWriterBase : public Object {
     //     "brotli_encoder" ":" ("rbrotli_or_cbrotli" | "cbrotli" | "rbrotli") |
     //     "chunk_size" ":" chunk_size |
     //     "bucket_fraction" ":" bucket_fraction |
+    //     "padding" (":" padding)? |
+    //     "initial_padding" (":" padding)? |
+    //     "final_padding" (":" padding)? |
     //     "pad_to_block_boundary" (":" ("true" | "false" | "initially"))? |
     //     "parallelism" ":" parallelism
     //   brotli_level ::= integer in the range [0..11] (default 6)
@@ -98,6 +104,8 @@ class RecordWriterBase : public Object {
     //   chunk_size ::= "auto" or positive integer expressed as real with
     //     optional suffix [BkKMGTPE]
     //   bucket_fraction ::= real in the range [0..1]
+    //   padding ::= positive integer expressed as real with optional suffix
+    //     [BkKMGTPE] (default 64K)
     //   parallelism ::= non-negative integer
     // ```
     //
@@ -365,6 +373,88 @@ class RecordWriterBase : public Object {
       return serialized_metadata_;
     }
 
+    // If `padding > 1`, padding is written at the beginning, when flushing,
+    // and at the end of the file, for the absolute position to reach a multiple
+    // of `padding`.
+    //
+    // Consequences if `padding` is a multiple of 64KB:
+    //
+    //  1. Physical concatenation of separately written files yields a valid
+    //     file (setting metadata in subsequent files is wasteful but harmless).
+    //
+    //  2. Even if the existing file was corrupted or truncated, data appended
+    //     to it will be recoverable.
+    //
+    // The cost is that up to `padding` bytes is wasted when padding is written.
+    //
+    // `set_padding(padding)` is a shortcut for `set_initial_padding(padding)`
+    // with `set_final_padding(padding)`.
+    //
+    // `set_padding()` without the parameter assumes 64KB.
+    //
+    // Default: 1 (no padding).
+    Options& set_padding(Position padding = kImplicitPadding) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      RIEGELI_ASSERT_GT(padding, 0u)
+          << "Failed precondition of RecordWriterBase::Options::set_padding(): "
+             "padding must be positive";
+      initial_padding_ = padding;
+      final_padding_ = padding;
+      return *this;
+    }
+    Options&& set_padding(Position padding = kImplicitPadding) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_padding(padding));
+    }
+
+    // If `initial_padding > 1`, padding is written at the beginning of the
+    // file, for the absolute position to reach a multiple of `initial_padding`.
+    //
+    // See `set_padding()` for details.
+    //
+    // `set_initial_padding()` without the parameter assumes 64KB.
+    //
+    // Default: 1 (no padding).
+    Options& set_initial_padding(Position initial_padding = kImplicitPadding) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      RIEGELI_ASSERT_GT(initial_padding, 0u)
+          << "Failed precondition of "
+             "RecordWriterBase::Options::set_initial_padding(): "
+             "padding must be positive";
+      initial_padding_ = initial_padding;
+      return *this;
+    }
+    Options&& set_initial_padding(
+        Position initial_padding = kImplicitPadding) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_initial_padding(initial_padding));
+    }
+    Position initial_padding() const { return initial_padding_; }
+
+    // If `final_padding > 1`, padding is written when flushing and at the end
+    // of the file, for the absolute position to reach a multiple of
+    // `final_padding`.
+    //
+    // See `set_padding()` for details.
+    //
+    // `set_final_padding()` without the parameter assumes 64KB.
+    //
+    // Default: 1 (no padding).
+    Options& set_final_padding(Position final_padding = kImplicitPadding) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      RIEGELI_ASSERT_GT(final_padding, 0u)
+          << "Failed precondition of "
+             "RecordWriterBase::Options::set_final_padding(): "
+             "padding must be positive";
+      final_padding_ = final_padding;
+      return *this;
+    }
+    Options&& set_final_padding(Position final_padding = kImplicitPadding) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_final_padding(final_padding));
+    }
+    Position final_padding() const { return final_padding_; }
+
     // If `Padding::kTrue`, padding is written to reach a 64KB block boundary
     // when the `RecordWriter` is created, before `Close()`, and before
     // `Flush()`.
@@ -385,16 +475,17 @@ class RecordWriterBase : public Object {
     // If `Padding::kFalse`, padding is never written.
     //
     // Default: `Padding::kFalse`.
+    ABSL_DEPRECATED("Use `set_padding()` or `set_initial_padding()` instead.")
     Options& set_pad_to_block_boundary(Padding pad_to_block_boundary) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      pad_to_block_boundary_ = pad_to_block_boundary;
+      TranslatePadding(pad_to_block_boundary);
       return *this;
     }
+    ABSL_DEPRECATED("Use `set_padding()` or `set_initial_padding()` instead.")
     Options&& set_pad_to_block_boundary(Padding pad_to_block_boundary) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_pad_to_block_boundary(pad_to_block_boundary));
     }
-    Padding pad_to_block_boundary() const { return pad_to_block_boundary_; }
 
     // Maximum number of chunks being encoded in parallel in background. Larger
     // parallelism can increase throughput, up to a point where it no longer
@@ -441,13 +532,31 @@ class RecordWriterBase : public Object {
     }
 
    private:
+    void TranslatePadding(Padding pad_to_block_boundary) {
+      switch (pad_to_block_boundary) {
+        case Padding::kTrue:
+          set_padding(kImplicitPadding);
+          return;
+        case Padding::kInitially:
+          set_initial_padding(kImplicitPadding);
+          set_final_padding(1);
+          return;
+        case Padding::kFalse:
+          set_padding(1);
+          return;
+      }
+      RIEGELI_ASSUME_UNREACHABLE() << "Unknown pad_to_block_boundary: "
+                                   << static_cast<int>(pad_to_block_boundary);
+    }
+
     bool transpose_ = false;
     CompressorOptions compressor_options_;
     std::optional<uint64_t> chunk_size_;
     double bucket_fraction_ = 1.0;
     std::optional<RecordsMetadata> metadata_;
     std::optional<Chain> serialized_metadata_;
-    Padding pad_to_block_boundary_ = Padding::kFalse;
+    Position initial_padding_ = 1;
+    Position final_padding_ = 1;
     int parallelism_ = 0;
     RecyclingPoolOptions recycling_pool_options_;
   };

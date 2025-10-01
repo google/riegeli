@@ -54,6 +54,7 @@ cc_library(
     srcs = ["record_writer.cc"],
     hdrs = ["record_writer.h"],
     deps = [
+        ":block",
         ":chunk_writer",
         ":record_position",
         ":records_metadata_cc_proto",
@@ -99,6 +100,7 @@ cc_library(
     hdrs = ["record_position.h"],
     deps = [
         ":block",
+        ":chunk_writer",
         "//riegeli/base:assert",
         "//riegeli/base:compare",
         "//riegeli/base:initializer",

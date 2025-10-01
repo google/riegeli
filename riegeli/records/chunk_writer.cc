@@ -39,6 +39,27 @@
 
 namespace riegeli {
 
+namespace records_internal {
+
+Position PosAfterPadding(Position pos, Position padding) {
+  if (padding <= 1) return pos;
+  const Position remainder = pos % padding;
+  if (remainder == 0) return pos;
+  Position length = padding - remainder;
+  while (length < ChunkHeader::size()) {
+    // Not enough space for the chunk header.
+    length += padding;
+  }
+  Position end_pos = pos + length;
+  while (!records_internal::IsPossibleChunkBoundary(end_pos)) {
+    // `end_pos` falls inside a block header.
+    end_pos += padding;
+  }
+  return end_pos;
+}
+
+}  // namespace records_internal
+
 ChunkWriter::~ChunkWriter() {}
 
 void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
@@ -142,17 +163,21 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
 }
 
 bool DefaultChunkWriterBase::PadToBlockBoundary() {
+  return WritePadding(records_internal::kBlockSize);
+}
+
+bool DefaultChunkWriterBase::WritePadding(Position padding) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  // Matches `ChunkWriter::PosAfterPadToBlockBoundary()`.
-  size_t length = IntCast<size_t>(records_internal::RemainingInBlock(pos()));
-  if (length == 0) return true;
-  if (length < ChunkHeader::size()) {
-    // Not enough space for a padding chunk in this block. Write one more block.
-    length += size_t{records_internal::kUsableBlockSize};
-  }
-  length -= ChunkHeader::size();
+  const Position pos_after_pad =
+      records_internal::PosAfterPadding(pos(), padding);
+  if (pos_after_pad == pos()) return true;
+
+  // Excludes the chunk header and any intervening block headers.
+  const size_t padding_data_length =
+      records_internal::DistanceWithoutOverhead(pos(), pos_after_pad) -
+      ChunkHeader::size();
   Chunk chunk;
-  chunk.data = Chain(ByteFill(length));
+  chunk.data = Chain(ByteFill(padding_data_length));
   chunk.header = ChunkHeader(chunk.data, ChunkType::kPadding, 0, 0);
   return WriteChunk(chunk);
 }

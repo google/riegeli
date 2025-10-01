@@ -39,6 +39,7 @@
 #include "riegeli/ordered_varint/ordered_varint_reading.h"
 #include "riegeli/ordered_varint/ordered_varint_writing.h"
 #include "riegeli/records/block.h"
+#include "riegeli/records/chunk_writer.h"
 
 namespace riegeli {
 
@@ -123,16 +124,8 @@ void FutureChunkBegin::Unresolved::Resolve() const {
       // Matches `ChunkWriter::PosAfterWriteChunk()`.
       pos = records_internal::ChunkEnd(chunk_header.get(), pos);
     }
-    void operator()(const PadToBlockBoundary&) {
-      // Matches `ChunkWriter::PosAfterPadToBlockBoundary()`.
-      Position length = records_internal::RemainingInBlock(pos);
-      if (length == 0) return;
-      if (length < ChunkHeader::size()) {
-        // Not enough space for a padding chunk in this block. Write one more
-        // block.
-        length += records_internal::kBlockSize;
-      }
-      pos += length;
+    void operator()(const WritePadding& write_padding) {
+      pos = records_internal::PosAfterPadding(pos, write_padding.padding);
     }
 
     Position pos;
