@@ -134,10 +134,10 @@ absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
 //         .reader(),
 //     dest, options)
 // ```
-absl::Status ParseMessageWithLength(
+absl::Status ParseMessageOfLength(
     Reader& src, size_t length, google::protobuf::MessageLite& dest,
     ParseMessageOptions options = ParseMessageOptions());
-absl::Status ParseMessageWithLength(
+absl::Status ParseMessageOfLength(
     LimitingReaderBase& src, size_t length, google::protobuf::MessageLite& dest,
     ParseMessageOptions options = ParseMessageOptions());
 

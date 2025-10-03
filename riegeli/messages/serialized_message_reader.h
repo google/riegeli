@@ -907,7 +907,7 @@ inline void SerializedMessageReader<Context>::OnParsedMessage(
       [action = std::move(action), parse_options](
           size_t length, LimitingReaderBase& src, TypeErasedRef context) {
         MessageType message;
-        if (absl::Status status = riegeli::ParseMessageWithLength(
+        if (absl::Status status = riegeli::ParseMessageOfLength(
                 src, length, message, parse_options);
             ABSL_PREDICT_FALSE(!status.ok())) {
           return status;

@@ -81,9 +81,9 @@ inline absl::Status CheckInitialized(Reader& src,
 }
 
 template <typename Src>
-absl::Status ParseMessageWithLengthImpl(Src& src, size_t length,
-                                        google::protobuf::MessageLite& dest,
-                                        ParseMessageOptions options) {
+absl::Status ParseMessageOfLengthImpl(Src& src, size_t length,
+                                      google::protobuf::MessageLite& dest,
+                                      ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -140,8 +140,7 @@ absl::Status ParseLengthPrefixedMessageImpl(Src& src,
     return src.StatusOrAnnotate(
         absl::InvalidArgumentError("Failed to parse message length"));
   }
-  return ParseMessageWithLengthImpl(src, IntCast<size_t>(length), dest,
-                                    options);
+  return ParseMessageOfLengthImpl(src, IntCast<size_t>(length), dest, options);
 }
 
 }  // namespace
@@ -187,16 +186,16 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
 
 }  // namespace parse_message_internal
 
-absl::Status ParseMessageWithLength(Reader& src, size_t length,
-                                    google::protobuf::MessageLite& dest,
-                                    ParseMessageOptions options) {
-  return ParseMessageWithLengthImpl(src, length, dest, options);
+absl::Status ParseMessageOfLength(Reader& src, size_t length,
+                                  google::protobuf::MessageLite& dest,
+                                  ParseMessageOptions options) {
+  return ParseMessageOfLengthImpl(src, length, dest, options);
 }
 
-absl::Status ParseMessageWithLength(LimitingReaderBase& src, size_t length,
-                                    google::protobuf::MessageLite& dest,
-                                    ParseMessageOptions options) {
-  return ParseMessageWithLengthImpl(src, length, dest, options);
+absl::Status ParseMessageOfLength(LimitingReaderBase& src, size_t length,
+                                  google::protobuf::MessageLite& dest,
+                                  ParseMessageOptions options) {
+  return ParseMessageOfLengthImpl(src, length, dest, options);
 }
 
 absl::Status ParseLengthPrefixedMessage(Reader& src,
