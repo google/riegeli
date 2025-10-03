@@ -396,7 +396,7 @@ DigestFromReader(Src&& src, Digester&& digester, Position* length_read) {
   using DigestType = digest_converter_internal::ResolveNoConversion<
       DigestOf<TargetRefT<Digester>>, DesiredDigestType>;
   DigestingReader<TargetRefT<Digester>, TargetRefT<Src>> reader(
-      std::forward<Src>(src), std::forward<Digester&&>(digester));
+      std::forward<Src>(src), std::forward<Digester>(digester));
   reader.SetReadAllHint(true);
   const Position pos_before = reader.pos();
   do {
