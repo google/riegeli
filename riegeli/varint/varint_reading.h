@@ -228,6 +228,50 @@ std::optional<size_t> CopyVarint64(const char* src, const char* limit,
 size_t CopyCanonicalVarint32(const char* src, size_t available, char* dest);
 size_t CopyCanonicalVarint64(const char* src, size_t available, char* dest);
 
+// Skips a varint, without decoding but with validation.
+//
+// Return values:
+//  * `true`                     - success
+//  * `false` (when `src.ok()`)  - source ends too early or varint is invalid
+//                                 (`src` position is unchanged)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged)
+bool SkipVarint32(Reader& src);
+bool SkipVarint64(Reader& src);
+
+// Skips a varint, without decoding but with validation.
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
+//
+// Return values:
+//  * `true`                     - success
+//  * `false` (when `src.ok()`)  - source ends too early or varint is invalid
+//                                 (`src` position is unchanged)
+//  * `false` (when `!src.ok()`) - failure
+//                                 (`src` position is unchanged)
+bool SkipCanonicalVarint32(Reader& src);
+bool SkipCanonicalVarint64(Reader& src);
+
+// Skips a varint from an array, without decoding but with validation.
+//
+// Return values:
+//  * positive `length` - success, `length` bytes can be skipped
+//  * 0                 - source ends too early or varint is invalid
+size_t SkipVarint32(const char* src, size_t available);
+size_t SkipVarint64(const char* src, size_t available);
+
+// Skips a varint from an array, without decoding but with validation.
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
+//
+// Return values:
+//  * positive `length` - success, `length` bytes can be skipped
+//  * 0                 - source ends too early or varint is invalid
+size_t SkipCanonicalVarint32(const char* src, size_t available);
+size_t SkipCanonicalVarint64(const char* src, size_t available);
+
 // Decodes a signed varint (zigzag-decoding) from an unsigned value read as a
 // plain varint. This corresponds to protobuf types `sint{32,64}`.
 constexpr int32_t DecodeVarintSigned32(uint32_t repr);
@@ -749,6 +793,182 @@ inline size_t CopyCanonicalVarint64(const char* src, size_t available,
   }
   return varint_internal::CopyVarintFromArray<uint64_t, /*canonical=*/true, 2>(
       src, available, dest);
+}
+
+namespace varint_internal {
+
+template <typename T, bool canonical, size_t initial_index>
+bool SkipVarintFromReaderBuffer(Reader& src, const char* cursor);
+
+extern template bool SkipVarintFromReaderBuffer<uint32_t, false, 2>(
+    Reader& src, const char* cursor);
+extern template bool SkipVarintFromReaderBuffer<uint64_t, false, 2>(
+    Reader& src, const char* cursor);
+extern template bool SkipVarintFromReaderBuffer<uint32_t, true, 2>(
+    Reader& src, const char* cursor);
+extern template bool SkipVarintFromReaderBuffer<uint64_t, true, 2>(
+    Reader& src, const char* cursor);
+
+template <typename T, bool canonical, size_t initial_index>
+bool SkipVarintFromReader(Reader& src);
+
+extern template bool SkipVarintFromReader<uint32_t, false, 1>(Reader& src);
+extern template bool SkipVarintFromReader<uint64_t, false, 1>(Reader& src);
+extern template bool SkipVarintFromReader<uint32_t, true, 1>(Reader& src);
+extern template bool SkipVarintFromReader<uint64_t, true, 1>(Reader& src);
+
+}  // namespace varint_internal
+
+inline bool SkipVarint32(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) return false;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return true;
+  }
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      src.move_cursor(2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromReaderBuffer<uint32_t,
+                                                       /*canonical=*/false, 2>(
+        src, src.cursor());
+  }
+  return varint_internal::SkipVarintFromReader<uint32_t, /*canonical=*/false,
+                                               1>(src);
+}
+
+inline bool SkipVarint64(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint64))) return false;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return true;
+  }
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      src.move_cursor(2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromReaderBuffer<uint64_t,
+                                                       /*canonical=*/false, 2>(
+        src, src.cursor());
+  }
+  return varint_internal::SkipVarintFromReader<uint64_t, /*canonical=*/false,
+                                               1>(src);
+}
+
+inline bool SkipCanonicalVarint32(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) return false;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return true;
+  }
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return false;
+      src.move_cursor(2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromReaderBuffer<uint32_t,
+                                                       /*canonical=*/true, 2>(
+        src, src.cursor());
+  }
+  return varint_internal::SkipVarintFromReader<uint32_t, /*canonical=*/true, 1>(
+      src);
+}
+
+inline bool SkipCanonicalVarint64(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint64))) return false;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return true;
+  }
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return false;
+      src.move_cursor(2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromReaderBuffer<uint64_t,
+                                                       /*canonical=*/true, 2>(
+        src, src.cursor());
+  }
+  return varint_internal::SkipVarintFromReader<uint64_t, /*canonical=*/true, 1>(
+      src);
+}
+
+namespace varint_internal {
+
+template <typename T, bool canonical, size_t initial_index>
+size_t SkipVarintFromArray(const char* src, size_t available);
+
+extern template size_t SkipVarintFromArray<uint32_t, false, 2>(
+    const char* src, size_t available);
+extern template size_t SkipVarintFromArray<uint64_t, false, 2>(
+    const char* src, size_t available);
+extern template size_t SkipVarintFromArray<uint32_t, true, 2>(const char* src,
+                                                              size_t available);
+extern template size_t SkipVarintFromArray<uint64_t, true, 2>(const char* src,
+                                                              size_t available);
+
+}  // namespace varint_internal
+
+inline size_t SkipVarint32(const char* src, size_t available) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) return 2;
+  return varint_internal::SkipVarintFromArray<uint32_t, /*canonical=*/false, 2>(
+      src, available);
+}
+
+inline size_t SkipVarint64(const char* src, size_t available) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) return 2;
+  return varint_internal::SkipVarintFromArray<uint64_t, /*canonical=*/false, 2>(
+      src, available);
+}
+
+inline size_t SkipCanonicalVarint32(const char* src, size_t available) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+    if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+    return 2;
+  }
+  return varint_internal::SkipVarintFromArray<uint32_t, /*canonical=*/true, 2>(
+      src, available);
+}
+
+inline size_t SkipCanonicalVarint64(const char* src, size_t available) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+    if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+    return 2;
+  }
+  return varint_internal::SkipVarintFromArray<uint64_t, /*canonical=*/true, 2>(
+      src, available);
 }
 
 constexpr int32_t DecodeVarintSigned32(uint32_t repr) {

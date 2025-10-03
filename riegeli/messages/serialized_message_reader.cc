@@ -72,8 +72,7 @@ absl::Status SerializedMessageReaderBase::SkipField(
     ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
   switch (GetTagWireType(tag)) {
     case WireType::kVarint: {
-      uint64_t value;
-      if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
+      if (ABSL_PREDICT_FALSE(!SkipVarint64(src))) {
         return src.StatusOrAnnotate(
             absl::InvalidArgumentError("Could not read a varint field"));
       }

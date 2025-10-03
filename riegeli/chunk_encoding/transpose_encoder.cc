@@ -97,8 +97,7 @@ bool IsProtoMessage(Reader& record) {
     if (field_number == 0) return false;
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
-        uint64_t value;
-        if (!ReadCanonicalVarint64(record, value)) return false;
+        if (!SkipCanonicalVarint64(record)) return false;
       } break;
       case WireType::kFixed32:
         if (!record.Skip(sizeof(uint32_t))) return false;

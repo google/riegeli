@@ -73,8 +73,7 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
   if (context.supports_random_access()) {
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
-        uint64_t value;
-        if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
+        if (ABSL_PREDICT_FALSE(!SkipVarint64(src))) {
           return src.StatusOrAnnotate(
               absl::InvalidArgumentError("Could not read a varint field"));
         }

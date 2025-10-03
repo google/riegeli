@@ -198,6 +198,71 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t CopyVarintFromArrayLoop(
   return index + 1;
 }
 
+template <typename T, bool canonical, size_t index>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SkipVarintFromReaderBufferLoop(
+    Reader& src, const char* cursor) {
+  const uint8_t byte = static_cast<uint8_t>(cursor[index]);
+  if constexpr (index == kMaxLengthVarint<T> - 1) {
+    // Last possible byte.
+    if (ABSL_PREDICT_FALSE(byte >= T{1} << (sizeof(T) * 8 - index * 7))) {
+      // The representation is longer than `kMaxLengthVarint<T>`
+      // or the represented value does not fit in `T`.
+      return false;
+    }
+  } else if (byte >= 0x80) {
+    return SkipVarintFromReaderBufferLoop<T, canonical, index + 1>(src, cursor);
+  }
+  if constexpr (canonical) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) return false;
+  }
+  src.move_cursor(index + 1);
+  return true;
+}
+
+template <typename T, bool canonical, size_t index>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SkipVarintFromReaderLoop(Reader& src) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(index + 1, kMaxLengthVarint<T>))) {
+    return false;
+  }
+  const uint8_t byte = static_cast<uint8_t>(src.cursor()[index]);
+  if constexpr (index == kMaxLengthVarint<T> - 1) {
+    // Last possible byte.
+    if (ABSL_PREDICT_FALSE(byte >= 1u << (sizeof(T) * 8 - index * 7))) {
+      // The representation is longer than `kMaxLengthVarint<T>`
+      // or the represented value does not fit in `T`.
+      return false;
+    }
+  } else if (byte >= 0x80) {
+    return SkipVarintFromReaderLoop<T, canonical, index + 1>(src);
+  }
+  if constexpr (canonical) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) return false;
+  }
+  src.move_cursor(index + 1);
+  return true;
+}
+
+template <typename T, bool canonical, size_t index>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t SkipVarintFromArrayLoop(
+    const char* src, size_t available) {
+  if (ABSL_PREDICT_FALSE(available == index)) return 0;
+  const uint8_t byte = static_cast<uint8_t>(src[index]);
+  if constexpr (index == kMaxLengthVarint<T> - 1) {
+    // Last possible byte.
+    if (ABSL_PREDICT_FALSE(byte >= 1u << (sizeof(T) * 8 - index * 7))) {
+      // The representation is longer than `kMaxLengthVarint<T>`
+      // or the represented value does not fit in `T`.
+      return 0;
+    }
+  } else if (byte >= 0x80) {
+    return SkipVarintFromArrayLoop<T, canonical, index + 1>(src, available);
+  }
+  if constexpr (canonical) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) return 0;
+  }
+  return index + 1;
+}
+
 }  // namespace
 
 template <typename T, bool canonical, size_t initial_index>
@@ -334,5 +399,55 @@ template size_t CopyVarintFromArray<uint32_t, true, 2>(const char* src,
 template size_t CopyVarintFromArray<uint64_t, true, 2>(const char* src,
                                                        size_t available,
                                                        char* dest);
+
+template <typename T, bool canonical, size_t initial_index>
+bool SkipVarintFromReaderBuffer(Reader& src, const char* cursor) {
+  RIEGELI_ASSERT_GE(src.available(), initial_index)
+      << "Failed precondition of SkipVarintFromReaderBuffer(): not enough data";
+  if (ABSL_PREDICT_TRUE(src.available() >= kMaxLengthVarint<T>) ||
+      static_cast<uint8_t>(src.limit()[-1]) < 0x80) {
+    return SkipVarintFromReaderBufferLoop<T, canonical, initial_index>(src,
+                                                                       cursor);
+  }
+  // Do not inline this call to avoid a frame pointer.
+  return SkipVarintFromReader<T, canonical, initial_index>(src);
+}
+
+template bool SkipVarintFromReaderBuffer<uint32_t, false, 2>(
+    Reader& src, const char* cursor);
+template bool SkipVarintFromReaderBuffer<uint64_t, false, 2>(
+    Reader& src, const char* cursor);
+template bool SkipVarintFromReaderBuffer<uint32_t, true, 2>(Reader& src,
+                                                            const char* cursor);
+template bool SkipVarintFromReaderBuffer<uint64_t, true, 2>(Reader& src,
+                                                            const char* cursor);
+
+template <typename T, bool canonical, size_t initial_index>
+bool SkipVarintFromReader(Reader& src) {
+  RIEGELI_ASSERT_GE(src.available(), initial_index)
+      << "Failed precondition of SkipVarintFromReader(): not enough data";
+  return SkipVarintFromReaderLoop<T, canonical, initial_index>(src);
+}
+
+template bool SkipVarintFromReader<uint32_t, false, 1>(Reader& src);
+template bool SkipVarintFromReader<uint64_t, false, 1>(Reader& src);
+template bool SkipVarintFromReader<uint32_t, true, 1>(Reader& src);
+template bool SkipVarintFromReader<uint64_t, true, 1>(Reader& src);
+
+template <typename T, bool canonical, size_t initial_index>
+size_t SkipVarintFromArray(const char* src, size_t available) {
+  RIEGELI_ASSERT_GE(available, initial_index)
+      << "Failed precondition of SkipVarintFromArray(): not enough data";
+  return SkipVarintFromArrayLoop<T, canonical, initial_index>(src, available);
+}
+
+template size_t SkipVarintFromArray<uint32_t, false, 2>(const char* src,
+                                                        size_t available);
+template size_t SkipVarintFromArray<uint64_t, false, 2>(const char* src,
+                                                        size_t available);
+template size_t SkipVarintFromArray<uint32_t, true, 2>(const char* src,
+                                                       size_t available);
+template size_t SkipVarintFromArray<uint64_t, true, 2>(const char* src,
+                                                       size_t available);
 
 }  // namespace riegeli::varint_internal
