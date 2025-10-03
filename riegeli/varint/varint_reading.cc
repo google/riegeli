@@ -17,6 +17,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <cstring>
+
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/assert.h"
@@ -119,6 +121,83 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t ReadVarintFromArrayLoop(
   return index + 1;
 }
 
+template <size_t initial_index, size_t length>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline void CopyVarintValue(const char* src,
+                                                         char* dest) {
+  std::memcpy(dest + initial_index, src + initial_index,
+              length - initial_index);
+}
+
+template <typename T, bool canonical, size_t initial_index, size_t index>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t CopyVarintFromReaderBufferLoop(
+    Reader& src, const char* cursor, char* dest) {
+  const uint8_t byte = static_cast<uint8_t>(cursor[index]);
+  if constexpr (index == kMaxLengthVarint<T> - 1) {
+    // Last possible byte.
+    if (ABSL_PREDICT_FALSE(byte >= T{1} << (sizeof(T) * 8 - index * 7))) {
+      // The representation is longer than `kMaxLengthVarint<T>`
+      // or the represented value does not fit in `T`.
+      return 0;
+    }
+  } else if (byte >= 0x80) {
+    return CopyVarintFromReaderBufferLoop<T, canonical, initial_index,
+                                          index + 1>(src, cursor, dest);
+  }
+  if constexpr (canonical) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) return 0;
+  }
+  CopyVarintValue<initial_index, index + 1>(cursor, dest);
+  src.move_cursor(index + 1);
+  return index + 1;
+}
+
+template <typename T, bool canonical, size_t initial_index, size_t index>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t CopyVarintFromReaderLoop(
+    Reader& src, char* dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(index + 1, kMaxLengthVarint<T>))) return 0;
+  const uint8_t byte = static_cast<uint8_t>(src.cursor()[index]);
+  if constexpr (index == kMaxLengthVarint<T> - 1) {
+    // Last possible byte.
+    if (ABSL_PREDICT_FALSE(byte >= 1u << (sizeof(T) * 8 - index * 7))) {
+      // The representation is longer than `kMaxLengthVarint<T>`
+      // or the represented value does not fit in `T`.
+      return 0;
+    }
+  } else if (byte >= 0x80) {
+    return CopyVarintFromReaderLoop<T, canonical, initial_index, index + 1>(
+        src, dest);
+  }
+  if constexpr (canonical) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) return 0;
+  }
+  CopyVarintValue<initial_index, index + 1>(src.cursor(), dest);
+  src.move_cursor(index + 1);
+  return index + 1;
+}
+
+template <typename T, bool canonical, size_t initial_index, size_t index>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t CopyVarintFromArrayLoop(
+    const char* src, size_t available, char* dest) {
+  if (ABSL_PREDICT_FALSE(available == index)) return 0;
+  const uint8_t byte = static_cast<uint8_t>(src[index]);
+  if constexpr (index == kMaxLengthVarint<T> - 1) {
+    // Last possible byte.
+    if (ABSL_PREDICT_FALSE(byte >= 1u << (sizeof(T) * 8 - index * 7))) {
+      // The representation is longer than `kMaxLengthVarint<T>`
+      // or the represented value does not fit in `T`.
+      return 0;
+    }
+  } else if (byte >= 0x80) {
+    return CopyVarintFromArrayLoop<T, canonical, initial_index, index + 1>(
+        src, available, dest);
+  }
+  if constexpr (canonical) {
+    if (ABSL_PREDICT_FALSE(byte == 0)) return 0;
+  }
+  CopyVarintValue<initial_index, index + 1>(src, dest);
+  return index + 1;
+}
+
 }  // namespace
 
 template <typename T, bool canonical, size_t initial_index>
@@ -195,5 +274,65 @@ template size_t ReadVarintFromArray<uint64_t, true, 2>(const char* src,
                                                        size_t available,
                                                        uint64_t acc,
                                                        uint64_t& dest);
+
+template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromReaderBuffer(Reader& src, const char* cursor, char* dest) {
+  RIEGELI_ASSERT_GE(src.available(), initial_index)
+      << "Failed precondition of CopyVarintFromReaderBuffer(): not enough data";
+  if (ABSL_PREDICT_TRUE(src.available() >= kMaxLengthVarint<T>) ||
+      static_cast<uint8_t>(src.limit()[-1]) < 0x80) {
+    return CopyVarintFromReaderBufferLoop<T, canonical, initial_index,
+                                          initial_index>(src, cursor, dest);
+  }
+  // Do not inline this call to avoid a frame pointer.
+  return CopyVarintFromReader<T, canonical, initial_index>(src, dest);
+}
+
+template size_t CopyVarintFromReaderBuffer<uint32_t, false, 2>(
+    Reader& src, const char* cursor, char* dest);
+template size_t CopyVarintFromReaderBuffer<uint64_t, false, 2>(
+    Reader& src, const char* cursor, char* dest);
+template size_t CopyVarintFromReaderBuffer<uint32_t, true, 2>(
+    Reader& src, const char* cursor, char* dest);
+template size_t CopyVarintFromReaderBuffer<uint64_t, true, 2>(
+    Reader& src, const char* cursor, char* dest);
+
+template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromReader(Reader& src, char* dest) {
+  RIEGELI_ASSERT_GE(src.available(), initial_index)
+      << "Failed precondition of CopyVarintFromReader(): not enough data";
+  return CopyVarintFromReaderLoop<T, canonical, initial_index, initial_index>(
+      src, dest);
+}
+
+template size_t CopyVarintFromReader<uint32_t, false, 1>(Reader& src,
+                                                         char* dest);
+template size_t CopyVarintFromReader<uint64_t, false, 1>(Reader& src,
+                                                         char* dest);
+template size_t CopyVarintFromReader<uint32_t, true, 1>(Reader& src,
+                                                        char* dest);
+template size_t CopyVarintFromReader<uint64_t, true, 1>(Reader& src,
+                                                        char* dest);
+
+template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromArray(const char* src, size_t available, char* dest) {
+  RIEGELI_ASSERT_GE(available, initial_index)
+      << "Failed precondition of CopyVarintFromArray(): not enough data";
+  return CopyVarintFromArrayLoop<T, canonical, initial_index, initial_index>(
+      src, available, dest);
+}
+
+template size_t CopyVarintFromArray<uint32_t, false, 2>(const char* src,
+                                                        size_t available,
+                                                        char* dest);
+template size_t CopyVarintFromArray<uint64_t, false, 2>(const char* src,
+                                                        size_t available,
+                                                        char* dest);
+template size_t CopyVarintFromArray<uint32_t, true, 2>(const char* src,
+                                                       size_t available,
+                                                       char* dest);
+template size_t CopyVarintFromArray<uint64_t, true, 2>(const char* src,
+                                                       size_t available,
+                                                       char* dest);
 
 }  // namespace riegeli::varint_internal

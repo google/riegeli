@@ -356,9 +356,9 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
           uint64_t value[2];
           static_assert(sizeof(value) >= kMaxLengthVarint64,
                         "value too small to hold a varint64");
-          const std::optional<size_t> value_length =
+          const size_t value_length =
               CopyVarint64(limited_record, reinterpret_cast<char*>(value));
-          RIEGELI_ASSERT(value_length != std::nullopt)
+          RIEGELI_ASSERT(value_length > 0)
               << "Invalid varint: " << limited_record.status();
           if (reinterpret_cast<const unsigned char*>(value)[0] <=
               kMaxVarintInline) {
@@ -368,12 +368,12 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
           } else {
             encoded_tags_.push_back(GetPosInTagsList(
                 node, chunk_encoding_internal::Subtype::kVarint1 +
-                          IntCast<uint8_t>(*value_length - 1)));
+                          IntCast<uint8_t>(value_length - 1)));
             // Clear high bit of each byte.
             for (uint64_t& word : value) word &= ~uint64_t{0x8080808080808080};
             BackwardWriter* const buffer = GetBuffer(node, BufferType::kVarint);
             if (ABSL_PREDICT_FALSE(!buffer->Write(absl::string_view(
-                    reinterpret_cast<const char*>(value), *value_length)))) {
+                    reinterpret_cast<const char*>(value), value_length)))) {
               return Fail(buffer->status());
             }
           }

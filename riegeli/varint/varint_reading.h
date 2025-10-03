@@ -148,32 +148,85 @@ size_t ReadVarintSigned64(const char* src, size_t available, int64_t& dest);
 size_t ReadCanonicalVarint32(const char* src, size_t available, uint32_t& dest);
 size_t ReadCanonicalVarint64(const char* src, size_t available, uint64_t& dest);
 
-// Copies a varint to an array.
+// Copies a varint to an array, without decoding and encoding but with
+// validation.
 //
 // Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
 //
 // Return values:
-//  * varint length                      - success (`dest[]` is filled)
-//  * `std::nullopt` (when `src.ok()`)  - source ends too early
-//                                         (`src` position is unchanged,
-//                                        `dest[]` is undefined)
-//  * `std::nullopt` (when `!src.ok()`) - failure
-//                                         (`src` position is unchanged,
-//                                         `dest[]` is undefined)
-std::optional<size_t> CopyVarint32(Reader& src, char* dest);
-std::optional<size_t> CopyVarint64(Reader& src, char* dest);
+//  * positive `length`    - success, `length` bytes copied (`dest[]` is filled)
+//  * 0 (when `src.ok()`)  - source ends too early or varint is invalid
+//                           (`src` position is unchanged,
+//                           `dest[]` is undefined)
+//  * 0 (when `!src.ok()`) - failure
+//                           (`src` position is unchanged,
+//                           `dest[]` is undefined)
+size_t CopyVarint32(Reader& src, char* dest);
+size_t CopyVarint64(Reader& src, char* dest);
 
-// Copies a varint from an array to an array.
+// Copies a varint to an array, without decoding and encoding but with
+// validation.
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
 //
 // Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
 //
 // Return values:
-//  * varint length   - success (`dest[]` is filled)
-//  * `std::nullopt` - source ends (`dest[]` is undefined)
+//  * positive `length`    - success, `length` bytes copied (`dest[]` is filled)
+//  * 0 (when `src.ok()`)  - source ends too early or varint is invalid
+//                           (`src` position is unchanged,
+//                           `dest[]` is undefined)
+//  * 0 (when `!src.ok()`) - failure
+//                           (`src` position is unchanged,
+//                           `dest[]` is undefined)
+size_t CopyCanonicalVarint32(Reader& src, char* dest);
+size_t CopyCanonicalVarint64(Reader& src, char* dest);
+
+// Copies a varint from an array to an array, without decoding and encoding but
+// with validation.
+//
+// Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
+//
+// Return values:
+//  * positive `length` - success, `length` bytes copied (`dest[]` is filled)
+//  * 0                 - source ends too early or varint is invalid
+//                        (`dest[]` is undefined)
+size_t CopyVarint32(const char* src, size_t available, char* dest);
+size_t CopyVarint64(const char* src, size_t available, char* dest);
+
+// Copies a varint from an array to an array, without decoding and encoding but
+// with validation.
+//
+// Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
+//
+// Return values:
+//  * varint length  - success (`dest[]` is filled)
+//  * `std::nullopt` - source ends too early or varint is invalid
+//                     (`dest[]` is undefined)
+ABSL_DEPRECATED(
+    "Use CopyVarint32() overload with size_t parameter and size_t result")
 std::optional<size_t> CopyVarint32(const char* src, const char* limit,
                                    char* dest);
+ABSL_DEPRECATED(
+    "Use CopyVarint64() overload with size_t parameter and size_t result")
 std::optional<size_t> CopyVarint64(const char* src, const char* limit,
                                    char* dest);
+
+// Copies a varint from an array to an array, without decoding and encoding but
+// with validation.
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
+//
+// Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
+//
+// Return values:
+//  * positive `length` - success, `length` bytes copied (`dest[]` is filled)
+//  * 0                 - source ends too early or varint is invalid
+//                        (`dest[]` is undefined)
+size_t CopyCanonicalVarint32(const char* src, size_t available, char* dest);
+size_t CopyCanonicalVarint64(const char* src, size_t available, char* dest);
 
 // Decodes a signed varint (zigzag-decoding) from an unsigned value read as a
 // plain varint. This corresponds to protobuf types `sint{32,64}`.
@@ -481,86 +534,221 @@ inline std::optional<const char*> ReadVarintSigned64(const char* src,
   return src + length;
 }
 
-inline std::optional<size_t> CopyVarint32(Reader& src, char* dest) {
-  if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint32)) {
-    if (src.available() > 0 && static_cast<uint8_t>(src.limit()[-1]) < 0x80) {
-      // The buffer contains a potential varint terminator. Avoid pulling the
-      // maximum varint length which can be expensive.
-    } else {
-      src.Pull(kMaxLengthVarint32);
-    }
+namespace varint_internal {
+
+template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromReaderBuffer(Reader& src, const char* cursor, char* dest);
+
+extern template size_t CopyVarintFromReaderBuffer<uint32_t, false, 2>(
+    Reader& src, const char* cursor, char* dest);
+extern template size_t CopyVarintFromReaderBuffer<uint64_t, false, 2>(
+    Reader& src, const char* cursor, char* dest);
+extern template size_t CopyVarintFromReaderBuffer<uint32_t, true, 2>(
+    Reader& src, const char* cursor, char* dest);
+extern template size_t CopyVarintFromReaderBuffer<uint64_t, true, 2>(
+    Reader& src, const char* cursor, char* dest);
+
+template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromReader(Reader& src, char* dest);
+
+extern template size_t CopyVarintFromReader<uint32_t, false, 1>(Reader& src,
+                                                                char* dest);
+extern template size_t CopyVarintFromReader<uint64_t, false, 1>(Reader& src,
+                                                                char* dest);
+
+extern template size_t CopyVarintFromReader<uint32_t, true, 1>(Reader& src,
+                                                               char* dest);
+extern template size_t CopyVarintFromReader<uint64_t, true, 1>(Reader& src,
+                                                               char* dest);
+
+}  // namespace varint_internal
+
+inline size_t CopyVarint32(Reader& src, char* dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return 1;
   }
-  const std::optional<size_t> length =
-      CopyVarint32(src.cursor(), src.limit(), dest);
-  if (ABSL_PREDICT_FALSE(length == std::nullopt)) return std::nullopt;
-  src.move_cursor(*length);
-  return *length;
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      src.move_cursor(2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromReaderBuffer<uint32_t,
+                                                       /*canonical=*/false, 2>(
+        src, src.cursor(), dest);
+  }
+  return varint_internal::CopyVarintFromReader<uint32_t, /*canonical=*/false,
+                                               1>(src, dest);
 }
 
-inline std::optional<size_t> CopyVarint64(Reader& src, char* dest) {
-  if (ABSL_PREDICT_FALSE(src.available() < kMaxLengthVarint64)) {
-    if (src.available() > 0 && static_cast<uint8_t>(src.limit()[-1]) < 0x80) {
-      // The buffer contains a potential varint terminator. Avoid pulling the
-      // maximum varint length which can be expensive.
-    } else {
-      src.Pull(kMaxLengthVarint64);
-    }
+inline size_t CopyVarint64(Reader& src, char* dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint64))) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return 1;
   }
-  const std::optional<size_t> length =
-      CopyVarint64(src.cursor(), src.limit(), dest);
-  if (ABSL_PREDICT_FALSE(length == std::nullopt)) return std::nullopt;
-  src.move_cursor(*length);
-  return *length;
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      src.move_cursor(2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromReaderBuffer<uint64_t,
+                                                       /*canonical=*/false, 2>(
+        src, src.cursor(), dest);
+  }
+  return varint_internal::CopyVarintFromReader<uint64_t, /*canonical=*/false,
+                                               1>(src, dest);
+}
+
+inline size_t CopyCanonicalVarint32(Reader& src, char* dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint32))) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return 1;
+  }
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+      src.move_cursor(2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromReaderBuffer<uint32_t,
+                                                       /*canonical=*/true, 2>(
+        src, src.cursor(), dest);
+  }
+  return varint_internal::CopyVarintFromReader<uint32_t, /*canonical=*/true, 1>(
+      src, dest);
+}
+
+inline size_t CopyCanonicalVarint64(Reader& src, char* dest) {
+  if (ABSL_PREDICT_FALSE(!src.Pull(1, kMaxLengthVarint64))) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src.cursor()[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    src.move_cursor(1);
+    return 1;
+  }
+  if (ABSL_PREDICT_TRUE(src.available() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(src.cursor()[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+      src.move_cursor(2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromReaderBuffer<uint64_t,
+                                                       /*canonical=*/true, 2>(
+        src, src.cursor(), dest);
+  }
+  return varint_internal::CopyVarintFromReader<uint64_t, /*canonical=*/true, 1>(
+      src, dest);
+}
+
+namespace varint_internal {
+
+template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromArray(const char* src, size_t available, char* dest);
+
+extern template size_t CopyVarintFromArray<uint32_t, false, 2>(const char* src,
+                                                               size_t available,
+                                                               char* dest);
+extern template size_t CopyVarintFromArray<uint64_t, false, 2>(const char* src,
+                                                               size_t available,
+                                                               char* dest);
+extern template size_t CopyVarintFromArray<uint32_t, true, 2>(const char* src,
+                                                              size_t available,
+                                                              char* dest);
+extern template size_t CopyVarintFromArray<uint64_t, true, 2>(const char* src,
+                                                              size_t available,
+                                                              char* dest);
+
+}  // namespace varint_internal
+
+inline size_t CopyVarint32(const char* src, size_t available, char* dest) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  dest[1] = static_cast<char>(byte1);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) return 2;
+  return varint_internal::CopyVarintFromArray<uint32_t, /*canonical=*/false, 2>(
+      src, available, dest);
+}
+
+inline size_t CopyVarint64(const char* src, size_t available, char* dest) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  dest[1] = static_cast<char>(byte1);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) return 2;
+  return varint_internal::CopyVarintFromArray<uint64_t, /*canonical=*/false, 2>(
+      src, available, dest);
 }
 
 inline std::optional<size_t> CopyVarint32(const char* src, const char* limit,
                                           char* dest) {
-  if (ABSL_PREDICT_FALSE(src == limit)) return std::nullopt;
-  const char* start = src;
-  uint8_t byte = static_cast<uint8_t>(*src++);
-  *dest++ = static_cast<char>(byte);
-  size_t remaining = kMaxLengthVarint32 - 1;
-  while (byte >= 0x80) {
-    if (ABSL_PREDICT_FALSE(src == limit)) return std::nullopt;
-    byte = static_cast<uint8_t>(*src++);
-    *dest++ = static_cast<char>(byte);
-    if (ABSL_PREDICT_FALSE(--remaining == 0)) {
-      // Last possible byte.
-      if (ABSL_PREDICT_FALSE(
-              byte >= uint8_t{1} << (32 - (kMaxLengthVarint32 - 1) * 7))) {
-        // The representation is longer than `kMaxLengthVarint32`
-        // or the represented value does not fit in `uint32_t`.
-        return std::nullopt;
-      }
-      break;
-    }
-  }
-  return PtrDistance(start, src);
+  const size_t length = CopyVarint32(src, PtrDistance(src, limit), dest);
+  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
+  return length;
 }
 
 inline std::optional<size_t> CopyVarint64(const char* src, const char* limit,
                                           char* dest) {
-  if (ABSL_PREDICT_FALSE(src == limit)) return std::nullopt;
-  const char* start = src;
-  uint8_t byte = static_cast<uint8_t>(*src++);
-  *dest++ = static_cast<char>(byte);
-  size_t remaining = kMaxLengthVarint64 - 1;
-  while (byte >= 0x80) {
-    if (ABSL_PREDICT_FALSE(src == limit)) return std::nullopt;
-    byte = static_cast<uint8_t>(*src++);
-    *dest++ = static_cast<char>(byte);
-    if (ABSL_PREDICT_FALSE(--remaining == 0)) {
-      // Last possible byte.
-      if (ABSL_PREDICT_FALSE(
-              byte >= uint8_t{1} << (64 - (kMaxLengthVarint64 - 1) * 7))) {
-        // The representation is longer than `kMaxLengthVarint64`
-        // or the represented value does not fit in `uint64_t`.
-        return std::nullopt;
-      }
-      break;
-    }
+  const size_t length = CopyVarint64(src, PtrDistance(src, limit), dest);
+  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
+  return length;
+}
+
+inline size_t CopyCanonicalVarint32(const char* src, size_t available,
+                                    char* dest) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  dest[1] = static_cast<char>(byte1);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+    if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+    return 2;
   }
-  return PtrDistance(start, src);
+  return varint_internal::CopyVarintFromArray<uint32_t, /*canonical=*/true, 2>(
+      src, available, dest);
+}
+
+inline size_t CopyCanonicalVarint64(const char* src, size_t available,
+                                    char* dest) {
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(src[0]);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) return 1;
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const uint8_t byte1 = static_cast<uint8_t>(src[1]);
+  dest[1] = static_cast<char>(byte1);
+  if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+    if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+    return 2;
+  }
+  return varint_internal::CopyVarintFromArray<uint64_t, /*canonical=*/true, 2>(
+      src, available, dest);
 }
 
 constexpr int32_t DecodeVarintSigned32(uint32_t repr) {

@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <optional>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -119,12 +118,12 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
         if (ABSL_PREDICT_FALSE(!dest.Push(kMaxLengthVarint64))) {
           return dest.status();
         }
-        const std::optional<size_t> length = CopyVarint64(src, dest.cursor());
-        if (ABSL_PREDICT_FALSE(length == std::nullopt)) {
+        const size_t length = CopyVarint64(src, dest.cursor());
+        if (ABSL_PREDICT_FALSE(length == 0)) {
           return src.StatusOrAnnotate(
               absl::InvalidArgumentError("Could not read a varint field"));
         }
-        dest.move_cursor(*length);
+        dest.move_cursor(length);
         return absl::OkStatus();
       }
       case WireType::kFixed32:
