@@ -21,7 +21,6 @@
 #include <optional>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
@@ -51,34 +50,15 @@ void LimitingReaderBase::Initialize(Reader* src, const Options& options) {
   }
 }
 
-void LimitingReaderBase::set_max_pos(Position max_pos) {
-  max_pos_ = max_pos;
-  if (ABSL_PREDICT_FALSE(limit_pos() > max_pos_)) {
-    if (pos() > max_pos_) {
-      set_buffer(cursor());
-    } else {
-      set_buffer(start(),
-                 start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
-                 start_to_cursor());
-    }
-    set_limit_pos(max_pos_);
-  }
-}
-
-void LimitingReaderBase::set_max_length(Position max_length) {
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - pos())) {
-    if (exact_) FailLengthOverflow(max_length);
-    max_pos_ = std::numeric_limits<Position>::max();
-    return;
-  }
-  max_pos_ = pos() + max_length;
-  if (ABSL_PREDICT_FALSE(limit_pos() > max_pos_)) {
+void LimitingReaderBase::MakeBufferSlow() {
+  if (pos() > max_pos_) {
+    set_buffer(cursor());
+  } else {
     set_buffer(start(),
                start_to_limit() - IntCast<size_t>(limit_pos() - max_pos_),
                start_to_cursor());
-    set_limit_pos(max_pos_);
   }
+  set_limit_pos(max_pos_);
 }
 
 void LimitingReaderBase::Done() {
@@ -109,32 +89,31 @@ inline bool LimitingReaderBase::FailNotEnough() {
                          " or ", max_length(), " more")));
 }
 
-inline void LimitingReaderBase::FailNotEnoughAtPos(Position expected_pos) {
+void LimitingReaderBase::FailNotEnoughAtPos(Position expected_pos) {
   Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected at least ", expected_pos,
                    ", will have at most ", max_pos())));
 }
 
-inline void LimitingReaderBase::FailNotEnoughAtLength(
-    Position expected_length) {
+void LimitingReaderBase::FailNotEnoughAtLength(Position expected_length) {
   Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected at least ", expected_length,
                    " more, will have at most ", max_length(), " more")));
 }
 
-inline void LimitingReaderBase::FailNotEnoughAtEnd() {
+void LimitingReaderBase::FailNotEnoughAtEnd() {
   Fail(absl::InvalidArgumentError(absl::StrCat(
       "Not enough data: expected impossibly much, will have at most ",
       max_pos())));
 }
 
-inline void LimitingReaderBase::FailLengthOverflow(Position max_length) {
+void LimitingReaderBase::FailLengthOverflow(Position max_length) {
   Fail(absl::InvalidArgumentError(
       absl::StrCat("Not enough data: expected at least ", max_length,
                    " more, which overflows the Reader position range")));
 }
 
-inline void LimitingReaderBase::FailPositionLimitExceeded() {
+void LimitingReaderBase::FailPositionLimitExceeded() {
   Fail(absl::ResourceExhaustedError("Position limit exceeded"));
 }
 
@@ -382,47 +361,6 @@ std::unique_ptr<Reader> LimitingReaderBase::NewReaderImpl(
   return std::make_unique<LimitingReader<std::unique_ptr<Reader>>>(
       std::move(reader),
       LimitingReaderBase::Options().set_max_pos(max_pos_).set_exact(exact_));
-}
-
-ScopedLimiter::ScopedLimiter(
-    LimitingReaderBase* reader ABSL_ATTRIBUTE_LIFETIME_BOUND, Options options)
-    : reader_(RIEGELI_EVAL_ASSERT_NOTNULL(reader)),
-      old_max_pos_(reader_->max_pos()),
-      old_exact_(reader_->exact()),
-      fail_if_longer_(options.fail_if_longer()) {
-  if (options.max_pos() != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(*options.max_pos() > reader_->max_pos())) {
-      if (options.exact()) reader_->FailNotEnoughAtPos(*options.max_pos());
-    } else {
-      reader_->set_max_pos(*options.max_pos());
-    }
-  } else if (options.max_length() != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(*options.max_length() > reader_->max_length())) {
-      if (options.exact())
-        reader_->FailNotEnoughAtLength(*options.max_length());
-    } else {
-      reader_->set_max_length(*options.max_length());
-    }
-  } else if (ABSL_PREDICT_FALSE(reader_->max_pos() <
-                                    std::numeric_limits<Position>::max() &&
-                                options.exact())) {
-    reader_->FailNotEnoughAtPos(std::numeric_limits<Position>::max());
-  }
-  reader_->exact_ |= options.exact();
-}
-
-ScopedLimiter::~ScopedLimiter() {
-  RIEGELI_ASSERT_GE(old_max_pos_, reader_->max_pos())
-      << "Failed precondtion of ~ScopedLimiter: "
-         "The underlying LimitingReader increased its limit "
-         "while the ScopedLimiter was active";
-  const Position inner_max_pos = reader_->max_pos();
-  reader_->set_max_pos(old_max_pos_);
-  reader_->set_exact(old_exact_);
-  if (fail_if_longer_ && reader_->pos() == inner_max_pos &&
-      ABSL_PREDICT_FALSE(!reader_->Pull())) {
-    reader_->FailPositionLimitExceeded();
-  }
 }
 
 }  // namespace riegeli
