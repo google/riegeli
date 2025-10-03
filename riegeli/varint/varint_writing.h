@@ -180,7 +180,7 @@ constexpr size_t LengthVarintSigned64(int64_t data) {
 }
 
 inline char* WriteVarint32(uint32_t data, char* dest) {
-  if (data < 0x80) {
+  if (ABSL_PREDICT_TRUE(data < 0x80)) {
     *dest++ = static_cast<char>(data);
     return dest;
   }
@@ -193,7 +193,7 @@ inline char* WriteVarint32(uint32_t data, char* dest) {
 }
 
 inline char* WriteVarint64(uint64_t data, char* dest) {
-  if (data < 0x80) {
+  if (ABSL_PREDICT_TRUE(data < 0x80)) {
     *dest++ = static_cast<char>(data);
     return dest;
   }

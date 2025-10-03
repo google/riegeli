@@ -1250,13 +1250,12 @@ struct TransposeDecoder::DecodingState {
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool StringCallback() {
     node->buffer->Pull(kMaxLengthVarint32);
     uint32_t length;
-    const std::optional<const char*> cursor =
-        ReadVarint32(node->buffer->cursor(), node->buffer->limit(), length);
-    if (ABSL_PREDICT_FALSE(cursor == std::nullopt)) {
+    const size_t length_length =
+        ReadVarint32(node->buffer->cursor(), node->buffer->available(), length);
+    if (ABSL_PREDICT_FALSE(length_length == 0)) {
       return decoder->Fail(node->buffer->StatusOrAnnotate(
           InvalidArgumentError("Reading string length failed")));
     }
-    const size_t length_length = PtrDistance(node->buffer->cursor(), *cursor);
     if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max() -
                                         length_length)) {
       return decoder->Fail(InvalidArgumentError("String length overflow"));
@@ -1540,9 +1539,8 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       field_included = FieldIncluded::kExistenceOnly;
       for (const StateMachineNode* elem : submessage_stack) {
         uint32_t tag;
-        RIEGELI_EVAL_ASSERT(ReadVarint32(elem->tag_data,
-                                         elem->tag_data + kMaxLengthVarint32,
-                                         tag) != std::nullopt)
+        RIEGELI_EVAL_ASSERT(
+            ReadVarint32(elem->tag_data, kMaxLengthVarint32, tag) > 0)
             << "Invalid tag";
         const absl::flat_hash_map<std::pair<uint32_t, int>,
                                   Context::IncludedField>::const_iterator iter =
@@ -1570,9 +1568,8 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         GetTagWireType(node_template->tag) == WireType::kStartGroup;
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
       uint32_t tag;
-      RIEGELI_EVAL_ASSERT(ReadVarint32(node.tag_data,
-                                       node.tag_data + kMaxLengthVarint32,
-                                       tag) != std::nullopt)
+      RIEGELI_EVAL_ASSERT(ReadVarint32(node.tag_data, kMaxLengthVarint32, tag) >
+                          0)
           << "Invalid tag";
       const absl::flat_hash_map<std::pair<uint32_t, int>,
                                 Context::IncludedField>::const_iterator iter =
@@ -1595,8 +1592,6 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
           if (ABSL_PREDICT_FALSE(node.buffer == nullptr)) return false;
           break;
         case FieldIncluded::kNo:
-          node.buffer = kEmptyReader();
-          break;
         case FieldIncluded::kExistenceOnly:
           node.buffer = kEmptyReader();
           break;

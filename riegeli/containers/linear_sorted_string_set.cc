@@ -106,14 +106,11 @@ size_t LinearSortedStringSet::size() const {
   const char* const limit = ptr + encoded_view.size();
   while (ptr != limit) {
     uint64_t tagged_length;
-    if (const std::optional<const char*> next =
-            ReadVarint64(ptr, limit, tagged_length);
-        next == std::nullopt) {
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Malformed LinearSortedStringSet encoding (tagged_length)";
-    } else {
-      ptr = *next;
-    }
+    const size_t tagged_length_length =
+        ReadVarint64(ptr, PtrDistance(ptr, limit), tagged_length);
+    RIEGELI_ASSUME_GT(tagged_length_length, 0u)
+        << "Malformed LinearSortedStringSet encoding (tagged_length)";
+    ptr += tagged_length_length;
     const uint64_t unshared_length = tagged_length >> 1;
     uint64_t shared_length;
     if ((tagged_length & 1) == 0) {
@@ -121,14 +118,11 @@ size_t LinearSortedStringSet::size() const {
       shared_length = 0;
     } else {
       // `shared_length > 0` and is stored.
-      if (const std::optional<const char*> next =
-              ReadVarint64(ptr, limit, shared_length);
-          next == std::nullopt) {
-        RIEGELI_ASSUME_UNREACHABLE()
-            << "Malformed LinearSortedStringSet encoding (shared_length)";
-      } else {
-        ptr = *next;
-      }
+      const size_t shared_length_length =
+          ReadVarint64(ptr, PtrDistance(ptr, limit), shared_length);
+      RIEGELI_ASSUME_GT(shared_length_length, 0u)
+          << "Malformed LinearSortedStringSet encoding (shared_length)";
+      ptr += shared_length_length;
       // Compare `<` instead of `<=`, before `++shared_length`.
       RIEGELI_ASSERT_LT(shared_length, current_length)
           << "Malformed LinearSortedStringSet encoding "
@@ -151,19 +145,18 @@ absl::string_view LinearSortedStringSet::first() const
          "empty set";
   const absl::string_view encoded_view = encoded_;
   uint64_t tagged_length;
-  const std::optional<const char*> ptr =
-      ReadVarint64(encoded_view.data(),
-                   encoded_view.data() + encoded_view.size(), tagged_length);
-  RIEGELI_ASSERT_NE(ptr, std::nullopt)
+  const size_t tagged_length_length =
+      ReadVarint64(encoded_view.data(), encoded_view.size(), tagged_length);
+  RIEGELI_ASSUME_GT(tagged_length_length, 0u)
       << "Malformed LinearSortedStringSet encoding (tagged_length)";
   RIEGELI_ASSERT_EQ(tagged_length & 1, 0u)
       << "Malformed LinearSortedStringSet encoding "
          "(first element has shared_length > 0)";
   const uint64_t length = tagged_length >> 1;
-  RIEGELI_ASSERT_LE(
-      length, IntCast<size_t>(encoded_view.data() + encoded_view.size() - *ptr))
+  RIEGELI_ASSERT_LE(length, encoded_view.size() - tagged_length_length)
       << "Malformed LinearSortedStringSet encoding (unshared)";
-  return absl::string_view(*ptr, IntCast<size_t>(length));
+  return absl::string_view(encoded_view.data() + tagged_length_length,
+                           IntCast<size_t>(length));
 }
 
 bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
@@ -313,14 +306,13 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
   const char* const limit = ptr + encoded_view.size();
   while (ptr != limit) {
     uint64_t tagged_length;
-    if (const std::optional<const char*> next =
-            ReadVarint64(ptr, limit, tagged_length);
-        next == std::nullopt) {
+    const size_t tagged_length_length =
+        ReadVarint64(ptr, PtrDistance(ptr, limit), tagged_length);
+    if (ABSL_PREDICT_FALSE(tagged_length_length == 0)) {
       return src.AnnotateStatus(absl::InvalidArgumentError(
           "Malformed LinearSortedStringSet encoding (tagged_length)"));
-    } else {
-      ptr = *next;
     }
+    ptr += tagged_length_length;
     const uint64_t unshared_length = tagged_length >> 1;
     if ((tagged_length & 1) == 0) {
       // `shared_length == 0` and is not stored.
@@ -344,14 +336,13 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
     } else {
       // `shared_length > 0` and is stored.
       uint64_t shared_length;
-      if (const std::optional<const char*> next =
-              ReadVarint64(ptr, limit, shared_length);
-          next == std::nullopt) {
+      const size_t shared_length_length =
+          ReadVarint64(ptr, PtrDistance(ptr, limit), shared_length);
+      if (ABSL_PREDICT_FALSE(shared_length_length == 0)) {
         return src.AnnotateStatus(absl::InvalidArgumentError(
             "Malformed LinearSortedStringSet encoding (shared_length)"));
-      } else {
-        ptr = *next;
       }
+      ptr += shared_length_length;
       // Compare `>=` instead of `>`, before `++shared_length`.
       if (ABSL_PREDICT_FALSE(shared_length >= current_length)) {
         return src.AnnotateStatus(absl::InvalidArgumentError(
@@ -425,14 +416,11 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   }
   const char* ptr = cursor_;
   uint64_t tagged_length;
-  if (const std::optional<const char*> next =
-          ReadVarint64(ptr, limit_, tagged_length);
-      next == std::nullopt) {
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Malformed LinearSortedStringSet encoding (tagged_length)";
-  } else {
-    ptr = *next;
-  }
+  const size_t tagged_length_length =
+      ReadVarint64(ptr, PtrDistance(ptr, limit_), tagged_length);
+  RIEGELI_ASSUME_GT(tagged_length_length, 0u)
+      << "Malformed LinearSortedStringSet encoding (tagged_length)";
+  ptr += tagged_length_length;
   const uint64_t unshared_length = tagged_length >> 1;
   if ((tagged_length & 1) == 0) {
     // `shared_length == 0` and is not stored.
@@ -446,14 +434,11 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   }
   // `shared_length > 0` and is stored.
   uint64_t shared_length;
-  if (const std::optional<const char*> next =
-          ReadVarint64(ptr, limit_, shared_length);
-      next == std::nullopt) {
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Malformed LinearSortedStringSet encoding (shared_length)";
-  } else {
-    ptr = *next;
-  }
+  const size_t shared_length_length =
+      ReadVarint64(ptr, PtrDistance(ptr, limit_), shared_length);
+  RIEGELI_ASSUME_GT(shared_length_length, 0u)
+      << "Malformed LinearSortedStringSet encoding (shared_length)";
+  ptr += shared_length_length;
   // Compare `<` instead of `<=`, before `++shared_length`.
   RIEGELI_ASSERT_LT(shared_length, length_if_unshared_ > 0
                                        ? length_if_unshared_
@@ -509,14 +494,11 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   }
   const char* ptr = cursor_;
   uint64_t tagged_length;
-  if (const std::optional<const char*> next =
-          ReadVarint64(ptr, limit_, tagged_length);
-      next == std::nullopt) {
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Malformed LinearSortedStringSet encoding (tagged_length)";
-  } else {
-    ptr = *next;
-  }
+  const size_t tagged_length_length =
+      ReadVarint64(ptr, PtrDistance(ptr, limit_), tagged_length);
+  RIEGELI_ASSUME_GT(tagged_length_length, 0u)
+      << "Malformed LinearSortedStringSet encoding (tagged_length)";
+  ptr += tagged_length_length;
   const uint64_t unshared_length = tagged_length >> 1;
   if ((tagged_length & 1) == 0) {
     // `shared_length == 0` and is not stored.
@@ -530,14 +512,11 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   }
   // `shared_length > 0` and is stored.
   uint64_t shared_length;
-  if (const std::optional<const char*> next =
-          ReadVarint64(ptr, limit_, shared_length);
-      next == std::nullopt) {
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Malformed LinearSortedStringSet encoding (shared_length)";
-  } else {
-    ptr = *next;
-  }
+  const size_t shared_length_length =
+      ReadVarint64(ptr, PtrDistance(ptr, limit_), shared_length);
+  RIEGELI_ASSUME_GT(shared_length_length, 0u)
+      << "Malformed LinearSortedStringSet encoding (shared_length)";
+  ptr += shared_length_length;
   // Compare `<` instead of `<=`, before `++shared_length`.
   RIEGELI_ASSERT_LT(shared_length, prefix_.size() + suffix_length_)
       << "Malformed LinearSortedStringSet encoding "

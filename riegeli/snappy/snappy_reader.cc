@@ -113,9 +113,10 @@ std::optional<size_t> SnappyUncompressedSize(Reader& src) {
     }
   }
   uint32_t size;
-  const std::optional<const char*> cursor =
-      ReadVarint32(src.cursor(), src.limit(), size);
-  if (ABSL_PREDICT_FALSE(cursor == std::nullopt)) return std::nullopt;
+  if (ABSL_PREDICT_FALSE(ReadVarint32(src.cursor(), src.available(), size) ==
+                         0)) {
+    return std::nullopt;
+  }
   return size;
 }
 
