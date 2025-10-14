@@ -532,6 +532,10 @@ SerializedMessageRewriter<Context>::SerializedMessageRewriter() noexcept {
     }
     return context.message_writer().CloseLengthDelimited(field_number);
   });
+  message_reader_.AfterMessage(
+      {}, [](LimitingReaderBase& src, MessageReaderContext& context) {
+        return context.CommitUnchanged(src);
+      });
 }
 
 template <typename Context>
