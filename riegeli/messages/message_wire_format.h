@@ -29,11 +29,13 @@ namespace riegeli {
 // which follows the tag.
 enum class WireType : uint32_t {
   kVarint = 0,
+  kFixed32 = 5,
   kFixed64 = 1,
   kLengthDelimited = 2,
   kStartGroup = 3,
   kEndGroup = 4,
-  kFixed32 = 5,
+  kInvalid6 = 6,
+  kInvalid7 = 7,
 };
 
 // Composes/decomposes a field tag.

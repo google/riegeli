@@ -107,9 +107,13 @@ absl::Status SerializedMessageReaderBase::SkipField(
     case WireType::kStartGroup:
     case WireType::kEndGroup:
       return absl::OkStatus();
+    case WireType::kInvalid6:
+    case WireType::kInvalid7:
+      return src.StatusOrAnnotate(absl::InvalidArgumentError(
+          absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
   }
-  return src.StatusOrAnnotate(absl::InvalidArgumentError(
-      absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
+  RIEGELI_ASSUME_UNREACHABLE()
+      << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
 }
 
 absl::Status SerializedMessageReaderBase::NoActionForSubmessage(

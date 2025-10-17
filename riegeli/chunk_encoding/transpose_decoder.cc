@@ -95,9 +95,12 @@ bool ValidTag(uint32_t tag) {
     case WireType::kStartGroup:
     case WireType::kEndGroup:
       return tag >= 8;
-    default:
+    case WireType::kInvalid6:
+    case WireType::kInvalid7:
       return false;
   }
+  RIEGELI_ASSUME_UNREACHABLE()
+      << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
 }
 
 // The types of callbacks in state machine states.

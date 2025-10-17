@@ -108,6 +108,10 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
       case WireType::kStartGroup:
       case WireType::kEndGroup:
         return context.ExtendUnchanged(src);
+      case WireType::kInvalid6:
+      case WireType::kInvalid7:
+        return src.StatusOrAnnotate(absl::InvalidArgumentError(
+            absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
     }
   } else {
     Writer& dest = context.message_writer().writer();
@@ -160,10 +164,14 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
       case WireType::kStartGroup:
       case WireType::kEndGroup:
         return absl::OkStatus();
+      case WireType::kInvalid6:
+      case WireType::kInvalid7:
+        return src.StatusOrAnnotate(absl::InvalidArgumentError(
+            absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
     }
   }
-  return src.StatusOrAnnotate(absl::InvalidArgumentError(
-      absl::StrCat("Invalid wire type: ", GetTagWireType(tag))));
+  RIEGELI_ASSUME_UNREACHABLE()
+      << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
 }
 
 }  // namespace riegeli::serialized_message_rewriter_internal

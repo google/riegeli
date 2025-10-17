@@ -96,33 +96,37 @@ bool IsProtoMessage(Reader& record) {
     const int field_number = GetTagFieldNumber(tag);
     if (field_number == 0) return false;
     switch (GetTagWireType(tag)) {
-      case WireType::kVarint: {
+      case WireType::kVarint:
         if (!SkipCanonicalVarint64(record)) return false;
-      } break;
+        continue;
       case WireType::kFixed32:
         if (!record.Skip(sizeof(uint32_t))) return false;
-        break;
+        continue;
       case WireType::kFixed64:
         if (!record.Skip(sizeof(uint64_t))) return false;
-        break;
+        continue;
       case WireType::kLengthDelimited: {
         uint32_t length;
         if (!ReadCanonicalVarint32(record, length) || !record.Skip(length)) {
           return false;
         }
-      } break;
+        continue;
+      }
       case WireType::kStartGroup:
         started_groups.push_back(field_number);
-        break;
+        continue;
       case WireType::kEndGroup:
         if (started_groups.empty() || started_groups.back() != field_number) {
           return false;
         }
         started_groups.pop_back();
-        break;
-      default:
+        continue;
+      case WireType::kInvalid6:
+      case WireType::kInvalid7:
         return false;
     }
+    RIEGELI_ASSUME_UNREACHABLE()
+        << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
   }
   RIEGELI_ASSERT_OK(record);
   return started_groups.empty();
