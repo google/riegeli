@@ -45,8 +45,13 @@
 
 namespace riegeli {
 
-// `SerializedMessageWriter` helps building a serialized message, by specifying
-// contents of particular fields instead of by serializing a message object.
+// `SerializedMessageWriter` builds a serialized message, specifying contents
+// of particular fields.
+//
+// The primary use case is processing a subset of fields without the overhead
+// of materializing the message object. That would include processing the
+// remaining fields, as well as fields contained in submessages which can be
+// processed as a whole.
 //
 // `SerializedMessageBackwardWriter` is more efficient in the case of nested
 // messages.
@@ -181,12 +186,14 @@ class SerializedMessageWriter {
   //
   // The value must be written afterwards to `writer()`, with exactly `length`
   // bytes, unless the `SerializedMessageWriter` and its `dest()` are no longer
-  // used. This is unchecked.
+  // used.
   //
   // Fails if `length` exceeds 2GiB.
   //
-  // `WriteLengthUnchecked()` is more efficient than `OpenLengthDelimited()` or
-  // `NewLengthDelimited()`, and `CloseLengthDelimited()`.
+  // `WriteLengthUnchecked()` is more efficient than `OpenLengthDelimited()`
+  // or `NewLengthDelimited()` with `CloseLengthDelimited()`, but harder to use:
+  // the length must be pledged before writing the contents, and its correctness
+  // is not checked.
   absl::Status WriteLengthUnchecked(int field_number, Position length);
 
   // Writes a group delimiter.

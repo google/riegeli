@@ -42,14 +42,19 @@
 
 namespace riegeli {
 
-// `SerializedMessageBackwardWriter` helps building a serialized message, by
-// specifying contents of particular fields instead of by serializing a message
-// object. Building proceeds back to front, using `BackwardWriter`.
+// `SerializedMessageBackwardWriter` builds a serialized message, specifying
+// contents of particular fields. Building proceeds back to front, using
+// `BackwardWriter`.
+//
+// The primary use case is processing a subset of fields without the overhead
+// of materializing the message object. That would include processing the
+// remaining fields, as well as fields contained in submessages which can be
+// processed as a whole.
 //
 // `SerializedMessageBackwardWriter` is more efficient than
 // `SerializedMessageWriter` in the case of nested messages, because their
 // contents can be written directly to the original `BackwardWriter`, with the
-// length known after building the contents.
+// length known and written after building the contents.
 //
 // Building elements of a repeated field is done in the opposite order than in
 // `SerializedMessageWriter`, and if a non-repeated field is written multiple
@@ -180,13 +185,14 @@ class SerializedMessageBackwardWriter {
   //
   // The value must have been written beforehand to `writer()`, with exactly
   // `length` bytes, unless the `SerializedMessageBackwardWriter` and its
-  // `dest()` are no longer used. This is unchecked.
+  // `dest()` are no longer used.
   //
   // Fails if `length` exceeds 2GiB.
   //
-  // `WriteLengthUnchecked()` is more efficient than `OpenLengthDelimited()`
-  // and `CloseLengthDelimited()`, although the difference is smaller than in
-  // `SerializedMessageWriter`.
+  // `WriteLengthUnchecked()` is slightly more efficient than
+  // `OpenLengthDelimited()` or `NewLengthDelimited()` with
+  // `CloseLengthDelimited()`, but harder to use: the length must be pledged
+  // before writing the contents, and its correctness is not checked.
   //
   // Writing the contents and calling `WriteLengthUnchecked()` is done in the
   // opposite order than in `SerializedMessageWriter`.

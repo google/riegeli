@@ -140,7 +140,7 @@ absl::Status ParseLengthPrefixedMessageImpl(Src& src,
     return src.StatusOrAnnotate(
         absl::InvalidArgumentError("Failed to parse message length"));
   }
-  return ParseMessageOfLengthImpl(src, IntCast<size_t>(length), dest, options);
+  return ParseMessageOfLengthImpl(src, size_t{length}, dest, options);
 }
 
 }  // namespace
