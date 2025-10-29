@@ -520,9 +520,7 @@ class DigesterHandle : public DigesterBaseHandle {
 
   static DigestType DigestMethodDefault(
       ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-    if constexpr (!std::is_void_v<DigestType>) {
-      FailedDigestMethodDefault();
-    }
+    if constexpr (!std::is_void_v<DigestType>) FailedDigestMethodDefault();
   }
 
   template <typename T>
