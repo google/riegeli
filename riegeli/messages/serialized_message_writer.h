@@ -120,9 +120,19 @@ class SerializedMessageWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   absl::Status WriteEnum(int field_number, EnumType value);
-  template <typename... Values,
-            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
-  absl::Status WriteString(int field_number, Values&&... values);
+  template <typename... Values
+#if !__cpp_concepts
+            ,
+            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
+#endif
+            >
+  absl::Status WriteString(int field_number, Values&&... values)
+#if __cpp_concepts
+      // For conjunctions, `requires` gives better error messages than
+      // `std::enable_if_t`, indicating the relevant argument.
+    requires(IsStringifiable<Values>::value && ...)
+#endif
+  ;
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
   absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
@@ -229,9 +239,19 @@ class SerializedMessageWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   static Position LengthOfEnum(int field_number, EnumType value);
-  template <typename... Values,
-            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
-  static Position LengthOfString(int field_number, Values&&... values);
+  template <typename... Values
+#if !__cpp_concepts
+            ,
+            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
+#endif
+            >
+  static Position LengthOfString(int field_number, Values&&... values)
+#if __cpp_concepts
+      // For conjunctions, `requires` gives better error messages than
+      // `std::enable_if_t`, indicating the relevant argument.
+    requires(IsStringifiable<Values>::value && ...)
+#endif
+  ;
   static Position LengthOfLengthDelimited(int field_number, Position length);
   static Position LengthOfOptionalLengthDelimited(int field_number,
                                                   Position length);
@@ -497,10 +517,18 @@ inline absl::Status SerializedMessageWriter::WritePackedEnum(EnumType value) {
   return WritePackedUInt64(static_cast<uint64_t>(value));
 }
 
-template <typename... Values,
-          std::enable_if_t<IsStringifiable<Values...>::value, int>>
+template <typename... Values
+#if !__cpp_concepts
+          ,
+          std::enable_if_t<IsStringifiable<Values...>::value, int>
+#endif
+          >
 inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         Values&&... values) {
+                                                         Values&&... values)
+#if __cpp_concepts
+  requires(IsStringifiable<Values>::value && ...)
+#endif
+{
   if constexpr (HasStringifiedSize<Values...>::value) {
     if (absl::Status status = WriteLengthUnchecked(
             field_number, riegeli::StringifiedSize(values...));
@@ -722,10 +750,18 @@ inline Position SerializedMessageWriter::LengthOfPackedEnum(EnumType value) {
   return LengthOfPackedUInt64(static_cast<uint64_t>(value));
 }
 
-template <typename... Values,
-          std::enable_if_t<IsStringifiable<Values...>::value, int>>
+template <typename... Values
+#if !__cpp_concepts
+          ,
+          std::enable_if_t<IsStringifiable<Values...>::value, int>
+#endif
+          >
 inline Position SerializedMessageWriter::LengthOfString(int field_number,
-                                                        Values&&... values) {
+                                                        Values&&... values)
+#if __cpp_concepts
+  requires(IsStringifiable<Values>::value && ...)
+#endif
+{
   if constexpr (HasStringifiedSize<Values...>::value) {
     return LengthOfLengthDelimited(field_number,
                                    riegeli::StringifiedSize(values...));

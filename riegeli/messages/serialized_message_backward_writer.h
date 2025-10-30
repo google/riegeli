@@ -131,9 +131,19 @@ class SerializedMessageBackwardWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   absl::Status WriteEnum(int field_number, EnumType value);
-  template <typename... Values,
-            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
-  absl::Status WriteString(int field_number, Values&&... values);
+  template <typename... Values
+#if !__cpp_concepts
+            ,
+            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
+#endif
+            >
+  absl::Status WriteString(int field_number, Values&&... values)
+#if __cpp_concepts
+      // For conjunctions, `requires` gives better error messages than
+      // `std::enable_if_t`, indicating the relevant argument.
+    requires(IsStringifiable<Values>::value && ...)
+#endif
+  ;
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
   absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
@@ -430,10 +440,18 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedEnum(
   return WritePackedUInt64(static_cast<uint64_t>(value));
 }
 
-template <typename... Values,
-          std::enable_if_t<IsStringifiable<Values...>::value, int>>
+template <typename... Values
+#if !__cpp_concepts
+          ,
+          std::enable_if_t<IsStringifiable<Values...>::value, int>
+#endif
+          >
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
-    int field_number, Values&&... values) {
+    int field_number, Values&&... values)
+#if __cpp_concepts
+  requires(IsStringifiable<Values>::value && ...)
+#endif
+{
   const Position pos_before = writer().pos();
   if (ABSL_PREDICT_FALSE(!writer().Write(std::forward<Values>(values)...))) {
     return writer().status();

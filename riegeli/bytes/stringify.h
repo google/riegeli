@@ -166,12 +166,22 @@ struct HasStringifiedSize
 // `riegeli::StringifiedSize()` of multiple stringifiable values returns the
 // total size of their stringifications, interpreted as for
 // `riegeli::StringifiedSize()` with a single parameter.
-template <typename... Srcs,
+template <typename... Srcs
+#if !__cpp_concepts
+          ,
           std::enable_if_t<
               std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
                                  IsStringifiable<Srcs...>>,
-              int> = 0>
-inline auto StringifiedSize(const Srcs&... srcs) {
+              int> = 0
+#endif
+          >
+inline auto StringifiedSize(const Srcs&... srcs)
+#if __cpp_concepts
+    // For conjunctions, `requires` gives better error messages than
+    // `std::enable_if_t`, indicating the relevant argument.
+  requires(sizeof...(Srcs) != 1) && (IsStringifiable<Srcs>::value && ...)
+#endif
+{
   if constexpr (HasStringifiedSize<Srcs...>::value) {
     return (Position{0} + ... + riegeli::StringifiedSize(srcs));
   }

@@ -219,12 +219,22 @@ class BackwardWriter : public Object {
   // Return values:
   //  * `true`  - success
   //  * `false` - failure (`!ok()`)
-  template <typename... Srcs,
+  template <typename... Srcs
+#if !__cpp_concepts
+            ,
             std::enable_if_t<
                 std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
                                    IsStringifiable<Srcs...>>,
-                int> = 0>
-  bool Write(Srcs&&... srcs) {
+                int> = 0
+#endif
+            >
+  bool Write(Srcs&&... srcs)
+#if __cpp_concepts
+      // For conjunctions, `requires` gives better error messages than
+      // `std::enable_if_t`, indicating the relevant argument.
+    requires(sizeof...(Srcs) != 1) && (IsStringifiable<Srcs>::value && ...)
+#endif
+  {
     return WriteInternal<sizeof...(Srcs)>(
         std::forward_as_tuple(std::forward<Srcs>(srcs)...));
   }

@@ -255,12 +255,22 @@ class Writer : public Object {
   // Return values:
   //  * `true`  - success
   //  * `false` - failure (`!ok()`)
-  template <typename... Srcs,
+  template <typename... Srcs
+#if !__cpp_concepts
+            ,
             std::enable_if_t<
                 std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
                                    IsStringifiable<Srcs...>>,
-                int> = 0>
-  bool Write(Srcs&&... srcs);
+                int> = 0
+#endif
+            >
+  bool Write(Srcs&&... srcs)
+#if __cpp_concepts
+      // For conjunctions, `requires` gives better error messages than
+      // `std::enable_if_t`, indicating the relevant argument.
+    requires(sizeof...(Srcs) != 1) && (IsStringifiable<Srcs>::value && ...)
+#endif
+  ;
 
   // Pushes buffered data to the destination.
   //
@@ -702,12 +712,20 @@ bool Writer::Write(Src&& src) {
   return ok();
 }
 
-template <typename... Srcs,
+template <typename... Srcs
+#if !__cpp_concepts
+          ,
           std::enable_if_t<
               std::conjunction_v<std::bool_constant<sizeof...(Srcs) != 1>,
                                  IsStringifiable<Srcs...>>,
-              int>>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs) {
+              int>
+#endif
+          >
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool Writer::Write(Srcs&&... srcs)
+#if __cpp_concepts
+  requires(sizeof...(Srcs) != 1) && (IsStringifiable<Srcs>::value && ...)
+#endif
+{
   return (Write(std::forward<Srcs>(srcs)) && ...);
 }
 

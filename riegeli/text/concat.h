@@ -17,7 +17,7 @@
 
 #include <ostream>
 #include <tuple>
-#include <type_traits>
+#include <type_traits>  // IWYU pragma: keep
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -103,11 +103,20 @@ class ConcatType {
 // constructed it, so that the temporaries outlive its usage. For storing
 // a `ConcatType` in a variable or returning it from a function, use
 // `riegeli::OwningConcat()` or construct `ConcatType` directly.
-template <
-    typename... Srcs,
-    std::enable_if_t<IsStringifiable<TargetRefT<Srcs>...>::value, int> = 0>
+template <typename... Srcs
+#if !__cpp_concepts
+          ,
+          std::enable_if_t<IsStringifiable<TargetRefT<Srcs>...>::value, int> = 0
+#endif
+          >
 inline ConcatType<TargetRefT<Srcs>...> Concat(
-    Srcs&&... srcs ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+    Srcs&&... srcs ABSL_ATTRIBUTE_LIFETIME_BOUND)
+#if __cpp_concepts
+    // For conjunctions, `requires` gives better error messages than
+    // `std::enable_if_t`, indicating the relevant argument.
+  requires(IsStringifiable<TargetRefT<Srcs>>::value && ...)
+#endif
+{
   return ConcatType<TargetRefT<Srcs>...>(
       std::forward_as_tuple(std::forward<Srcs>(srcs)...));
 }
@@ -119,9 +128,19 @@ inline ConcatType<TargetRefT<Srcs>...> Concat(
 // If a particular argument is heavy and its lifetime is sufficient for storing
 // it by reference, convert `const std::string&` to `absl::string_view` or wrap
 // the argument in `std::cref()`.
-template <typename... Srcs,
-          std::enable_if_t<IsStringifiable<TargetT<Srcs>...>::value, int> = 0>
-inline ConcatType<TargetT<Srcs>...> OwningConcat(Srcs&&... srcs) {
+template <typename... Srcs
+#if !__cpp_concepts
+          ,
+          std::enable_if_t<IsStringifiable<TargetT<Srcs>...>::value, int> = 0
+#endif
+          >
+inline ConcatType<TargetT<Srcs>...> OwningConcat(Srcs&&... srcs)
+#if __cpp_concepts
+    // For conjunctions, `requires` gives better error messages than
+    // `std::enable_if_t`, indicating the relevant argument.
+  requires(IsStringifiable<TargetT<Srcs>>::value && ...)
+#endif
+{
   return ConcatType<TargetT<Srcs>...>(
       std::forward_as_tuple(std::forward<Srcs>(srcs)...));
 }
