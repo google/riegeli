@@ -30,6 +30,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
+#include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/read_all.h"
 #include "riegeli/bytes/reader.h"
 
@@ -42,18 +43,11 @@ absl::Status SerializedMessageWriter::LengthOverflowError(Position length) {
                    length));
 }
 
-absl::Status SerializedMessageWriter::CopyString(int field_number, Reader& src,
-                                                 Position length) {
-  if (absl::Status status = WriteLengthUnchecked(field_number, length);
-      ABSL_PREDICT_FALSE(!status.ok())) {
-    return status;
-  }
-  if (ABSL_PREDICT_FALSE(!src.Copy(length, writer()))) {
-    return !writer().ok() ? writer().status()
-                          : src.StatusOrAnnotate(absl::InvalidArgumentError(
-                                "Could not read a length-delimited field"));
-  }
-  return absl::OkStatus();
+absl::Status SerializedMessageWriter::CopyStringFailed(Reader& src,
+                                                       Writer& dest) {
+  return !dest.ok() ? dest.status()
+                    : src.StatusOrAnnotate(absl::InvalidArgumentError(
+                          "Could not read a length-delimited field"));
 }
 
 absl::Status SerializedMessageWriter::CopyString(int field_number,
@@ -63,7 +57,8 @@ absl::Status SerializedMessageWriter::CopyString(int field_number,
     const std::optional<Position> size = src->Size();
     if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src->status();
     if (absl::Status status =
-            CopyString(field_number, *src, SaturatingSub(*size, src->pos()));
+            CopyString(field_number,
+                       ReaderSpan(src.get(), SaturatingSub(*size, src->pos())));
         ABSL_PREDICT_FALSE(!status.ok())) {
       return status;
     }

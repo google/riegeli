@@ -80,27 +80,26 @@ inline absl::Status CheckInitialized(Reader& src,
   return absl::OkStatus();
 }
 
-template <typename Src>
-absl::Status ParseMessageOfLengthImpl(Src& src, size_t length,
-                                      google::protobuf::MessageLite& dest,
-                                      ParseMessageOptions options) {
+template <typename ReaderType>
+absl::Status ParseMessageFromRegionImpl(ReaderSpan<ReaderType> src,
+                                        google::protobuf::MessageLite& dest,
+                                        ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
-      length <= kMaxBytesToCopy) {
-    src.Pull();
-    if (src.available() >= length) {
+      src.length() <= kMaxBytesToCopy) {
+    src.reader().Pull();
+    if (src.reader().available() >= src.length()) {
       // The data are flat. `ParsePartialFromArray()` is faster than
       // `ParsePartialFromZeroCopyStream()`.
-      const bool parse_ok =
-          dest.ParsePartialFromArray(src.cursor(), IntCast<int>(length));
-      src.move_cursor(length);
-      if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(src, dest);
-      return CheckInitialized(src, dest, options);
+      const bool parse_ok = dest.ParsePartialFromArray(
+          src.reader().cursor(), IntCast<int>(src.length()));
+      src.reader().move_cursor(IntCast<size_t>(src.length()));
+      if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(src.reader(), dest);
+      return CheckInitialized(src.reader(), dest, options);
     }
   }
-  ScopedLimiterOrLimitingReader scoped_limiter(
-      &src, LimitingReaderBase::Options().set_exact_length(length));
+  ScopedLimiterOrLimitingReader scoped_limiter(src);
   ReaderInputStream input_stream(&scoped_limiter.reader());
   bool parse_ok;
   if (!options.merge() &&
@@ -140,7 +139,8 @@ absl::Status ParseLengthPrefixedMessageImpl(Src& src,
     return src.StatusOrAnnotate(
         absl::InvalidArgumentError("Failed to parse message length"));
   }
-  return ParseMessageOfLengthImpl(src, size_t{length}, dest, options);
+  return parse_message_internal::ParseMessageImpl(
+      ReaderSpan(&src, Position{length}), dest, options);
 }
 
 }  // namespace
@@ -184,19 +184,19 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
   return CheckInitialized(src, dest, options);
 }
 
+absl::Status ParseMessageImpl(ReaderSpan<Reader> src,
+                              google::protobuf::MessageLite& dest,
+                              ParseMessageOptions options) {
+  return ParseMessageFromRegionImpl(src, dest, options);
+}
+
+absl::Status ParseMessageImpl(ReaderSpan<> src,
+                              google::protobuf::MessageLite& dest,
+                              ParseMessageOptions options) {
+  return ParseMessageFromRegionImpl(src, dest, options);
+}
+
 }  // namespace parse_message_internal
-
-absl::Status ParseMessageOfLength(Reader& src, size_t length,
-                                  google::protobuf::MessageLite& dest,
-                                  ParseMessageOptions options) {
-  return ParseMessageOfLengthImpl(src, length, dest, options);
-}
-
-absl::Status ParseMessageOfLength(LimitingReaderBase& src, size_t length,
-                                  google::protobuf::MessageLite& dest,
-                                  ParseMessageOptions options) {
-  return ParseMessageOfLengthImpl(src, length, dest, options);
-}
 
 absl::Status ParseLengthPrefixedMessage(Reader& src,
                                         google::protobuf::MessageLite& dest,

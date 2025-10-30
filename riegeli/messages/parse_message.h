@@ -118,28 +118,11 @@ template <
 absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
                           ParseMessageOptions options = ParseMessageOptions());
 
-// Reads a message in binary format with the given `length` from the given
-// `Reader`. If successful, exactly `length` bytes will be consumed.
-//
-// Returns status:
-//  * `status.ok()`  - success (`dest` is filled)
-//  * `!status.ok()` - failure (`dest` is unspecified)
-//
-// This is a more efficient equivalent of:
-//
-// ```
-// ParseMessage(
-//     ScopedLimiterOrLimitingReader(
-//         &src, LimitingReaderBase::Options().set_exact_length(length))
-//         .reader(),
-//     dest, options)
-// ```
-absl::Status ParseMessageOfLength(
-    Reader& src, size_t length, google::protobuf::MessageLite& dest,
-    ParseMessageOptions options = ParseMessageOptions());
-absl::Status ParseMessageOfLength(
-    LimitingReaderBase& src, size_t length, google::protobuf::MessageLite& dest,
-    ParseMessageOptions options = ParseMessageOptions());
+// Optimized implementation for `ReaderSpan`.
+template <typename ReaderType>
+absl::Status ParseMessage(ReaderSpan<ReaderType> src,
+                          google::protobuf::MessageLite& dest,
+                          ParseMessageOptions options = ParseMessageOptions());
 
 // Reads a message length as varint32 (at most 2G), then a message in binary
 // format with that length from the given `Reader`.
@@ -200,6 +183,14 @@ namespace parse_message_internal {
 absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
                               ParseMessageOptions options);
 
+absl::Status ParseMessageImpl(ReaderSpan<Reader> src,
+                              google::protobuf::MessageLite& dest,
+                              ParseMessageOptions options);
+
+absl::Status ParseMessageImpl(ReaderSpan<> src,
+                              google::protobuf::MessageLite& dest,
+                              ParseMessageOptions options);
+
 }  // namespace parse_message_internal
 
 template <
@@ -216,6 +207,13 @@ inline absl::Status ParseMessage(Src&& src, google::protobuf::MessageLite& dest,
     if (ABSL_PREDICT_FALSE(!src_dep->Close())) status.Update(src_dep->status());
   }
   return status;
+}
+
+template <typename ReaderType>
+absl::Status ParseMessage(ReaderSpan<ReaderType> src,
+                          google::protobuf::MessageLite& dest,
+                          ParseMessageOptions options) {
+  return parse_message_internal::ParseMessageImpl(src, dest, options);
 }
 
 }  // namespace riegeli

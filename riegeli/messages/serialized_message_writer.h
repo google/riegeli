@@ -34,6 +34,7 @@
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
+#include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/null_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/stringify.h"
@@ -122,8 +123,9 @@ class SerializedMessageWriter {
   template <typename... Values,
             std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
   absl::Status WriteString(int field_number, Values&&... values);
-  absl::Status CopyString(int field_number, Reader& src, Position length);
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
+  template <typename ReaderType>
+  absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
       SerializeMessageOptions options = {});
@@ -255,6 +257,8 @@ class SerializedMessageWriter {
 
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
+  ABSL_ATTRIBUTE_COLD static absl::Status CopyStringFailed(Reader& src,
+                                                           Writer& dest);
 
   Writer* dest_ = nullptr;
   std::vector<CordWriter<absl::Cord>> submessages_;
@@ -521,6 +525,19 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
     if (ABSL_PREDICT_FALSE(!writer().Write(std::move(cord_writer.dest())))) {
       return writer().status();
     }
+  }
+  return absl::OkStatus();
+}
+
+template <typename ReaderType>
+absl::Status SerializedMessageWriter::CopyString(int field_number,
+                                                 ReaderSpan<ReaderType> src) {
+  if (absl::Status status = WriteLengthUnchecked(field_number, src.length());
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
+  }
+  if (ABSL_PREDICT_FALSE(!src.reader().Copy(src.length(), writer()))) {
+    return CopyStringFailed(src.reader(), writer());
   }
   return absl::OkStatus();
 }

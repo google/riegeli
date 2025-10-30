@@ -356,6 +356,51 @@ explicit LimitingReader(Src&& src, LimitingReaderBase::Options options =
                                        LimitingReaderBase::Options())
     -> LimitingReader<TargetT<Src>>;
 
+// `ReaderSpan` specifies a span of `Reader` contents from the current position
+// with the given length. The type of the `Reader` is specified as a template
+// parameter so that `LimitingReaderBase` can be treated specially.
+//
+// This can express the span as a single object, which is sometimes
+// convenient.
+//
+// `ReaderSpan` supports `Dependency<Reader*, ReaderSpan<ReaderType>>`,
+// which internally applies a `ScopedLimiterOrLimitingReader`. Some functions
+// treat a parameter of type `ReaderSpan` specially to enable a more efficient
+// implementation.
+template <typename ReaderType = LimitingReaderBase>
+class ReaderSpan {
+ public:
+  // An empty object. It can only be assigned to.
+  ReaderSpan() = default;
+
+  // Specifies the span from the current position of `*reader` with `length`.
+  explicit ReaderSpan(ReaderType* reader, Position length)
+      : reader_(reader), length_(length) {}
+
+  template <typename OtherReaderType,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::negation<std::is_same<OtherReaderType, ReaderType>>,
+                    std::is_convertible<OtherReaderType*, ReaderType*>>,
+                int> = 0>
+  /*implicit*/ ReaderSpan(ReaderSpan<OtherReaderType> src)
+      : ReaderSpan(&src.reader(), src.length()) {}
+
+  ReaderSpan(const ReaderSpan& that) = default;
+  ReaderSpan& operator=(const ReaderSpan& that) = default;
+
+  ReaderType& reader() const { return *reader_; }
+  Position length() const { return length_; }
+
+ private:
+  ReaderType* reader_ = nullptr;
+  Position length_ = 0;
+};
+
+template <typename ReaderType>
+explicit ReaderSpan(ReaderType* reader, Position length)
+    -> ReaderSpan<ReaderType>;
+
 // Changes the options of a `LimitingReader` in the constructor, and restores
 // them in the destructor.
 class ScopedLimiter {
@@ -374,6 +419,11 @@ class ScopedLimiter {
   explicit ScopedLimiter(LimitingReaderBase* reader
                              ABSL_ATTRIBUTE_LIFETIME_BOUND,
                          Options options);
+
+  explicit ScopedLimiter(ReaderSpan<> src)
+      : ScopedLimiter(
+            &src.reader(),
+            LimitingReaderBase::Options().set_exact_length(src.length())) {}
 
   ScopedLimiter(const ScopedLimiter&) = delete;
   ScopedLimiter& operator=(const ScopedLimiter&) = delete;
@@ -405,8 +455,13 @@ class ScopedLimiterOrLimitingReader {
  public:
   using Options = LimitingReaderBase::Options;
 
-  explicit ScopedLimiterOrLimitingReader(Src* src, Options options)
+  explicit ScopedLimiterOrLimitingReader(Src* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                         Options options)
       : reader_(src, options) {}
+
+  explicit ScopedLimiterOrLimitingReader(ReaderSpan<Src> src)
+      : reader_(&src.reader(),
+                LimitingReaderBase::Options().set_exact_length(src.length())) {}
 
   ScopedLimiterOrLimitingReader(const ScopedLimiterOrLimitingReader&) = delete;
   ScopedLimiterOrLimitingReader& operator=(
@@ -439,8 +494,14 @@ class ScopedLimiterOrLimitingReader<
   using Options = LimitingReaderBase::Options;
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
-  explicit ScopedLimiterOrLimitingReader(Src* src, Options options)
+  explicit ScopedLimiterOrLimitingReader(Src* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                         Options options)
       : limiter_(src, options) {}
+
+  explicit ScopedLimiterOrLimitingReader(ReaderSpan<Src> src)
+      : limiter_(&src.reader(),
+                 LimitingReaderBase::Options().set_exact_length(src.length())) {
+  }
 
   ScopedLimiterOrLimitingReader(const ScopedLimiterOrLimitingReader&) = delete;
   ScopedLimiterOrLimitingReader& operator=(
@@ -468,6 +529,48 @@ template <typename Src>
 explicit ScopedLimiterOrLimitingReader(Src* src,
                                        LimitingReaderBase::Options options)
     -> ScopedLimiterOrLimitingReader<Src>;
+
+template <typename Src>
+explicit ScopedLimiterOrLimitingReader(ReaderSpan<Src> src)
+    -> ScopedLimiterOrLimitingReader<Src>;
+
+// Specialization of `DependencyImpl<Reader*, ReaderSpan<ReaderType>>`.
+template <typename ReaderType>
+class DependencyImpl<Reader*, ReaderSpan<ReaderType>> {
+ public:
+  explicit DependencyImpl(ReaderSpan<ReaderType> span)
+      : scoped_limiter_(
+            &span.reader(),
+            LimitingReaderBase::Options().set_exact_length(span.length())) {}
+
+  DependencyImpl(const DependencyImpl&) = delete;
+  DependencyImpl& operator=(const DependencyImpl&) = delete;
+
+  ReaderSpan<ReaderType>& manager() ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return span_;
+  }
+  const ReaderSpan<ReaderType>& manager() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return span_;
+  }
+
+  LimitingReaderBase* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return &scoped_limiter_.reader();
+  }
+
+  bool IsOwning() const { return false; }
+
+  static constexpr bool kIsStable = false;
+
+ protected:
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
+
+ private:
+  ReaderSpan<ReaderType> span_;
+  mutable ScopedLimiterOrLimitingReader<ReaderType> scoped_limiter_;
+};
 
 // Implementation details follow.
 

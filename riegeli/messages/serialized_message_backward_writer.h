@@ -33,6 +33,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
+#include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/stringify.h"
 #include "riegeli/endian/endian_writing.h"
@@ -133,8 +134,9 @@ class SerializedMessageBackwardWriter {
   template <typename... Values,
             std::enable_if_t<IsStringifiable<Values...>::value, int> = 0>
   absl::Status WriteString(int field_number, Values&&... values);
-  absl::Status CopyString(int field_number, Reader& src, Position length);
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
+  template <typename ReaderType>
+  absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
       SerializeMessageOptions options = {});
@@ -207,7 +209,8 @@ class SerializedMessageBackwardWriter {
 
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
-  absl::Status WriteTag(uint32_t tag);
+  ABSL_ATTRIBUTE_COLD static absl::Status CopyStringFailed(
+      Reader& src, BackwardWriter& dest);
 
   BackwardWriter* dest_ = nullptr;
   std::vector<Position> submessages_;
@@ -450,6 +453,20 @@ inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
     return status;
   }
   return WriteLengthUnchecked(field_number, length);
+}
+
+template <typename ReaderType>
+absl::Status SerializedMessageBackwardWriter::CopyString(
+    int field_number, ReaderSpan<ReaderType> src) {
+  if (ABSL_PREDICT_FALSE(src.length() >
+                         uint32_t{std::numeric_limits<int32_t>::max()})) {
+    return LengthOverflowError(src.length());
+  }
+  if (ABSL_PREDICT_FALSE(
+          !src.reader().Copy(IntCast<size_t>(src.length()), writer()))) {
+    return CopyStringFailed(src.reader(), writer());
+  }
+  return WriteLengthUnchecked(field_number, src.length());
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteLengthUnchecked(

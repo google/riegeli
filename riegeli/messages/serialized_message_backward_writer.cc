@@ -17,19 +17,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <limits>
 #include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/copy_all.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/varint/varint_writing.h"
 
 namespace riegeli {
 
@@ -41,19 +39,11 @@ absl::Status SerializedMessageBackwardWriter::LengthOverflowError(
                    length));
 }
 
-absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
-                                                         Reader& src,
-                                                         Position length) {
-  if (ABSL_PREDICT_FALSE(length >
-                         uint32_t{std::numeric_limits<int32_t>::max()})) {
-    return LengthOverflowError(length);
-  }
-  if (ABSL_PREDICT_FALSE(!src.Copy(IntCast<size_t>(length), writer()))) {
-    return !writer().ok() ? writer().status()
-                          : src.StatusOrAnnotate(absl::InvalidArgumentError(
-                                "Could not read a length-delimited field"));
-  }
-  return WriteLengthUnchecked(field_number, length);
+absl::Status SerializedMessageBackwardWriter::CopyStringFailed(
+    Reader& src, BackwardWriter& dest) {
+  return !dest.ok() ? dest.status()
+                    : src.StatusOrAnnotate(absl::InvalidArgumentError(
+                          "Could not read a length-delimited field"));
 }
 
 absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
@@ -101,13 +91,6 @@ absl::Status SerializedMessageBackwardWriter::CloseOptionalLengthDelimited(
   const Position length = dest_->pos() - submessages_.back();
   submessages_.pop_back();
   if (length > 0) return WriteLengthUnchecked(field_number, length);
-  return absl::OkStatus();
-}
-
-inline absl::Status SerializedMessageBackwardWriter::WriteTag(uint32_t tag) {
-  if (ABSL_PREDICT_FALSE(!WriteVarint32(tag, writer()))) {
-    return writer().status();
-  }
   return absl::OkStatus();
 }
 

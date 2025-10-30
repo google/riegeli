@@ -949,8 +949,8 @@ inline void SerializedMessageRewriter<Context>::OnParsedMessage(
                       size_t length, LimitingReaderBase& src,
                       MessageReaderContext& context) {
         MessageType message;
-        if (absl::Status status = riegeli::ParseMessageOfLength(
-                src, length, message, parse_options);
+        if (absl::Status status = riegeli::ParseMessage(
+                ReaderSpan(&src, length), message, parse_options);
             ABSL_PREDICT_FALSE(!status.ok())) {
           return status;
         }
