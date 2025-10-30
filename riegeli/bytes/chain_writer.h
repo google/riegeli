@@ -72,7 +72,7 @@ class ChainWriterBase : public Writer {
     //
     // This is used initially, while the destination is small.
     //
-    // Default: `kDefaultMinBlockSize` (256).
+    // Default: `kDefaultMinBlockSize` (512).
     Options& set_min_block_size(size_t min_block_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       min_block_size_ = UnsignedMin(min_block_size, uint32_t{1} << 31);

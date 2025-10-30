@@ -29,7 +29,7 @@ ABSL_POINTERS_DEFAULT_NONNULL
 namespace riegeli {
 
 // Typical bounds of sizes of memory blocks holding pieces of data in objects.
-inline constexpr size_t kDefaultMinBlockSize = 256;
+inline constexpr size_t kDefaultMinBlockSize = 512;
 inline constexpr size_t kDefaultMaxBlockSize = size_t{64} << 10;
 
 // When deciding whether to copy an array of bytes or share memory, prefer
@@ -65,7 +65,7 @@ inline size_t ApplyBufferConstraints(Position base_length, size_t min_length,
 
 // Heuristics for whether a data structure with `allocated` bytes utilizing
 // `used` bytes for actual data is considered wasteful: `allocated` is larger
-// than `2 * used + kDefaultMinBlockSize` (256).
+// than `2 * used + kDefaultMinBlockSize` (512).
 inline bool Wasteful(size_t allocated, size_t used) {
   if (ABSL_PREDICT_FALSE(used > allocated)) return false;
   const size_t unused = allocated - used;

@@ -44,7 +44,7 @@ class NullBackwardWriter : public BackwardWriter {
    public:
     Options() noexcept {}
 
-    // `NullBackwardWriter` has a smaller default buffer size (256) so that
+    // `NullBackwardWriter` has a smaller default buffer size (512) so that
     // writing larger values is skipped altogether.
     static constexpr size_t kDefaultMinBufferSize = kMaxBytesToCopy + 1;
     static constexpr size_t kDefaultMaxBufferSize = kMaxBytesToCopy + 1;
