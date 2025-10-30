@@ -81,9 +81,9 @@ inline absl::Status CheckInitialized(Reader& src,
 }
 
 template <typename ReaderType>
-absl::Status ParseMessageFromRegionImpl(ReaderSpan<ReaderType> src,
-                                        google::protobuf::MessageLite& dest,
-                                        ParseMessageOptions options) {
+absl::Status ParseMessageFromSpanImpl(ReaderSpan<ReaderType> src,
+                                      google::protobuf::MessageLite& dest,
+                                      ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -187,13 +187,13 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
 absl::Status ParseMessageImpl(ReaderSpan<Reader> src,
                               google::protobuf::MessageLite& dest,
                               ParseMessageOptions options) {
-  return ParseMessageFromRegionImpl(src, dest, options);
+  return ParseMessageFromSpanImpl(src, dest, options);
 }
 
 absl::Status ParseMessageImpl(ReaderSpan<> src,
                               google::protobuf::MessageLite& dest,
                               ParseMessageOptions options) {
-  return ParseMessageFromRegionImpl(src, dest, options);
+  return ParseMessageFromSpanImpl(src, dest, options);
 }
 
 }  // namespace parse_message_internal
