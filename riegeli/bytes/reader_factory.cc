@@ -623,8 +623,12 @@ std::unique_ptr<Reader> ReaderFactoryBase::NewReader(Position initial_pos) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   if (shared_ == nullptr) {
-    Reader& src = const_cast<Reader&>(*SrcReader());
-    std::unique_ptr<Reader> reader = src.NewReader(initial_pos);
+    Reader& src = *SrcReader();
+    // `src.NewReaderCurrentPos()` is thread-safe in this context because the
+    // only operation on `src` is `NewReader()` or `NewReaderCurrentPos()`.
+    std::unique_ptr<Reader> reader = initial_pos == pos()
+                                         ? src.NewReaderCurrentPos()
+                                         : src.NewReader(initial_pos);
     RIEGELI_ASSERT_NE(reader, nullptr)
         << "Failed postcondition of Reader::NewReader(): "
            "returned null but Reader is ok() and SupportsNewReader()";

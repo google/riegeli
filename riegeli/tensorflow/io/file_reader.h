@@ -168,6 +168,7 @@ class FileReaderBase : public Reader {
   bool SeekSlow(Position new_pos) override;
   std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
+  std::unique_ptr<Reader> NewReaderCurrentPosImpl() override;
 
  private:
   ABSL_ATTRIBUTE_COLD bool FailOperation(const absl::Status& status,

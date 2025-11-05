@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
@@ -483,11 +484,32 @@ class Reader : public Object {
   //
   // `NewReader()` is supported if `SupportsNewReader()` is `true`.
   //
-  // If `SupportsNewReader()` returned `true`, then `NewReader()` may be called
-  // concurrently. If also `ok()` is `true`, then `NewReader()` does not return
-  // `nullptr`.
-  std::unique_ptr<Reader> NewReader(Position initial_pos);
-  std::unique_ptr<Reader> NewReader() { return NewReader(pos()); }
+  // If `SupportsNewReader()` is `true`, then `NewReader()` is effectively const
+  // and thread-safe. It may be called concurrently with other operations, even
+  // non-const ones.
+  //
+  // If `SupportsNewReader()` and `ok()` are `true`, then `NewReader()` does not
+  // return `nullptr`.
+  std::unique_ptr<Reader> NewReader(Position initial_pos) {
+    return NewReaderImpl(initial_pos);
+  }
+
+  // Like `NewReader(pos())`. It can be more efficient because for some classes
+  // the current buffer can be shared. It offers fewer thread safety guarantees.
+  //
+  // If `SupportsNewReader()` is `true`, then `NewReaderCurrentPos()` is
+  // effectively const but not thread-safe. It may be called concurrently
+  // with const operations and with other calls to `NewReader()` and
+  // `NewReaderCurrentPos()`, but not with non-const operations.
+  //
+  // If `SupportsNewReader()` and `ok()` are `true`, then
+  // `NewReaderCurrentPos()` does not return `nullptr`.
+  std::unique_ptr<Reader> NewReaderCurrentPos() {
+    return NewReaderCurrentPosImpl();
+  }
+  ABSL_DEPRECATE_AND_INLINE() std::unique_ptr<Reader> NewReader() {
+    return NewReaderCurrentPos();
+  }
 
  protected:
   using Object::Object;
@@ -657,6 +679,7 @@ class Reader : public Object {
   virtual std::optional<Position> SizeImpl();
 
   virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos);
+  virtual std::unique_ptr<Reader> NewReaderCurrentPosImpl();
 
  private:
   const char* start_ = nullptr;

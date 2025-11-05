@@ -57,9 +57,14 @@ class ReaderFactoryBase : public Object {
   // does. The original `Reader` must not be accessed until the new `Reader` is
   // closed or no longer used.
   //
-  // Returns `nullptr` only if `!ok()` before `NewReader()` was called.
+  // In contrast to `Reader::NewReader()` and `Reader::NewReaderCurrentPos()`,
+  // `ReaderFactory::NewReader()` is unconditionally const and thread-safe,
+  // even with an implicit initial position (concurrency with other operations
+  // is not applicable because the original `Reader` must not be accessed
+  // directly). The optimization of sharing the current buffer is applicable
+  // as long as the initial position is implicit or matches `pos()`.
   //
-  // `NewReader()` is const and thus may be called concurrently.
+  // If `ok()` is `true`, then `NewReader()` does not return `nullptr`.
   std::unique_ptr<Reader> NewReader(Position initial_pos) const
       ABSL_ATTRIBUTE_LIFETIME_BOUND;
   std::unique_ptr<Reader> NewReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND {

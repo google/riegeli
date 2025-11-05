@@ -622,8 +622,8 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
 #ifdef _WIN32
           !has_independent_pos_
               ? absl::UnimplementedError(
-                    "FdReaderBase::Options::independent_pos() "
-                    "required for read mode")
+                    "NewReader() requires "
+                    "FdReaderBase::Options::independent_pos()")
               :
 #endif
               random_access_status_);
@@ -639,7 +639,14 @@ std::unique_ptr<Reader> FdReaderBase::NewReaderImpl(Position initial_pos) {
                                         .set_growing_source(growing_source_)
                                         .set_buffer_options(buffer_options()));
   reader->set_exact_size(exact_size());
-  ShareBufferTo(*reader);
+  return reader;
+}
+
+std::unique_ptr<Reader> FdReaderBase::NewReaderCurrentPosImpl() {
+  std::unique_ptr<Reader> reader = FdReaderBase::NewReaderImpl(pos());
+  if (ABSL_PREDICT_TRUE(reader != nullptr)) {
+    ShareBufferTo(*static_cast<FdReaderBase*>(reader.get()));
+  }
   return reader;
 }
 

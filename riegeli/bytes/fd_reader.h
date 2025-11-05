@@ -267,6 +267,7 @@ class FdReaderBase : public BufferedReader {
   bool SeekBehindBuffer(Position new_pos) override;
   std::optional<Position> SizeImpl() override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
+  std::unique_ptr<Reader> NewReaderCurrentPosImpl() override;
 
  private:
   absl::Status FailedOperationStatus(absl::string_view operation);

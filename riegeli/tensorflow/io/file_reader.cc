@@ -675,12 +675,18 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
                    .set_growing_source(growing_source_)
                    .set_buffer_options(buffer_sizer_.buffer_options()));
   reader->set_exact_size(exact_size());
-  if (initial_pos >= start_pos() && initial_pos < limit_pos()) {
+  return reader;
+}
+
+std::unique_ptr<Reader> FileReaderBase::NewReaderCurrentPosImpl() {
+  std::unique_ptr<Reader> reader = FileReaderBase::NewReaderImpl(pos());
+  if (ABSL_PREDICT_TRUE(reader != nullptr)) {
     // Share `buffer_` with `*reader`.
-    reader->buffer_ = buffer_;
-    reader->set_buffer(start(), start_to_limit(),
-                       IntCast<size_t>(initial_pos - start_pos()));
-    reader->set_limit_pos(limit_pos());
+    FileReaderBase* const file_reader =
+        static_cast<FileReaderBase*>(reader.get());
+    file_reader->buffer_ = buffer_;
+    file_reader->set_buffer(start(), start_to_limit(), start_to_cursor());
+    file_reader->set_limit_pos(limit_pos());
   }
   return reader;
 }

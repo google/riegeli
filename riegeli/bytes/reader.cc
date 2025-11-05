@@ -851,13 +851,13 @@ std::optional<Position> Reader::SizeImpl() {
   return std::nullopt;
 }
 
-std::unique_ptr<Reader> Reader::NewReader(Position initial_pos) {
-  return NewReaderImpl(initial_pos);
-}
-
 std::unique_ptr<Reader> Reader::NewReaderImpl(Position initial_pos) {
   Fail(absl::UnimplementedError("Reader::NewReader() not supported"));
   return nullptr;
+}
+
+std::unique_ptr<Reader> Reader::NewReaderCurrentPosImpl() {
+  return NewReader(pos());
 }
 
 }  // namespace riegeli
