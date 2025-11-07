@@ -109,6 +109,38 @@ cc_library(
 )
 
 cc_library(
+    name = "serialized_message_reader2",
+    srcs = [
+        "field_handlers.cc",
+        "serialized_message_reader2.cc",
+    ],
+    hdrs = [
+        "field_handlers.h",
+        "serialized_message_reader2.h",
+    ],
+    deps = [
+        ":message_wire_format",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:chain",
+        "//riegeli/base:dependency",
+        "//riegeli/base:status",
+        "//riegeli/base:type_traits",
+        "//riegeli/base:types",
+        "//riegeli/bytes:limiting_reader",
+        "//riegeli/bytes:reader",
+        "//riegeli/endian:endian_reading",
+        "//riegeli/varint:varint_reading",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_library(
     name = "serialized_message_writer",
     srcs = ["serialized_message_writer.cc"],
     hdrs = ["serialized_message_writer.h"],
@@ -134,7 +166,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_protobuf//:protobuf",
         "@com_google_protobuf//:protobuf_lite",
     ],
 )

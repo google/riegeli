@@ -43,14 +43,25 @@
 
 namespace riegeli {
 
-// `SerializedMessageBackwardWriter` builds a serialized message, specifying
-// contents of particular fields. Building proceeds back to front, using
-// `BackwardWriter`.
+// `SerializedMessageBackwardWriter` builds a serialized proto message,
+// specifying contents of particular fields, instead of traversing an in-memory
+// message object like in `SerializeMessage()`. Building proceeds back to front,
+// using `BackwardWriter`.
 //
-// The primary use case is processing a subset of fields without the overhead
-// of materializing the message object. That would include processing the
-// remaining fields, as well as fields contained in submessages which can be
-// processed as a whole.
+// Use cases:
+//
+//  * Processing a subset of fields without the overhead of materializing the
+//    message object, i.e. without processing fields contained in submessages
+//    which can be processed as a whole, and without keeping the whole parsed
+//    message in memory.
+//
+//  * Processing a message in a way known at runtime, possibly with the schema
+//    known at runtime, possibly partially known.
+//
+//  * Processing messages with so many elements of toplevel repeated fields that
+//    the total message size exceeds 2GiB. This is not a great idea in itself,
+//    because such messages cannot be processed using native proto parsing and
+//    serialization.
 //
 // `SerializedMessageBackwardWriter` is more efficient than
 // `SerializedMessageWriter` in the case of nested messages, because their
@@ -144,9 +155,15 @@ class SerializedMessageBackwardWriter {
     requires(IsStringifiable<Values>::value && ...)
 #endif
   ;
+
+  // Writes the field tag of a length-delimited field and copies the field value
+  // from a `Reader`.
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
   absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
+
+  // Writes the field tag of a length-delimited field and serializes a message
+  // as the field value.
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
       SerializeMessageOptions options = {});

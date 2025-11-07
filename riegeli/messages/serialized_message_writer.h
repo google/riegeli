@@ -46,16 +46,29 @@
 
 namespace riegeli {
 
-// `SerializedMessageWriter` builds a serialized message, specifying contents
-// of particular fields.
+// `SerializedMessageWriter` builds a serialized proto message, specifying
+// contents of particular fields, instead of traversing an in-memory message
+// object like in `SerializeMessage()`.
 //
-// The primary use case is processing a subset of fields without the overhead
-// of materializing the message object. That would include processing the
-// remaining fields, as well as fields contained in submessages which can be
-// processed as a whole.
+// Use cases:
 //
-// `SerializedMessageBackwardWriter` is more efficient in the case of nested
-// messages.
+//  * Processing a subset of fields without the overhead of materializing the
+//    message object, i.e. without processing fields contained in submessages
+//    which can be processed as a whole, and without keeping the whole parsed
+//    message in memory.
+//
+//  * Processing a message in a way known at runtime, possibly with the schema
+//    known at runtime, possibly partially.
+//
+//  * Processing messages with so many elements of toplevel repeated fields that
+//    the total message size exceeds 2GiB. This is not a great idea in itself,
+//    because such messages cannot be processed using native proto parsing and
+//    serialization.
+//
+// `SerializedMessageBackwardWriter` is more efficient than
+// `SerializedMessageWriter` in the case of nested messages, because their
+// contents can be written directly to the original `BackwardWriter`, with the
+// length known and written after building the contents.
 //
 // Functions working on strings are applicable to any length-delimited field:
 // `string`, `bytes`, submessage, or a packed repeated field.
@@ -133,9 +146,15 @@ class SerializedMessageWriter {
     requires(IsStringifiable<Values>::value && ...)
 #endif
   ;
+
+  // Writes the field tag of a length-delimited field and copies the field value
+  // from a `Reader`.
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
   absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
+
+  // Writes the field tag of a length-delimited field and serializes a message
+  // as the field value.
   absl::Status WriteSerializedMessage(
       int field_number, const google::protobuf::MessageLite& message,
       SerializeMessageOptions options = {});
@@ -245,7 +264,7 @@ class SerializedMessageWriter {
             std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
 #endif
             >
-  static Position LengthOfString(int field_number, Values&&... values)
+  static Position LengthOfString(int field_number, const Values&... values)
 #if __cpp_concepts
       // For conjunctions, `requires` gives better error messages than
       // `std::enable_if_t`, indicating the relevant argument.
@@ -757,7 +776,7 @@ template <typename... Values
 #endif
           >
 inline Position SerializedMessageWriter::LengthOfString(int field_number,
-                                                        Values&&... values)
+                                                        const Values&... values)
 #if __cpp_concepts
   requires(IsStringifiable<Values>::value && ...)
 #endif
@@ -767,7 +786,7 @@ inline Position SerializedMessageWriter::LengthOfString(int field_number,
                                    riegeli::StringifiedSize(values...));
   } else {
     NullWriter null_writer;
-    null_writer.Write(std::forward<Values>(values)...);
+    null_writer.Write(values...);
     null_writer.Close();
     return LengthOfLengthDelimited(field_number, null_writer.pos());
   }
