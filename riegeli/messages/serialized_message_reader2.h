@@ -97,7 +97,8 @@ namespace riegeli {
 // A family of functions returning static and unbound field handlers is defined
 // in namespace `riegeli::field_handlers`.
 //
-// The primary dynamic field handler is `FieldHandlerMap`.
+// The primary dynamic field handlers are `FieldHandlerMap` and
+// `CopyingFieldHandler`.
 //
 // Field handlers stored in a single `SerializedMessageReader2` are usually
 // conceptually associated with a single message type.

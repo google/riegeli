@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <limits>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -27,6 +28,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
@@ -305,6 +307,106 @@ class SerializedMessageWriter {
 
   // Invariant:
   //   `writer_ == (submessages_.empty() ? dest_ : &submessages_.back())`
+};
+
+// A field handler for `SerializedMessageReader2` which copies any field to a
+// `SerializedMessageWriter`.
+//
+// It is meant to be used as the last field handler, so that remaining fields
+// not handled by previous field handlers will be copied unchanged.
+//
+// `Context` types must contain exactly one occurrence of
+// `SerializedMessageWriter`.
+template <typename... Context>
+class CopyingFieldHandler {
+ public:
+  // This is `kDynamicFieldNumber` from `serialized_message_reader2.h`.
+  // Avoid adding a dependency just for that.
+  static constexpr int kFieldNumber = -1;
+
+  CopyingFieldHandler() = default;
+
+  CopyingFieldHandler(const CopyingFieldHandler&) = default;
+  CopyingFieldHandler& operator=(const CopyingFieldHandler&) = default;
+
+  std::optional<int> AcceptVarint(int field_number) const {
+    return field_number;
+  }
+
+  absl::Status HandleVarint(int field_number, uint64_t value,
+                            Context&... context) const {
+    return message_writer(context...).WriteUInt64(field_number, value);
+  }
+
+  std::optional<int> AcceptFixed32(int field_number) const {
+    return field_number;
+  }
+
+  absl::Status HandleFixed32(int field_number, uint32_t value,
+                             Context&... context) const {
+    return message_writer(context...).WriteFixed32(field_number, value);
+  }
+
+  std::optional<int> AcceptFixed64(int field_number) const {
+    return field_number;
+  }
+
+  absl::Status HandleFixed64(int field_number, uint64_t value,
+                             Context&... context) const {
+    return message_writer(context...).WriteFixed64(field_number, value);
+  }
+
+  std::optional<int> AcceptLengthDelimited(int field_number) const {
+    return field_number;
+  }
+
+  absl::Status HandleLengthDelimited(int field_number, ReaderSpan<> value,
+                                     Context&... context) const {
+    return message_writer(context...).CopyString(field_number, value);
+  }
+
+  absl::Status HandleLengthDelimited(int field_number, absl::string_view value,
+                                     Context&... context) const {
+    return message_writer(context...).WriteString(field_number, value);
+  }
+
+  std::optional<int> AcceptStartGroup(int field_number) const {
+    return field_number;
+  }
+
+  absl::Status HandleStartGroup(int field_number, Context&... context) const {
+    return message_writer(context...).OpenGroup(field_number);
+  }
+
+  std::optional<int> AcceptEndGroup(int field_number) const {
+    return field_number;
+  }
+
+  absl::Status HandleEndGroup(int field_number, Context&... context) const {
+    return message_writer(context...).CloseGroup(field_number);
+  }
+
+ private:
+  template <typename SingleContext>
+  static void FindSerializedMessageWriter(
+      SerializedMessageWriter*& message_writer, SingleContext& context) {
+    if constexpr (std::is_convertible_v<SingleContext&,
+                                        SerializedMessageWriter&>) {
+      message_writer = &context;
+    }
+  }
+
+  static SerializedMessageWriter& message_writer(Context&... context) {
+    static_assert(
+        (0 + ... +
+         (std::is_convertible_v<Context&, SerializedMessageWriter&> ? 1 : 0)) ==
+            1,
+        "Context types must contain exactly one occurrence of "
+        "SerializedMessageWriter.");
+    SerializedMessageWriter* message_writer;
+    (FindSerializedMessageWriter(message_writer, context), ...);
+    return *message_writer;
+  }
 };
 
 // Implementation details follow.
