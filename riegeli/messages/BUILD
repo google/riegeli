@@ -142,6 +142,21 @@ cc_library(
 )
 
 cc_library(
+    name = "field_handler_map",
+    hdrs = ["field_handler_map.h"],
+    deps = [
+        ":serialized_message_reader2",
+        "//riegeli/base:assert",
+        "//riegeli/bytes:limiting_reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "serialized_message_writer",
     srcs = ["serialized_message_writer.cc"],
     hdrs = ["serialized_message_writer.h"],

@@ -213,7 +213,7 @@ template <int field_number, typename Action>
 using AfterGroupType =
     field_handlers_internal::OnEndGroupImpl<field_number, Action>;
 
-// Common field handlers for `SerializedMessageReader2`.
+// Common field handlers for `SerializedMessageReader2` and `FieldHandlerMap`.
 //
 // For a `MessageType` with generated code, the field number of a field named
 // `foo_bar` can be obtained as `MessageType::kFooBarFieldNumber`.
@@ -229,11 +229,20 @@ using AfterGroupType =
 // overflow the provided 32-bit type are reported as errors instead of being
 // silently truncated.
 //
-// For efficiency, field numbers must be compile time constants.
+// Two kinds of field handlers are provided by these functions:
+//
+//  * Static, which handle a single field number known at compile time.
+//    The `field_number` template parameter must be specified and positive.
+//
+//  * Unbound, which are meant to be registered in a `FieldHandlerMap` with a
+//    field number specified during registration. The `field_number` template
+//    parameter must not be specified. The action takes extra `Context&...`
+//    parameters. Values for these parameters are specified as arguments of
+//    `FieldHandlerMap::Apply()`.
 
 // Field handler of a singular `int32` field. The value is provided as
 // `int32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalInt32Type<field_number, std::decay_t<Action>>
 OnOptionalInt32(Action&& action) {
   return OnOptionalInt32Type<field_number, std::decay_t<Action>>(
@@ -242,7 +251,7 @@ OnOptionalInt32(Action&& action) {
 
 // Field handler of an element of a repeated `int32` field. The value is
 // provided as `int32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedInt32Type<field_number, std::decay_t<Action>>
 OnRepeatedInt32(Action&& action) {
   return OnRepeatedInt32Type<field_number, std::decay_t<Action>>(
@@ -251,7 +260,7 @@ OnRepeatedInt32(Action&& action) {
 
 // Field handler of a singular `int64` field. The value is provided as
 // `int64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalInt64Type<field_number, std::decay_t<Action>>
 OnOptionalInt64(Action&& action) {
   return OnOptionalInt64Type<field_number, std::decay_t<Action>>(
@@ -260,7 +269,7 @@ OnOptionalInt64(Action&& action) {
 
 // Field handler of an element of a repeated `int64` field. The value is
 // provided as `int64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedInt64Type<field_number, std::decay_t<Action>>
 OnRepeatedInt64(Action&& action) {
   return OnRepeatedInt64Type<field_number, std::decay_t<Action>>(
@@ -269,7 +278,7 @@ OnRepeatedInt64(Action&& action) {
 
 // Field handler of a singular `uint32` field. The value is provided as
 // `uint32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalUInt32Type<field_number, std::decay_t<Action>>
 OnOptionalUInt32(Action&& action) {
   return OnOptionalUInt32Type<field_number, std::decay_t<Action>>(
@@ -278,7 +287,7 @@ OnOptionalUInt32(Action&& action) {
 
 // Field handler of an element of a repeated `uint32` field. The value is
 // provided as `uint32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedUInt32Type<field_number, std::decay_t<Action>>
 OnRepeatedUInt32(Action&& action) {
   return OnRepeatedUInt32Type<field_number, std::decay_t<Action>>(
@@ -287,7 +296,7 @@ OnRepeatedUInt32(Action&& action) {
 
 // Field handler of a singular `uint64` field. The value is provided as
 // `uint64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalUInt64Type<field_number, std::decay_t<Action>>
 OnOptionalUInt64(Action&& action) {
   return OnOptionalUInt64Type<field_number, std::decay_t<Action>>(
@@ -296,7 +305,7 @@ OnOptionalUInt64(Action&& action) {
 
 // Field handler of an element of a repeated `uint64` field. The value is
 // provided as `uint64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedUInt64Type<field_number, std::decay_t<Action>>
 OnRepeatedUInt64(Action&& action) {
   return OnRepeatedUInt64Type<field_number, std::decay_t<Action>>(
@@ -305,7 +314,7 @@ OnRepeatedUInt64(Action&& action) {
 
 // Field handler of a singular `sint32` field. The value is provided as
 // `int32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalSInt32Type<field_number, std::decay_t<Action>>
 OnOptionalSInt32(Action&& action) {
   return OnOptionalSInt32Type<field_number, std::decay_t<Action>>(
@@ -314,7 +323,7 @@ OnOptionalSInt32(Action&& action) {
 
 // Field handler of an element of a repeated `sint32` field. The value is
 // provided as `int32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedSInt32Type<field_number, std::decay_t<Action>>
 OnRepeatedSInt32(Action&& action) {
   return OnRepeatedSInt32Type<field_number, std::decay_t<Action>>(
@@ -323,7 +332,7 @@ OnRepeatedSInt32(Action&& action) {
 
 // Field handler of a singular `sint64` field. The value is provided as
 // `int64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalSInt64Type<field_number, std::decay_t<Action>>
 OnOptionalSInt64(Action&& action) {
   return OnOptionalSInt64Type<field_number, std::decay_t<Action>>(
@@ -332,7 +341,7 @@ OnOptionalSInt64(Action&& action) {
 
 // Field handler of an element of a repeated `sint64` field. The value is
 // provided as `int64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedSInt64Type<field_number, std::decay_t<Action>>
 OnRepeatedSInt64(Action&& action) {
   return OnRepeatedSInt64Type<field_number, std::decay_t<Action>>(
@@ -340,7 +349,7 @@ OnRepeatedSInt64(Action&& action) {
 }
 
 // Field handler of a singular `bool` field. The value is provided as `bool`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalBoolType<field_number, std::decay_t<Action>> OnOptionalBool(
     Action&& action) {
   return OnOptionalBoolType<field_number, std::decay_t<Action>>(
@@ -349,7 +358,7 @@ constexpr OnOptionalBoolType<field_number, std::decay_t<Action>> OnOptionalBool(
 
 // Field handler of an element of a repeated `bool` field. The value is provided
 // as `bool`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedBoolType<field_number, std::decay_t<Action>> OnRepeatedBool(
     Action&& action) {
   return OnRepeatedBoolType<field_number, std::decay_t<Action>>(
@@ -358,7 +367,7 @@ constexpr OnRepeatedBoolType<field_number, std::decay_t<Action>> OnRepeatedBool(
 
 // Field handler of a singular `fixed32` field. The value is provided as
 // `uint32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalFixed32Type<field_number, std::decay_t<Action>>
 OnOptionalFixed32(Action&& action) {
   return OnOptionalFixed32Type<field_number, std::decay_t<Action>>(
@@ -367,7 +376,7 @@ OnOptionalFixed32(Action&& action) {
 
 // Field handler of an element of a repeated `fixed32` field. The value is
 // provided as `uint32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedFixed32Type<field_number, std::decay_t<Action>>
 OnRepeatedFixed32(Action&& action) {
   return OnRepeatedFixed32Type<field_number, std::decay_t<Action>>(
@@ -376,7 +385,7 @@ OnRepeatedFixed32(Action&& action) {
 
 // Field handler of a singular `fixed64` field. The value is provided as
 // `uint64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalFixed64Type<field_number, std::decay_t<Action>>
 OnOptionalFixed64(Action&& action) {
   return OnOptionalFixed64Type<field_number, std::decay_t<Action>>(
@@ -385,7 +394,7 @@ OnOptionalFixed64(Action&& action) {
 
 // Field handler of an element of a repeated `fixed64` field. The value is
 // provided as `uint64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedFixed64Type<field_number, std::decay_t<Action>>
 OnRepeatedFixed64(Action&& action) {
   return OnRepeatedFixed64Type<field_number, std::decay_t<Action>>(
@@ -394,7 +403,7 @@ OnRepeatedFixed64(Action&& action) {
 
 // Field handler of a singular `sfixed32` field. The value is provided as
 // `int32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalSFixed32Type<field_number, std::decay_t<Action>>
 OnOptionalSFixed32(Action&& action) {
   return OnOptionalSFixed32Type<field_number, std::decay_t<Action>>(
@@ -403,7 +412,7 @@ OnOptionalSFixed32(Action&& action) {
 
 // Field handler of an element of a repeated `sfixed32` field. The value is
 // provided as `int32_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedSFixed32Type<field_number, std::decay_t<Action>>
 OnRepeatedSFixed32(Action&& action) {
   return OnRepeatedSFixed32Type<field_number, std::decay_t<Action>>(
@@ -412,7 +421,7 @@ OnRepeatedSFixed32(Action&& action) {
 
 // Field handler of a singular `sfixed64` field. The value is provided as
 // `int64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalSFixed64Type<field_number, std::decay_t<Action>>
 OnOptionalSFixed64(Action&& action) {
   return OnOptionalSFixed64Type<field_number, std::decay_t<Action>>(
@@ -421,7 +430,7 @@ OnOptionalSFixed64(Action&& action) {
 
 // Field handler of an element of a repeated `sfixed64` field. The value is
 // provided as `int64_t`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedSFixed64Type<field_number, std::decay_t<Action>>
 OnRepeatedSFixed64(Action&& action) {
   return OnRepeatedSFixed64Type<field_number, std::decay_t<Action>>(
@@ -429,7 +438,7 @@ OnRepeatedSFixed64(Action&& action) {
 }
 
 // Field handler of a singular `float` field. The value is provided as `float`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalFloatType<field_number, std::decay_t<Action>>
 OnOptionalFloat(Action&& action) {
   return OnOptionalFloatType<field_number, std::decay_t<Action>>(
@@ -438,7 +447,7 @@ OnOptionalFloat(Action&& action) {
 
 // Field handler of an element of a repeated `float` field. The value is
 // provided as `float`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedFloatType<field_number, std::decay_t<Action>>
 OnRepeatedFloat(Action&& action) {
   return OnRepeatedFloatType<field_number, std::decay_t<Action>>(
@@ -447,7 +456,7 @@ OnRepeatedFloat(Action&& action) {
 
 // Field handler of a singular `double` field. The value is provided as
 // `double`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnOptionalDoubleType<field_number, std::decay_t<Action>>
 OnOptionalDouble(Action&& action) {
   return OnOptionalDoubleType<field_number, std::decay_t<Action>>(
@@ -456,7 +465,7 @@ OnOptionalDouble(Action&& action) {
 
 // Field handler of an element of a repeated `double` field. The value is
 // provided as `double`.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnRepeatedDoubleType<field_number, std::decay_t<Action>>
 OnRepeatedDouble(Action&& action) {
   return OnRepeatedDoubleType<field_number, std::decay_t<Action>>(
@@ -465,10 +474,11 @@ OnRepeatedDouble(Action&& action) {
 
 // Field handler of a singular enum field. The value is provided as an enum type
 // (C++ or proto enum) or an integral type.
-template <typename EnumType, int field_number, typename Action,
-          std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
-                                              std::is_integral<EnumType>>,
-                           int> = 0>
+template <
+    typename EnumType, int field_number = kUnboundFieldNumber, typename Action,
+    std::enable_if_t<
+        std::disjunction_v<std::is_enum<EnumType>, std::is_integral<EnumType>>,
+        int> = 0>
 constexpr OnOptionalEnumType<EnumType, field_number, std::decay_t<Action>>
 OnOptionalEnum(Action&& action) {
   return OnOptionalEnumType<EnumType, field_number, std::decay_t<Action>>(
@@ -477,10 +487,11 @@ OnOptionalEnum(Action&& action) {
 
 // Field handler of an element of a repeated enum field. The value is provided
 // as an enum type (C++ or proto enum) or an integral type.
-template <typename EnumType, int field_number, typename Action,
-          std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
-                                              std::is_integral<EnumType>>,
-                           int> = 0>
+template <
+    typename EnumType, int field_number = kUnboundFieldNumber, typename Action,
+    std::enable_if_t<
+        std::disjunction_v<std::is_enum<EnumType>, std::is_integral<EnumType>>,
+        int> = 0>
 constexpr OnRepeatedEnumType<EnumType, field_number, std::decay_t<Action>>
 OnRepeatedEnum(Action&& action) {
   return OnRepeatedEnumType<EnumType, field_number, std::decay_t<Action>>(
@@ -514,7 +525,7 @@ OnRepeatedEnum(Action&& action) {
 //
 // Alternatively, the action can use `absl::Overload{}` to provide two variants
 // with separate implementations.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnLengthDelimitedType<field_number, std::decay_t<Action>>
 OnLengthDelimited(Action&& action) {
   return OnLengthDelimitedType<field_number, std::decay_t<Action>>(
@@ -522,7 +533,7 @@ OnLengthDelimited(Action&& action) {
 }
 
 // Field handler called before the given group.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr BeforeGroupType<field_number, std::decay_t<Action>> BeforeGroup(
     Action&& action) {
   return BeforeGroupType<field_number, std::decay_t<Action>>(
@@ -530,7 +541,7 @@ constexpr BeforeGroupType<field_number, std::decay_t<Action>> BeforeGroup(
 }
 
 // Field handler called after the given group.
-template <int field_number, typename Action>
+template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr AfterGroupType<field_number, std::decay_t<Action>> AfterGroup(
     Action&& action) {
   return AfterGroupType<field_number, std::decay_t<Action>>(

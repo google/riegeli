@@ -59,6 +59,9 @@ namespace riegeli {
 //    processing fields contained in submessages which can be processed as a
 //    whole, and without keeping the whole parsed message in memory.
 //
+//  * Processing a message in a way known at runtime, possibly with the schema
+//    known at runtime, possibly partially known.
+//
 //  * Processing messages with so many elements of toplevel repeated fields that
 //    the total message size exceeds 2GiB. This is not a great idea in itself,
 //    because such messages cannot be processed using native proto parsing and
@@ -77,8 +80,24 @@ namespace riegeli {
 // (varint, fixed32, fixed64, length-delimited, start-group, or end-group)
 // by invoking specific actions.
 //
-// A family of functions returning field handlers is defined in namespace
-// `riegeli::field_handlers`.
+// There are three categories of field handlers:
+//
+//  * Static: the field number and wire type are statically known.
+//
+//  * Dynamic: they can handle a variety of field numbers and wire types,
+//    determined at runtime.
+//
+//  * Unbound: the field number is unspecified, while the wire type is
+//    statically known.
+//
+// Static and dynamic field handlers can be used directly with
+// `SerializedMessageReader2`. Unbound field handlers are meant to be registered
+// with a `FieldHandlerMap`, with field numbers known at runtime.
+//
+// A family of functions returning static and unbound field handlers is defined
+// in namespace `riegeli::field_handlers`.
+//
+// The primary dynamic field handler is `FieldHandlerMap`.
 //
 // Field handlers stored in a single `SerializedMessageReader2` are usually
 // conceptually associated with a single message type.
@@ -87,6 +106,11 @@ namespace riegeli {
 // and propagates the status, annotated by the `Reader` and/or with the field
 // number. Annotations are skipped for `absl::CancelledError()` to make it more
 // efficient to cancel a handler when cancellation is likely.
+//
+// A field handler can also be expressed as a raw pointer to a const-qualified
+// proper field handler. A proper field handler is owned by the
+// `SerializedMessageReader2`. By passing a pointer, the field handler can be
+// managed outside of the `SerializedMessageReader2`.
 
 // Context types
 // -------------
@@ -108,11 +132,13 @@ namespace riegeli {
 // Users of defined field handlers do not need to be concerned with this.
 // This is relevant for writing custom field handlers.
 //
-// Field handlers have a `static constexpr int kFieldNumber` member variable
-// with a positive field number.
+// Field handlers have a `static constexpr int kFieldNumber` member variable:
+//  * For static field handlers: a positive field number.
+//  * For dynamic field handlers: `kDynamicFieldNumber`.
+//  * For unbound field handlers: `kUnboundFieldNumber`.
 //
-// Field handlers provide at least one of the following member functions, with
-// parameters followed by `Context&...`:
+// Static and unbound field handlers provide at least one of the following
+// member functions, with parameters followed by `Context&...`:
 // ```
 //   absl::Status HandleVarint(uint64_t value) const;
 //
@@ -136,6 +162,27 @@ namespace riegeli {
 //
 //   absl::Status HandleEndGroup() const;
 // ```
+//
+// Dynamic field handlers provide at least one of the following pairs of
+// member functions corresponding to some wire type `X` as above, with `T...`
+// as above, and with `HandleX()` parameters followed by `Context&...`:
+// ```
+//   MaybeAccepted AcceptX(int field_number) const;`
+//
+//   absl::Status HandleX(Accepted accepted, T... value) const;
+// ```
+//
+// `MaybeAccepted` is some type explicitly convertible to `bool`, with
+// `operator*` returning some `Accepted` type, such as `std::optional<Accepted>`
+// or `Accepted*`. If `AcceptX()` returns a value explicitly convertible to
+// `true`, then the field is accepted, and the corresponding `HandleX()`
+// function is called with the result of `operator*` as the first argument.
+
+// In `FieldHandler::kFieldNumber`, marks a dynamic field handler.
+inline constexpr int kDynamicFieldNumber = -1;
+
+// In `FieldHandler::kFieldNumber`, marks an unbound field handler.
+inline constexpr int kUnboundFieldNumber = -2;
 
 // `IsFieldHandler<T, Context...>::value` is `true` if `T` is a valid argument
 // type for `SerializedMessageReader2<Context...>`.
@@ -153,6 +200,11 @@ struct IsFieldHandlerFromReader;
 // string source.
 template <typename T, typename... Context>
 struct IsFieldHandlerFromString;
+
+// `IsUnboundFieldHandler<T, Context...>::value` is `true` if `T` is a valid
+// argument type for `FieldHandlerMap::Register()`.
+template <typename T, typename... Context>
+struct IsUnboundFieldHandler;
 
 // For technical reasons related to template argument deduction,
 // `SerializedMessageReader2` is not a class template but a function template.
@@ -200,7 +252,8 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
             std::enable_if_t<
                 std::conjunction_v<
                     TargetRefSupportsDependency<Reader*, Src>,
-                    IsFieldHandlerFromReader<FieldHandlers, Context...>...>,
+                    IsFieldHandlerFromReader<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...>,
                 int> = 0
 #endif
             >
@@ -208,7 +261,9 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
   // For conjunctions, `requires` gives better error messages than
   // `std::enable_if_t`, indicating the relevant argument.
     requires TargetRefSupportsDependency<Reader*, Src>::value &&
-             (IsFieldHandlerFromReader<FieldHandlers, Context...>::value && ...)
+             (IsFieldHandlerFromReader<std::remove_pointer_t<FieldHandlers>,
+                                       Context...>::value &&
+              ...)
 #endif
   absl::Status Read(Src&& src, Context&... context) const;
 
@@ -218,18 +273,21 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
 // This is more efficient than reading from a `StringReader`. Some field
 // handlers for length-delimited fields need a different implementation though.
 #if !__cpp_concepts
-  template <
-      typename DependentVoid = void,
-      std::enable_if_t<std::conjunction_v<std::is_void<DependentVoid>,
-                                          IsFieldHandlerFromString<
-                                              FieldHandlers, Context...>...>,
-                       int> = 0>
+  template <typename DependentVoid = void,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_void<DependentVoid>,
+                    IsFieldHandlerFromString<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...>,
+                int> = 0>
 #endif
   absl::Status Read(BytesRef src, Context&... context) const
 #if __cpp_concepts
       // For conjunctions, `requires` gives better error messages than
       // `std::enable_if_t`, indicating the relevant argument.
-    requires(IsFieldHandlerFromString<FieldHandlers, Context...>::value && ...)
+    requires(IsFieldHandlerFromString<std::remove_pointer_t<FieldHandlers>,
+                                      Context...>::value &&
+             ...)
 #endif
   ;
 
@@ -259,15 +317,17 @@ template <typename... Context, typename... FieldHandlerInitializers
           ,
           std::enable_if_t<
               std::conjunction_v<IsFieldHandler<
-                  std::decay_t<FieldHandlerInitializers>, Context...>...>,
+                  std::remove_pointer_t<std::decay_t<FieldHandlerInitializers>>,
+                  Context...>...>,
               int> = 0
 #endif
           >
 #if __cpp_concepts
 // For conjunctions, `requires` gives better error messages than
 // `std::enable_if_t`, indicating the relevant argument.
-  requires(IsFieldHandler<std::decay_t<FieldHandlerInitializers>,
-                          Context...>::value &&
+  requires(IsFieldHandler<
+               std::remove_pointer_t<std::decay_t<FieldHandlerInitializers>>,
+               Context...>::value &&
            ...)
 #endif
 constexpr SerializedMessageReaderType<
@@ -305,18 +365,17 @@ absl::Status SkipLengthDelimited(absl::string_view value);
 namespace serialized_message_reader_internal {
 
 template <typename T, typename Enable = void>
-struct IsFieldHandlerWithFieldNumber : std::false_type {};
+struct IsFieldHandlerWithStaticFieldNumber : std::false_type {};
 
 template <typename T>
-struct IsFieldHandlerWithFieldNumber<
-    T, std::enable_if_t<std::is_convertible_v<decltype(T::kFieldNumber), int>>>
-    : std::true_type {};
+struct IsFieldHandlerWithStaticFieldNumber<
+    T, std::enable_if_t<(T::kFieldNumber > 0)>> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
-struct IsFieldHandlerForVarintImpl : std::false_type {};
+struct IsStaticFieldHandlerForVarintImpl : std::false_type {};
 
 template <typename T, typename... Context>
-struct IsFieldHandlerForVarintImpl<
+struct IsStaticFieldHandlerForVarintImpl<
     T,
     std::enable_if_t<std::is_convertible_v<
         decltype(std::declval<const T&>().HandleVarint(
@@ -325,10 +384,10 @@ struct IsFieldHandlerForVarintImpl<
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
-struct IsFieldHandlerForFixed32Impl : std::false_type {};
+struct IsStaticFieldHandlerForFixed32Impl : std::false_type {};
 
 template <typename T, typename... Context>
-struct IsFieldHandlerForFixed32Impl<
+struct IsStaticFieldHandlerForFixed32Impl<
     T,
     std::enable_if_t<std::is_convertible_v<
         decltype(std::declval<const T&>().HandleFixed32(
@@ -337,10 +396,10 @@ struct IsFieldHandlerForFixed32Impl<
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
-struct IsFieldHandlerForFixed64Impl : std::false_type {};
+struct IsStaticFieldHandlerForFixed64Impl : std::false_type {};
 
 template <typename T, typename... Context>
-struct IsFieldHandlerForFixed64Impl<
+struct IsStaticFieldHandlerForFixed64Impl<
     T,
     std::enable_if_t<std::is_convertible_v<
         decltype(std::declval<const T&>().HandleFixed64(
@@ -349,10 +408,11 @@ struct IsFieldHandlerForFixed64Impl<
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
-struct IsFieldHandlerForLengthDelimitedFromReaderImpl : std::false_type {};
+struct IsStaticFieldHandlerForLengthDelimitedFromReaderImpl : std::false_type {
+};
 
 template <typename T, typename... Context>
-struct IsFieldHandlerForLengthDelimitedFromReaderImpl<
+struct IsStaticFieldHandlerForLengthDelimitedFromReaderImpl<
     T,
     std::enable_if_t<std::is_convertible_v<
         decltype(std::declval<const T&>().HandleLengthDelimited(
@@ -361,10 +421,11 @@ struct IsFieldHandlerForLengthDelimitedFromReaderImpl<
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
-struct IsFieldHandlerForLengthDelimitedFromStringImpl : std::false_type {};
+struct IsStaticFieldHandlerForLengthDelimitedFromStringImpl : std::false_type {
+};
 
 template <typename T, typename... Context>
-struct IsFieldHandlerForLengthDelimitedFromStringImpl<
+struct IsStaticFieldHandlerForLengthDelimitedFromStringImpl<
     T,
     std::enable_if_t<std::is_convertible_v<
         decltype(std::declval<const T&>().HandleLengthDelimited(
@@ -373,10 +434,10 @@ struct IsFieldHandlerForLengthDelimitedFromStringImpl<
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
-struct IsFieldHandlerForStartGroupImpl : std::false_type {};
+struct IsStaticFieldHandlerForStartGroupImpl : std::false_type {};
 
 template <typename T, typename... Context>
-struct IsFieldHandlerForStartGroupImpl<
+struct IsStaticFieldHandlerForStartGroupImpl<
     T,
     std::enable_if_t<std::is_convertible_v<
         decltype(std::declval<const T&>().HandleStartGroup(
@@ -385,10 +446,10 @@ struct IsFieldHandlerForStartGroupImpl<
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
-struct IsFieldHandlerForEndGroupImpl : std::false_type {};
+struct IsStaticFieldHandlerForEndGroupImpl : std::false_type {};
 
 template <typename T, typename... Context>
-struct IsFieldHandlerForEndGroupImpl<
+struct IsStaticFieldHandlerForEndGroupImpl<
     T,
     std::enable_if_t<
         std::is_convertible_v<decltype(std::declval<const T&>().HandleEndGroup(
@@ -397,32 +458,305 @@ struct IsFieldHandlerForEndGroupImpl<
     Context...> : std::true_type {};
 
 template <typename T, typename... Context>
-using IsFieldHandlerForVarint =
-    IsFieldHandlerForVarintImpl<T, void, Context...>;
+using IsStaticFieldHandlerForVarint =
+    IsStaticFieldHandlerForVarintImpl<T, void, Context...>;
 
 template <typename T, typename... Context>
-using IsFieldHandlerForFixed32 =
-    IsFieldHandlerForFixed32Impl<T, void, Context...>;
+using IsStaticFieldHandlerForFixed32 =
+    IsStaticFieldHandlerForFixed32Impl<T, void, Context...>;
 
 template <typename T, typename... Context>
-using IsFieldHandlerForFixed64 =
-    IsFieldHandlerForFixed64Impl<T, void, Context...>;
+using IsStaticFieldHandlerForFixed64 =
+    IsStaticFieldHandlerForFixed64Impl<T, void, Context...>;
 
 template <typename T, typename... Context>
-using IsFieldHandlerForLengthDelimitedFromReader =
-    IsFieldHandlerForLengthDelimitedFromReaderImpl<T, void, Context...>;
+using IsStaticFieldHandlerForLengthDelimitedFromReader =
+    IsStaticFieldHandlerForLengthDelimitedFromReaderImpl<T, void, Context...>;
 
 template <typename T, typename... Context>
-using IsFieldHandlerForLengthDelimitedFromString =
-    IsFieldHandlerForLengthDelimitedFromStringImpl<T, void, Context...>;
+using IsStaticFieldHandlerForLengthDelimitedFromString =
+    IsStaticFieldHandlerForLengthDelimitedFromStringImpl<T, void, Context...>;
 
 template <typename T, typename... Context>
-using IsFieldHandlerForStartGroup =
-    IsFieldHandlerForStartGroupImpl<T, void, Context...>;
+using IsStaticFieldHandlerForStartGroup =
+    IsStaticFieldHandlerForStartGroupImpl<T, void, Context...>;
 
 template <typename T, typename... Context>
-using IsFieldHandlerForEndGroup =
-    IsFieldHandlerForEndGroupImpl<T, void, Context...>;
+using IsStaticFieldHandlerForEndGroup =
+    IsStaticFieldHandlerForEndGroupImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
+struct IsStaticFieldHandler
+    : std::conjunction<
+          IsFieldHandlerWithStaticFieldNumber<T>,
+          std::disjunction<
+              IsStaticFieldHandlerForVarint<T, Context...>,
+              IsStaticFieldHandlerForFixed32<T, Context...>,
+              IsStaticFieldHandlerForFixed64<T, Context...>,
+              std::disjunction<IsStaticFieldHandlerForLengthDelimitedFromReader<
+                                   T, Context...>,
+                               IsStaticFieldHandlerForLengthDelimitedFromString<
+                                   T, Context...>>,
+              IsStaticFieldHandlerForStartGroup<T, Context...>,
+              IsStaticFieldHandlerForEndGroup<T, Context...>>> {};
+
+template <typename T, typename... Context>
+struct IsStaticFieldHandlerFromReader
+    : std::conjunction<
+          IsFieldHandlerWithStaticFieldNumber<T>,
+          std::disjunction<
+              IsStaticFieldHandlerForVarint<T, Context...>,
+              IsStaticFieldHandlerForFixed32<T, Context...>,
+              IsStaticFieldHandlerForFixed64<T, Context...>,
+              IsStaticFieldHandlerForLengthDelimitedFromReader<T, Context...>,
+              IsStaticFieldHandlerForStartGroup<T, Context...>,
+              IsStaticFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsStaticFieldHandlerForLengthDelimitedFromReader<T, Context...>,
+              std::negation<IsStaticFieldHandlerForLengthDelimitedFromString<
+                  T, Context...>>>> {};
+
+template <typename T, typename... Context>
+struct IsStaticFieldHandlerFromString
+    : std::conjunction<
+          IsFieldHandlerWithStaticFieldNumber<T>,
+          std::disjunction<
+              IsStaticFieldHandlerForVarint<T, Context...>,
+              IsStaticFieldHandlerForFixed32<T, Context...>,
+              IsStaticFieldHandlerForFixed64<T, Context...>,
+              IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
+              IsStaticFieldHandlerForStartGroup<T, Context...>,
+              IsStaticFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
+              std::negation<IsStaticFieldHandlerForLengthDelimitedFromReader<
+                  T, Context...>>>> {};
+
+template <typename T, typename Enable = void>
+struct IsFieldHandlerWithDynamicFieldNumber : std::false_type {};
+
+template <typename T>
+struct IsFieldHandlerWithDynamicFieldNumber<
+    T, std::enable_if_t<T::kFieldNumber == kDynamicFieldNumber>>
+    : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForVarintImpl : std::false_type {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForVarintImpl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<bool,
+                              decltype(std::declval<const T&>().AcceptVarint(
+                                  std::declval<int>()))>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().HandleVarint(
+                *std::declval<const T&>().AcceptVarint(std::declval<int>()),
+                std::declval<uint64_t>(), std::declval<Context&>()...)),
+            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForFixed32Impl : std::false_type {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForFixed32Impl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<bool,
+                              decltype(std::declval<const T&>().AcceptFixed32(
+                                  std::declval<int>()))>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().HandleFixed32(
+                *std::declval<const T&>().AcceptFixed32(std::declval<int>()),
+                std::declval<uint32_t>(), std::declval<Context&>()...)),
+            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForFixed64Impl : std::false_type {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForFixed64Impl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<bool,
+                              decltype(std::declval<const T&>().AcceptFixed64(
+                                  std::declval<int>()))>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().HandleFixed64(
+                *std::declval<const T&>().AcceptFixed64(std::declval<int>()),
+                std::declval<uint64_t>(), std::declval<Context&>()...)),
+            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl : std::false_type {
+};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<
+            bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
+                      std::declval<int>()))>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().HandleLengthDelimited(
+                *std::declval<const T&>().AcceptLengthDelimited(
+                    std::declval<int>()),
+                std::declval<ReaderSpan<>>(), std::declval<Context&>()...)),
+            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForLengthDelimitedFromStringImpl : std::false_type {
+};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForLengthDelimitedFromStringImpl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<
+            bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
+                      std::declval<int>()))>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().HandleLengthDelimited(
+                *std::declval<const T&>().AcceptLengthDelimited(
+                    std::declval<int>()),
+                std::declval<absl::string_view>(),
+                std::declval<Context&>()...)),
+            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForStartGroupImpl : std::false_type {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForStartGroupImpl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<
+            bool, decltype(std::declval<const T&>().AcceptStartGroup(
+                      std::declval<int>()))>,
+        std::is_convertible<decltype(std::declval<const T&>().HandleStartGroup(
+                                *std::declval<const T&>().AcceptStartGroup(
+                                    std::declval<int>()),
+                                std::declval<Context&>()...)),
+                            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForEndGroupImpl : std::false_type {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForEndGroupImpl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<bool,
+                              decltype(std::declval<const T&>().AcceptEndGroup(
+                                  std::declval<int>()))>,
+        std::is_convertible<decltype(std::declval<const T&>().HandleEndGroup(
+                                *std::declval<const T&>().AcceptEndGroup(
+                                    std::declval<int>()),
+                                std::declval<Context&>()...)),
+                            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename... Context>
+using IsDynamicFieldHandlerForVarint =
+    IsDynamicFieldHandlerForVarintImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
+using IsDynamicFieldHandlerForFixed32 =
+    IsDynamicFieldHandlerForFixed32Impl<T, void, Context...>;
+
+template <typename T, typename... Context>
+using IsDynamicFieldHandlerForFixed64 =
+    IsDynamicFieldHandlerForFixed64Impl<T, void, Context...>;
+
+template <typename T, typename... Context>
+using IsDynamicFieldHandlerForLengthDelimitedFromReader =
+    IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
+using IsDynamicFieldHandlerForLengthDelimitedFromString =
+    IsDynamicFieldHandlerForLengthDelimitedFromStringImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
+using IsDynamicFieldHandlerForStartGroup =
+    IsDynamicFieldHandlerForStartGroupImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
+using IsDynamicFieldHandlerForEndGroup =
+    IsDynamicFieldHandlerForEndGroupImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandler
+    : std::conjunction<
+          IsFieldHandlerWithDynamicFieldNumber<T>,
+          std::disjunction<
+              IsDynamicFieldHandlerForVarint<T, Context...>,
+              IsDynamicFieldHandlerForFixed32<T, Context...>,
+              IsDynamicFieldHandlerForFixed64<T, Context...>,
+              std::disjunction<
+                  IsDynamicFieldHandlerForLengthDelimitedFromReader<T,
+                                                                    Context...>,
+                  IsDynamicFieldHandlerForLengthDelimitedFromString<
+                      T, Context...>>,
+              IsDynamicFieldHandlerForStartGroup<T, Context...>,
+              IsDynamicFieldHandlerForEndGroup<T, Context...>>> {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerFromReader
+    : std::conjunction<
+          IsFieldHandlerWithDynamicFieldNumber<T>,
+          std::disjunction<
+              IsDynamicFieldHandlerForVarint<T, Context...>,
+              IsDynamicFieldHandlerForFixed32<T, Context...>,
+              IsDynamicFieldHandlerForFixed64<T, Context...>,
+              IsDynamicFieldHandlerForLengthDelimitedFromReader<T, Context...>,
+              IsDynamicFieldHandlerForStartGroup<T, Context...>,
+              IsDynamicFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsDynamicFieldHandlerForLengthDelimitedFromReader<T, Context...>,
+              std::negation<IsDynamicFieldHandlerForLengthDelimitedFromString<
+                  T, Context...>>>> {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerFromString
+    : std::conjunction<
+          IsFieldHandlerWithDynamicFieldNumber<T>,
+          std::disjunction<
+              IsDynamicFieldHandlerForVarint<T, Context...>,
+              IsDynamicFieldHandlerForFixed32<T, Context...>,
+              IsDynamicFieldHandlerForFixed64<T, Context...>,
+              IsDynamicFieldHandlerForLengthDelimitedFromString<T, Context...>,
+              IsDynamicFieldHandlerForStartGroup<T, Context...>,
+              IsDynamicFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsDynamicFieldHandlerForLengthDelimitedFromString<T, Context...>,
+              std::negation<IsDynamicFieldHandlerForLengthDelimitedFromReader<
+                  T, Context...>>>> {};
+
+template <typename T, typename Enable = void>
+struct IsFieldHandlerWithUnboundFieldNumber : std::false_type {};
+
+template <typename T>
+struct IsFieldHandlerWithUnboundFieldNumber<
+    T, std::enable_if_t<(T::kFieldNumber == kUnboundFieldNumber)>>
+    : std::true_type {};
+
+template <typename FieldHandler>
+inline const std::remove_pointer_t<FieldHandler>& DerefPointer(
+    const FieldHandler& field_handler) {
+  if constexpr (std::is_pointer_v<FieldHandler>) {
+    return *field_handler;
+  } else {
+    return field_handler;
+  }
+}
 
 ABSL_ATTRIBUTE_COLD absl::Status AnnotateWithFieldNumberSlow(
     absl::Status status, int field_number);
@@ -482,9 +816,19 @@ template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadVarintField(
     int field_number, uint64_t value, absl::Status& status,
     const FieldHandler& field_handler, Context&... context) {
-  if constexpr (IsFieldHandlerForVarint<FieldHandler, Context...>::value) {
+  if constexpr (IsStaticFieldHandlerForVarint<FieldHandler,
+                                              Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
       status = field_handler.HandleVarint(value, context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForVarint<FieldHandler,
+                                               Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptVarint(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleVarint(*std::move(maybe_accepted), value,
+                                          context...);
       return true;
     }
   }
@@ -495,9 +839,19 @@ template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed32Field(
     int field_number, uint32_t value, absl::Status& status,
     const FieldHandler& field_handler, Context&... context) {
-  if constexpr (IsFieldHandlerForFixed32<FieldHandler, Context...>::value) {
+  if constexpr (IsStaticFieldHandlerForFixed32<FieldHandler,
+                                               Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
       status = field_handler.HandleFixed32(value, context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForFixed32<FieldHandler,
+                                                Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptFixed32(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleFixed32(*std::move(maybe_accepted), value,
+                                           context...);
       return true;
     }
   }
@@ -508,9 +862,19 @@ template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed64Field(
     int field_number, uint64_t value, absl::Status& status,
     const FieldHandler& field_handler, Context&... context) {
-  if constexpr (IsFieldHandlerForFixed64<FieldHandler, Context...>::value) {
+  if constexpr (IsStaticFieldHandlerForFixed64<FieldHandler,
+                                               Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
       status = field_handler.HandleFixed64(value, context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForFixed64<FieldHandler,
+                                                Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptFixed64(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleFixed64(*std::move(maybe_accepted), value,
+                                           context...);
       return true;
     }
   }
@@ -522,11 +886,20 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromReader(
     int field_number, LimitingReaderBase& src, size_t length,
     absl::Status& status, const FieldHandler& field_handler,
     Context&... context) {
-  if constexpr (IsFieldHandlerForLengthDelimitedFromReader<FieldHandler,
-                                                           Context...>::value) {
+  if constexpr (IsStaticFieldHandlerForLengthDelimitedFromReader<
+                    FieldHandler, Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
       status = field_handler.HandleLengthDelimited(ReaderSpan<>(&src, length),
                                                    context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForLengthDelimitedFromReader<
+                    FieldHandler, Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleLengthDelimited(
+          *std::move(maybe_accepted), ReaderSpan<>(&src, length), context...);
       return true;
     }
   }
@@ -537,11 +910,21 @@ template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromString(
     int field_number, const char* src, size_t length, absl::Status& status,
     const FieldHandler& field_handler, Context&... context) {
-  if constexpr (IsFieldHandlerForLengthDelimitedFromString<FieldHandler,
-                                                           Context...>::value) {
+  if constexpr (IsStaticFieldHandlerForLengthDelimitedFromString<
+                    FieldHandler, Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
       status = field_handler.HandleLengthDelimited(
           absl::string_view(src, length), context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForLengthDelimitedFromString<
+                    FieldHandler, Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleLengthDelimited(
+          *std::move(maybe_accepted), absl::string_view(src, length),
+          context...);
       return true;
     }
   }
@@ -552,9 +935,19 @@ template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadStartGroupField(
     int field_number, absl::Status& status, const FieldHandler& field_handler,
     Context&... context) {
-  if constexpr (IsFieldHandlerForStartGroup<FieldHandler, Context...>::value) {
+  if constexpr (IsStaticFieldHandlerForStartGroup<FieldHandler,
+                                                  Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
       status = field_handler.HandleStartGroup(context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForStartGroup<FieldHandler,
+                                                   Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptStartGroup(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleStartGroup(*std::move(maybe_accepted),
+                                              context...);
       return true;
     }
   }
@@ -565,9 +958,19 @@ template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadEndGroupField(
     int field_number, absl::Status& status, const FieldHandler& field_handler,
     Context&... context) {
-  if constexpr (IsFieldHandlerForEndGroup<FieldHandler, Context...>::value) {
+  if constexpr (IsStaticFieldHandlerForEndGroup<FieldHandler,
+                                                Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
       status = field_handler.HandleEndGroup(context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForEndGroup<FieldHandler,
+                                                 Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptEndGroup(field_number);
+    if (maybe_accepted) {
+      status =
+          field_handler.HandleEndGroup(*std::move(maybe_accepted), context...);
       return true;
     }
   }
@@ -578,73 +981,51 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadEndGroupField(
 
 template <typename T, typename... Context>
 struct IsFieldHandler
-    : std::conjunction<
-          serialized_message_reader_internal::IsFieldHandlerWithFieldNumber<T>,
-          std::disjunction<
-              serialized_message_reader_internal::IsFieldHandlerForVarint<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForFixed32<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForFixed64<
-                  T, Context...>,
-              std::disjunction<
-                  serialized_message_reader_internal::
-                      IsFieldHandlerForLengthDelimitedFromReader<T, Context...>,
-                  serialized_message_reader_internal::
-                      IsFieldHandlerForLengthDelimitedFromString<T,
-                                                                 Context...>>,
-              serialized_message_reader_internal::IsFieldHandlerForStartGroup<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForEndGroup<
-                  T, Context...>>> {};
+    : std::disjunction<serialized_message_reader_internal::IsStaticFieldHandler<
+                           T, Context...>,
+                       serialized_message_reader_internal::
+                           IsDynamicFieldHandler<T, Context...>> {};
 
 template <typename T, typename... Context>
 struct IsFieldHandlerFromReader
-    : std::conjunction<
-          serialized_message_reader_internal::IsFieldHandlerWithFieldNumber<T>,
-          std::disjunction<
-              serialized_message_reader_internal::IsFieldHandlerForVarint<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForFixed32<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForFixed64<
-                  T, Context...>,
-              serialized_message_reader_internal::
-                  IsFieldHandlerForLengthDelimitedFromReader<T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForStartGroup<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForEndGroup<
-                  T, Context...>>,
-          std::disjunction<
-              serialized_message_reader_internal::
-                  IsFieldHandlerForLengthDelimitedFromReader<T, Context...>,
-              std::negation<serialized_message_reader_internal::
-                                IsFieldHandlerForLengthDelimitedFromString<
-                                    T, Context...>>>> {};
+    : std::disjunction<serialized_message_reader_internal::
+                           IsStaticFieldHandlerFromReader<T, Context...>,
+                       serialized_message_reader_internal::
+                           IsDynamicFieldHandlerFromReader<T, Context...>> {};
 
 template <typename T, typename... Context>
 struct IsFieldHandlerFromString
+    : std::disjunction<serialized_message_reader_internal::
+                           IsStaticFieldHandlerFromString<T, Context...>,
+                       serialized_message_reader_internal::
+                           IsDynamicFieldHandlerFromString<T, Context...>> {};
+
+template <typename T, typename... Context>
+struct IsUnboundFieldHandler
     : std::conjunction<
-          serialized_message_reader_internal::IsFieldHandlerWithFieldNumber<T>,
+          serialized_message_reader_internal::
+              IsFieldHandlerWithUnboundFieldNumber<T>,
+          std::disjunction<serialized_message_reader_internal::
+                               IsStaticFieldHandlerForVarint<T, Context...>,
+                           serialized_message_reader_internal::
+                               IsStaticFieldHandlerForFixed32<T, Context...>,
+                           serialized_message_reader_internal::
+                               IsStaticFieldHandlerForFixed64<T, Context...>,
+                           serialized_message_reader_internal::
+                               IsStaticFieldHandlerForLengthDelimitedFromReader<
+                                   T, Context...>,
+                           serialized_message_reader_internal::
+                               IsStaticFieldHandlerForStartGroup<T, Context...>,
+                           serialized_message_reader_internal::
+                               IsStaticFieldHandlerForEndGroup<T, Context...>>,
           std::disjunction<
-              serialized_message_reader_internal::IsFieldHandlerForVarint<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForFixed32<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForFixed64<
-                  T, Context...>,
               serialized_message_reader_internal::
-                  IsFieldHandlerForLengthDelimitedFromString<T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForStartGroup<
-                  T, Context...>,
-              serialized_message_reader_internal::IsFieldHandlerForEndGroup<
-                  T, Context...>>,
-          std::disjunction<
-              serialized_message_reader_internal::
-                  IsFieldHandlerForLengthDelimitedFromString<T, Context...>,
-              std::negation<serialized_message_reader_internal::
-                                IsFieldHandlerForLengthDelimitedFromReader<
-                                    T, Context...>>>> {};
+                  IsStaticFieldHandlerForLengthDelimitedFromReader<T,
+                                                                   Context...>,
+              std::negation<
+                  serialized_message_reader_internal::
+                      IsStaticFieldHandlerForLengthDelimitedFromString<
+                          T, Context...>>>> {};
 
 template <typename... FieldHandlers, typename... Context>
 template <typename Src
@@ -653,13 +1034,16 @@ template <typename Src
           std::enable_if_t<
               std::conjunction_v<
                   TargetRefSupportsDependency<Reader*, Src>,
-                  IsFieldHandlerFromReader<FieldHandlers, Context...>...>,
+                  IsFieldHandlerFromReader<std::remove_pointer_t<FieldHandlers>,
+                                           Context...>...>,
               int>
 #endif
           >
 #if __cpp_concepts
   requires TargetRefSupportsDependency<Reader*, Src>::value &&
-           (IsFieldHandlerFromReader<FieldHandlers, Context...>::value && ...)
+           (IsFieldHandlerFromReader<std::remove_pointer_t<FieldHandlers>,
+                                     Context...>::value &&
+            ...)
 #endif
 absl::Status
 SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
@@ -668,10 +1052,14 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
 
   absl::Status status;
-  if constexpr (std::disjunction_v<
-                    serialized_message_reader_internal::
-                        IsFieldHandlerForLengthDelimitedFromReader<
-                            FieldHandlers, Context...>...>) {
+  if constexpr (
+      std::disjunction_v<
+          serialized_message_reader_internal::
+              IsStaticFieldHandlerForLengthDelimitedFromReader<
+                  std::remove_pointer_t<FieldHandlers>, Context...>...,
+          serialized_message_reader_internal::
+              IsDynamicFieldHandlerForLengthDelimitedFromReader<
+                  std::remove_pointer_t<FieldHandlers>, Context...>...>) {
     if constexpr (std::is_convertible_v<
                       typename DependencyRef<Reader*, Src>::Subhandle,
                       LimitingReaderBase*>) {
@@ -710,10 +1098,14 @@ absl::Status SerializedMessageReaderType<
     const int field_number = GetTagFieldNumber(tag);
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
-        if constexpr (std::disjunction_v<
-                          serialized_message_reader_internal::
-                              IsFieldHandlerForVarint<FieldHandlers,
-                                                      Context...>...>) {
+        if constexpr (
+            std::disjunction_v<
+                serialized_message_reader_internal::
+                    IsStaticFieldHandlerForVarint<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...,
+                serialized_message_reader_internal::
+                    IsDynamicFieldHandlerForVarint<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...>) {
           uint64_t value;
           if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
             return serialized_message_reader_internal::ReadVarintError(
@@ -722,10 +1114,13 @@ absl::Status SerializedMessageReaderType<
           absl::Status status;
           if (std::apply(
                   [&](const auto&... field_handlers) {
-                    return (serialized_message_reader_internal::ReadVarintField(
-                                field_number, value, status, field_handlers,
-                                context...) ||
-                            ...);
+                    return (
+                        serialized_message_reader_internal::ReadVarintField(
+                            field_number, value, status,
+                            serialized_message_reader_internal::DerefPointer(
+                                field_handlers),
+                            context...) ||
+                        ...);
                   },
                   field_handlers_)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -754,7 +1149,9 @@ absl::Status SerializedMessageReaderType<
         if (std::apply(
                 [&](const auto&... field_handlers) {
                   return (serialized_message_reader_internal::ReadFixed32Field(
-                              field_number, value, status, field_handlers,
+                              field_number, value, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
                               context...) ||
                           ...);
                 },
@@ -777,7 +1174,9 @@ absl::Status SerializedMessageReaderType<
         if (std::apply(
                 [&](const auto&... field_handlers) {
                   return (serialized_message_reader_internal::ReadFixed64Field(
-                              field_number, value, status, field_handlers,
+                              field_number, value, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
                               context...) ||
                           ...);
                 },
@@ -798,10 +1197,14 @@ absl::Status SerializedMessageReaderType<
           return serialized_message_reader_internal::
               ReadLengthDelimitedLengthError(src, field_number);
         }
-        if constexpr (std::disjunction_v<
-                          serialized_message_reader_internal::
-                              IsFieldHandlerForLengthDelimitedFromReader<
-                                  FieldHandlers, Context...>...>) {
+        if constexpr (
+            std::disjunction_v<
+                serialized_message_reader_internal::
+                    IsStaticFieldHandlerForLengthDelimitedFromReader<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...,
+                serialized_message_reader_internal::
+                    IsDynamicFieldHandlerForLengthDelimitedFromReader<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...>) {
           static_assert(
               std::is_same_v<ReaderType, LimitingReaderBase>,
               "If there are any field handlers for length-delimited fields, "
@@ -817,7 +1220,9 @@ absl::Status SerializedMessageReaderType<
                     return (serialized_message_reader_internal::
                                 ReadLengthDelimitedFieldFromReader(
                                     field_number, src, size_t{length}, status,
-                                    field_handlers, context...) ||
+                                    serialized_message_reader_internal::
+                                        DerefPointer(field_handlers),
+                                    context...) ||
                             ...);
                   },
                   field_handlers_)) {
@@ -848,7 +1253,10 @@ absl::Status SerializedMessageReaderType<
                 [&](const auto&... field_handlers) {
                   return (
                       serialized_message_reader_internal::ReadStartGroupField(
-                          field_number, status, field_handlers, context...) ||
+                          field_number, status,
+                          serialized_message_reader_internal::DerefPointer(
+                              field_handlers),
+                          context...) ||
                       ...);
                 },
                 field_handlers_)) {
@@ -864,10 +1272,12 @@ absl::Status SerializedMessageReaderType<
         absl::Status status;
         if (std::apply(
                 [&](const auto&... field_handlers) {
-                  return (
-                      serialized_message_reader_internal::ReadEndGroupField(
-                          field_number, status, field_handlers, context...) ||
-                      ...);
+                  return (serialized_message_reader_internal::ReadEndGroupField(
+                              field_number, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
+                              context...) ||
+                          ...);
                 },
                 field_handlers_)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -893,12 +1303,13 @@ absl::Status SerializedMessageReaderType<
 
 template <typename... FieldHandlers, typename... Context>
 #if !__cpp_concepts
-template <
-    typename DependentVoid,
-    std::enable_if_t<std::conjunction_v<std::is_void<DependentVoid>,
-                                        IsFieldHandlerFromString<
-                                            FieldHandlers, Context...>...>,
-                     int>>
+template <typename DependentVoid,
+          std::enable_if_t<
+              std::conjunction_v<
+                  std::is_void<DependentVoid>,
+                  IsFieldHandlerFromString<std::remove_pointer_t<FieldHandlers>,
+                                           Context...>...>,
+              int>>
 #endif
 absl::Status
 SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
@@ -906,7 +1317,9 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
 #if __cpp_concepts
     // For conjunctions, `requires` gives better error messages than
     // `std::enable_if_t`, indicating the relevant argument.
-  requires(IsFieldHandlerFromString<FieldHandlers, Context...>::value && ...)
+  requires(IsFieldHandlerFromString<std::remove_pointer_t<FieldHandlers>,
+                                    Context...>::value &&
+           ...)
 #endif
 {
   const char* absl_nullable cursor = src.data();
@@ -920,10 +1333,14 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
     const int field_number = GetTagFieldNumber(tag);
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
-        if constexpr (std::disjunction_v<
-                          serialized_message_reader_internal::
-                              IsFieldHandlerForVarint<FieldHandlers,
-                                                      Context...>...>) {
+        if constexpr (
+            std::disjunction_v<
+                serialized_message_reader_internal::
+                    IsStaticFieldHandlerForVarint<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...,
+                serialized_message_reader_internal::
+                    IsDynamicFieldHandlerForVarint<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...>) {
           uint64_t value;
           const size_t length_of_value =
               ReadVarint64(cursor, PtrDistance(cursor, limit), value);
@@ -935,10 +1352,13 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
           absl::Status status;
           if (std::apply(
                   [&](const auto&... field_handlers) {
-                    return (serialized_message_reader_internal::ReadVarintField(
-                                field_number, value, status, field_handlers,
-                                context...) ||
-                            ...);
+                    return (
+                        serialized_message_reader_internal::ReadVarintField(
+                            field_number, value, status,
+                            serialized_message_reader_internal::DerefPointer(
+                                field_handlers),
+                            context...) ||
+                        ...);
                   },
                   field_handlers_)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -970,7 +1390,9 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
         if (std::apply(
                 [&](const auto&... field_handlers) {
                   return (serialized_message_reader_internal::ReadFixed32Field(
-                              field_number, value, status, field_handlers,
+                              field_number, value, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
                               context...) ||
                           ...);
                 },
@@ -993,7 +1415,9 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
         if (std::apply(
                 [&](const auto&... field_handlers) {
                   return (serialized_message_reader_internal::ReadFixed64Field(
-                              field_number, value, status, field_handlers,
+                              field_number, value, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
                               context...) ||
                           ...);
                 },
@@ -1024,11 +1448,14 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
         absl::Status status;
         if (std::apply(
                 [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::
-                              ReadLengthDelimitedFieldFromString(
-                                  field_number, cursor, size_t{length}, status,
-                                  field_handlers, context...) ||
-                          ...);
+                  return (
+                      serialized_message_reader_internal::
+                          ReadLengthDelimitedFieldFromString(
+                              field_number, cursor, size_t{length}, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
+                              context...) ||
+                      ...);
                 },
                 field_handlers_)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -1045,7 +1472,10 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
                 [&](const auto&... field_handlers) {
                   return (
                       serialized_message_reader_internal::ReadStartGroupField(
-                          field_number, status, field_handlers, context...) ||
+                          field_number, status,
+                          serialized_message_reader_internal::DerefPointer(
+                              field_handlers),
+                          context...) ||
                       ...);
                 },
                 field_handlers_)) {
@@ -1060,10 +1490,12 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
         absl::Status status;
         if (std::apply(
                 [&](const auto&... field_handlers) {
-                  return (
-                      serialized_message_reader_internal::ReadEndGroupField(
-                          field_number, status, field_handlers, context...) ||
-                      ...);
+                  return (serialized_message_reader_internal::ReadEndGroupField(
+                              field_number, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
+                              context...) ||
+                          ...);
                 },
                 field_handlers_)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {

@@ -58,7 +58,7 @@ namespace riegeli {
 //    message in memory.
 //
 //  * Processing a message in a way known at runtime, possibly with the schema
-//    known at runtime, possibly partially.
+//    known at runtime, possibly partially known.
 //
 //  * Processing messages with so many elements of toplevel repeated fields that
 //    the total message size exceeds 2GiB. This is not a great idea in itself,
