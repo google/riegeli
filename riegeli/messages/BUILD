@@ -122,6 +122,7 @@ cc_library(
         ":message_wire_format",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:status",

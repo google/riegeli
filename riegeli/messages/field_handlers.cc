@@ -14,6 +14,7 @@
 
 #include "riegeli/messages/field_handlers.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <utility>
@@ -21,6 +22,7 @@
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/bytes/reader.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -36,18 +38,30 @@ absl::Status AnnotateByReader(absl::Status status, Reader& reader) {
 }
 
 absl::Status ReadPackedVarintError(Reader& src) {
-  return src.StatusOrAnnotate(absl::InvalidArgumentError(
-      "Could not read a varint element of a packed repeated field"));
+  return src.StatusOrAnnotate(ReadPackedVarintError());
+}
+
+absl::Status ReadPackedVarintError() {
+  return absl::InvalidArgumentError(
+      "Could not read a varint element of a packed repeated field");
 }
 
 absl::Status ReadPackedFixed32Error(Reader& src) {
-  return src.StatusOrAnnotate(absl::InvalidArgumentError(
-      "Could not read a fixed32 element of a packed repeated field"));
+  return src.StatusOrAnnotate(ReadPackedFixed32Error());
+}
+
+absl::Status ReadPackedFixed32Error() {
+  return absl::InvalidArgumentError(
+      "Could not read a fixed32 element of a packed repeated field");
 }
 
 absl::Status ReadPackedFixed64Error(Reader& src) {
-  return src.StatusOrAnnotate(absl::InvalidArgumentError(
-      "Could not read a fixed64 element of a packed repeated field"));
+  return src.StatusOrAnnotate(ReadPackedFixed64Error());
+}
+
+absl::Status ReadPackedFixed64Error() {
+  return absl::InvalidArgumentError(
+      "Could not read a fixed64 element of a packed repeated field");
 }
 
 absl::Status InvalidEnumError(uint64_t repr) {

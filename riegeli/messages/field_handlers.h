@@ -490,11 +490,30 @@ OnRepeatedEnum(Action&& action) {
 // Field handler of a singular or an element of a repeated `string`, `bytes`,
 // or submessage field.
 //
-// The value is provided as `ReaderSpan<>`, `absl::string_view`,
-// `std::string&&`, `Chain&&`, or `absl::Cord&&`, depending on what the action
-// accepts.
+// For a `Reader` source, the value is provided as `ReaderSpan<>`,
+// `absl::string_view`, `std::string&&`, `Chain&&`, or `absl::Cord&&`,
+// depending on what the action accepts.
+//
+// For a string source, the value is provided as one of the string-like types
+// above, except for `ReaderSpan<>`. If the action accepts `absl::string_view`,
+// the value is guaranteed to be a substring of the original string. This
+// guarantee is absent for a `Reader` source.
 //
 // If the action accepts `ReaderSpan<>`, it must read to the end of it or fail.
+//
+// If the action accepts either `ReaderSpan<>` or one of the string-like types
+// above, the value is provided as `ReaderSpan<>` for a `Reader` source, and as
+// the string-like type for a string source.
+//
+// Among string-like types, `absl::string_view` is checked before `std::string`.
+// This means that if the action accepts either `ReaderSpan<>` or
+// `absl::string_view`, the action parameter can be declared as `auto`.
+// This is convenient if the action body can treat `ReaderSpan<>`
+// and `absl::string_view` uniformly, e.g. when it is passed to
+// `riegeli::ParseMessage()` or `SerializedMessageReader2::Read()`.
+//
+// Alternatively, the action can use `absl::Overload{}` to provide two variants
+// with separate implementations.
 template <int field_number, typename Action>
 constexpr OnLengthDelimitedType<field_number, std::decay_t<Action>>
 OnLengthDelimited(Action&& action) {
@@ -536,8 +555,11 @@ struct TraitsHaveIsValid<
 ABSL_ATTRIBUTE_COLD absl::Status AnnotateByReader(absl::Status status,
                                                   Reader& reader);
 ABSL_ATTRIBUTE_COLD absl::Status ReadPackedVarintError(Reader& src);
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedVarintError();
 ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed32Error(Reader& src);
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed32Error();
 ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed64Error(Reader& src);
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed64Error();
 ABSL_ATTRIBUTE_COLD absl::Status InvalidEnumError(uint64_t repr);
 
 struct Int32Traits {
@@ -712,6 +734,36 @@ class OnRepeatedVarintImpl
     }
     return absl::OkStatus();
   }
+
+  template <
+      typename... Context,
+      std::enable_if_t<
+          std::is_invocable_r_v<
+              absl::Status, const Action&,
+              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
+          int> = 0>
+  absl::Status HandleLengthDelimited(absl::string_view value,
+                                     Context&... context) const {
+    const char* cursor = value.data();
+    const char* const limit = value.data() + value.size();
+    uint64_t repr;
+    while (const size_t length =
+               ReadVarint64(cursor, PtrDistance(cursor, limit), repr)) {
+      cursor += length;
+      if constexpr (TraitsHaveIsValid<Traits>::value) {
+        if (ABSL_PREDICT_FALSE(!Traits::IsValid(repr))) {
+          return Traits::InvalidError(repr);
+        }
+      }
+      if (absl::Status status =
+              this->action()(Traits::Decode(repr), context...);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
+      }
+    }
+    if (ABSL_PREDICT_FALSE(cursor < limit)) return ReadPackedVarintError();
+    return absl::OkStatus();
+  }
 };
 
 template <typename Traits, int field_number, typename Action>
@@ -778,6 +830,32 @@ class OnRepeatedFixed32Impl
         if (ABSL_PREDICT_FALSE(status != absl::CancelledError())) {
           status = AnnotateByReader(std::move(status), value.reader());
         }
+        return status;
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  template <
+      typename... Context,
+      std::enable_if_t<
+          std::is_invocable_r_v<
+              absl::Status, const Action&,
+              decltype(Traits::Decode(std::declval<uint32_t>())), Context&...>,
+          int> = 0>
+  absl::Status HandleLengthDelimited(absl::string_view value,
+                                     Context&... context) const {
+    if (ABSL_PREDICT_FALSE(value.size() % sizeof(uint32_t) > 0)) {
+      return ReadPackedFixed32Error();
+    }
+    const char* cursor = value.data();
+    const char* const limit = value.data() + value.size();
+    while (cursor < limit) {
+      const uint32_t repr = ReadLittleEndian32(cursor);
+      cursor += sizeof(uint32_t);
+      if (absl::Status status =
+              this->action()(Traits::Decode(repr), context...);
+          ABSL_PREDICT_FALSE(!status.ok())) {
         return status;
       }
     }
@@ -852,6 +930,32 @@ class OnRepeatedFixed64Impl
     }
     return absl::OkStatus();
   }
+
+  template <
+      typename... Context,
+      std::enable_if_t<
+          std::is_invocable_r_v<
+              absl::Status, const Action&,
+              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
+          int> = 0>
+  absl::Status HandleLengthDelimited(absl::string_view value,
+                                     Context&... context) const {
+    if (ABSL_PREDICT_FALSE(value.size() % sizeof(uint64_t) > 0)) {
+      return ReadPackedFixed64Error();
+    }
+    const char* cursor = value.data();
+    const char* const limit = value.data() + value.size();
+    while (cursor < limit) {
+      const uint64_t repr = ReadLittleEndian64(cursor);
+      cursor += sizeof(uint64_t);
+      if (absl::Status status =
+              this->action()(Traits::Decode(repr), context...);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
+      }
+    }
+    return absl::OkStatus();
+  }
 };
 
 template <int field_number, typename Action>
@@ -896,6 +1000,37 @@ class OnLengthDelimitedImpl {
     } else if constexpr (std::is_invocable_v<const Action&, absl::Cord&&,
                                              Context&...>) {
       return HandleString<absl::Cord>(value, context...);
+    } else {
+      static_assert(sizeof(Action) == 0, "No string-like type accepted");
+    }
+  }
+
+  template <
+      typename... Context,
+      std::enable_if_t<std::disjunction_v<
+                           std::is_invocable_r<absl::Status, const Action&,
+                                               absl::string_view, Context&...>,
+                           std::is_invocable_r<absl::Status, const Action&,
+                                               std::string&&, Context&...>,
+                           std::is_invocable_r<absl::Status, const Action&,
+                                               Chain&&, Context&...>,
+                           std::is_invocable_r<absl::Status, const Action&,
+                                               absl::Cord&&, Context&...>>,
+                       int> = 0>
+  absl::Status HandleLengthDelimited(absl::string_view value,
+                                     Context&... context) const {
+    if constexpr (std::is_invocable_v<const Action&, absl::string_view,
+                                      Context&...>) {
+      return action_(value, context...);
+    } else if constexpr (std::is_invocable_v<const Action&, std::string&&,
+                                             Context&...>) {
+      return action_(std::string(value), context...);
+    } else if constexpr (std::is_invocable_v<const Action&, Chain&&,
+                                             Context&...>) {
+      return action_(Chain(value), context...);
+    } else if constexpr (std::is_invocable_v<const Action&, absl::Cord&&,
+                                             Context&...>) {
+      return action_(absl::Cord(value), context...);
     } else {
       static_assert(sizeof(Action) == 0, "No string-like type accepted");
     }
