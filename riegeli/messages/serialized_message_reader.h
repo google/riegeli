@@ -242,7 +242,8 @@ class SerializedMessageReaderBase {
 // See `SerializedMessageRewriter` for producing an edited version of the
 // message.
 template <typename Context = void>
-class SerializedMessageReader : public SerializedMessageReaderBase {
+class ABSL_DEPRECATED("Use SerializedMessageReader2 instead.")
+    SerializedMessageReader : public SerializedMessageReaderBase {
  public:
   // ```
   // const auto& message_reader = SerializedMessageReader<Context>::Global(

@@ -112,6 +112,7 @@ cc_library(
     name = "serialized_message_reader2",
     srcs = [
         "field_handlers.cc",
+        "map_entry_field.h",
         "serialized_message_reader2.cc",
     ],
     hdrs = [
@@ -158,7 +159,10 @@ cc_library(
 
 cc_library(
     name = "serialized_message_writer",
-    srcs = ["serialized_message_writer.cc"],
+    srcs = [
+        "map_entry_field.h",
+        "serialized_message_writer.cc",
+    ],
     hdrs = ["serialized_message_writer.h"],
     deps = [
         ":message_wire_format",
@@ -179,6 +183,7 @@ cc_library(
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
@@ -188,7 +193,10 @@ cc_library(
 
 cc_library(
     name = "serialized_message_backward_writer",
-    srcs = ["serialized_message_backward_writer.cc"],
+    srcs = [
+        "map_entry_field.h",
+        "serialized_message_backward_writer.cc",
+    ],
     hdrs = ["serialized_message_backward_writer.h"],
     deps = [
         ":message_wire_format",
@@ -206,6 +214,7 @@ cc_library(
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf_lite",

@@ -37,6 +37,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/stringify.h"
 #include "riegeli/endian/endian_writing.h"
+#include "riegeli/messages/map_entry_field.h"  // IWYU pragma: export
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/messages/serialize_message.h"
 #include "riegeli/varint/varint_writing.h"

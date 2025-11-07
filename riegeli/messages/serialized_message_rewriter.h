@@ -144,7 +144,9 @@ absl::Status CopyUnchangedField(uint32_t tag, Reader& src,
 // See `SerializedMessageReader` for reading a message without producing its
 // edited version.
 template <typename Context = void>
-class SerializedMessageRewriter {
+class ABSL_DEPRECATED(
+    "Use SerializedMessageReader2 with CopyingFieldHandler instead.")
+    SerializedMessageRewriter {
  public:
   // ```
   // const auto& message_rewriter = SerializedMessageRewriter<Context>::Global(
