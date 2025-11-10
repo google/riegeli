@@ -28,13 +28,17 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
+#include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
+#include "riegeli/bytes/chain_reader.h"
+#include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
@@ -268,11 +272,12 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
 #endif
   absl::Status Read(Src&& src, Context&... context) const;
 
-// Reads a serialized message from a string, letting field handlers process
-// the fields.
-//
-// This is more efficient than reading from a `StringReader`. Some field
-// handlers for length-delimited fields need a different implementation though.
+  // Reads a serialized message from a string, letting field handlers process
+  // the fields.
+  //
+  // This is more efficient than reading from a `StringReader`. Some field
+  // handlers for length-delimited fields need a different implementation
+  // though.
 #if !__cpp_concepts
   template <typename DependentVoid = void,
             std::enable_if_t<
@@ -291,6 +296,56 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
              ...)
 #endif
   ;
+
+  // Reads a serialized message from a `Chain`, letting field handlers process
+  // the fields.
+  //
+  // This is equivalent to reading through a `ChainReader`.
+#if !__cpp_concepts
+  template <typename DependentVoid = void,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_void<DependentVoid>,
+                    IsFieldHandlerFromReader<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...>,
+                int> = 0>
+#endif
+  absl::Status Read(const Chain& src, Context&... context) const
+#if __cpp_concepts
+      // For conjunctions, `requires` gives better error messages than
+      // `std::enable_if_t`, indicating the relevant argument.
+    requires(IsFieldHandlerFromReader<std::remove_pointer_t<FieldHandlers>,
+                                      Context...>::value &&
+             ...)
+#endif
+  {
+    return Read(ChainReader(&src), context...);
+  }
+
+  // Reads a serialized message from a `Cord`, letting field handlers process
+  // the fields.
+  //
+  // This is equivalent to reading through a `CordReader`.
+#if !__cpp_concepts
+  template <typename DependentVoid = void,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_void<DependentVoid>,
+                    IsFieldHandlerFromReader<
+                        std::remove_pointer_t<FieldHandlers>, Context...>...>,
+                int> = 0>
+#endif
+  absl::Status Read(const absl::Cord& src, Context&... context) const
+#if __cpp_concepts
+      // For conjunctions, `requires` gives better error messages than
+      // `std::enable_if_t`, indicating the relevant argument.
+    requires(IsFieldHandlerFromReader<std::remove_pointer_t<FieldHandlers>,
+                                      Context...>::value &&
+             ...)
+#endif
+  {
+    return Read(CordReader(&src), context...);
+  }
 
  private:
   template <typename ReaderType>

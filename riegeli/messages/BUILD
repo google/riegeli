@@ -129,6 +129,8 @@ cc_library(
         "//riegeli/base:status",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
+        "//riegeli/bytes:chain_reader",
+        "//riegeli/bytes:cord_reader",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
         "//riegeli/endian:endian_reading",
