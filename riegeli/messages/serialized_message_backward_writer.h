@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/casts.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "google/protobuf/message_lite.h"
@@ -41,6 +42,8 @@
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/messages/serialize_message.h"
 #include "riegeli/varint/varint_writing.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -73,9 +76,6 @@ namespace riegeli {
 // `SerializedMessageWriter`, and if a non-repeated field is written multiple
 // times then they are overridden or merged in the opposite order. Otherwise the
 // field order does not influence how the message is parsed.
-//
-// Functions working on strings are applicable to any length-delimited field:
-// `string`, `bytes`, submessage, or a packed repeated field.
 class SerializedMessageBackwardWriter {
  public:
   // An empty object. It can be associated with a particular message by
@@ -87,7 +87,7 @@ class SerializedMessageBackwardWriter {
   // Will write to `*dest`, which is not owned and must outlive usages of this
   // object.
   explicit SerializedMessageBackwardWriter(
-      BackwardWriter* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      BackwardWriter* absl_nullable dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(dest) {}
 
   SerializedMessageBackwardWriter(
@@ -96,14 +96,14 @@ class SerializedMessageBackwardWriter {
       SerializedMessageBackwardWriter&& that) noexcept;
 
   // Returns the original `BackwardWriter` of the root message.
-  BackwardWriter* dest() const { return dest_; }
+  BackwardWriter* absl_nullable dest() const { return dest_; }
 
   // Changes the `BackwardWriter` of the root message.
   //
   // This can be called even during building, even when submessages are open,
   // but the position must be the same. It particular this must be called when
   // the original `BackwardWriter` has been moved.
-  void set_dest(BackwardWriter* dest);
+  void set_dest(BackwardWriter* absl_nullable dest);
 
   // Returns the `BackwardWriter` of the current message or length-delimited
   // field being built.
@@ -112,19 +112,19 @@ class SerializedMessageBackwardWriter {
   // with `SerializedMessageWriter`.
   //
   // This can be used to write parts of the message directly, apart from
-  // `Write*()` functions which write whole fields.
+  // `Write...()` functions which write whole fields.
   //
   // Building elements of a repeated field and writing parts of a single field
   // to `writer()` is done in the opposite order than in
   // `SerializedMessageWriter`.
   BackwardWriter& writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(dest_, nullptr)
+    RIEGELI_ASSERT(dest_ != nullptr)
         << "Failed precondition of SerializedMessageBackwardWriter::writer(): "
            "dest() not set";
     return *dest_;
   }
 
-  // Writes the field tag and the field value.
+  // Writes the field tag and the numeric or enum field value.
   absl::Status WriteInt32(int field_number, int32_t value);
   absl::Status WriteInt64(int field_number, int64_t value);
   absl::Status WriteUInt32(int field_number, uint32_t value);
@@ -143,19 +143,20 @@ class SerializedMessageBackwardWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   absl::Status WriteEnum(int field_number, EnumType value);
+
+  // Writes the field tag and the `string`, `bytes`, or submessage field value.
   template <typename... Values
 #if !__cpp_concepts
             ,
             std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
 #endif
             >
-  absl::Status WriteString(int field_number, Values&&... values)
 #if __cpp_concepts
-      // For conjunctions, `requires` gives better error messages than
-      // `std::enable_if_t`, indicating the relevant argument.
+  // For conjunctions, `requires` gives better error messages than
+  // `std::enable_if_t`, indicating the relevant argument.
     requires(IsStringifiable<Values>::value && ...)
 #endif
-  ;
+  absl::Status WriteString(int field_number, Values&&... values);
 
   // Writes the field tag of a length-delimited field and copies the field value
   // from a `Reader`.
@@ -202,9 +203,8 @@ class SerializedMessageBackwardWriter {
   // field tag and length to the parent message.
   //
   // Each `OpenLengthDelimited()` call must be matched with a
-  // `CloseLengthDelimited()` or `CloseOptionalLengthDelimited()` call,
-  // unless the `SerializedMessageBackwardWriter` and its `dest()` are no longer
-  // used.
+  // `CloseLengthDelimited()` or `CloseOptionalLengthDelimited()` call, unless
+  // the `SerializedMessageBackwardWriter` and its `dest()` are no longer used.
   absl::Status CloseLengthDelimited(int field_number);
 
   // Like `CloseLengthDelimited()`, but does not write the field tag and length
@@ -221,8 +221,8 @@ class SerializedMessageBackwardWriter {
   //
   // `WriteLengthUnchecked()` is slightly more efficient than
   // `OpenLengthDelimited()` or `NewLengthDelimited()` with
-  // `CloseLengthDelimited()`, but harder to use: the length must be pledged
-  // before writing the contents, and its correctness is not checked.
+  // `CloseLengthDelimited()`, but harder to use: the length must be specified
+  // explicitly, and its correctness is not checked.
   //
   // Writing the contents and calling `WriteLengthUnchecked()` is done in the
   // opposite order than in `SerializedMessageWriter`.
@@ -240,7 +240,7 @@ class SerializedMessageBackwardWriter {
   ABSL_ATTRIBUTE_COLD static absl::Status CopyStringFailed(
       Reader& src, BackwardWriter& dest);
 
-  BackwardWriter* dest_ = nullptr;
+  BackwardWriter* absl_nullable dest_ = nullptr;
   std::vector<Position> submessages_;
 
   // Invariant: if `!submessages_.empty()` then `dest_ != nullptr`
@@ -260,12 +260,16 @@ SerializedMessageBackwardWriter::operator=(
   return *this;
 }
 
-inline void SerializedMessageBackwardWriter::set_dest(BackwardWriter* dest) {
+inline void SerializedMessageBackwardWriter::set_dest(
+    BackwardWriter* absl_nullable dest) {
   if (!submessages_.empty()) {
-    RIEGELI_ASSERT_NE(dest, nullptr)
+    RIEGELI_ASSERT(dest != nullptr)
         << "Failed precondition of "
            "SerializedMessageBackwardWriter::set_dest(): "
            "null BackwardWriter pointer while writing a submessage";
+    RIEGELI_ASSERT(dest_ != nullptr)
+        << "Failed invariant of SerializedMessageBackwardWriter: "
+           "dest_ is null while writing a submessage";
     RIEGELI_ASSERT_EQ(dest->pos(), dest_->pos())
         << "Failed precondition of "
            "SerializedMessageBackwardWriter::set_dest(): "
@@ -464,12 +468,11 @@ template <typename... Values
           std::enable_if_t<IsStringifiable<Values...>::value, int>
 #endif
           >
-inline absl::Status SerializedMessageBackwardWriter::WriteString(
-    int field_number, Values&&... values)
 #if __cpp_concepts
   requires(IsStringifiable<Values>::value && ...)
 #endif
-{
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, Values&&... values) {
   const Position pos_before = writer().pos();
   if (ABSL_PREDICT_FALSE(!writer().Write(std::forward<Values>(values)...))) {
     return writer().status();

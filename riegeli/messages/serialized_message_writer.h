@@ -25,6 +25,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/casts.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -46,6 +47,8 @@
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/messages/serialize_message.h"
 #include "riegeli/varint/varint_writing.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -72,9 +75,6 @@ namespace riegeli {
 // `SerializedMessageWriter` in the case of nested messages, because their
 // contents can be written directly to the original `BackwardWriter`, with the
 // length known and written after building the contents.
-//
-// Functions working on strings are applicable to any length-delimited field:
-// `string`, `bytes`, submessage, or a packed repeated field.
 class SerializedMessageWriter {
  public:
   // An empty object. It can be associated with a particular message by
@@ -88,36 +88,37 @@ class SerializedMessageWriter {
 
   // Will write to `*dest`, which is not owned and must outlive usages of this
   // object.
-  explicit SerializedMessageWriter(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit SerializedMessageWriter(
+      Writer* absl_nullable dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : dest_(dest), writer_(dest) {}
 
   SerializedMessageWriter(SerializedMessageWriter&& that) noexcept;
   SerializedMessageWriter& operator=(SerializedMessageWriter&& that) noexcept;
 
   // Returns the original `Writer` of the root message.
-  Writer* dest() const { return dest_; }
+  Writer* absl_nullable dest() const { return dest_; }
 
   // Changes the `Writer` of the root message.
   //
   // This can be called even during building, even when submessages are open.
   // It particular this must be called when the original `Writer` has been
   // moved.
-  void set_dest(Writer* dest);
+  void set_dest(Writer* absl_nullable dest);
 
   // Returns the `Writer` of the current message or length-delimited field being
   // built. This can be the original `Writer` of the root message, or the
   // `Writer` of a field.
   //
   // This can be used to write parts of the message directly, apart from
-  // `Write*()` functions which write whole fields.
+  // `Write...()` functions which write whole fields.
   Writer& writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(writer_, nullptr)
+    RIEGELI_ASSERT(writer_ != nullptr)
         << "Failed precondition of SerializedMessageWriter::writer(): "
            "dest() not set while writing the root message";
     return *writer_;
   }
 
-  // Writes the field tag and the field value.
+  // Writes the field tag and the numeric or enum field value.
   absl::Status WriteInt32(int field_number, int32_t value);
   absl::Status WriteInt64(int field_number, int64_t value);
   absl::Status WriteUInt32(int field_number, uint32_t value);
@@ -136,19 +137,20 @@ class SerializedMessageWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   absl::Status WriteEnum(int field_number, EnumType value);
+
+  // Writes the field tag and the `string`, `bytes`, or submessage field value.
   template <typename... Values
 #if !__cpp_concepts
             ,
             std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
 #endif
             >
-  absl::Status WriteString(int field_number, Values&&... values)
 #if __cpp_concepts
-      // For conjunctions, `requires` gives better error messages than
-      // `std::enable_if_t`, indicating the relevant argument.
+  // For conjunctions, `requires` gives better error messages than
+  // `std::enable_if_t`, indicating the relevant argument.
     requires(IsStringifiable<Values>::value && ...)
 #endif
-  ;
+  absl::Status WriteString(int field_number, Values&&... values);
 
   // Writes the field tag of a length-delimited field and copies the field value
   // from a `Reader`.
@@ -237,12 +239,9 @@ class SerializedMessageWriter {
   absl::Status OpenGroup(int field_number);
   absl::Status CloseGroup(int field_number);
 
-  // Returns the length of the field which would be written.
+  // Returns the length of the numeric or enum field which would be written.
   //
   // This is useful for `WriteLengthUnchecked()`.
-  //
-  // If writing would fail due to overflow of a length delimited field,
-  // an unspecified value is returned.
   static Position LengthOfInt32(int field_number, int32_t value);
   static Position LengthOfInt64(int field_number, int64_t value);
   static Position LengthOfUInt32(int field_number, uint32_t value);
@@ -261,22 +260,39 @@ class SerializedMessageWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   static Position LengthOfEnum(int field_number, EnumType value);
+
+  // Returns the length of the `string`, bytes, or submessage field which would
+  // be written.
+  //
+  // This is useful for `WriteLengthUnchecked()`.
   template <typename... Values
 #if !__cpp_concepts
             ,
             std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
 #endif
             >
-  static Position LengthOfString(int field_number, const Values&... values)
 #if __cpp_concepts
-      // For conjunctions, `requires` gives better error messages than
-      // `std::enable_if_t`, indicating the relevant argument.
+  // For conjunctions, `requires` gives better error messages than
+  // `std::enable_if_t`, indicating the relevant argument.
     requires(IsStringifiable<Values>::value && ...)
 #endif
-  ;
+  static Position LengthOfString(int field_number, const Values&... values);
+
+  // Returns the length of a length-delimited field which would be written, for
+  // the given length of the value.
+  //
+  // This is useful for `WriteLengthUnchecked()`.
   static Position LengthOfLengthDelimited(int field_number, Position length);
+
+  // Like `LengthOfLengthDelimited()`, but does not count the field if its
+  // contents turn out to be empty.
   static Position LengthOfOptionalLengthDelimited(int field_number,
                                                   Position length);
+
+  // Returns the length of an element of a packed repeated field which would be
+  // written.
+  //
+  // This is useful for `WriteLengthUnchecked()`.
   static Position LengthOfPackedInt32(int32_t value);
   static Position LengthOfPackedInt64(int64_t value);
   static Position LengthOfPackedUInt32(uint32_t value);
@@ -295,6 +311,10 @@ class SerializedMessageWriter {
                                                 std::is_integral<EnumType>>,
                              int> = 0>
   static Position LengthOfPackedEnum(EnumType value);
+
+  // Returns the length of both group delimiters which would be written.
+  //
+  // This is useful for `WriteLengthUnchecked()`.
   static Position LengthOfOpenPlusCloseGroup(int field_number);
 
  private:
@@ -302,9 +322,9 @@ class SerializedMessageWriter {
   ABSL_ATTRIBUTE_COLD static absl::Status CopyStringFailed(Reader& src,
                                                            Writer& dest);
 
-  Writer* dest_ = nullptr;
+  Writer* absl_nullable dest_ = nullptr;
   std::vector<CordWriter<absl::Cord>> submessages_;
-  Writer* writer_ = nullptr;
+  Writer* absl_nullable writer_ = nullptr;
 
   // Invariant:
   //   `writer_ == (submessages_.empty() ? dest_ : &submessages_.back())`
@@ -412,7 +432,7 @@ class CopyingFieldHandler {
 
 // Implementation details follow.
 
-inline void SerializedMessageWriter::set_dest(Writer* dest) {
+inline void SerializedMessageWriter::set_dest(Writer* absl_nullable dest) {
   dest_ = dest;
   if (submessages_.empty()) writer_ = dest;
 }
@@ -645,12 +665,11 @@ template <typename... Values
           std::enable_if_t<IsStringifiable<Values...>::value, int>
 #endif
           >
-inline absl::Status SerializedMessageWriter::WriteString(int field_number,
-                                                         Values&&... values)
 #if __cpp_concepts
   requires(IsStringifiable<Values>::value && ...)
 #endif
-{
+inline absl::Status SerializedMessageWriter::WriteString(int field_number,
+                                                         Values&&... values) {
   if constexpr (HasStringifiedSize<Values...>::value) {
     if (absl::Status status = WriteLengthUnchecked(
             field_number, riegeli::StringifiedSize(values...));
@@ -878,12 +897,11 @@ template <typename... Values
           std::enable_if_t<IsStringifiable<Values...>::value, int>
 #endif
           >
-inline Position SerializedMessageWriter::LengthOfString(int field_number,
-                                                        const Values&... values)
 #if __cpp_concepts
   requires(IsStringifiable<Values>::value && ...)
 #endif
-{
+inline Position SerializedMessageWriter::LengthOfString(
+    int field_number, const Values&... values) {
   if constexpr (HasStringifiedSize<Values...>::value) {
     return LengthOfLengthDelimited(field_number,
                                    riegeli::StringifiedSize(values...));

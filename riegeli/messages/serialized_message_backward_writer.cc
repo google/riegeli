@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -28,6 +29,8 @@
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/copy_all.h"
 #include "riegeli/bytes/reader.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
@@ -49,14 +52,14 @@ absl::Status SerializedMessageBackwardWriter::CopyStringFailed(
 absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
                                                          AnyRef<Reader*> src) {
   if (src.IsOwning()) src->SetReadAllHint(true);
-  const Position pos_after = dest_->pos();
-  if (absl::Status status = CopyAll(std::move(src), *dest_);
+  const Position pos_after = writer().pos();
+  if (absl::Status status = CopyAll(std::move(src), writer());
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  RIEGELI_ASSERT_GE(dest_->pos(), pos_after)
+  RIEGELI_ASSERT_GE(writer().pos(), pos_after)
       << "CopyAll() decreased dest.pos()";
-  return WriteLengthUnchecked(field_number, dest_->pos() - pos_after);
+  return WriteLengthUnchecked(field_number, writer().pos() - pos_after);
 }
 
 void SerializedMessageBackwardWriter::OpenLengthDelimited() {
@@ -69,11 +72,11 @@ absl::Status SerializedMessageBackwardWriter::CloseLengthDelimited(
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseLengthDelimited(): "
          "no matching OpenLengthDelimited() call";
-  RIEGELI_ASSERT_GE(dest_->pos(), submessages_.back())
+  RIEGELI_ASSERT_GE(writer().pos(), submessages_.back())
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseLengthDelimited(): "
          "writer().pos() decreased since OpenLengthDelimited()";
-  const Position length = dest_->pos() - submessages_.back();
+  const Position length = writer().pos() - submessages_.back();
   submessages_.pop_back();
   return WriteLengthUnchecked(field_number, length);
 }
@@ -84,11 +87,11 @@ absl::Status SerializedMessageBackwardWriter::CloseOptionalLengthDelimited(
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseOptionalLengthDelimited(): "
          "no matching OpenLengthDelimited() call";
-  RIEGELI_ASSERT_GE(dest_->pos(), submessages_.back())
+  RIEGELI_ASSERT_GE(writer().pos(), submessages_.back())
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseOptionalLengthDelimited(): "
          "writer().pos() decreased since OpenLengthDelimited()";
-  const Position length = dest_->pos() - submessages_.back();
+  const Position length = writer().pos() - submessages_.back();
   submessages_.pop_back();
   if (length > 0) return WriteLengthUnchecked(field_number, length);
   return absl::OkStatus();
