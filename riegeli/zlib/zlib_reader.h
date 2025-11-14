@@ -37,8 +37,6 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/zlib/zlib_dictionary.h"  // IWYU pragma: export
 
-struct z_stream_s;  // `zlib.h` has `typedef struct z_stream_s z_stream`.
-
 namespace riegeli {
 
 // Template parameter independent part of `ZlibReader`.
@@ -212,7 +210,8 @@ class ZlibReaderBase : public BufferedReader {
                             const RecyclingPoolOptions& recycling_pool_options);
 
   struct ZStreamDeleter {
-    void operator()(z_stream_s* ptr) const;
+    // `void*` is `z_stream*`. Avoid including `zlib.h` in the header.
+    void operator()(void* ptr) const;
   };
 
   void InitializeDecompressor();
@@ -235,7 +234,9 @@ class ZlibReaderBase : public BufferedReader {
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
-  RecyclingPool<z_stream_s, ZStreamDeleter>::Handle decompressor_;
+  //
+  // `void` is `z_stream`. Avoid including `zlib.h` in the header.
+  RecyclingPool<void, ZStreamDeleter>::Handle decompressor_;
 };
 
 // A `Reader` which decompresses data with Zlib after getting it from another

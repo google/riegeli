@@ -33,8 +33,6 @@
 #include "riegeli/bytes/writer.h"
 #include "riegeli/zlib/zlib_dictionary.h"  // IWYU pragma: export
 
-struct z_stream_s;  // `zlib.h` has `typedef struct z_stream_s z_stream`.
-
 namespace riegeli {
 
 class Reader;
@@ -203,7 +201,8 @@ class ZlibWriterBase : public BufferedWriter {
 
  private:
   struct ZStreamDeleter {
-    void operator()(z_stream_s* ptr) const;
+    // `void*` is `z_stream*`. Avoid including `zlib.h` in the header.
+    void operator()(void* ptr) const;
   };
 
   struct ZStreamKey : WithEqual<ZStreamKey> {
@@ -233,8 +232,8 @@ class ZlibWriterBase : public BufferedWriter {
   ZlibDictionary dictionary_;
   RecyclingPoolOptions recycling_pool_options_;
   Position initial_compressed_pos_ = 0;
-  KeyedRecyclingPool<z_stream_s, ZStreamKey, ZStreamDeleter>::Handle
-      compressor_;
+  // `void` is `z_stream`. Avoid including `zlib.h` in the header.
+  KeyedRecyclingPool<void, ZStreamKey, ZStreamDeleter>::Handle compressor_;
 
   AssociatedReader<ZlibReader<Reader*>> associated_reader_;
 };

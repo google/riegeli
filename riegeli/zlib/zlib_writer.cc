@@ -50,11 +50,12 @@ static_assert(ZlibWriterBase::Options::kMaxWindowLog == MAX_WBITS,
 static_assert(ZlibWriterBase::Options::kDefaultWindowLog == MAX_WBITS,
               "Mismatched constant");
 
-void ZlibWriterBase::ZStreamDeleter::operator()(z_stream* ptr) const {
-  const int zlib_code = deflateEnd(ptr);
+void ZlibWriterBase::ZStreamDeleter::operator()(void* ptr) const {
+  z_stream* const z_stream_ptr = static_cast<z_stream*>(ptr);
+  const int zlib_code = deflateEnd(z_stream_ptr);
   RIEGELI_ASSERT(zlib_code == Z_OK || zlib_code == Z_DATA_ERROR)
       << "deflateEnd() failed: " << zlib_code;
-  delete ptr;
+  delete z_stream_ptr;
 }
 
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
@@ -66,7 +67,7 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
   }
   initial_compressed_pos_ = dest->pos();
   compressor_ =
-      KeyedRecyclingPool<z_stream, ZStreamKey, ZStreamDeleter>::global(
+      KeyedRecyclingPool<void, ZStreamKey, ZStreamDeleter>::global(
           recycling_pool_options_)
           .Get(
               ZStreamKey(compression_level, window_bits_),
@@ -81,15 +82,17 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
                 }
                 return ptr;
               },
-              [&](z_stream* ptr) {
-                const int zlib_code = deflateReset(ptr);
+              [&](void* ptr) {
+                z_stream* const z_stream_ptr = static_cast<z_stream*>(ptr);
+                const int zlib_code = deflateReset(z_stream_ptr);
                 if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
                   FailOperation("deflateReset()", zlib_code);
                 }
               });
   if (!dictionary_.empty()) {
+    z_stream* const z_stream_ptr = static_cast<z_stream*>(compressor_.get());
     const int zlib_code = deflateSetDictionary(
-        compressor_.get(),
+        z_stream_ptr,
         const_cast<z_const Bytef*>(
             reinterpret_cast<const Bytef*>(dictionary_.data().data())),
         SaturatingIntCast<uInt>(dictionary_.data().size()));
@@ -123,8 +126,9 @@ inline bool ZlibWriterBase::FailOperation(absl::string_view operation,
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "Object closed";
-  return Fail(
-      zlib_internal::ZlibErrorToStatus(operation, zlib_code, compressor_->msg));
+  z_stream* const z_stream_ptr = static_cast<z_stream*>(compressor_.get());
+  return Fail(zlib_internal::ZlibErrorToStatus(operation, zlib_code,
+                                               z_stream_ptr->msg));
 }
 
 absl::Status ZlibWriterBase::AnnotateStatusImpl(absl::Status status) {
@@ -163,33 +167,34 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
   }
-  compressor_->next_in =
+  z_stream* const z_stream_ptr = static_cast<z_stream*>(compressor_.get());
+  z_stream_ptr->next_in =
       const_cast<z_const Bytef*>(reinterpret_cast<const Bytef*>(src.data()));
   for (;;) {
-    // If `compressor_->avail_out == 0` then `deflate()` returns `Z_BUF_ERROR`,
+    // If `z_stream_ptr->avail_out == 0` then `deflate()` returns `Z_BUF_ERROR`,
     // so `dest.Push()` first.
     if (ABSL_PREDICT_FALSE(!dest.Push())) {
       return FailWithoutAnnotation(AnnotateOverDest(dest.status()));
     }
     size_t avail_in =
-        PtrDistance(reinterpret_cast<const char*>(compressor_->next_in),
+        PtrDistance(reinterpret_cast<const char*>(z_stream_ptr->next_in),
                     src.data() + src.size());
     int op = flush;
     if (ABSL_PREDICT_FALSE(avail_in > std::numeric_limits<uInt>::max())) {
       avail_in = size_t{std::numeric_limits<uInt>::max()};
       op = Z_NO_FLUSH;
     }
-    compressor_->avail_in = IntCast<uInt>(avail_in);
-    compressor_->next_out = reinterpret_cast<Bytef*>(dest.cursor());
-    compressor_->avail_out = SaturatingIntCast<uInt>(dest.available());
-    const int zlib_code = deflate(compressor_.get(), op);
-    dest.set_cursor(reinterpret_cast<char*>(compressor_->next_out));
+    z_stream_ptr->avail_in = IntCast<uInt>(avail_in);
+    z_stream_ptr->next_out = reinterpret_cast<Bytef*>(dest.cursor());
+    z_stream_ptr->avail_out = SaturatingIntCast<uInt>(dest.available());
+    const int zlib_code = deflate(z_stream_ptr, op);
+    dest.set_cursor(reinterpret_cast<char*>(z_stream_ptr->next_out));
     const size_t length_written = PtrDistance(
-        src.data(), reinterpret_cast<const char*>(compressor_->next_in));
+        src.data(), reinterpret_cast<const char*>(z_stream_ptr->next_in));
     switch (zlib_code) {
       case Z_OK:
-        if (compressor_->avail_out == 0) continue;
-        RIEGELI_ASSERT_EQ(compressor_->avail_in, 0u)
+        if (z_stream_ptr->avail_out == 0) continue;
+        RIEGELI_ASSERT_EQ(z_stream_ptr->avail_in, 0u)
             << "deflate() returned but there are still input data "
                "and output space";
         if (ABSL_PREDICT_FALSE(length_written < src.size())) continue;

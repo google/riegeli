@@ -47,10 +47,11 @@ static_assert(ZlibReaderBase::Options::kMaxWindowLog == MAX_WBITS,
 static_assert(ZlibReaderBase::Options::kDefaultWindowLog == MAX_WBITS,
               "Mismatched constant");
 
-void ZlibReaderBase::ZStreamDeleter::operator()(z_stream* ptr) const {
-  const int zlib_code = inflateEnd(ptr);
+void ZlibReaderBase::ZStreamDeleter::operator()(void* ptr) const {
+  z_stream* const z_stream_ptr = static_cast<z_stream*>(ptr);
+  const int zlib_code = inflateEnd(z_stream_ptr);
   RIEGELI_ASSERT_EQ(zlib_code, Z_OK) << "inflateEnd() failed";
-  delete ptr;
+  delete z_stream_ptr;
 }
 
 void ZlibReaderBase::Initialize(Reader* src) {
@@ -66,7 +67,7 @@ void ZlibReaderBase::Initialize(Reader* src) {
 
 inline void ZlibReaderBase::InitializeDecompressor() {
   decompressor_ =
-      RecyclingPool<z_stream, ZStreamDeleter>::global(recycling_pool_options_)
+      RecyclingPool<void, ZStreamDeleter>::global(recycling_pool_options_)
           .Get(
               [&] {
                 auto ptr =
@@ -77,8 +78,9 @@ inline void ZlibReaderBase::InitializeDecompressor() {
                 }
                 return ptr;
               },
-              [&](z_stream* ptr) {
-                const int zlib_code = inflateReset2(ptr, window_bits_);
+              [&](void* ptr) {
+                z_stream* const z_stream_ptr = static_cast<z_stream*>(ptr);
+                const int zlib_code = inflateReset2(z_stream_ptr, window_bits_);
                 if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
                   FailOperation("inflateReset2()", zlib_code);
                 }
@@ -104,8 +106,9 @@ inline bool ZlibReaderBase::FailOperation(absl::string_view operation,
   RIEGELI_ASSERT(is_open())
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "Object closed";
+  z_stream* const z_stream_ptr = static_cast<z_stream*>(decompressor_.get());
   return Fail(zlib_internal::ZlibErrorToStatus(operation, zlib_code,
-                                               decompressor_->msg));
+                                               z_stream_ptr->msg));
 }
 
 absl::Status ZlibReaderBase::AnnotateStatusImpl(absl::Status status) {
@@ -143,25 +146,26 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
   truncated_ = false;
   max_length = UnsignedMin(max_length,
                            std::numeric_limits<Position>::max() - limit_pos());
-  decompressor_->next_out = reinterpret_cast<Bytef*>(dest);
+  z_stream* const z_stream_ptr = static_cast<z_stream*>(decompressor_.get());
+  z_stream_ptr->next_out = reinterpret_cast<Bytef*>(dest);
   for (;;) {
-    decompressor_->avail_out = SaturatingIntCast<uInt>(PtrDistance(
-        reinterpret_cast<char*>(decompressor_->next_out), dest + max_length));
-    decompressor_->next_in = const_cast<z_const Bytef*>(
+    z_stream_ptr->avail_out = SaturatingIntCast<uInt>(PtrDistance(
+        reinterpret_cast<char*>(z_stream_ptr->next_out), dest + max_length));
+    z_stream_ptr->next_in = const_cast<z_const Bytef*>(
         reinterpret_cast<const Bytef*>(src.cursor()));
-    decompressor_->avail_in = SaturatingIntCast<uInt>(src.available());
-    if (decompressor_->avail_in > 0) stream_had_data_ = true;
-    int zlib_code = inflate(decompressor_.get(), Z_NO_FLUSH);
-    src.set_cursor(reinterpret_cast<const char*>(decompressor_->next_in));
+    z_stream_ptr->avail_in = SaturatingIntCast<uInt>(src.available());
+    if (z_stream_ptr->avail_in > 0) stream_had_data_ = true;
+    int zlib_code = inflate(z_stream_ptr, Z_NO_FLUSH);
+    src.set_cursor(reinterpret_cast<const char*>(z_stream_ptr->next_in));
     const size_t length_read =
-        PtrDistance(dest, reinterpret_cast<char*>(decompressor_->next_out));
+        PtrDistance(dest, reinterpret_cast<char*>(z_stream_ptr->next_out));
     switch (zlib_code) {
       case Z_OK:
         if (length_read >= min_length) break;
         ABSL_FALLTHROUGH_INTENDED;
       case Z_BUF_ERROR:
-        if (ABSL_PREDICT_FALSE(decompressor_->avail_in > 0)) {
-          RIEGELI_ASSERT_EQ(decompressor_->avail_out, 0u)
+        if (ABSL_PREDICT_FALSE(z_stream_ptr->avail_in > 0)) {
+          RIEGELI_ASSERT_EQ(z_stream_ptr->avail_out, 0u)
               << "inflate() returned but there are still input data "
                  "and output space";
           RIEGELI_ASSERT_EQ(length_read,
@@ -186,7 +190,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         continue;
       case Z_STREAM_END:
         if (concatenate_) {
-          const int zlib_code = inflateReset(decompressor_.get());
+          const int zlib_code = inflateReset(z_stream_ptr);
           if (ABSL_PREDICT_FALSE(zlib_code != Z_OK)) {
             FailOperation("inflateReset()", zlib_code);
             break;
@@ -203,7 +207,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
       case Z_NEED_DICT:
         if (ABSL_PREDICT_TRUE(!dictionary_.empty())) {
           zlib_code = inflateSetDictionary(
-              decompressor_.get(),
+              z_stream_ptr,
               const_cast<z_const Bytef*>(
                   reinterpret_cast<const Bytef*>(dictionary_.data().data())),
               SaturatingIntCast<uInt>(dictionary_.data().size()));
