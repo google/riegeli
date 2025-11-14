@@ -720,8 +720,8 @@ class OnRepeatedVarintImpl
               absl::Status, const Action&,
               decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
           int> = 0>
-  absl::Status HandleLengthDelimited(ReaderSpan<> value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
+                                               Context&... context) const {
     ScopedLimiter scoped_limiter(value);
     uint64_t repr;
     while (ReadVarint64(value.reader(), repr)) {
@@ -754,8 +754,8 @@ class OnRepeatedVarintImpl
               absl::Status, const Action&,
               decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
           int> = 0>
-  absl::Status HandleLengthDelimited(absl::string_view value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
+                                               Context&... context) const {
     const char* cursor = value.data();
     const char* const limit = value.data() + value.size();
     uint64_t repr;
@@ -822,8 +822,8 @@ class OnRepeatedFixed32Impl
               absl::Status, const Action&,
               decltype(Traits::Decode(std::declval<uint32_t>())), Context&...>,
           int> = 0>
-  absl::Status HandleLengthDelimited(ReaderSpan<> value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
+                                               Context&... context) const {
     if (ABSL_PREDICT_FALSE(value.length() % sizeof(uint32_t) > 0)) {
       return ReadPackedFixed32Error(value.reader());
     }
@@ -855,8 +855,8 @@ class OnRepeatedFixed32Impl
               absl::Status, const Action&,
               decltype(Traits::Decode(std::declval<uint32_t>())), Context&...>,
           int> = 0>
-  absl::Status HandleLengthDelimited(absl::string_view value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
+                                               Context&... context) const {
     if (ABSL_PREDICT_FALSE(value.size() % sizeof(uint32_t) > 0)) {
       return ReadPackedFixed32Error();
     }
@@ -917,8 +917,8 @@ class OnRepeatedFixed64Impl
               absl::Status, const Action&,
               decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
           int> = 0>
-  absl::Status HandleLengthDelimited(ReaderSpan<> value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
+                                               Context&... context) const {
     if (ABSL_PREDICT_FALSE(value.length() % sizeof(uint64_t) > 0)) {
       return ReadPackedFixed64Error(value.reader());
     }
@@ -950,8 +950,8 @@ class OnRepeatedFixed64Impl
               absl::Status, const Action&,
               decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
           int> = 0>
-  absl::Status HandleLengthDelimited(absl::string_view value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
+                                               Context&... context) const {
     if (ABSL_PREDICT_FALSE(value.size() % sizeof(uint64_t) > 0)) {
       return ReadPackedFixed64Error();
     }
@@ -995,8 +995,8 @@ class OnLengthDelimitedImpl {
                            std::is_invocable_r<absl::Status, const Action&,
                                                absl::Cord&&, Context&...>>,
                        int> = 0>
-  absl::Status HandleLengthDelimited(ReaderSpan<> value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
+                                               Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, ReaderSpan<>,
                                       Context&...>) {
       return action_(value, context...);
@@ -1029,8 +1029,8 @@ class OnLengthDelimitedImpl {
                            std::is_invocable_r<absl::Status, const Action&,
                                                absl::Cord&&, Context&...>>,
                        int> = 0>
-  absl::Status HandleLengthDelimited(absl::string_view value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
+                                               Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, absl::string_view,
                                       Context&...>) {
       return action_(value, context...);

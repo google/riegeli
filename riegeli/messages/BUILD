@@ -133,6 +133,7 @@ cc_library(
         "//riegeli/bytes:cord_reader",
         "//riegeli/bytes:limiting_reader",
         "//riegeli/bytes:reader",
+        "//riegeli/bytes:string_reader",
         "//riegeli/endian:endian_reading",
         "//riegeli/varint:varint_reading",
         "@com_google_absl//absl/base",
@@ -149,6 +150,7 @@ cc_library(
     hdrs = ["field_handler_map.h"],
     deps = [
         ":serialized_message_reader2",
+        "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
@@ -156,6 +158,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 

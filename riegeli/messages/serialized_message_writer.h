@@ -154,9 +154,16 @@ class SerializedMessageWriter {
 
   // Writes the field tag of a length-delimited field and copies the field value
   // from a `Reader`.
+  //
+  // For `absl::string_view`, this is equivalent to `WriteString()`.
+  // This is useful for generic handlers of length-delimited fields for
+  // `SerializedMessageReader2`.
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
   absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
+  absl::Status CopyString(int field_number, absl::string_view src) {
+    return WriteString(field_number, src);
+  }
 
   // Writes the field tag of a length-delimited field and serializes a message
   // as the field value.
@@ -381,13 +388,15 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleLengthDelimited(int field_number, ReaderSpan<> value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromReader(int field_number,
+                                               ReaderSpan<> value,
+                                               Context&... context) const {
     return message_writer(context...).CopyString(field_number, value);
   }
 
-  absl::Status HandleLengthDelimited(int field_number, absl::string_view value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromString(int field_number,
+                                               absl::string_view value,
+                                               Context&... context) const {
     return message_writer(context...).WriteString(field_number, value);
   }
 

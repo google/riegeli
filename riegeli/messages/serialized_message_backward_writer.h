@@ -28,6 +28,7 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
@@ -160,9 +161,16 @@ class SerializedMessageBackwardWriter {
 
   // Writes the field tag of a length-delimited field and copies the field value
   // from a `Reader`.
+  //
+  // For `absl::string_view`, this is equivalent to `WriteString()`.
+  // This is useful for generic handlers of length-delimited fields for
+  // `SerializedMessageReader2`.
   absl::Status CopyString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
   absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
+  absl::Status CopyString(int field_number, absl::string_view src) {
+    return WriteString(field_number, src);
+  }
 
   // Writes the field tag of a length-delimited field and serializes a message
   // as the field value.

@@ -28,6 +28,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/serialized_message_reader2.h"
@@ -51,8 +53,9 @@ namespace riegeli {
 // default-constructible. These type parameters of `FieldHandlerMap` are wrapped
 // in `std::tuple` to distinguish them from `Context...`.
 //
-// `FieldHandlerMap` is compatible with `SerializedMessageReader2` with a
-// `Reader` source. String source is not supported.
+// `FieldHandlerMap` is not directly applicable to a string source.
+// If `SerializedMessageReader2::Read()` is called with a string, the source
+// is wrapped in a `StringReader`.
 
 template <typename ExtraParentState, typename... Context>
 class FieldHandlerMap;
@@ -183,9 +186,9 @@ class FieldHandlerMap<std::tuple<ExtraParentState...>, Context...> {
     return &iter->second;
   }
 
-  absl::Status HandleLengthDelimited(const LengthDelimitedHandler& handler,
-                                     ReaderSpan<> value,
-                                     Context&... context) const {
+  absl::Status HandleLengthDelimitedFromReader(
+      const LengthDelimitedHandler& handler, ReaderSpan<> value,
+      Context&... context) const {
     return handler.action(handler.parent_state.get(), value, context...);
   }
 
@@ -294,8 +297,31 @@ bool FieldHandlerMap<std::tuple<ExtraParentState...>, Context...>::Register(
                      [field_handler](ABSL_ATTRIBUTE_UNUSED const ParentState
                                          * absl_nullable parent_state,
                                      ReaderSpan<> value, Context&... context) {
-                       return field_handler.HandleLengthDelimited(value,
-                                                                  context...);
+                       return field_handler.HandleLengthDelimitedFromReader(
+                           value, context...);
+                     })
+                 .second)) {
+      all_registered = false;
+    }
+  } else if constexpr (serialized_message_reader_internal::
+                           IsStaticFieldHandlerForLengthDelimitedFromString<
+                               std::decay_t<FieldHandler>, Context...>::value) {
+    if (ABSL_PREDICT_FALSE(
+            !length_delimited_handlers_
+                 .try_emplace(
+                     field_number,
+                     [field_handler](ABSL_ATTRIBUTE_UNUSED const ParentState
+                                         * absl_nullable parent_state,
+                                     ReaderSpan<> value, Context&... context) {
+                       absl::string_view value_string;
+                       if (ABSL_PREDICT_FALSE(!value.reader().Read(
+                               IntCast<size_t>(value.length()),
+                               value_string))) {
+                         return serialized_message_reader_internal::
+                             ReadLengthDelimitedValueError(value.reader());
+                       }
+                       return field_handler.HandleLengthDelimitedFromString(
+                           value_string, context...);
                      })
                  .second)) {
       all_registered = false;
