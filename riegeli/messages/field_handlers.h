@@ -237,9 +237,7 @@ using AfterGroupType =
 //
 //  * Unbound, which are meant to be registered in a `FieldHandlerMap` with a
 //    field number specified during registration. The `field_number` template
-//    parameter must not be specified. The action takes extra `Context&...`
-//    parameters. Values for these parameters are specified as arguments of
-//    `FieldHandlerMap::Apply()`.
+//    parameter must not be specified.
 
 // Field handler of a singular `int32` field. The value is provided as
 // `int32_t`.
