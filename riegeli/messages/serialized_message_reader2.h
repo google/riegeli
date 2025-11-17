@@ -108,10 +108,10 @@ namespace riegeli {
 // Field handlers stored in a single `SerializedMessageReader2` are usually
 // conceptually associated with a single message type.
 //
-// If a field handler returns a failed `absl::Status`, `Read()` is cancelled
-// and propagates the status, annotated by the `Reader` and/or with the field
-// number. Annotations are skipped for `absl::CancelledError()` to make it more
-// efficient to cancel a handler when cancellation is likely.
+// If a field handler returns a failed `absl::Status`, `ReadMessage()` is
+// cancelled and propagates the status, annotated by the `Reader` and/or with
+// the field number. Annotations are skipped for `absl::CancelledError()` to
+// make it more efficient to cancel a handler when cancellation is likely.
 //
 // A field handler can also be expressed as a raw pointer to a const-qualified
 // proper field handler. A proper field handler is owned by the
@@ -139,10 +139,10 @@ namespace riegeli {
 // This is relevant for writing custom field handlers.
 //
 // A field handler is applicable to a `Reader` source, and possibly also to a
-// string source. If `SerializedMessageReader2::Read()` is called with a string
-// and all field handlers are applicable to a string source, then field handlers
-// are called with the string source. Otherwise, the source is wrapped in an
-// appropriate `Reader` if needed.
+// string source. If `SerializedMessageReader2::ReadMessage()` is called with a
+// string and all field handlers are applicable to a string source, then field
+// handlers are called with the string source. Otherwise, the source is wrapped
+// in an appropriate `Reader` if needed.
 //
 // Field handlers have a `static constexpr int kFieldNumber` member variable:
 //  * For static field handlers: a positive field number.
@@ -213,7 +213,7 @@ template <typename T, typename... Context>
 struct IsFieldHandler;
 
 // `IsUnboundFieldHandler<T, Context...>::value` is `true` if `T` is a valid
-// argument type for `FieldHandlerMap::Register()`.
+// argument type for `FieldHandlerMap::RegisterField()`.
 template <typename T, typename... Context>
 struct IsUnboundFieldHandler;
 
@@ -260,14 +260,14 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
   // then the `LimitingReader` is initially limited to the whole message.
   // This helps parsing untrusted data: if the size of the message is bounded,
   // then claimed lengths of length-delimited fields are bounded as well,
-  // and thus it is safe to e.g. pass such a length to `Reader::Read()`.
+  // and thus it is safe to e.g. pass such a length to `Reader::ReadMessage()`.
   template <typename Src,
             std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value,
                              int> = 0>
-  absl::Status Read(Src&& src, Context&... context) const;
-  absl::Status Read(BytesRef src, Context&... context) const;
-  absl::Status Read(const Chain& src, Context&... context) const;
-  absl::Status Read(const absl::Cord& src, Context&... context) const;
+  absl::Status ReadMessage(Src&& src, Context&... context) const;
+  absl::Status ReadMessage(BytesRef src, Context&... context) const;
+  absl::Status ReadMessage(const Chain& src, Context&... context) const;
+  absl::Status ReadMessage(const absl::Cord& src, Context&... context) const;
 
  private:
   template <typename ReaderType>
@@ -285,7 +285,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
 //   static constexpr auto message_reader =
 //       riegeli::SerializedMessageReader2<Context...>(
 //           field_handlers...);
-//   absl::Status status = message_reader.Read(src, context...);
+//   absl::Status status = message_reader.ReadMessage(src, context...);
 // ```
 //
 // `Context` types must be specified explicitly for `SerializedMessageReader2`.
@@ -1407,9 +1407,10 @@ template <typename... FieldHandlers, typename... Context>
 template <
     typename Src,
     std::enable_if_t<TargetRefSupportsDependency<Reader*, Src>::value, int>>
-absl::Status
-SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
-    Src&& src, Context&... context) const {
+absl::Status SerializedMessageReaderType<
+    std::tuple<FieldHandlers...>, Context...>::ReadMessage(Src&& src,
+                                                           Context&... context)
+    const {
   DependencyRef<Reader*, Src> src_dep(std::forward<Src>(src));
   if (src_dep.IsOwning()) src_dep->SetReadAllHint(true);
 
@@ -1450,31 +1451,33 @@ SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
 }
 
 template <typename... FieldHandlers, typename... Context>
-absl::Status
-SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
-    BytesRef src, Context&... context) const {
+absl::Status SerializedMessageReaderType<
+    std::tuple<FieldHandlers...>, Context...>::ReadMessage(BytesRef src,
+                                                           Context&... context)
+    const {
   if constexpr (std::conjunction_v<serialized_message_reader_internal::
                                        IsFieldHandlerFromString<
                                            std::remove_pointer_t<FieldHandlers>,
                                            Context...>...>) {
     return ReadFromString(src, context...);
   } else {
-    return Read(StringReader(src), context...);
+    return ReadMessage(StringReader(src), context...);
   }
 }
 
 template <typename... FieldHandlers, typename... Context>
-absl::Status
-SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
-    const Chain& src, Context&... context) const {
-  return Read(ChainReader(&src), context...);
+absl::Status SerializedMessageReaderType<
+    std::tuple<FieldHandlers...>, Context...>::ReadMessage(const Chain& src,
+                                                           Context&... context)
+    const {
+  return ReadMessage(ChainReader(&src), context...);
 }
 
 template <typename... FieldHandlers, typename... Context>
-absl::Status
-SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...>::Read(
-    const absl::Cord& src, Context&... context) const {
-  return Read(CordReader(&src), context...);
+absl::Status SerializedMessageReaderType<
+    std::tuple<FieldHandlers...>,
+    Context...>::ReadMessage(const absl::Cord& src, Context&... context) const {
+  return ReadMessage(CordReader(&src), context...);
 }
 
 inline absl::Status SkipLengthDelimited(ReaderSpan<> value) {

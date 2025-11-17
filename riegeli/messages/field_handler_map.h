@@ -61,8 +61,8 @@ class FieldHandlerMapImpl;
 // Otherwise `Associated` must be default-constructible.
 //
 // `FieldHandlerMap` is not directly applicable to a string source.
-// If `SerializedMessageReader2::Read()` is called with a string, the source
-// is wrapped in a `StringReader`.
+// If `SerializedMessageReader2::ReadMessage()` is called with a string, the
+// source is wrapped in a `StringReader`.
 
 template <typename... Context>
 using FieldHandlerMap = FieldHandlerMapImpl<void, Context...>;
@@ -101,6 +101,55 @@ class FieldHandlerMapImpl {
     FieldHandlerMapImpl* children;
   };
 
+  // Creates an empty `FieldHandlerMap` with value-initialized `associated()`.
+  FieldHandlerMapImpl() = default;
+
+  FieldHandlerMapImpl(FieldHandlerMapImpl&& that) = default;
+  FieldHandlerMapImpl& operator=(FieldHandlerMapImpl&& that) = default;
+
+  // Registers a field handler for a field with the given `field_number`.
+  // The field handler must be unbound, not yet associated with a field number.
+  //
+  // Returns `true` if successful, or `false` if the corresponding field number
+  // was already registered.
+  template <typename FieldHandler,
+            std::enable_if_t<IsUnboundFieldHandler<std::decay_t<FieldHandler>,
+                                                   Context...>::value,
+                             int> = 0>
+  bool RegisterField(int field_number, FieldHandler&& field_handler);
+
+  // Registers an action for a submessage field with the given `field_number`.
+  //
+  // `parent_action` is invoked with the field number, `const FieldHandlerMap&`
+  // for the children, `ReaderSpan<>` with submessage contents, and
+  // `Context&...`. It must read to the end of the `ReaderSpan<>` or fail.
+  //
+  // The default `parent_action` is:
+  // ```
+  //   return riegeli::SerializedMessageReader2<Context...>(&children)
+  //       .ReadMessage(value, context...);
+  // ```
+  //
+  // If the field number was not registered yet, creates a default-constructed
+  // `FieldHandlerMap`, registers `parent_action`, and returns a mutable pointer
+  // to the `FieldHandlerMap`.
+  //
+  // If the field number was already registered as a parent submessage,
+  // returns a pointer to the existing `FieldHandlerMap`. The newly specified
+  // `parent_action` is ignored; it is expected to be the same as the existing
+  // action.
+  //
+  // If the field number was already registered as a regular length-delimited
+  // field, returns `nullptr`.
+  template <
+      typename ParentAction,
+      std::enable_if_t<std::is_invocable_r_v<absl::Status, const ParentAction&,
+                                             int, const FieldHandlerMapImpl&,
+                                             ReaderSpan<>, Context&...>,
+                       int> = 0>
+  FieldHandlerMapImpl* absl_nullable RegisterParent(
+      int field_number, ParentAction&& parent_action = DefaultParentAction());
+
   // If `Associated` is not `void`, returns `Associated` data of this map.
   template <typename DependentAssociated = Associated,
             std::enable_if_t<!std::is_void_v<DependentAssociated>, int> = 0>
@@ -123,54 +172,6 @@ class FieldHandlerMapImpl {
            fixed64_handlers_.empty() && length_delimited_handlers_.empty() &&
            start_group_handlers_.empty() && end_group_handlers_.empty();
   }
-
-  FieldHandlerMapImpl() = default;
-
-  FieldHandlerMapImpl(FieldHandlerMapImpl&& that) = default;
-  FieldHandlerMapImpl& operator=(FieldHandlerMapImpl&& that) = default;
-
-  // Registers a field handler for a field with the given `field_number`.
-  // The field handler must be unbound, not yet associated with a field number.
-  //
-  // Returns `true` if successful, or `false` if the corresponding field number
-  // was already registered.
-  template <typename FieldHandler,
-            std::enable_if_t<IsUnboundFieldHandler<std::decay_t<FieldHandler>,
-                                                   Context...>::value,
-                             int> = 0>
-  bool Register(int field_number, FieldHandler&& field_handler);
-
-  // Registers an action for a submessage field with the given `field_number`.
-  //
-  // `parent_action` is invoked with the field number, `const FieldHandlerMap&`
-  // for the children, `ReaderSpan<>` with submessage contents, and
-  // `Context&...`. It must read to the end of the `ReaderSpan<>` or fail.
-  //
-  // The default `parent_action` is:
-  // ```
-  //   return riegeli::SerializedMessageReader2<Context...>(&children).Read(
-  //       value, context...);
-  // ```
-  //
-  // If the field number was not registered yet, creates a default-constructed
-  // `FieldHandlerMap`, registers `parent_action`, and returns a mutable pointer
-  // to the `FieldHandlerMap`.
-  //
-  // If the field number was already registered as a parent submessage,
-  // returns a pointer to the existing `FieldHandlerMap`. The newly specified
-  // `parent_action` is ignored; it is expected to be the same as the existing
-  // action.
-  //
-  // If the field number was already registered as a regular length-delimited
-  // field, returns `nullptr`.
-  template <
-      typename ParentAction,
-      std::enable_if_t<std::is_invocable_r_v<absl::Status, const ParentAction&,
-                                             int, const FieldHandlerMapImpl&,
-                                             ReaderSpan<>, Context&...>,
-                       int> = 0>
-  FieldHandlerMapImpl* absl_nullable RegisterParent(
-      int field_number, ParentAction&& parent_action = DefaultParentAction());
 
   // Implement the field handler protocol.
 
@@ -251,7 +252,8 @@ class FieldHandlerMapImpl {
   struct Empty {};
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS
-  std::conditional_t<std::is_void_v<Associated>, Empty, Associated> associated_;
+  std::conditional_t<std::is_void_v<Associated>, Empty, Associated>
+      associated_{};
   absl::flat_hash_map<int, FieldAction<uint64_t>> varint_handlers_;
   absl::flat_hash_map<int, FieldAction<uint32_t>> fixed32_handlers_;
   absl::flat_hash_map<int, FieldAction<uint64_t>> fixed64_handlers_;
@@ -268,7 +270,7 @@ struct FieldHandlerMapImpl<Associated, Context...>::DefaultParentAction {
   absl::Status operator()(ABSL_ATTRIBUTE_UNUSED int field_number,
                           const FieldHandlerMapImpl& children,
                           ReaderSpan<> value, Context&... context) const {
-    return riegeli::SerializedMessageReader2<Context...>(&children).Read(
+    return riegeli::SerializedMessageReader2<Context...>(&children).ReadMessage(
         value, context...);
   }
 };
@@ -278,7 +280,7 @@ template <typename FieldHandler,
           std::enable_if_t<IsUnboundFieldHandler<std::decay_t<FieldHandler>,
                                                  Context...>::value,
                            int>>
-bool FieldHandlerMapImpl<Associated, Context...>::Register(
+bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
     int field_number, FieldHandler&& field_handler) {
   bool all_registered = true;
   if constexpr (serialized_message_reader_internal::
