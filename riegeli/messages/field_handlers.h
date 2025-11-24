@@ -510,6 +510,7 @@ OnRepeatedEnum(Action&& action) {
 // guarantee is absent for a `Reader` source.
 //
 // If the action accepts `ReaderSpan<>`, it must read to the end of it or fail.
+// `SkipLengthDelimited()` can be used to seek to the end of the field.
 //
 // If the action accepts either `ReaderSpan<>` or one of the string-like types
 // above, the value is provided as `ReaderSpan<>` for a `Reader` source, and as
