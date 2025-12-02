@@ -22,7 +22,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/varint/varint_internal.h"  // IWYU pragma: export
 
@@ -86,6 +89,57 @@ bool ReadVarintSigned64(Reader& src, uint64_t& dest);
 //                                 `dest` is undefined)
 bool ReadCanonicalVarint32(Reader& src, uint32_t& dest);
 bool ReadCanonicalVarint64(Reader& src, uint64_t& dest);
+
+// Reads a varint, at most `available` bytes long. This corresponds to protobuf
+// types `{int,uint}{32,64}` (with a cast needed in the case of `int{32,64}`).
+//
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be read
+// with `ReadVarint64()`, not `ReadVarint32()`, if negative values are possible.
+//
+// Return values:
+//  * `true`  - success (`dest` is set)
+//  * `false` - source ends too early or varint is invalid
+//              (`src` moved less than `available` unless `available == 0`,
+//              `dest` is undefined)
+bool ReadVarint32(absl::Cord::CharIterator& src, size_t available,
+                  uint32_t& dest);
+bool ReadVarint64(absl::Cord::CharIterator& src, size_t available,
+                  uint64_t& dest);
+
+// Reads a signed varint (zigzag-encoded), at most `available` bytes long.
+// This corresponds to protobuf types `sint{32,64}`.
+//
+// Return values:
+//  * `true`  - success (`dest` is set)
+//  * `false` - source ends too early or varint is invalid
+//              (`src` moved less than `available` unless `available == 0`,
+//              `dest` is undefined)
+bool ReadVarintSigned32(absl::Cord::CharIterator& src, size_t available,
+                        uint32_t& dest);
+bool ReadVarintSigned64(absl::Cord::CharIterator& src, size_t available,
+                        uint64_t& dest);
+
+// Reads a varint, at most `available` bytes long. This corresponds to protobuf
+// types `{int,uint}{32,64}` (with a cast needed in the case of `int{32,64}`).
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
+//
+// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
+// not `uint32` (negative values take 10 bytes, not 5), hence they must be read
+// with `ReadCanonicalVarint64()`, not `ReadCanonicalVarint32()`, if negative
+// values are possible.
+//
+// Return values:
+//  * `true`  - success (`dest` is set)
+//  * `false` - source ends too early or varint is invalid
+//              (`src` moved less than `available` unless `available == 0`,
+//              `dest` is undefined)
+bool ReadCanonicalVarint32(absl::Cord::CharIterator& src, size_t available,
+                           uint32_t& dest);
+bool ReadCanonicalVarint64(absl::Cord::CharIterator& src, size_t available,
+                           uint64_t& dest);
 
 // Reads a varint from an array. This corresponds to protobuf types
 // `{int,uint}{32,64}` (with a cast needed in the case of `int{32,64}`).
@@ -183,6 +237,41 @@ size_t CopyVarint64(Reader& src, char* dest);
 size_t CopyCanonicalVarint32(Reader& src, char* dest);
 size_t CopyCanonicalVarint64(Reader& src, char* dest);
 
+// Copies a varint to an array, at most `available` bytes long, without decoding
+// and encoding but with validation.
+//
+// Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
+//
+// Return values:
+//  * positive `length` - success, `length` bytes copied (`dest[]` is filled)
+//  * 0                 - source ends too early or varint is invalid
+//                        (`src` moved less than `available`
+//                        unless `available == 0`,
+//                        `dest[]` is undefined)
+size_t CopyVarint32(absl::Cord::CharIterator& src, size_t available,
+                    char* dest);
+size_t CopyVarint64(absl::Cord::CharIterator& src, size_t available,
+                    char* dest);
+
+// Copies a varint to an array, at most `available` bytes long, without decoding
+// and encoding but with validation.
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
+//
+// Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
+//
+// Return values:
+//  * positive `length` - success, `length` bytes copied (`dest[]` is filled)
+//  * 0                 - source ends too early or varint is invalid
+//                        (`src` moved less than `available`
+//                        unless `available == 0`,
+//                        `dest[]` is undefined)
+size_t CopyCanonicalVarint32(absl::Cord::CharIterator& src, size_t available,
+                             char* dest);
+size_t CopyCanonicalVarint64(absl::Cord::CharIterator& src, size_t available,
+                             char* dest);
+
 // Copies a varint from an array to an array, without decoding and encoding but
 // with validation.
 //
@@ -253,6 +342,31 @@ bool SkipVarint64(Reader& src);
 bool SkipCanonicalVarint32(Reader& src);
 bool SkipCanonicalVarint64(Reader& src);
 
+// Skips a varint, at most `available` bytes long, without decoding but with
+// validation.
+//
+// Return values:
+//  * positive `length` - success
+//  * 0                 - source ends too early or varint is invalid
+//                        (`src` moved less than `available`
+//                        unless `available == 0`)
+bool SkipVarint32(absl::Cord::CharIterator& src, size_t available);
+bool SkipVarint64(absl::Cord::CharIterator& src, size_t available);
+
+// Skips a varint, at most `available` bytes long, without decoding but with
+// validation.
+//
+// Accepts only the canonical representation, i.e. the shortest: rejecting a
+// trailing zero byte, except for 0 itself.
+//
+// Return values:
+//  * positive `length` - success
+//  * 0                 - source ends too early or varint is invalid
+//                        (`src` moved less than `available`
+//                        unless `available == 0`)
+bool SkipCanonicalVarint32(absl::Cord::CharIterator& src, size_t available);
+bool SkipCanonicalVarint64(absl::Cord::CharIterator& src, size_t available);
+
 // Skips a varint from an array, without decoding but with validation.
 //
 // Return values:
@@ -280,6 +394,10 @@ constexpr int64_t DecodeVarintSigned64(uint64_t repr);
 // Implementation details follow.
 
 namespace varint_internal {
+
+inline size_t Remaining(const absl::Cord::CharIterator& src) {
+  return IntCast<size_t>(absl::Cord::Distance(src, absl::Cord::CharIterator()));
+}
 
 template <typename T, bool canonical, size_t initial_index>
 bool ReadVarintFromReaderBuffer(Reader& src, const char* cursor, T acc,
@@ -426,6 +544,188 @@ inline bool ReadCanonicalVarint64(Reader& src, uint64_t& dest) {
   return varint_internal::ReadVarintFromReader<uint64_t,
                                                /*canonical=*/true, 1>(
       src, byte0, dest);
+}
+
+namespace varint_internal {
+
+template <typename T, bool canonical, size_t initial_index>
+bool ReadVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available,
+                              T acc, T& dest);
+
+extern template bool ReadVarintFromCordBuffer<uint32_t, false, 2>(
+    absl::Cord::CharIterator& src, size_t available, uint32_t acc,
+    uint32_t& dest);
+extern template bool ReadVarintFromCordBuffer<uint64_t, false, 2>(
+    absl::Cord::CharIterator& src, size_t available, uint64_t acc,
+    uint64_t& dest);
+extern template bool ReadVarintFromCordBuffer<uint32_t, true, 2>(
+    absl::Cord::CharIterator& src, size_t available, uint32_t acc,
+    uint32_t& dest);
+extern template bool ReadVarintFromCordBuffer<uint64_t, true, 2>(
+    absl::Cord::CharIterator& src, size_t available, uint64_t acc,
+    uint64_t& dest);
+
+template <typename T, bool canonical, size_t initial_index>
+bool ReadVarintFromCord(absl::Cord::CharIterator& src, size_t available, T acc,
+                        T& dest);
+
+extern template bool ReadVarintFromCord<uint32_t, false, 1>(
+    absl::Cord::CharIterator& src, size_t available, uint32_t acc,
+    uint32_t& dest);
+extern template bool ReadVarintFromCord<uint64_t, false, 1>(
+    absl::Cord::CharIterator& src, size_t available, uint64_t acc,
+    uint64_t& dest);
+extern template bool ReadVarintFromCord<uint32_t, true, 1>(
+    absl::Cord::CharIterator& src, size_t available, uint32_t acc,
+    uint32_t& dest);
+extern template bool ReadVarintFromCord<uint64_t, true, 1>(
+    absl::Cord::CharIterator& src, size_t available, uint64_t acc,
+    uint64_t& dest);
+
+}  // namespace varint_internal
+
+inline bool ReadVarint32(absl::Cord::CharIterator& src, size_t available,
+                         uint32_t& dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of ReadVarint32(): not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint32_t byte0 = uint32_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    dest = byte0;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint32_t byte1 = uint32_t{static_cast<uint8_t>(chunk[1])};
+    const uint32_t acc = byte0 + ((byte1 - 1) << 7);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      absl::Cord::Advance(&src, 2);
+      dest = acc;
+      return true;
+    }
+    return varint_internal::ReadVarintFromCordBuffer<uint32_t,
+                                                     /*canonical=*/false, 2>(
+        src, available, acc, dest);
+  }
+  return varint_internal::ReadVarintFromCord<uint32_t,
+                                             /*canonical=*/false, 1>(
+      src, available, byte0, dest);
+}
+
+inline bool ReadVarint64(absl::Cord::CharIterator& src, size_t available,
+                         uint64_t& dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of ReadVarint64(): not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint64_t byte0 = uint64_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    dest = byte0;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint64_t byte1 = uint64_t{static_cast<uint8_t>(chunk[1])};
+    const uint64_t acc = byte0 + ((byte1 - 1) << 7);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      absl::Cord::Advance(&src, 2);
+      dest = acc;
+      return true;
+    }
+    return varint_internal::ReadVarintFromCordBuffer<uint64_t,
+                                                     /*canonical=*/false, 2>(
+        src, available, acc, dest);
+  }
+  return varint_internal::ReadVarintFromCord<uint64_t,
+                                             /*canonical=*/false, 1>(
+      src, available, byte0, dest);
+}
+
+inline bool ReadVarintSigned32(absl::Cord::CharIterator& src, size_t available,
+                               int32_t& dest) {
+  uint32_t unsigned_dest;
+  if (ABSL_PREDICT_FALSE(!ReadVarint32(src, available, unsigned_dest))) {
+    return false;
+  }
+  dest = DecodeVarintSigned32(unsigned_dest);
+  return true;
+}
+
+inline bool ReadVarintSigned64(absl::Cord::CharIterator& src, size_t available,
+                               int64_t& dest) {
+  uint64_t unsigned_dest;
+  if (ABSL_PREDICT_FALSE(!ReadVarint64(src, available, unsigned_dest))) {
+    return false;
+  }
+  dest = DecodeVarintSigned64(unsigned_dest);
+  return true;
+}
+
+inline bool ReadCanonicalVarint32(absl::Cord::CharIterator& src,
+                                  size_t available, uint32_t& dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of ReadCanonicalVarint32(): "
+         "not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint32_t byte0 = uint32_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    dest = byte0;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint32_t byte1 = uint32_t{static_cast<uint8_t>(chunk[1])};
+    const uint32_t acc = byte0 + ((byte1 - 1) << 7);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return false;
+      absl::Cord::Advance(&src, 2);
+      dest = acc;
+      return true;
+    }
+    return varint_internal::ReadVarintFromCordBuffer<uint32_t,
+                                                     /*canonical=*/true, 2>(
+        src, available, acc, dest);
+  }
+  return varint_internal::ReadVarintFromCord<uint32_t,
+                                             /*canonical=*/true, 1>(
+      src, available, byte0, dest);
+}
+
+inline bool ReadCanonicalVarint64(absl::Cord::CharIterator& src,
+                                  size_t available, uint64_t& dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of ReadCanonicalVarint64(): "
+         "not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint64_t byte0 = uint64_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    dest = byte0;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint64_t byte1 = uint64_t{static_cast<uint8_t>(chunk[1])};
+    const uint64_t acc = byte0 + ((byte1 - 1) << 7);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return false;
+      absl::Cord::Advance(&src, 2);
+      dest = acc;
+      return true;
+    }
+    return varint_internal::ReadVarintFromCordBuffer<uint64_t,
+                                                     /*canonical=*/true, 2>(
+        src, available, acc, dest);
+  }
+  return varint_internal::ReadVarintFromCord<uint64_t,
+                                             /*canonical=*/true, 1>(
+      src, available, byte0, dest);
 }
 
 namespace varint_internal {
@@ -704,6 +1004,156 @@ inline size_t CopyCanonicalVarint64(Reader& src, char* dest) {
 namespace varint_internal {
 
 template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available,
+                                char* dest);
+
+extern template size_t CopyVarintFromCordBuffer<uint32_t, false, 2>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+extern template size_t CopyVarintFromCordBuffer<uint64_t, false, 2>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+extern template size_t CopyVarintFromCordBuffer<uint32_t, true, 2>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+extern template size_t CopyVarintFromCordBuffer<uint64_t, true, 2>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+
+template <typename T, bool canonical, size_t initial_index>
+size_t CopyVarintFromCord(absl::Cord::CharIterator& src, size_t available,
+                          char* dest);
+
+extern template size_t CopyVarintFromCord<uint32_t, false, 1>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+extern template size_t CopyVarintFromCord<uint64_t, false, 1>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+extern template size_t CopyVarintFromCord<uint32_t, true, 1>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+extern template size_t CopyVarintFromCord<uint64_t, true, 1>(
+    absl::Cord::CharIterator& src, size_t available, char* dest);
+
+}  // namespace varint_internal
+
+inline size_t CopyVarint32(absl::Cord::CharIterator& src, size_t available,
+                           char* dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of CopyVarint32(): not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(*src);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return 1;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(chunk[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      absl::Cord::Advance(&src, 2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromCordBuffer<uint32_t,
+                                                     /*canonical=*/false, 2>(
+        src, available, dest);
+  }
+  return varint_internal::CopyVarintFromCord<uint32_t,
+                                             /*canonical=*/false, 1>(
+      src, available, dest);
+}
+
+inline size_t CopyVarint64(absl::Cord::CharIterator& src, size_t available,
+                           char* dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of CopyVarint64(): not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(*src);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return 1;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(chunk[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      absl::Cord::Advance(&src, 2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromCordBuffer<uint64_t,
+                                                     /*canonical=*/false, 2>(
+        src, available, dest);
+  }
+  return varint_internal::CopyVarintFromCord<uint64_t,
+                                             /*canonical=*/false, 1>(
+      src, available, dest);
+}
+
+inline size_t CopyCanonicalVarint32(absl::Cord::CharIterator& src,
+                                    size_t available, char* dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of CopyCanonicalVarint32(): "
+         "not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(*src);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return 1;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(chunk[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+      absl::Cord::Advance(&src, 2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromCordBuffer<uint32_t,
+                                                     /*canonical=*/true, 2>(
+        src, available, dest);
+  }
+  return varint_internal::CopyVarintFromCord<uint32_t,
+                                             /*canonical=*/true, 1>(
+      src, available, dest);
+}
+
+inline size_t CopyCanonicalVarint64(absl::Cord::CharIterator& src,
+                                    size_t available, char* dest) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of CopyCanonicalVarint64(): "
+         "not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return 0;
+  const uint8_t byte0 = static_cast<uint8_t>(*src);
+  dest[0] = static_cast<char>(byte0);
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return 1;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return 0;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint8_t byte1 = static_cast<uint8_t>(chunk[1]);
+    dest[1] = static_cast<char>(byte1);
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return 0;
+      absl::Cord::Advance(&src, 2);
+      return 2;
+    }
+    return varint_internal::CopyVarintFromCordBuffer<uint64_t,
+                                                     /*canonical=*/true, 2>(
+        src, available, dest);
+  }
+  return varint_internal::CopyVarintFromCord<uint64_t,
+                                             /*canonical=*/true, 1>(
+      src, available, dest);
+}
+
+namespace varint_internal {
+
+template <typename T, bool canonical, size_t initial_index>
 size_t CopyVarintFromArray(const char* src, size_t available, char* dest);
 
 extern template size_t CopyVarintFromArray<uint32_t, false, 2>(const char* src,
@@ -903,6 +1353,144 @@ inline bool SkipCanonicalVarint64(Reader& src) {
   }
   return varint_internal::SkipVarintFromReader<uint64_t, /*canonical=*/true, 1>(
       src);
+}
+
+namespace varint_internal {
+
+template <typename T, bool canonical, size_t initial_index>
+bool SkipVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available);
+
+extern template bool SkipVarintFromCordBuffer<uint32_t, false, 2>(
+    absl::Cord::CharIterator& src, size_t available);
+extern template bool SkipVarintFromCordBuffer<uint64_t, false, 2>(
+    absl::Cord::CharIterator& src, size_t available);
+extern template bool SkipVarintFromCordBuffer<uint32_t, true, 2>(
+    absl::Cord::CharIterator& src, size_t available);
+extern template bool SkipVarintFromCordBuffer<uint64_t, true, 2>(
+    absl::Cord::CharIterator& src, size_t available);
+
+template <typename T, bool canonical, size_t initial_index>
+bool SkipVarintFromCord(absl::Cord::CharIterator& src, size_t available);
+
+extern template bool SkipVarintFromCord<uint32_t, false, 1>(
+    absl::Cord::CharIterator& src, size_t available);
+extern template bool SkipVarintFromCord<uint64_t, false, 1>(
+    absl::Cord::CharIterator& src, size_t available);
+extern template bool SkipVarintFromCord<uint32_t, true, 1>(
+    absl::Cord::CharIterator& src, size_t available);
+extern template bool SkipVarintFromCord<uint64_t, true, 1>(
+    absl::Cord::CharIterator& src, size_t available);
+
+}  // namespace varint_internal
+
+inline bool SkipVarint32(absl::Cord::CharIterator& src, size_t available) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of SkipVarint32(): not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint32_t byte0 = uint32_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint32_t byte1 = uint32_t{static_cast<uint8_t>(chunk[1])};
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      absl::Cord::Advance(&src, 2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromCordBuffer<uint32_t,
+                                                     /*canonical=*/false, 2>(
+        src, available);
+  }
+  return varint_internal::SkipVarintFromCord<uint32_t,
+                                             /*canonical=*/false, 1>(src,
+                                                                     available);
+}
+
+inline bool SkipVarint64(absl::Cord::CharIterator& src, size_t available) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of SkipVarint64(): not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint64_t byte0 = uint64_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint64_t byte1 = uint64_t{static_cast<uint8_t>(chunk[1])};
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      absl::Cord::Advance(&src, 2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromCordBuffer<uint64_t,
+                                                     /*canonical=*/false, 2>(
+        src, available);
+  }
+  return varint_internal::SkipVarintFromCord<uint64_t,
+                                             /*canonical=*/false, 1>(src,
+                                                                     available);
+}
+
+inline bool SkipCanonicalVarint32(absl::Cord::CharIterator& src,
+                                  size_t available) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of SkipCanonicalVarint32(): "
+         "not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint32_t byte0 = uint32_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint32_t byte1 = uint32_t{static_cast<uint8_t>(chunk[1])};
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return false;
+      absl::Cord::Advance(&src, 2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromCordBuffer<uint32_t,
+                                                     /*canonical=*/true, 2>(
+        src, available);
+  }
+  return varint_internal::SkipVarintFromCord<uint32_t,
+                                             /*canonical=*/true, 1>(src,
+                                                                    available);
+}
+
+inline bool SkipCanonicalVarint64(absl::Cord::CharIterator& src,
+                                  size_t available) {
+  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+      << "Failed precondition of SkipCanonicalVarint64(): "
+         "not enough remaining data";
+  if (ABSL_PREDICT_FALSE(available == 0)) return false;
+  const uint64_t byte0 = uint64_t{static_cast<uint8_t>(*src)};
+  if (ABSL_PREDICT_TRUE(byte0 < 0x80)) {
+    ++src;
+    return true;
+  }
+  if (ABSL_PREDICT_FALSE(available == 1)) return false;
+  const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
+  if (ABSL_PREDICT_TRUE(chunk.size() >= 2)) {
+    const uint64_t byte1 = uint64_t{static_cast<uint8_t>(chunk[1])};
+    if (ABSL_PREDICT_TRUE(byte1 < 0x80)) {
+      if (ABSL_PREDICT_FALSE(byte1 == 0)) return false;
+      absl::Cord::Advance(&src, 2);
+      return true;
+    }
+    return varint_internal::SkipVarintFromCordBuffer<uint64_t,
+                                                     /*canonical=*/true, 2>(
+        src, available);
+  }
+  return varint_internal::SkipVarintFromCord<uint64_t,
+                                             /*canonical=*/true, 1>(src,
+                                                                    available);
 }
 
 namespace varint_internal {

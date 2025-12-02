@@ -388,6 +388,22 @@ cc_library(
 )
 
 cc_library(
+    name = "cord_iterator_span",
+    srcs = ["cord_iterator_span.cc"],
+    hdrs = ["cord_iterator_span.h"],
+    deps = [
+        ":arithmetic",
+        ":assert",
+        ":dependency",
+        ":string_utils",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_library(
     name = "iterable",
     hdrs = ["iterable.h"],
     deps = [

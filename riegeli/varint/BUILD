@@ -19,6 +19,8 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
