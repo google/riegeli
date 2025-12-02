@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/messages/serialized_message_reader2.h"
-
 #include <stddef.h>
 #include <stdint.h>
 
@@ -29,6 +27,7 @@
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/messages/message_wire_format.h"
+#include "riegeli/messages/serialized_message_reader_internal.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 

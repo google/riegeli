@@ -34,6 +34,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/serialized_message_reader2.h"
+#include "riegeli/messages/serialized_message_reader_internal.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 

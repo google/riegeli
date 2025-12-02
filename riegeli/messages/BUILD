@@ -109,11 +109,29 @@ cc_library(
 )
 
 cc_library(
+    name = "serialized_message_reader_internal",
+    srcs = ["serialized_message_reader2.cc"],
+    hdrs = ["serialized_message_reader_internal.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":message_wire_format",
+        "//riegeli/base:status",
+        "//riegeli/base:types",
+        "//riegeli/bytes:limiting_reader",
+        "//riegeli/bytes:reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_library(
     name = "serialized_message_reader2",
     srcs = [
         "field_handlers.cc",
         "map_entry_field.h",
-        "serialized_message_reader2.cc",
     ],
     hdrs = [
         "field_handlers.h",
@@ -121,12 +139,12 @@ cc_library(
     ],
     deps = [
         ":message_wire_format",
+        ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
-        "//riegeli/base:status",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "//riegeli/bytes:chain_reader",
@@ -142,6 +160,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -150,6 +169,7 @@ cc_library(
     hdrs = ["field_handler_map.h"],
     deps = [
         ":serialized_message_reader2",
+        ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/bytes:limiting_reader",
