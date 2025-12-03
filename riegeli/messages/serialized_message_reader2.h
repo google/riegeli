@@ -234,14 +234,13 @@ template <typename... FieldHandlers, typename... Context>
 class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
  public:
   // Constructs a `SerializedMessageReaderType` from field handlers.
-  template <
-      typename... FieldHandlerInitializers,
-      std::enable_if_t<
-          std::conjunction_v<NotSameRef<SerializedMessageReaderType,
-                                        FieldHandlerInitializers&&...>,
-                             std::is_constructible<
-                                 FieldHandlers, FieldHandlerInitializers&&>...>,
-          int> = 0>
+  template <typename... FieldHandlerInitializers,
+            std::enable_if_t<std::conjunction_v<
+                                 NotSameRef<SerializedMessageReaderType,
+                                            FieldHandlerInitializers&&...>,
+                                 std::is_convertible<FieldHandlerInitializers&&,
+                                                     FieldHandlers>...>,
+                             int> = 0>
   explicit constexpr SerializedMessageReaderType(
       FieldHandlerInitializers&&... field_handlers)
       : field_handlers_(

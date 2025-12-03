@@ -676,8 +676,8 @@ class OnOptionalVarintImpl {
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
-            std::enable_if_t<
-                std::is_constructible_v<Action, ActionInitializer&&>, int> = 0>
+            std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
+                             int> = 0>
   explicit constexpr OnOptionalVarintImpl(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
@@ -781,8 +781,8 @@ class OnOptionalFixed32Impl {
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
-            std::enable_if_t<
-                std::is_constructible_v<Action, ActionInitializer&&>, int> = 0>
+            std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
+                             int> = 0>
   explicit constexpr OnOptionalFixed32Impl(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
@@ -878,8 +878,8 @@ class OnOptionalFixed64Impl {
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
-            std::enable_if_t<
-                std::is_constructible_v<Action, ActionInitializer&&>, int> = 0>
+            std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
+                             int> = 0>
   explicit constexpr OnOptionalFixed64Impl(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
@@ -973,8 +973,8 @@ class OnLengthDelimitedImpl {
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
-            std::enable_if_t<
-                std::is_constructible_v<Action, ActionInitializer&&>, int> = 0>
+            std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
+                             int> = 0>
   explicit constexpr OnLengthDelimitedImpl(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
@@ -1073,8 +1073,8 @@ class OnStartGroupImpl {
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
-            std::enable_if_t<
-                std::is_constructible_v<Action, ActionInitializer&&>, int> = 0>
+            std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
+                             int> = 0>
   explicit constexpr OnStartGroupImpl(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
@@ -1096,8 +1096,8 @@ class OnEndGroupImpl {
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
-            std::enable_if_t<
-                std::is_constructible_v<Action, ActionInitializer&&>, int> = 0>
+            std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
+                             int> = 0>
   explicit constexpr OnEndGroupImpl(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
