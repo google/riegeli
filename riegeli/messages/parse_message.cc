@@ -20,6 +20,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -187,13 +188,13 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
 absl::Status ParseMessageImpl(ReaderSpan<Reader> src,
                               google::protobuf::MessageLite& dest,
                               ParseMessageOptions options) {
-  return ParseMessageFromSpanImpl(src, dest, options);
+  return ParseMessageFromSpanImpl(std::move(src), dest, options);
 }
 
 absl::Status ParseMessageImpl(ReaderSpan<> src,
                               google::protobuf::MessageLite& dest,
                               ParseMessageOptions options) {
-  return ParseMessageFromSpanImpl(src, dest, options);
+  return ParseMessageFromSpanImpl(std::move(src), dest, options);
 }
 
 }  // namespace parse_message_internal

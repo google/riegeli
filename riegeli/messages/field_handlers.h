@@ -997,21 +997,21 @@ class OnLengthDelimitedImpl {
     if constexpr (std::is_invocable_v<const Action&, ReaderSpan<>,
                                       Context&...>) {
       return SkipLengthDelimitedFromReader(
-          value, [&] { return action_(value, context...); });
+          value, [&] { return action_(std::move(value), context...); });
     } else if constexpr (std::is_invocable_v<const Action&, absl::string_view,
                                              Context&...>) {
-      return HandleString<absl::string_view>(value, context...);
+      return HandleString<absl::string_view>(std::move(value), context...);
     } else if constexpr (std::is_invocable_v<const Action&, std::string&&,
                                              Context&...>) {
-      return HandleString<std::string>(value, context...);
+      return HandleString<std::string>(std::move(value), context...);
     } else if constexpr (std::is_invocable_v<const Action&, Chain&&,
                                              Context&...>) {
-      return HandleString<Chain>(value, context...);
+      return HandleString<Chain>(std::move(value), context...);
     } else if constexpr (std::is_invocable_v<const Action&, absl::Cord&&,
                                              Context&...>) {
-      return HandleString<absl::Cord>(value, context...);
+      return HandleString<absl::Cord>(std::move(value), context...);
     } else {
-      static_assert(sizeof(Action) == 0, "No string-like type accepted");
+      static_assert(false, "No string-like type accepted");
     }
   }
 
@@ -1042,7 +1042,7 @@ class OnLengthDelimitedImpl {
                                              Context&...>) {
       return action_(absl::Cord(value), context...);
     } else {
-      static_assert(sizeof(Action) == 0, "No string-like type accepted");
+      static_assert(false, "No string-like type accepted");
     }
   }
 

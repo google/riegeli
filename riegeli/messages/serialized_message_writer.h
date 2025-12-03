@@ -391,7 +391,8 @@ class CopyingFieldHandler {
   absl::Status HandleLengthDelimitedFromReader(int field_number,
                                                ReaderSpan<> value,
                                                Context&... context) const {
-    return message_writer(context...).CopyString(field_number, value);
+    return message_writer(context...)
+        .CopyString(field_number, std::move(value));
   }
 
   absl::Status HandleLengthDelimitedFromString(int field_number,

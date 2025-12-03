@@ -338,7 +338,8 @@ inline absl::Status SkipLengthDelimited(const ReaderSpan<>&) {
 template <
     typename Action,
     std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int> = 0>
-absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value, Action&& action);
+absl::Status SkipLengthDelimitedFromReader(const ReaderSpan<>& value,
+                                           Action&& action);
 
 absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value);
 
@@ -864,16 +865,17 @@ absl::Status SerializedMessageReaderType<
 
 template <typename Action,
           std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int>>
-inline absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value,
+inline absl::Status SkipLengthDelimitedFromReader(const ReaderSpan<>& value,
                                                   Action&& action) {
-  const Position end_pos = value.reader().pos() + value.length();
+  LimitingReaderBase& reader = value.reader();
+  const Position end_pos = reader.pos() + value.length();
   if (absl::Status status = std::forward<Action>(action)();
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  if (ABSL_PREDICT_FALSE(!value.reader().Seek(end_pos))) {
+  if (ABSL_PREDICT_FALSE(!reader.Seek(end_pos))) {
     return serialized_message_reader_internal::ReadLengthDelimitedValueError(
-        value.reader());
+        reader);
   }
   return absl::OkStatus();
 }

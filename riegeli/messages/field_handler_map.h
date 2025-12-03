@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -129,7 +130,7 @@ class FieldHandlerMapImpl {
   // The default `parent_action` is:
   // ```
   //   return riegeli::SerializedMessageReader2<Context...>(&children)
-  //       .ReadMessage(value, context...);
+  //       .ReadMessage(std::move(value), context...);
   // ```
   //
   // If the field number was not registered yet, creates a default-constructed
@@ -225,7 +226,7 @@ class FieldHandlerMapImpl {
   absl::Status HandleLengthDelimitedFromReader(
       const LengthDelimitedHandler& handler, ReaderSpan<> value,
       Context&... context) const {
-    return handler.action(handler.children.get(), value, context...);
+    return handler.action(handler.children.get(), std::move(value), context...);
   }
 
   const FieldAction<>* absl_nullable AcceptStartGroup(int field_number) const {
@@ -273,7 +274,7 @@ struct FieldHandlerMapImpl<Associated, Context...>::DefaultParentAction {
                           const FieldHandlerMapImpl& children,
                           ReaderSpan<> value, Context&... context) const {
     return riegeli::SerializedMessageReader2<Context...>(&children).ReadMessage(
-        value, context...);
+        std::move(value), context...);
   }
 };
 
@@ -339,7 +340,7 @@ bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
                              * absl_nullable children,
                          ReaderSpan<> value, Context&... context) {
                        return field_handler.HandleLengthDelimitedFromReader(
-                           value, context...);
+                           std::move(value), context...);
                      })
                  .second)) {
       all_registered = false;
@@ -419,7 +420,8 @@ auto FieldHandlerMapImpl<Associated, Context...>::RegisterParent(
             << "children must have been initialized "
                "before parent_action can be invoked";
         return SkipLengthDelimitedFromReader(value, [&] {
-          return parent_action(field_number, *children, value, context...);
+          return parent_action(field_number, *children, std::move(value),
+                               context...);
         });
       });
   if (inserted.second) {

@@ -213,7 +213,8 @@ template <typename ReaderType>
 absl::Status ParseMessage(ReaderSpan<ReaderType> src,
                           google::protobuf::MessageLite& dest,
                           ParseMessageOptions options) {
-  return parse_message_internal::ParseMessageImpl(src, dest, options);
+  return parse_message_internal::ParseMessageImpl(std::move(src), dest,
+                                                  options);
 }
 
 }  // namespace riegeli
