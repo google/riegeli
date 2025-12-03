@@ -172,6 +172,7 @@ cc_library(
         ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:types",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",

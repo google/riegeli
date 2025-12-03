@@ -164,8 +164,8 @@ namespace riegeli {
 //   // field handler is not applicable to a string source.
 //   //
 //   // `HandleLengthDelimitedFromReader()` must read to the end of the
-//   // `ReaderSpan<>` or fail. `SkipLengthDelimited()` can be used to seek
-//   // to the end of the field.
+//   // `ReaderSpan<>` or fail. `SkipLengthDelimitedFromReader()` can be used
+//   // to ensure this property.
 //   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value) const;
 //
 //   // Applicable to a string source. If `HandleLengthDelimitedFromString()`
@@ -323,32 +323,24 @@ SerializedMessageReader2(FieldHandlerInitializers&&... field_handlers) {
       std::forward<FieldHandlerInitializers>(field_handlers)...);
 }
 
-// When handling a length-delimited field available as `ReaderSpan<>`,
-// a field handler must read to the end of the `ReaderSpan<>` or fail.
+ABSL_DEPRECATED("This is no longer needed in field actions.")
+inline absl::Status SkipLengthDelimited(const ReaderSpan<>&) {
+  return absl::OkStatus();
+}
+
+// In the field handler protocol, `HandleLengthDelimitedFromReader()` must read
+// to the end of the `ReaderSpan<>` or fail.
 //
-// If a field handler action does not guarantee this property, it can be ensured
-// by wrapping the reading action in `SkipLengthDelimited()`. This seeks to the
-// end of the field unless the action fails. No action parameter is equivalent
-// to an action doing nothing.
-//
-// When handling a length-delimited field available as `absl::string_view`,
-// the requirement is not applicable. To support generic actions,
-// `SkipLengthDelimited()` accepts also `absl::string_view` with trivial
-// behavior.
+// `SkipLengthDelimitedFromReader()` can be used to ensure this property.
+// With an action, the part of the field not read by the action is skipped.
+// Without an action, the whole field is skipped.
 
 template <
     typename Action,
     std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int> = 0>
-absl::Status SkipLengthDelimited(ReaderSpan<> value, Action&& action);
+absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value, Action&& action);
 
-template <
-    typename Action,
-    std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int> = 0>
-absl::Status SkipLengthDelimited(absl::string_view value, Action&& action);
-
-absl::Status SkipLengthDelimited(ReaderSpan<> value);
-
-absl::Status SkipLengthDelimited(absl::string_view value);
+absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value);
 
 // Implementation details follow.
 
@@ -527,7 +519,8 @@ absl::Status SerializedMessageReaderType<
                 << field_number << " at position " << (end_pos - size_t{length})
                 << " has length " << size_t{length} << " but length "
                 << static_cast<int64_t>(src.pos() - (end_pos - size_t{length}))
-                << " has been read; consider using SkipLengthDelimited()";
+                << " has been read; "
+                   "consider using SkipLengthDelimitedFromReader()";
             continue;
           }
         }
@@ -871,7 +864,8 @@ absl::Status SerializedMessageReaderType<
 
 template <typename Action,
           std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int>>
-absl::Status SkipLengthDelimited(ReaderSpan<> value, Action&& action) {
+inline absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value,
+                                                  Action&& action) {
   const Position end_pos = value.reader().pos() + value.length();
   if (absl::Status status = std::forward<Action>(action)();
       ABSL_PREDICT_FALSE(!status.ok())) {
@@ -884,23 +878,11 @@ absl::Status SkipLengthDelimited(ReaderSpan<> value, Action&& action) {
   return absl::OkStatus();
 }
 
-template <typename Action,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int>>
-absl::Status SkipLengthDelimited(ABSL_ATTRIBUTE_UNUSED absl::string_view value,
-                                 Action&& action) {
-  return std::forward<Action>(action)();
-}
-
-inline absl::Status SkipLengthDelimited(ReaderSpan<> value) {
+inline absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value) {
   if (ABSL_PREDICT_FALSE(!value.reader().Skip(value.length()))) {
     return serialized_message_reader_internal::ReadLengthDelimitedValueError(
         value.reader());
   }
-  return absl::OkStatus();
-}
-
-inline absl::Status SkipLengthDelimited(
-    ABSL_ATTRIBUTE_UNUSED absl::string_view value) {
   return absl::OkStatus();
 }
 

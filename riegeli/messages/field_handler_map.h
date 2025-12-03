@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/types.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/serialized_message_reader2.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
@@ -123,7 +124,7 @@ class FieldHandlerMapImpl {
   //
   // `parent_action` is invoked with the field number, `const FieldHandlerMap&`
   // for the children, `ReaderSpan<>` with submessage contents, and
-  // `Context&...`. It must read to the end of the `ReaderSpan<>` or fail.
+  // `Context&...`.
   //
   // The default `parent_action` is:
   // ```
@@ -417,7 +418,9 @@ auto FieldHandlerMapImpl<Associated, Context...>::RegisterParent(
         RIEGELI_ASSERT(children != nullptr)
             << "children must have been initialized "
                "before parent_action can be invoked";
-        return parent_action(field_number, *children, value, context...);
+        return SkipLengthDelimitedFromReader(value, [&] {
+          return parent_action(field_number, *children, value, context...);
+        });
       });
   if (inserted.second) {
     inserted.first->second.children = std::make_unique<FieldHandlerMapImpl>();

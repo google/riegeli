@@ -510,9 +510,6 @@ OnRepeatedEnum(Action&& action) {
 // the value is guaranteed to be a substring of the original string. This
 // guarantee is absent for a `Reader` source.
 //
-// If the action accepts `ReaderSpan<>`, it must read to the end of it or fail.
-// `SkipLengthDelimited()` can be used to seek to the end of the field.
-//
 // If the action accepts either `ReaderSpan<>` or one of the string-like types
 // above, the value is provided as `ReaderSpan<>` for a `Reader` source, and as
 // the string-like type for a string source.
@@ -999,7 +996,8 @@ class OnLengthDelimitedImpl {
                                                Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, ReaderSpan<>,
                                       Context&...>) {
-      return action_(value, context...);
+      return SkipLengthDelimitedFromReader(
+          value, [&] { return action_(value, context...); });
     } else if constexpr (std::is_invocable_v<const Action&, absl::string_view,
                                              Context&...>) {
       return HandleString<absl::string_view>(value, context...);
