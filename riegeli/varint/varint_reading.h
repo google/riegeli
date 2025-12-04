@@ -20,7 +20,6 @@
 
 #include <optional>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -155,26 +154,6 @@ bool ReadCanonicalVarint64(absl::Cord::CharIterator& src, size_t available,
 size_t ReadVarint32(const char* src, size_t available, uint32_t& dest);
 size_t ReadVarint64(const char* src, size_t available, uint64_t& dest);
 
-// Reads a varint from an array. This corresponds to protobuf types
-// `{int,uint}{32,64}` (with a cast needed in the case of `int{32,64}`).
-//
-// Warning: protobuf writes values of type `int32` by casting them to `uint64`,
-// not `uint32` (negative values take 10 bytes, not 5), hence they must be read
-// with `ReadVarint64()`, not `ReadVarint32()`, if negative values are possible.
-//
-// Return values:
-//  * updated `src`  - success (`dest` is set)
-//  * `std::nullopt` - source ends too early or varint is invalid
-//                     (`dest` is undefined)
-ABSL_DEPRECATED(
-    "Use ReadVarint32() overload with size_t parameter and size_t result")
-std::optional<const char*> ReadVarint32(const char* src, const char* limit,
-                                        uint32_t& dest);
-ABSL_DEPRECATED(
-    "Use ReadVarint64() overload with size_t parameter and size_t result")
-std::optional<const char*> ReadVarint64(const char* src, const char* limit,
-                                        uint64_t& dest);
-
 // Reads a signed varint (zigzag-encoded) from an array. This corresponds to
 // protobuf types `sint{32,64}`.
 //
@@ -283,24 +262,6 @@ size_t CopyCanonicalVarint64(absl::Cord::CharIterator& src, size_t available,
 //                        (`dest[]` is undefined)
 size_t CopyVarint32(const char* src, size_t available, char* dest);
 size_t CopyVarint64(const char* src, size_t available, char* dest);
-
-// Copies a varint from an array to an array, without decoding and encoding but
-// with validation.
-//
-// Writes up to `kMaxLengthVarint{32,64}` bytes to `dest[]`.
-//
-// Return values:
-//  * varint length  - success (`dest[]` is filled)
-//  * `std::nullopt` - source ends too early or varint is invalid
-//                     (`dest[]` is undefined)
-ABSL_DEPRECATED(
-    "Use CopyVarint32() overload with size_t parameter and size_t result")
-std::optional<size_t> CopyVarint32(const char* src, const char* limit,
-                                   char* dest);
-ABSL_DEPRECATED(
-    "Use CopyVarint64() overload with size_t parameter and size_t result")
-std::optional<size_t> CopyVarint64(const char* src, const char* limit,
-                                   char* dest);
 
 // Copies a varint from an array to an array, without decoding and encoding but
 // with validation.
