@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -418,25 +419,9 @@ class CopyingFieldHandler {
   }
 
  private:
-  template <typename SingleContext>
-  static void FindSerializedMessageWriter(
-      SerializedMessageWriter*& message_writer, SingleContext& context) {
-    if constexpr (std::is_convertible_v<SingleContext&,
-                                        SerializedMessageWriter&>) {
-      message_writer = &context;
-    }
-  }
-
   static SerializedMessageWriter& message_writer(Context&... context) {
-    static_assert(
-        (0 + ... +
-         (std::is_convertible_v<Context&, SerializedMessageWriter&> ? 1 : 0)) ==
-            1,
-        "Context types must contain exactly one occurrence of "
-        "SerializedMessageWriter.");
-    SerializedMessageWriter* message_writer;
-    (FindSerializedMessageWriter(message_writer, context), ...);
-    return *message_writer;
+    return std::get<SerializedMessageWriter&>(
+        std::tuple<Context&...>(context...));
   }
 };
 
