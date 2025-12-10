@@ -485,11 +485,6 @@ SerializedMessageReader2(FieldHandlerInitializers&&... field_handlers) {
       std::forward<FieldHandlerInitializers>(field_handlers)...);
 }
 
-ABSL_DEPRECATED("This is no longer needed in field actions.")
-inline absl::Status SkipLengthDelimited(const ReaderSpan<>&) {
-  return absl::OkStatus();
-}
-
 // In the field handler protocol, `HandleLengthDelimitedFromReader()` must read
 // to the end of the `ReaderSpan<>` or fail.
 //
