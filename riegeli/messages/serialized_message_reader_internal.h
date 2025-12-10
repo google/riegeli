@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -25,7 +26,9 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 
@@ -106,6 +109,19 @@ struct IsStaticFieldHandlerForLengthDelimitedFromReaderImpl<
     std::enable_if_t<std::is_convertible_v<
         decltype(std::declval<const T&>().HandleLengthDelimitedFromReader(
             std::declval<ReaderSpan<>>(), std::declval<Context&>()...)),
+        absl::Status>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
+struct IsStaticFieldHandlerForLengthDelimitedFromCordImpl : std::false_type {};
+
+template <typename T, typename... Context>
+struct IsStaticFieldHandlerForLengthDelimitedFromCordImpl<
+    T,
+    std::enable_if_t<std::is_convertible_v<
+        decltype(std::declval<const T&>().HandleLengthDelimitedFromCord(
+            std::declval<CordIteratorSpan>(), std::declval<std::string&>(),
+            std::declval<Context&>()...)),
         absl::Status>>,
     Context...> : std::true_type {};
 
@@ -217,6 +233,25 @@ struct IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl<
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
+struct IsDynamicFieldHandlerForLengthDelimitedFromCordImpl : std::false_type {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerForLengthDelimitedFromCordImpl<
+    T,
+    std::enable_if_t<std::conjunction_v<
+        std::is_constructible<
+            bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
+                      std::declval<int>()))>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().HandleLengthDelimitedFromCord(
+                *std::declval<const T&>().AcceptLengthDelimited(
+                    std::declval<int>()),
+                std::declval<CordIteratorSpan>(), std::declval<std::string&>(),
+                std::declval<Context&>()...)),
+            absl::Status>>>,
+    Context...> : std::true_type {};
+
+template <typename T, typename Enable, typename... Context>
 struct IsDynamicFieldHandlerForLengthDelimitedFromStringImpl : std::false_type {
 };
 
@@ -287,6 +322,10 @@ using IsStaticFieldHandlerForLengthDelimitedFromReader =
     IsStaticFieldHandlerForLengthDelimitedFromReaderImpl<T, void, Context...>;
 
 template <typename T, typename... Context>
+using IsStaticFieldHandlerForLengthDelimitedFromCord =
+    IsStaticFieldHandlerForLengthDelimitedFromCordImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
 using IsStaticFieldHandlerForLengthDelimitedFromString =
     IsStaticFieldHandlerForLengthDelimitedFromStringImpl<T, void, Context...>;
 
@@ -294,6 +333,8 @@ template <typename T, typename... Context>
 struct IsStaticFieldHandlerForLengthDelimited
     : std::disjunction<
           IsStaticFieldHandlerForLengthDelimitedFromReader<T, Context...>,
+          // `IsStaticFieldHandlerForLengthDelimitedFromCord` alone
+          // is insufficient.
           IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>> {};
 
 template <typename T, typename... Context>
@@ -321,6 +362,10 @@ using IsDynamicFieldHandlerForLengthDelimitedFromReader =
     IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl<T, void, Context...>;
 
 template <typename T, typename... Context>
+using IsDynamicFieldHandlerForLengthDelimitedFromCord =
+    IsDynamicFieldHandlerForLengthDelimitedFromCordImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
 using IsDynamicFieldHandlerForLengthDelimitedFromString =
     IsDynamicFieldHandlerForLengthDelimitedFromStringImpl<T, void, Context...>;
 
@@ -328,6 +373,8 @@ template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForLengthDelimited
     : std::disjunction<
           IsDynamicFieldHandlerForLengthDelimitedFromReader<T, Context...>,
+          // `IsDynamicFieldHandlerForLengthDelimitedFromCord` alone
+          // is insufficient.
           IsDynamicFieldHandlerForLengthDelimitedFromString<T, Context...>> {};
 
 template <typename T, typename... Context>
@@ -337,6 +384,76 @@ using IsDynamicFieldHandlerForStartGroup =
 template <typename T, typename... Context>
 using IsDynamicFieldHandlerForEndGroup =
     IsDynamicFieldHandlerForEndGroupImpl<T, void, Context...>;
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForVarint
+    : std::disjunction<IsStaticFieldHandlerForVarint<T, Context...>,
+                       IsDynamicFieldHandlerForVarint<T, Context...>> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForFixed32
+    : std::disjunction<IsStaticFieldHandlerForFixed32<T, Context...>,
+                       IsDynamicFieldHandlerForFixed32<T, Context...>> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForFixed64
+    : std::disjunction<IsStaticFieldHandlerForFixed64<T, Context...>,
+                       IsDynamicFieldHandlerForFixed64<T, Context...>> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForLengthDelimitedFromReader
+    : std::disjunction<
+          IsStaticFieldHandlerForLengthDelimitedFromReader<T, Context...>,
+          IsDynamicFieldHandlerForLengthDelimitedFromReader<T, Context...>> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForLengthDelimitedFromCord
+    : std::disjunction<
+          IsStaticFieldHandlerForLengthDelimitedFromCord<T, Context...>,
+          IsDynamicFieldHandlerForLengthDelimitedFromCord<T, Context...>> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForLengthDelimitedFromString
+    : std::disjunction<
+          IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
+          IsDynamicFieldHandlerForLengthDelimitedFromString<T, Context...>> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForLengthDelimited
+    : std::disjunction<IsStaticFieldHandlerForLengthDelimited<T, Context...>,
+                       IsDynamicFieldHandlerForLengthDelimited<T, Context...>> {
+};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForStartGroup
+    : std::disjunction<IsStaticFieldHandlerForStartGroup<T, Context...>,
+                       IsDynamicFieldHandlerForStartGroup<T, Context...>>,
+      IsDynamicFieldHandlerForStartGroup<T, Context...> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerForEndGroup
+    : std::disjunction<IsStaticFieldHandlerForEndGroup<T, Context...>,
+                       IsDynamicFieldHandlerForEndGroup<T, Context...>>,
+      IsDynamicFieldHandlerForEndGroup<T, Context...> {};
+
+template <typename T, typename... Context>
+struct IsStaticFieldHandlerFromCord
+    : std::conjunction<
+          IsFieldHandlerWithStaticFieldNumber<T>,
+          std::disjunction<
+              IsStaticFieldHandlerForVarint<T, Context...>,
+              IsStaticFieldHandlerForFixed32<T, Context...>,
+              IsStaticFieldHandlerForFixed64<T, Context...>,
+              IsStaticFieldHandlerForLengthDelimitedFromCord<T, Context...>,
+              IsStaticFieldHandlerForStartGroup<T, Context...>,
+              IsStaticFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsStaticFieldHandlerForLengthDelimitedFromCord<T, Context...>,
+              std::negation<std::disjunction<
+                  IsStaticFieldHandlerForLengthDelimitedFromReader<T,
+                                                                   Context...>,
+                  IsStaticFieldHandlerForLengthDelimitedFromString<
+                      T, Context...>>>>> {};
 
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerFromString
@@ -351,8 +468,11 @@ struct IsStaticFieldHandlerFromString
               IsStaticFieldHandlerForEndGroup<T, Context...>>,
           std::disjunction<
               IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
-              std::negation<IsStaticFieldHandlerForLengthDelimitedFromReader<
-                  T, Context...>>>> {};
+              std::negation<std::disjunction<
+                  IsStaticFieldHandlerForLengthDelimitedFromReader<T,
+                                                                   Context...>,
+                  IsStaticFieldHandlerForLengthDelimitedFromCord<
+                      T, Context...>>>>> {};
 
 template <typename T, typename... Context>
 struct IsStaticFieldHandler
@@ -364,7 +484,30 @@ struct IsStaticFieldHandler
               IsStaticFieldHandlerForFixed64<T, Context...>,
               IsStaticFieldHandlerForLengthDelimited<T, Context...>,
               IsStaticFieldHandlerForStartGroup<T, Context...>,
-              IsStaticFieldHandlerForEndGroup<T, Context...>>> {};
+              IsStaticFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsStaticFieldHandlerForLengthDelimited<T, Context...>,
+              std::negation<IsStaticFieldHandlerForLengthDelimitedFromCord<
+                  T, Context...>>>> {};
+
+template <typename T, typename... Context>
+struct IsDynamicFieldHandlerFromCord
+    : std::conjunction<
+          IsFieldHandlerWithDynamicFieldNumber<T>,
+          std::disjunction<
+              IsDynamicFieldHandlerForVarint<T, Context...>,
+              IsDynamicFieldHandlerForFixed32<T, Context...>,
+              IsDynamicFieldHandlerForFixed64<T, Context...>,
+              IsDynamicFieldHandlerForLengthDelimitedFromCord<T, Context...>,
+              IsDynamicFieldHandlerForStartGroup<T, Context...>,
+              IsDynamicFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsDynamicFieldHandlerForLengthDelimitedFromCord<T, Context...>,
+              std::negation<std::disjunction<
+                  IsDynamicFieldHandlerForLengthDelimitedFromReader<T,
+                                                                    Context...>,
+                  IsDynamicFieldHandlerForLengthDelimitedFromString<
+                      T, Context...>>>>> {};
 
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerFromString
@@ -392,7 +535,16 @@ struct IsDynamicFieldHandler
               IsDynamicFieldHandlerForFixed64<T, Context...>,
               IsDynamicFieldHandlerForLengthDelimited<T, Context...>,
               IsDynamicFieldHandlerForStartGroup<T, Context...>,
-              IsDynamicFieldHandlerForEndGroup<T, Context...>>> {};
+              IsDynamicFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsDynamicFieldHandlerForLengthDelimited<T, Context...>,
+              std::negation<IsDynamicFieldHandlerForLengthDelimitedFromCord<
+                  T, Context...>>>> {};
+
+template <typename T, typename... Context>
+struct IsFieldHandlerFromCord
+    : std::disjunction<IsStaticFieldHandlerFromCord<T, Context...>,
+                       IsDynamicFieldHandlerFromCord<T, Context...>> {};
 
 template <typename T, typename... Context>
 struct IsFieldHandlerFromString
@@ -576,6 +728,48 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromReader(
       }
       status = field_handler.HandleLengthDelimitedFromString(
           *std::move(maybe_accepted), value_string, context...);
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename FieldHandler, typename... Context>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromCord(
+    int field_number, absl::Cord::CharIterator& src, size_t length,
+    std::string& scratch, absl::Status& status,
+    const FieldHandler& field_handler, Context&... context) {
+  if constexpr (IsStaticFieldHandlerForLengthDelimitedFromCord<
+                    FieldHandler, Context...>::value) {
+    if (field_number == FieldHandler::kFieldNumber) {
+      status = field_handler.HandleLengthDelimitedFromCord(
+          CordIteratorSpan(&src, length), scratch, context...);
+      return true;
+    }
+  } else if constexpr (IsStaticFieldHandlerForLengthDelimitedFromString<
+                           FieldHandler, Context...>::value) {
+    if (field_number == FieldHandler::kFieldNumber) {
+      status = field_handler.HandleLengthDelimitedFromString(
+          CordIteratorSpan(&src, length).ToStringView(scratch), context...);
+      return true;
+    }
+  }
+  if constexpr (IsDynamicFieldHandlerForLengthDelimitedFromCord<
+                    FieldHandler, Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleLengthDelimitedFromCord(
+          *std::move(maybe_accepted), CordIteratorSpan(&src, length), scratch,
+          context...);
+      return true;
+    }
+  } else if constexpr (IsDynamicFieldHandlerForLengthDelimitedFromString<
+                           FieldHandler, Context...>::value) {
+    auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
+    if (maybe_accepted) {
+      status = field_handler.HandleLengthDelimitedFromString(
+          *std::move(maybe_accepted),
+          CordIteratorSpan(&src, length).ToStringView(scratch), context...);
       return true;
     }
   }

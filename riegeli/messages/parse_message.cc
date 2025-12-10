@@ -36,6 +36,7 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/cord_reader.h"
@@ -82,9 +83,9 @@ inline absl::Status CheckInitialized(Reader& src,
 }
 
 template <typename ReaderType>
-absl::Status ParseMessageFromSpanImpl(ReaderSpan<ReaderType> src,
-                                      google::protobuf::MessageLite& dest,
-                                      ParseMessageOptions options) {
+absl::Status ParseMessageFromReaderSpanImpl(ReaderSpan<ReaderType> src,
+                                            google::protobuf::MessageLite& dest,
+                                            ParseMessageOptions options) {
   if (!options.merge() &&
       options.recursion_limit() ==
           google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
@@ -188,13 +189,13 @@ absl::Status ParseMessageImpl(Reader& src, google::protobuf::MessageLite& dest,
 absl::Status ParseMessageImpl(ReaderSpan<Reader> src,
                               google::protobuf::MessageLite& dest,
                               ParseMessageOptions options) {
-  return ParseMessageFromSpanImpl(std::move(src), dest, options);
+  return ParseMessageFromReaderSpanImpl(std::move(src), dest, options);
 }
 
 absl::Status ParseMessageImpl(ReaderSpan<> src,
                               google::protobuf::MessageLite& dest,
                               ParseMessageOptions options) {
-  return ParseMessageFromSpanImpl(std::move(src), dest, options);
+  return ParseMessageFromReaderSpanImpl(std::move(src), dest, options);
 }
 
 }  // namespace parse_message_internal
@@ -289,6 +290,44 @@ absl::Status ParseMessage(const absl::Cord& src,
     }
   }
   CordReader reader(&src);
+  ReaderInputStream input_stream(&reader);
+  bool parse_ok;
+  if (!options.merge() &&
+      options.recursion_limit() ==
+          google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit()) {
+    parse_ok = dest.ParsePartialFromZeroCopyStream(&input_stream);
+  } else {
+    if (!options.merge()) dest.Clear();
+    google::protobuf::io::CodedInputStream coded_stream(&input_stream);
+    coded_stream.SetRecursionLimit(options.recursion_limit());
+    parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
+               coded_stream.ConsumedEntireMessage();
+  }
+  RIEGELI_ASSERT_OK(reader) << "CordReader has no reason to fail";
+  if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
+  return CheckInitialized(dest, options);
+}
+
+absl::Status ParseMessage(CordIteratorSpan src,
+                          google::protobuf::MessageLite& dest,
+                          ParseMessageOptions options) {
+  if (!options.merge() &&
+      options.recursion_limit() ==
+          google::protobuf::io::CodedInputStream::GetDefaultRecursionLimit() &&
+      src.length() <= kMaxBytesToCopy) {
+    if (const std::optional<absl::string_view> flat = src.TryFlat();
+        flat != std::nullopt) {
+      absl::Cord::Advance(&src.iterator(), flat->size());
+      // The data are flat. `ParsePartialFromArray()` is faster than
+      // `ParsePartialFromZeroCopyStream()`.
+      if (ABSL_PREDICT_FALSE(!dest.ParsePartialFromArray(
+              flat->data(), IntCast<int>(flat->size())))) {
+        return ParseError(dest);
+      }
+      return CheckInitialized(dest, options);
+    }
+  }
+  CordReader reader(std::move(src));
   ReaderInputStream input_stream(&reader);
   bool parse_ok;
   if (!options.merge() &&

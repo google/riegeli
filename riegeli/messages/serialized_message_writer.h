@@ -19,6 +19,7 @@
 
 #include <limits>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -36,6 +37,7 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/constexpr.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -394,6 +396,13 @@ class CopyingFieldHandler {
                                                Context&... context) const {
     return message_writer(context...)
         .CopyString(field_number, std::move(value));
+  }
+
+  absl::Status HandleLengthDelimitedFromCord(
+      int field_number, CordIteratorSpan value,
+      ABSL_ATTRIBUTE_UNUSED std::string& scratch, Context&... context) const {
+    return message_writer(context...)
+        .WriteString(field_number, std::move(value));
   }
 
   absl::Status HandleLengthDelimitedFromString(int field_number,

@@ -20,6 +20,7 @@
 
 #include <limits>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -34,6 +35,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
@@ -77,7 +79,8 @@ namespace riegeli {
 // in the serialized message, the first handler which accepts the field is
 // invoked. If no handler accepts the field, the field is skipped.
 //
-// The serialized message is read from a `Reader`, string, `Chain`, or `Cord`.
+// The serialized message is read from a `Reader`, `Cord`, or string. Other
+// sources can be expressed as a `Reader` or string.
 
 // Field handlers
 // --------------
@@ -159,22 +162,24 @@ namespace riegeli {
 //
 //   absl::Status HandleFixed64(uint64_t value) const;
 //
-//   // Applicable to a `Reader` source. If `HandleLengthDelimitedFromReader()`
-//   // is defined but `HandleLengthDelimitedFromString()` is not, then the
-//   // field handler is not applicable to a string source.
+//   // Applicable to a `Reader` source.
 //   //
 //   // `HandleLengthDelimitedFromReader()` must read to the end of the
 //   // `ReaderSpan<>` or fail. `SkipLengthDelimitedFromReader()` can be used
 //   // to ensure this property.
 //   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value) const;
 //
-//   // Applicable to a string source. If `HandleLengthDelimitedFromString()`
-//   // is defined but `HandleLengthDelimitedFromReader()` is not, then
-//   // `HandleLengthDelimitedFromString()` is used also for a `Reader` source,
-//   // after reading the value to `absl::string_view`.
+//   // Applicable to a `Cord` source.
 //   //
-//   // For a string source, the `absl::string_view` is guaranteed to be
-//   // a substring of the original string.
+//   // May use `scratch` for storage for temporary data.
+//   //
+//   // `HandleLengthDelimitedFromCord()` must read to the end of the
+//   // `CordIteratorSpan` or fail. `SkipLengthDelimitedFromCord()` can be used
+//   // to ensure this property.
+//   absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan value,
+//                                              std::string& scratch) const;
+//
+//   // Applicable to a string source.
 //   absl::Status HandleLengthDelimitedFromString(absl::string_view value)
 //       const;
 //
@@ -182,6 +187,22 @@ namespace riegeli {
 //
 //   absl::Status HandleEndGroup() const;
 // ```
+//
+// For a `Reader` source, `HandleLengthDelimitedFromReader()` or
+// `HandleLengthDelimitedFromString()` is used, depending on what is defined.
+//
+// For a `Cord` source, `HandleLengthDelimitedFromCord()` or
+// `HandleLengthDelimitedFromString()` is used, depending on what is defined.
+// If neither is defined but `HandleLengthDelimitedFromReader()` is defined,
+// then the source is wrapped in a `CordReader`.
+//
+// For a string source, `HandleLengthDelimitedFromString()` is used. If it is
+// not defined but `HandleLengthDelimitedFromReader()` is defined, then the
+// source is wrapped in a `StringReader`.
+//
+// For a string source, if `HandleLengthDelimitedFromString()` is used, then the
+// `absl::string_view` is guaranteed to be a substring of the original string.
+// This guarantee is absent for a `Reader` or `Cord` source.
 //
 // Dynamic field handlers provide at least one of the following pairs of
 // member functions corresponding to some wire type `X` as above, with `T...`
@@ -193,7 +214,8 @@ namespace riegeli {
 // ```
 //
 // For length-delimited fields, a single `AcceptLengthDelimited()` function
-// corresponds to both `HandleLengthDelimitedFromReader()` and
+// corresponds to `HandleLengthDelimitedFromReader()`,
+// `HandleLengthDelimitedFromCord()`, and/or
 // `HandleLengthDelimitedFromString()`.
 //
 // `MaybeAccepted` is some type explicitly convertible to `bool`, with
@@ -270,11 +292,16 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
   absl::Status ReadMessage(BytesRef src, Context&... context) const;
   absl::Status ReadMessage(const Chain& src, Context&... context) const;
   absl::Status ReadMessage(const absl::Cord& src, Context&... context) const;
+  absl::Status ReadMessage(CordIteratorSpan src, Context&... context) const;
 
  private:
   template <typename ReaderType>
-  absl::Status ReadFromReader(ReaderType& src, Context&... context) const;
-  absl::Status ReadFromString(absl::string_view src, Context&... context) const;
+  absl::Status ReadMessageFromReader(ReaderType& src,
+                                     Context&... context) const;
+  absl::Status ReadMessageFromCord(absl::Cord::CharIterator& src,
+                                   size_t available, Context&... context) const;
+  absl::Status ReadMessageFromString(absl::string_view src,
+                                     Context&... context) const;
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<FieldHandlers...> field_handlers_;
 };
@@ -342,6 +369,21 @@ absl::Status SkipLengthDelimitedFromReader(const ReaderSpan<>& value,
 
 absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value);
 
+// In the field handler protocol, `HandleLengthDelimitedFromCord()` must read
+// to the end of the `CordIteratorSpan` or fail.
+//
+// `SkipLengthDelimitedFromCord()` can be used to ensure this property.
+// With an action, the part of the field not read by the action is skipped.
+// Without an action, the whole field is skipped.
+
+template <
+    typename Action,
+    std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int> = 0>
+absl::Status SkipLengthDelimitedFromCord(const CordIteratorSpan& value,
+                                         Action&& action);
+
+absl::Status SkipLengthDelimitedFromCord(CordIteratorSpan value);
+
 // Implementation details follow.
 
 template <typename T, typename... Context>
@@ -374,7 +416,8 @@ template <typename... FieldHandlers, typename... Context>
 template <typename ReaderType>
 absl::Status SerializedMessageReaderType<
     std::tuple<FieldHandlers...>,
-    Context...>::ReadFromReader(ReaderType& src, Context&... context) const {
+    Context...>::ReadMessageFromReader(ReaderType& src,
+                                       Context&... context) const {
   uint32_t tag;
   while (ReadVarint32(src, tag)) {
     const int field_number = GetTagFieldNumber(tag);
@@ -382,12 +425,8 @@ absl::Status SerializedMessageReaderType<
       case WireType::kVarint: {
         if constexpr (
             std::disjunction_v<
-                serialized_message_reader_internal::
-                    IsStaticFieldHandlerForVarint<
-                        std::remove_pointer_t<FieldHandlers>, Context...>...,
-                serialized_message_reader_internal::
-                    IsDynamicFieldHandlerForVarint<
-                        std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+                serialized_message_reader_internal::IsFieldHandlerForVarint<
+                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
           uint64_t value;
           if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
             return serialized_message_reader_internal::ReadVarintError(
@@ -479,14 +518,11 @@ absl::Status SerializedMessageReaderType<
           return serialized_message_reader_internal::
               ReadLengthDelimitedLengthError(src, field_number);
         }
-        if constexpr (
-            std::disjunction_v<
-                serialized_message_reader_internal::
-                    IsStaticFieldHandlerForLengthDelimited<
-                        std::remove_pointer_t<FieldHandlers>, Context...>...,
-                serialized_message_reader_internal::
-                    IsDynamicFieldHandlerForLengthDelimited<
-                        std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+        if constexpr (std::disjunction_v<
+                          serialized_message_reader_internal::
+                              IsFieldHandlerForLengthDelimited<
+                                  std::remove_pointer_t<FieldHandlers>,
+                                  Context...>...>) {
           static_assert(
               std::is_same_v<ReaderType, LimitingReaderBase>,
               "If there are any field handlers for length-delimited fields, "
@@ -575,7 +611,7 @@ absl::Status SerializedMessageReaderType<
       case WireType::kInvalid7:
         return serialized_message_reader_internal::InvalidWireTypeError(tag);
     }
-    RIEGELI_ASSERT_UNREACHABLE()
+    RIEGELI_ASSUME_UNREACHABLE()
         << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
   }
   if (ABSL_PREDICT_FALSE(src.available() > 0)) {
@@ -587,8 +623,238 @@ absl::Status SerializedMessageReaderType<
 template <typename... FieldHandlers, typename... Context>
 inline absl::Status SerializedMessageReaderType<
     std::tuple<FieldHandlers...>,
-    Context...>::ReadFromString(absl::string_view src,
-                                Context&... context) const {
+    Context...>::ReadMessageFromCord(absl::Cord::CharIterator& src,
+                                     size_t available,
+                                     Context&... context) const {
+  const size_t limit = CordIteratorSpan::Remaining(src) - available;
+  std::string scratch;
+  uint32_t tag;
+  while (ReadVarint32(src, CordIteratorSpan::Remaining(src) - limit, tag)) {
+    const int field_number = GetTagFieldNumber(tag);
+    switch (GetTagWireType(tag)) {
+      case WireType::kVarint: {
+        if constexpr (
+            std::disjunction_v<
+                serialized_message_reader_internal::IsFieldHandlerForVarint<
+                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+          uint64_t value;
+          if (ABSL_PREDICT_FALSE(!ReadVarint64(
+                  src, CordIteratorSpan::Remaining(src) - limit, value))) {
+            return serialized_message_reader_internal::ReadVarintError(
+                field_number);
+          }
+          absl::Status status;
+          if (std::apply(
+                  [&](const auto&... field_handlers) {
+                    return (
+                        serialized_message_reader_internal::ReadVarintField(
+                            field_number, value, status,
+                            serialized_message_reader_internal::DerefPointer(
+                                field_handlers),
+                            context...) ||
+                        ...);
+                  },
+                  field_handlers_)) {
+            if (ABSL_PREDICT_FALSE(!status.ok())) {
+              return serialized_message_reader_internal::
+                  AnnotateWithFieldNumber(std::move(status), field_number);
+            }
+          }
+        } else {
+          // The value is not needed. Use more efficient `SkipVarint64()`
+          // instead of `ReadVarint64()`.
+          if (ABSL_PREDICT_FALSE(!SkipVarint64(
+                  src, CordIteratorSpan::Remaining(src) - limit))) {
+            return serialized_message_reader_internal::ReadVarintError(
+                field_number);
+          }
+        }
+        continue;
+      }
+      case WireType::kFixed32: {
+        if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(src) - limit <
+                               sizeof(uint32_t))) {
+          return serialized_message_reader_internal::ReadFixed32Error(
+              field_number);
+        }
+        if constexpr (
+            std::disjunction_v<
+                serialized_message_reader_internal::IsFieldHandlerForFixed32<
+                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+          char buffer[sizeof(uint32_t)];
+          CordIteratorSpan::Read(src, sizeof(uint32_t), buffer);
+          const uint32_t value = ReadLittleEndian32(buffer);
+          absl::Status status;
+          if (std::apply(
+                  [&](const auto&... field_handlers) {
+                    return (
+                        serialized_message_reader_internal::ReadFixed32Field(
+                            field_number, value, status,
+                            serialized_message_reader_internal::DerefPointer(
+                                field_handlers),
+                            context...) ||
+                        ...);
+                  },
+                  field_handlers_)) {
+            if (ABSL_PREDICT_FALSE(!status.ok())) {
+              return serialized_message_reader_internal::
+                  AnnotateWithFieldNumber(std::move(status), field_number);
+            }
+          }
+        } else {
+          // The value is not needed. Use more efficient `Cord::Advance()`
+          // instead of `CordIteratorSpan::Read()`.
+          absl::Cord::Advance(&src, sizeof(uint32_t));
+        }
+        continue;
+      }
+      case WireType::kFixed64: {
+        if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(src) - limit <
+                               sizeof(uint64_t))) {
+          return serialized_message_reader_internal::ReadFixed64Error(
+              field_number);
+        }
+        if constexpr (
+            std::disjunction_v<
+                serialized_message_reader_internal::IsFieldHandlerForFixed64<
+                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+          char buffer[sizeof(uint64_t)];
+          CordIteratorSpan::Read(src, sizeof(uint64_t), buffer);
+          const uint64_t value = ReadLittleEndian64(buffer);
+          absl::Status status;
+          if (std::apply(
+                  [&](const auto&... field_handlers) {
+                    return (
+                        serialized_message_reader_internal::ReadFixed64Field(
+                            field_number, value, status,
+                            serialized_message_reader_internal::DerefPointer(
+                                field_handlers),
+                            context...) ||
+                        ...);
+                  },
+                  field_handlers_)) {
+            if (ABSL_PREDICT_FALSE(!status.ok())) {
+              return serialized_message_reader_internal::
+                  AnnotateWithFieldNumber(std::move(status), field_number);
+            }
+          }
+        } else {
+          // The value is not needed. Use more efficient `Cord::Advance()`
+          // instead of `CordIteratorSpan::Read()`.
+          absl::Cord::Advance(&src, sizeof(uint64_t));
+        }
+        continue;
+      }
+      case WireType::kLengthDelimited: {
+        uint32_t length;
+        if (ABSL_PREDICT_FALSE(
+                !ReadVarint32(src, CordIteratorSpan::Remaining(src) - limit,
+                              length) ||
+                length > uint32_t{std::numeric_limits<int32_t>::max()})) {
+          return serialized_message_reader_internal::
+              ReadLengthDelimitedLengthError(field_number);
+        }
+        const size_t available_for_value =
+            CordIteratorSpan::Remaining(src) - limit;
+        if (ABSL_PREDICT_FALSE(length > available_for_value)) {
+          return serialized_message_reader_internal::NotEnoughError(
+              field_number, length, available_for_value);
+        }
+        if constexpr (std::disjunction_v<
+                          serialized_message_reader_internal::
+                              IsFieldHandlerForLengthDelimited<
+                                  std::remove_pointer_t<FieldHandlers>,
+                                  Context...>...>) {
+          absl::Status status;
+          if (std::apply(
+                  [&](const auto&... field_handlers) {
+                    return (serialized_message_reader_internal::
+                                ReadLengthDelimitedFieldFromCord(
+                                    field_number, src, size_t{length}, scratch,
+                                    status,
+                                    serialized_message_reader_internal::
+                                        DerefPointer(field_handlers),
+                                    context...) ||
+                            ...);
+                  },
+                  field_handlers_)) {
+            if (ABSL_PREDICT_FALSE(!status.ok())) {
+              return serialized_message_reader_internal::
+                  AnnotateWithFieldNumber(std::move(status), field_number);
+            }
+            RIEGELI_ASSERT_EQ(CordIteratorSpan::Remaining(src),
+                              available_for_value + limit - size_t{length})
+                << "A field handler of a length-delimited field "
+                   "must read to the end of the CordIteratorSpan or fail; "
+                   "the value of field "
+                << field_number << " has length " << size_t{length}
+                << " but length "
+                << (available_for_value + limit -
+                    CordIteratorSpan::Remaining(src))
+                << " has been read";
+            continue;
+          }
+        }
+        absl::Cord::Advance(&src, size_t{length});
+        continue;
+      }
+      case WireType::kStartGroup: {
+        absl::Status status;
+        if (std::apply(
+                [&](const auto&... field_handlers) {
+                  return (
+                      serialized_message_reader_internal::ReadStartGroupField(
+                          field_number, status,
+                          serialized_message_reader_internal::DerefPointer(
+                              field_handlers),
+                          context...) ||
+                      ...);
+                },
+                field_handlers_)) {
+          if (ABSL_PREDICT_FALSE(!status.ok())) {
+            return serialized_message_reader_internal::AnnotateWithFieldNumber(
+                std::move(status), field_number);
+          }
+        }
+        continue;
+      }
+      case WireType::kEndGroup: {
+        absl::Status status;
+        if (std::apply(
+                [&](const auto&... field_handlers) {
+                  return (serialized_message_reader_internal::ReadEndGroupField(
+                              field_number, status,
+                              serialized_message_reader_internal::DerefPointer(
+                                  field_handlers),
+                              context...) ||
+                          ...);
+                },
+                field_handlers_)) {
+          if (ABSL_PREDICT_FALSE(!status.ok())) {
+            return serialized_message_reader_internal::AnnotateWithFieldNumber(
+                std::move(status), field_number);
+          }
+        }
+        continue;
+      }
+      case WireType::kInvalid6:
+      case WireType::kInvalid7:
+        return serialized_message_reader_internal::InvalidWireTypeError(tag);
+    }
+    RIEGELI_ASSUME_UNREACHABLE()
+        << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
+  }
+  if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(src) > limit)) {
+    return serialized_message_reader_internal::ReadTagError();
+  }
+  return absl::OkStatus();
+}
+
+template <typename... FieldHandlers, typename... Context>
+inline absl::Status SerializedMessageReaderType<
+    std::tuple<FieldHandlers...>,
+    Context...>::ReadMessageFromString(absl::string_view src,
+                                       Context&... context) const {
   const char* absl_nullable cursor = src.data();
   const char* const absl_nullable limit = src.data() + src.size();
   uint32_t tag;
@@ -602,12 +868,8 @@ inline absl::Status SerializedMessageReaderType<
       case WireType::kVarint: {
         if constexpr (
             std::disjunction_v<
-                serialized_message_reader_internal::
-                    IsStaticFieldHandlerForVarint<
-                        std::remove_pointer_t<FieldHandlers>, Context...>...,
-                serialized_message_reader_internal::
-                    IsDynamicFieldHandlerForVarint<
-                        std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+                serialized_message_reader_internal::IsFieldHandlerForVarint<
+                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
           uint64_t value;
           const size_t length_of_value =
               ReadVarint64(cursor, PtrDistance(cursor, limit), value);
@@ -776,7 +1038,7 @@ inline absl::Status SerializedMessageReaderType<
       case WireType::kInvalid7:
         return serialized_message_reader_internal::InvalidWireTypeError(tag);
     }
-    RIEGELI_ASSERT_UNREACHABLE()
+    RIEGELI_ASSUME_UNREACHABLE()
         << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
   }
   if (ABSL_PREDICT_FALSE(cursor < limit)) {
@@ -798,17 +1060,13 @@ absl::Status SerializedMessageReaderType<
 
   absl::Status status;
   if constexpr (std::disjunction_v<serialized_message_reader_internal::
-                                       IsStaticFieldHandlerForLengthDelimited<
-                                           std::remove_pointer_t<FieldHandlers>,
-                                           Context...>...,
-                                   serialized_message_reader_internal::
-                                       IsDynamicFieldHandlerForLengthDelimited<
+                                       IsFieldHandlerForLengthDelimited<
                                            std::remove_pointer_t<FieldHandlers>,
                                            Context...>...>) {
     if constexpr (std::is_convertible_v<
                       typename DependencyRef<Reader*, Src>::Subhandle,
                       LimitingReaderBase*>) {
-      status = ReadFromReader<LimitingReaderBase>(*src_dep, context...);
+      status = ReadMessageFromReader<LimitingReaderBase>(*src_dep, context...);
     } else {
       LimitingReaderBase::Options options;
       if (src_dep->SupportsSize()) {
@@ -816,13 +1074,14 @@ absl::Status SerializedMessageReaderType<
         if (ABSL_PREDICT_TRUE(size != std::nullopt)) options.set_max_pos(*size);
       }
       LimitingReader<> limiting_reader(src_dep.get(), options);
-      status = ReadFromReader<LimitingReaderBase>(limiting_reader, context...);
+      status = ReadMessageFromReader<LimitingReaderBase>(limiting_reader,
+                                                         context...);
       if (ABSL_PREDICT_FALSE(!limiting_reader.Close())) {
         status.Update(limiting_reader.status());
       }
     }
   } else {
-    status = ReadFromReader<Reader>(*src_dep, context...);
+    status = ReadMessageFromReader<Reader>(*src_dep, context...);
   }
 
   if (src_dep.IsOwning()) {
@@ -841,7 +1100,7 @@ absl::Status SerializedMessageReaderType<
                                        IsFieldHandlerFromString<
                                            std::remove_pointer_t<FieldHandlers>,
                                            Context...>...>) {
-    return ReadFromString(src, context...);
+    return ReadMessageFromString(src, context...);
   } else {
     return ReadMessage(StringReader(src), context...);
   }
@@ -859,7 +1118,35 @@ template <typename... FieldHandlers, typename... Context>
 absl::Status SerializedMessageReaderType<
     std::tuple<FieldHandlers...>,
     Context...>::ReadMessage(const absl::Cord& src, Context&... context) const {
-  return ReadMessage(CordReader(&src), context...);
+  if constexpr (
+      std::conjunction_v<std::disjunction<
+          serialized_message_reader_internal::IsFieldHandlerFromCord<
+              std::remove_pointer_t<FieldHandlers>, Context...>,
+          serialized_message_reader_internal::IsFieldHandlerFromString<
+              std::remove_pointer_t<FieldHandlers>, Context...>>...>) {
+    absl::Cord::CharIterator iter = src.char_begin();
+    return ReadMessageFromCord(iter, CordIteratorSpan::Remaining(iter),
+                               context...);
+  } else {
+    return ReadMessage(CordReader(&src), context...);
+  }
+}
+
+template <typename... FieldHandlers, typename... Context>
+absl::Status SerializedMessageReaderType<
+    std::tuple<FieldHandlers...>, Context...>::ReadMessage(CordIteratorSpan src,
+                                                           Context&... context)
+    const {
+  if constexpr (
+      std::conjunction_v<std::disjunction<
+          serialized_message_reader_internal::IsFieldHandlerFromCord<
+              std::remove_pointer_t<FieldHandlers>, Context...>,
+          serialized_message_reader_internal::IsFieldHandlerFromString<
+              std::remove_pointer_t<FieldHandlers>, Context...>>...>) {
+    return ReadMessageFromCord(src.iterator(), src.length(), context...);
+  } else {
+    return ReadMessage(CordReader(std::move(src)), context...);
+  }
 }
 
 template <typename Action,
@@ -884,6 +1171,30 @@ inline absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value) {
     return serialized_message_reader_internal::ReadLengthDelimitedValueError(
         value.reader());
   }
+  return absl::OkStatus();
+}
+
+template <typename Action,
+          std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int>>
+inline absl::Status SkipLengthDelimitedFromCord(const CordIteratorSpan& value,
+                                                Action&& action) {
+  absl::Cord::CharIterator& iterator = value.iterator();
+  const size_t limit = CordIteratorSpan::Remaining(iterator) - value.length();
+  if (absl::Status status = std::forward<Action>(action)();
+      ABSL_PREDICT_FALSE(!status.ok())) {
+    return status;
+  }
+  RIEGELI_ASSERT_GE(CordIteratorSpan::Remaining(iterator), limit)
+      << "Length-delimited field handler action read past field contents";
+  if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(iterator) != limit)) {
+    absl::Cord::Advance(&iterator,
+                        CordIteratorSpan::Remaining(iterator) - limit);
+  }
+  return absl::OkStatus();
+}
+
+inline absl::Status SkipLengthDelimitedFromCord(CordIteratorSpan value) {
+  absl::Cord::Advance(&value.iterator(), value.length());
   return absl::OkStatus();
 }
 

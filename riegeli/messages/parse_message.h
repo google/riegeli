@@ -31,6 +31,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
@@ -147,6 +148,9 @@ absl::Status ParseMessage(BytesRef src, google::protobuf::MessageLite& dest,
 absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
                           ParseMessageOptions options = ParseMessageOptions());
 absl::Status ParseMessage(const absl::Cord& src,
+                          google::protobuf::MessageLite& dest,
+                          ParseMessageOptions options = ParseMessageOptions());
+absl::Status ParseMessage(CordIteratorSpan src,
                           google::protobuf::MessageLite& dest,
                           ParseMessageOptions options = ParseMessageOptions());
 
