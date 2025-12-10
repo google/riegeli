@@ -625,7 +625,7 @@ class OwnedFd : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
   }
 };
 
-// Type-erased object like `UnownedFd` or `OownedFd` which stores and possibly
+// Type-erased object like `UnownedFd` or `OwnedFd` which stores and possibly
 // owns a fd.
 using AnyFd = Any<FdHandle>::Inlining<UnownedFd, OwnedFd>;
 
