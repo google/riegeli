@@ -33,7 +33,6 @@
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/types.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/serialized_message_reader2.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
@@ -130,7 +129,7 @@ class FieldHandlerMapImpl {
   // The default `parent_action` is:
   // ```
   //   return riegeli::SerializedMessageReader2<Context...>(&children)
-  //       .ReadMessage(std::move(value), context...);
+  //       .ReadMessage(std::move(repr), context...);
   // ```
   //
   // If the field number was not registered yet, creates a default-constructed
@@ -187,9 +186,9 @@ class FieldHandlerMapImpl {
     return &iter->second;
   }
 
-  absl::Status HandleVarint(const FieldAction<uint64_t>& handler,
-                            uint64_t value, Context&... context) const {
-    return handler(value, context...);
+  absl::Status HandleVarint(const FieldAction<uint64_t>& handler, uint64_t repr,
+                            Context&... context) const {
+    return handler(repr, context...);
   }
 
   const FieldAction<uint32_t>* absl_nullable AcceptFixed32(
@@ -200,8 +199,8 @@ class FieldHandlerMapImpl {
   }
 
   absl::Status HandleFixed32(const FieldAction<uint32_t>& handler,
-                             uint32_t value, Context&... context) const {
-    return handler(value, context...);
+                             uint32_t repr, Context&... context) const {
+    return handler(repr, context...);
   }
 
   const FieldAction<uint64_t>* absl_nullable AcceptFixed64(
@@ -212,8 +211,8 @@ class FieldHandlerMapImpl {
   }
 
   absl::Status HandleFixed64(const FieldAction<uint64_t>& handler,
-                             uint64_t value, Context&... context) const {
-    return handler(value, context...);
+                             uint64_t repr, Context&... context) const {
+    return handler(repr, context...);
   }
 
   const LengthDelimitedHandler* absl_nullable AcceptLengthDelimited(
@@ -224,9 +223,9 @@ class FieldHandlerMapImpl {
   }
 
   absl::Status HandleLengthDelimitedFromReader(
-      const LengthDelimitedHandler& handler, ReaderSpan<> value,
+      const LengthDelimitedHandler& handler, ReaderSpan<> repr,
       Context&... context) const {
-    return handler.action(handler.children.get(), std::move(value), context...);
+    return handler.action(handler.children.get(), std::move(repr), context...);
   }
 
   const FieldAction<>* absl_nullable AcceptStartGroup(int field_number) const {
@@ -272,9 +271,9 @@ template <typename Associated, typename... Context>
 struct FieldHandlerMapImpl<Associated, Context...>::DefaultParentAction {
   absl::Status operator()(ABSL_ATTRIBUTE_UNUSED int field_number,
                           const FieldHandlerMapImpl& children,
-                          ReaderSpan<> value, Context&... context) const {
+                          ReaderSpan<> repr, Context&... context) const {
     return riegeli::SerializedMessageReader2<Context...>(&children).ReadMessage(
-        std::move(value), context...);
+        std::move(repr), context...);
   }
 };
 
@@ -293,8 +292,8 @@ bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
             !varint_handlers_
                  .try_emplace(
                      field_number,
-                     [field_handler](uint64_t value, Context&... context) {
-                       return field_handler.HandleVarint(value, context...);
+                     [field_handler](uint64_t repr, Context&... context) {
+                       return field_handler.HandleVarint(repr, context...);
                      })
                  .second)) {
       all_registered = false;
@@ -307,8 +306,8 @@ bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
             !fixed32_handlers_
                  .try_emplace(
                      field_number,
-                     [field_handler](uint32_t value, Context&... context) {
-                       return field_handler.HandleFixed32(value, context...);
+                     [field_handler](uint32_t repr, Context&... context) {
+                       return field_handler.HandleFixed32(repr, context...);
                      })
                  .second)) {
       all_registered = false;
@@ -321,8 +320,8 @@ bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
             !fixed64_handlers_
                  .try_emplace(
                      field_number,
-                     [field_handler](uint64_t value, Context&... context) {
-                       return field_handler.HandleFixed64(value, context...);
+                     [field_handler](uint64_t repr, Context&... context) {
+                       return field_handler.HandleFixed64(repr, context...);
                      })
                  .second)) {
       all_registered = false;
@@ -338,9 +337,9 @@ bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
                      [field_handler](
                          ABSL_ATTRIBUTE_UNUSED const FieldHandlerMapImpl
                              * absl_nullable children,
-                         ReaderSpan<> value, Context&... context) {
+                         ReaderSpan<> repr, Context&... context) {
                        return field_handler.HandleLengthDelimitedFromReader(
-                           std::move(value), context...);
+                           std::move(repr), context...);
                      })
                  .second)) {
       all_registered = false;
@@ -355,16 +354,15 @@ bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
                      [field_handler](
                          ABSL_ATTRIBUTE_UNUSED const FieldHandlerMapImpl
                              * absl_nullable children,
-                         ReaderSpan<> value, Context&... context) {
-                       absl::string_view value_string;
-                       if (ABSL_PREDICT_FALSE(!value.reader().Read(
-                               IntCast<size_t>(value.length()),
-                               value_string))) {
+                         ReaderSpan<> repr, Context&... context) {
+                       absl::string_view value;
+                       if (ABSL_PREDICT_FALSE(!repr.reader().Read(
+                               IntCast<size_t>(repr.length()), value))) {
                          return serialized_message_reader_internal::
-                             ReadLengthDelimitedValueError(value.reader());
+                             ReadLengthDelimitedValueError(repr.reader());
                        }
                        return field_handler.HandleLengthDelimitedFromString(
-                           value_string, context...);
+                           value, context...);
                      })
                  .second)) {
       all_registered = false;
@@ -414,13 +412,13 @@ auto FieldHandlerMapImpl<Associated, Context...>::RegisterParent(
   auto inserted = length_delimited_handlers_.try_emplace(
       field_number,
       [field_number, parent_action = std::forward<ParentAction>(parent_action)](
-          const FieldHandlerMapImpl* absl_nullable children, ReaderSpan<> value,
+          const FieldHandlerMapImpl* absl_nullable children, ReaderSpan<> repr,
           Context&... context) {
         RIEGELI_ASSERT(children != nullptr)
             << "children must have been initialized "
                "before parent_action can be invoked";
-        return SkipLengthDelimitedFromReader(value, [&] {
-          return parent_action(field_number, *children, std::move(value),
+        return SkipLengthDelimitedFromReader(repr, [&] {
+          return parent_action(field_number, *children, std::move(repr),
                                context...);
         });
       });

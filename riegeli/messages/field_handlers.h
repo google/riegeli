@@ -23,13 +23,13 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
@@ -45,176 +45,31 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-namespace field_handlers_internal {
-
-// Decoders from a wire type representation to field types.
-struct Int32Traits;
-struct Int64Traits;
-struct UInt32Traits;
-struct UInt64Traits;
-struct SInt32Traits;
-struct SInt64Traits;
-struct BoolTraits;
-struct Fixed32Traits;
-struct Fixed64Traits;
-struct SFixed32Traits;
-struct SFixed64Traits;
-struct FloatTraits;
-struct DoubleTraits;
-template <typename EnumType>
-struct EnumTraits;
-
-// Class types of common field handlers. Clients should use the corresponding
-// type aliases defined below.
-template <typename Traits, int field_number, typename Action>
-class OnOptionalVarintImpl;
-template <typename Traits, int field_number, typename Action>
-class OnRepeatedVarintImpl;
-template <typename Traits, int field_number, typename Action>
-class OnOptionalFixed32Impl;
-template <typename Traits, int field_number, typename Action>
-class OnRepeatedFixed32Impl;
-template <typename Traits, int field_number, typename Action>
-class OnOptionalFixed64Impl;
-template <typename Traits, int field_number, typename Action>
-class OnRepeatedFixed64Impl;
-template <int field_number, typename Action>
-class OnLengthDelimitedImpl;
-template <int field_number, typename Action>
-class OnStartGroupImpl;
-template <int field_number, typename Action>
-class OnEndGroupImpl;
-
-}  // namespace field_handlers_internal
-
 namespace field_handlers {
 
-// Types of common field handlers, to use if the caller prefers to spell them.
-// Usually it is enough to use `auto` instead of spelling these types.
+// The kind of a varint field, assuming that its C++ type is known.
+enum class VarintKind {
+  kPlain,   // `int32`, `int64`, `uint32`, `uint64`, `bool`
+  kSigned,  // `sint32`, `sint64`
+  kEnum,    // `enum`
+};
 
+// Class types of common field handlers. Usually it is enough to use `auto`
+// instead of spelling these types.
+template <typename Value, VarintKind kind, int field_number, typename Action>
+class OnOptionalVarintType;
+template <typename Value, VarintKind kind, int field_number, typename Action>
+class OnRepeatedVarintType;
+template <typename Value, int field_number, typename Action>
+class OnOptionalFixedType;
+template <typename Value, int field_number, typename Action>
+class OnRepeatedFixedType;
 template <int field_number, typename Action>
-using OnOptionalInt32Type = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::Int32Traits, field_number, Action>;
-
+class OnLengthDelimitedType;
 template <int field_number, typename Action>
-using OnRepeatedInt32Type = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::Int32Traits, field_number, Action>;
-
+class BeforeGroupType;
 template <int field_number, typename Action>
-using OnOptionalInt64Type = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::Int64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedInt64Type = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::Int64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalUInt32Type = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::UInt32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedUInt32Type = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::UInt32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalUInt64Type = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::UInt64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedUInt64Type = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::UInt64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalSInt32Type = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::SInt32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedSInt32Type = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::SInt32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalSInt64Type = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::SInt64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedSInt64Type = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::SInt64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalBoolType = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::BoolTraits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedBoolType = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::BoolTraits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalFixed32Type = field_handlers_internal::OnOptionalFixed32Impl<
-    field_handlers_internal::Fixed32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedFixed32Type = field_handlers_internal::OnRepeatedFixed32Impl<
-    field_handlers_internal::Fixed32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalFixed64Type = field_handlers_internal::OnOptionalFixed64Impl<
-    field_handlers_internal::Fixed64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedFixed64Type = field_handlers_internal::OnRepeatedFixed64Impl<
-    field_handlers_internal::Fixed64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalSFixed32Type = field_handlers_internal::OnOptionalFixed32Impl<
-    field_handlers_internal::SFixed32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedSFixed32Type = field_handlers_internal::OnRepeatedFixed32Impl<
-    field_handlers_internal::SFixed32Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalSFixed64Type = field_handlers_internal::OnOptionalFixed64Impl<
-    field_handlers_internal::SFixed64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedSFixed64Type = field_handlers_internal::OnRepeatedFixed64Impl<
-    field_handlers_internal::SFixed64Traits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalFloatType = field_handlers_internal::OnOptionalFixed32Impl<
-    field_handlers_internal::FloatTraits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedFloatType = field_handlers_internal::OnRepeatedFixed32Impl<
-    field_handlers_internal::FloatTraits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnOptionalDoubleType = field_handlers_internal::OnOptionalFixed64Impl<
-    field_handlers_internal::DoubleTraits, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnRepeatedDoubleType = field_handlers_internal::OnRepeatedFixed64Impl<
-    field_handlers_internal::DoubleTraits, field_number, Action>;
-
-template <typename EnumType, int field_number, typename Action>
-using OnOptionalEnumType = field_handlers_internal::OnOptionalVarintImpl<
-    field_handlers_internal::EnumTraits<EnumType>, field_number, Action>;
-
-template <typename EnumType, int field_number, typename Action>
-using OnRepeatedEnumType = field_handlers_internal::OnRepeatedVarintImpl<
-    field_handlers_internal::EnumTraits<EnumType>, field_number, Action>;
-
-template <int field_number, typename Action>
-using OnLengthDelimitedType =
-    field_handlers_internal::OnLengthDelimitedImpl<field_number, Action>;
-
-template <int field_number, typename Action>
-using BeforeGroupType =
-    field_handlers_internal::OnStartGroupImpl<field_number, Action>;
-
-template <int field_number, typename Action>
-using AfterGroupType =
-    field_handlers_internal::OnEndGroupImpl<field_number, Action>;
+class AfterGroupType;
 
 // Common field handlers for `SerializedMessageReader2` and `FieldHandlerMap`.
 //
@@ -244,232 +99,260 @@ using AfterGroupType =
 // Field handler of a singular `int32` field. The value is provided as
 // `int32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalInt32Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalVarintType<int32_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnOptionalInt32(Action&& action) {
-  return OnOptionalInt32Type<field_number, std::decay_t<Action>>(
+  return OnOptionalVarintType<int32_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `int32` field. The value is
 // provided as `int32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedInt32Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedVarintType<int32_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnRepeatedInt32(Action&& action) {
-  return OnRepeatedInt32Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedVarintType<int32_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `int64` field. The value is provided as
 // `int64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalInt64Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalVarintType<int64_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnOptionalInt64(Action&& action) {
-  return OnOptionalInt64Type<field_number, std::decay_t<Action>>(
+  return OnOptionalVarintType<int64_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `int64` field. The value is
 // provided as `int64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedInt64Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedVarintType<int64_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnRepeatedInt64(Action&& action) {
-  return OnRepeatedInt64Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedVarintType<int64_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `uint32` field. The value is provided as
 // `uint32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalUInt32Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalVarintType<uint32_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnOptionalUInt32(Action&& action) {
-  return OnOptionalUInt32Type<field_number, std::decay_t<Action>>(
+  return OnOptionalVarintType<uint32_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `uint32` field. The value is
 // provided as `uint32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedUInt32Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedVarintType<uint32_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnRepeatedUInt32(Action&& action) {
-  return OnRepeatedUInt32Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedVarintType<uint32_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `uint64` field. The value is provided as
 // `uint64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalUInt64Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalVarintType<uint64_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnOptionalUInt64(Action&& action) {
-  return OnOptionalUInt64Type<field_number, std::decay_t<Action>>(
+  return OnOptionalVarintType<uint64_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `uint64` field. The value is
 // provided as `uint64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedUInt64Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedVarintType<uint64_t, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
 OnRepeatedUInt64(Action&& action) {
-  return OnRepeatedUInt64Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedVarintType<uint64_t, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `sint32` field. The value is provided as
 // `int32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalSInt32Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalVarintType<int32_t, VarintKind::kSigned, field_number,
+                               std::decay_t<Action>>
 OnOptionalSInt32(Action&& action) {
-  return OnOptionalSInt32Type<field_number, std::decay_t<Action>>(
+  return OnOptionalVarintType<int32_t, VarintKind::kSigned, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `sint32` field. The value is
 // provided as `int32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedSInt32Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedVarintType<int32_t, VarintKind::kSigned, field_number,
+                               std::decay_t<Action>>
 OnRepeatedSInt32(Action&& action) {
-  return OnRepeatedSInt32Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedVarintType<int32_t, VarintKind::kSigned, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `sint64` field. The value is provided as
 // `int64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalSInt64Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalVarintType<int64_t, VarintKind::kSigned, field_number,
+                               std::decay_t<Action>>
 OnOptionalSInt64(Action&& action) {
-  return OnOptionalSInt64Type<field_number, std::decay_t<Action>>(
+  return OnOptionalVarintType<int64_t, VarintKind::kSigned, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `sint64` field. The value is
 // provided as `int64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedSInt64Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedVarintType<int64_t, VarintKind::kSigned, field_number,
+                               std::decay_t<Action>>
 OnRepeatedSInt64(Action&& action) {
-  return OnRepeatedSInt64Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedVarintType<int64_t, VarintKind::kSigned, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `bool` field. The value is provided as `bool`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalBoolType<field_number, std::decay_t<Action>> OnOptionalBool(
-    Action&& action) {
-  return OnOptionalBoolType<field_number, std::decay_t<Action>>(
+constexpr OnOptionalVarintType<bool, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
+OnOptionalBool(Action&& action) {
+  return OnOptionalVarintType<bool, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `bool` field. The value is provided
 // as `bool`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedBoolType<field_number, std::decay_t<Action>> OnRepeatedBool(
-    Action&& action) {
-  return OnRepeatedBoolType<field_number, std::decay_t<Action>>(
+constexpr OnRepeatedVarintType<bool, VarintKind::kPlain, field_number,
+                               std::decay_t<Action>>
+OnRepeatedBool(Action&& action) {
+  return OnRepeatedVarintType<bool, VarintKind::kPlain, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `fixed32` field. The value is provided as
 // `uint32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalFixed32Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalFixedType<uint32_t, field_number, std::decay_t<Action>>
 OnOptionalFixed32(Action&& action) {
-  return OnOptionalFixed32Type<field_number, std::decay_t<Action>>(
+  return OnOptionalFixedType<uint32_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `fixed32` field. The value is
 // provided as `uint32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedFixed32Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedFixedType<uint32_t, field_number, std::decay_t<Action>>
 OnRepeatedFixed32(Action&& action) {
-  return OnRepeatedFixed32Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedFixedType<uint32_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `fixed64` field. The value is provided as
 // `uint64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalFixed64Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalFixedType<uint64_t, field_number, std::decay_t<Action>>
 OnOptionalFixed64(Action&& action) {
-  return OnOptionalFixed64Type<field_number, std::decay_t<Action>>(
+  return OnOptionalFixedType<uint64_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `fixed64` field. The value is
 // provided as `uint64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedFixed64Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedFixedType<uint64_t, field_number, std::decay_t<Action>>
 OnRepeatedFixed64(Action&& action) {
-  return OnRepeatedFixed64Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedFixedType<uint64_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `sfixed32` field. The value is provided as
 // `int32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalSFixed32Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalFixedType<int32_t, field_number, std::decay_t<Action>>
 OnOptionalSFixed32(Action&& action) {
-  return OnOptionalSFixed32Type<field_number, std::decay_t<Action>>(
+  return OnOptionalFixedType<int32_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `sfixed32` field. The value is
 // provided as `int32_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedSFixed32Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedFixedType<int32_t, field_number, std::decay_t<Action>>
 OnRepeatedSFixed32(Action&& action) {
-  return OnRepeatedSFixed32Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedFixedType<int32_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `sfixed64` field. The value is provided as
 // `int64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalSFixed64Type<field_number, std::decay_t<Action>>
+constexpr OnOptionalFixedType<int64_t, field_number, std::decay_t<Action>>
 OnOptionalSFixed64(Action&& action) {
-  return OnOptionalSFixed64Type<field_number, std::decay_t<Action>>(
+  return OnOptionalFixedType<int64_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `sfixed64` field. The value is
 // provided as `int64_t`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedSFixed64Type<field_number, std::decay_t<Action>>
+constexpr OnRepeatedFixedType<int64_t, field_number, std::decay_t<Action>>
 OnRepeatedSFixed64(Action&& action) {
-  return OnRepeatedSFixed64Type<field_number, std::decay_t<Action>>(
+  return OnRepeatedFixedType<int64_t, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `float` field. The value is provided as `float`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalFloatType<field_number, std::decay_t<Action>>
+constexpr OnOptionalFixedType<float, field_number, std::decay_t<Action>>
 OnOptionalFloat(Action&& action) {
-  return OnOptionalFloatType<field_number, std::decay_t<Action>>(
+  return OnOptionalFixedType<float, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `float` field. The value is
 // provided as `float`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedFloatType<field_number, std::decay_t<Action>>
+constexpr OnRepeatedFixedType<float, field_number, std::decay_t<Action>>
 OnRepeatedFloat(Action&& action) {
-  return OnRepeatedFloatType<field_number, std::decay_t<Action>>(
+  return OnRepeatedFixedType<float, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of a singular `double` field. The value is provided as
 // `double`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnOptionalDoubleType<field_number, std::decay_t<Action>>
+constexpr OnOptionalFixedType<double, field_number, std::decay_t<Action>>
 OnOptionalDouble(Action&& action) {
-  return OnOptionalDoubleType<field_number, std::decay_t<Action>>(
+  return OnOptionalFixedType<double, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
 // Field handler of an element of a repeated `double` field. The value is
 // provided as `double`.
 template <int field_number = kUnboundFieldNumber, typename Action>
-constexpr OnRepeatedDoubleType<field_number, std::decay_t<Action>>
+constexpr OnRepeatedFixedType<double, field_number, std::decay_t<Action>>
 OnRepeatedDouble(Action&& action) {
-  return OnRepeatedDoubleType<field_number, std::decay_t<Action>>(
+  return OnRepeatedFixedType<double, field_number, std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
@@ -480,9 +363,11 @@ template <
     std::enable_if_t<
         std::disjunction_v<std::is_enum<EnumType>, std::is_integral<EnumType>>,
         int> = 0>
-constexpr OnOptionalEnumType<EnumType, field_number, std::decay_t<Action>>
+constexpr OnOptionalVarintType<EnumType, VarintKind::kEnum, field_number,
+                               std::decay_t<Action>>
 OnOptionalEnum(Action&& action) {
-  return OnOptionalEnumType<EnumType, field_number, std::decay_t<Action>>(
+  return OnOptionalVarintType<EnumType, VarintKind::kEnum, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
@@ -493,9 +378,11 @@ template <
     std::enable_if_t<
         std::disjunction_v<std::is_enum<EnumType>, std::is_integral<EnumType>>,
         int> = 0>
-constexpr OnRepeatedEnumType<EnumType, field_number, std::decay_t<Action>>
+constexpr OnRepeatedVarintType<EnumType, VarintKind::kEnum, field_number,
+                               std::decay_t<Action>>
 OnRepeatedEnum(Action&& action) {
-  return OnRepeatedEnumType<EnumType, field_number, std::decay_t<Action>>(
+  return OnRepeatedVarintType<EnumType, VarintKind::kEnum, field_number,
+                              std::decay_t<Action>>(
       std::forward<Action>(action));
 }
 
@@ -555,149 +442,133 @@ constexpr AfterGroupType<field_number, std::decay_t<Action>> AfterGroup(
 
 namespace field_handlers_internal {
 
-template <typename T, typename Enable = void>
-struct TraitsHaveIsValid : std::false_type {};
-
-template <typename T>
-struct TraitsHaveIsValid<
-    T, std::enable_if_t<std::is_convertible_v<
-           decltype(std::declval<const T&>().IsValid()), bool>>>
-    : std::true_type {};
-
 ABSL_ATTRIBUTE_COLD absl::Status AnnotateByReader(absl::Status status,
                                                   Reader& reader);
-ABSL_ATTRIBUTE_COLD absl::Status ReadPackedVarintError(Reader& src);
+
+ABSL_ATTRIBUTE_COLD absl::Status EnumOverflowError(uint64_t repr);
+
+template <typename Value, field_handlers::VarintKind kind>
+absl::Status VarintOverflowError(uint64_t repr) {
+  RIEGELI_ASSERT(kind == field_handlers::VarintKind::kEnum)
+      << "Remaining VarintOverflowError() instantiations should be for enums";
+  return EnumOverflowError(repr);
+}
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(uint64_t repr);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
+    uint64_t repr);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
+    uint64_t repr);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(uint64_t repr);
+
+ABSL_ATTRIBUTE_COLD absl::Status EnumOverflowError(Reader& src, uint64_t repr);
+
+template <typename Value, field_handlers::VarintKind kind>
+absl::Status VarintOverflowError(Reader& src, uint64_t repr) {
+  RIEGELI_ASSERT(kind == field_handlers::VarintKind::kEnum)
+      << "Remaining VarintOverflowError() instantiations should be for enums";
+  return EnumOverflowError(src, repr);
+}
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(Reader& src,
+                                                                 uint64_t repr);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
+    Reader& src, uint64_t repr);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
+    Reader& src, uint64_t repr);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status
+VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(Reader& src,
+                                                              uint64_t repr);
+
 ABSL_ATTRIBUTE_COLD absl::Status ReadPackedVarintError();
-ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed32Error(Reader& src);
-ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed32Error();
-ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed64Error(Reader& src);
-ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixed64Error();
-ABSL_ATTRIBUTE_COLD absl::Status InvalidEnumError(uint64_t repr);
 
-struct Int32Traits {
-  static bool IsValid(uint64_t repr) {
-    return static_cast<uint64_t>(static_cast<int32_t>(repr)) == repr;
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedVarintError(Reader& src);
+
+template <size_t size>
+absl::Status ReadPackedFixedError();
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixedError<sizeof(uint32_t)>();
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixedError<sizeof(uint64_t)>();
+
+template <size_t size>
+absl::Status ReadPackedFixedError(Reader& src);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixedError<sizeof(uint32_t)>(
+    Reader& src);
+template <>
+ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixedError<sizeof(uint64_t)>(
+    Reader& src);
+
+template <typename Value, field_handlers::VarintKind kind>
+inline bool VarintIsValid(uint64_t repr) {
+  if constexpr (std::disjunction_v<std::is_same<Value, uint64_t>,
+                                   std::is_same<Value, int64_t>>) {
+    return true;
+  } else if constexpr (kind == field_handlers::VarintKind::kSigned) {
+    return uint64_t{static_cast<std::make_unsigned_t<Value>>(repr)} == repr;
+  } else if constexpr (std::is_enum_v<Value>) {
+    static_assert(kind == field_handlers::VarintKind::kEnum);
+    return static_cast<uint64_t>(
+               static_cast<std::underlying_type_t<Value>>(repr)) == repr;
+  } else {
+    return static_cast<uint64_t>(static_cast<Value>(repr)) == repr;
   }
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(Reader& src,
-                                                       uint64_t repr);
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(uint64_t repr);
-  static int32_t Decode(uint64_t repr) { return static_cast<int32_t>(repr); }
-};
+}
 
-struct Int64Traits {
-  static int64_t Decode(uint64_t repr) { return static_cast<int64_t>(repr); }
-};
-
-struct UInt32Traits {
-  static bool IsValid(uint64_t repr) {
-    return static_cast<uint64_t>(static_cast<uint32_t>(repr)) == repr;
+template <typename Value, field_handlers::VarintKind kind>
+inline Value DecodeVarint(uint64_t repr) {
+  if constexpr (kind == field_handlers::VarintKind::kSigned) {
+    return static_cast<Value>(DecodeVarintSigned64(repr));
+  } else if constexpr (std::is_enum_v<Value>) {
+    static_assert(kind == field_handlers::VarintKind::kEnum);
+    // Casting an out of range value to an enum has undefined behavior.
+    // Casting such a value to an integral type wraps around.
+    return static_cast<Value>(static_cast<std::underlying_type_t<Value>>(repr));
+  } else {
+    return static_cast<Value>(repr);
   }
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(Reader& src,
-                                                       uint64_t repr);
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(uint64_t repr);
-  static uint32_t Decode(uint64_t repr) { return static_cast<uint32_t>(repr); }
-};
+}
 
-struct UInt64Traits {
-  static uint64_t Decode(uint64_t repr) { return repr; }
-};
+}  // namespace field_handlers_internal
 
-struct SInt32Traits {
-  static bool IsValid(uint64_t repr) {
-    return static_cast<uint64_t>(static_cast<uint32_t>(repr)) == repr;
-  }
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(Reader& src,
-                                                       uint64_t repr);
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(uint64_t repr);
-  static int32_t Decode(uint64_t repr) {
-    return DecodeVarintSigned32(static_cast<uint32_t>(repr));
-  }
-};
+namespace field_handlers {
 
-struct SInt64Traits {
-  static int64_t Decode(uint64_t repr) { return DecodeVarintSigned64(repr); }
-};
-
-struct Fixed32Traits {
-  static uint32_t Decode(uint32_t repr) { return repr; }
-};
-
-struct Fixed64Traits {
-  static uint64_t Decode(uint64_t repr) { return repr; }
-};
-
-struct SFixed32Traits {
-  static int32_t Decode(uint64_t repr) { return static_cast<int32_t>(repr); }
-};
-
-struct SFixed64Traits {
-  static int64_t Decode(uint64_t repr) { return static_cast<int64_t>(repr); }
-};
-
-struct BoolTraits {
-  static bool IsValid(uint64_t repr) { return repr <= 1; }
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(Reader& src,
-                                                       uint64_t repr);
-  ABSL_ATTRIBUTE_COLD static absl::Status InvalidError(uint64_t repr);
-  static bool Decode(uint64_t repr) { return repr != 0; }
-};
-
-struct FloatTraits {
-  static float Decode(uint32_t repr) { return absl::bit_cast<float>(repr); }
-};
-
-struct DoubleTraits {
-  static double Decode(uint64_t repr) { return absl::bit_cast<double>(repr); }
-};
-
-template <typename EnumType>
-struct EnumTraits {
-  static bool IsValid(uint64_t repr) {
-    return static_cast<uint64_t>(Decode(repr)) == repr;
-  }
-  static absl::Status InvalidError(Reader& src, uint64_t repr) {
-    return src.StatusOrAnnotate(InvalidError(repr));
-  }
-  static absl::Status InvalidError(uint64_t repr) {
-    return InvalidEnumError(repr);
-  }
-  static EnumType Decode(uint64_t repr) {
-    if constexpr (std::is_enum_v<EnumType>) {
-      // Casting an out of range value to an enum has undefined behavior.
-      // Casting such a value to an integral type wraps around.
-      return static_cast<EnumType>(
-          static_cast<std::underlying_type_t<EnumType>>(repr));
-    } else {
-      return static_cast<EnumType>(repr);
-    }
-  }
-};
-
-template <typename Traits, int field_number, typename Action>
-class OnOptionalVarintImpl {
+template <typename Value, VarintKind kind, int field_number, typename Action>
+class OnOptionalVarintType {
  public:
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
             std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
                              int> = 0>
-  explicit constexpr OnOptionalVarintImpl(ActionInitializer&& action)
+  explicit constexpr OnOptionalVarintType(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
+  template <typename... Context,
+            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                   Value, Context&...>,
+                             int> = 0>
   absl::Status HandleVarint(uint64_t repr, Context&... context) const {
-    if constexpr (TraitsHaveIsValid<Traits>::value) {
-      if (ABSL_PREDICT_FALSE(!Traits::IsValid(repr))) {
-        return Traits::InvalidError(repr);
-      }
+    if (ABSL_PREDICT_FALSE(
+            (!field_handlers_internal::VarintIsValid<Value, kind>(repr)))) {
+      return field_handlers_internal::VarintOverflowError<Value, kind>(repr);
     }
-    return action_(Traits::Decode(repr), context...);
+    return action_(field_handlers_internal::DecodeVarint<Value, kind>(repr),
+                   context...);
   }
 
  protected:
@@ -707,256 +578,66 @@ class OnOptionalVarintImpl {
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Action action_;
 };
 
-template <typename Traits, int field_number, typename Action>
-class OnRepeatedVarintImpl
-    : public OnOptionalVarintImpl<Traits, field_number, Action> {
+template <typename Value, VarintKind kind, int field_number, typename Action>
+class OnRepeatedVarintType
+    : public OnOptionalVarintType<Value, kind, field_number, Action> {
  public:
-  using OnRepeatedVarintImpl::OnOptionalVarintImpl::OnOptionalVarintImpl;
+  using OnRepeatedVarintType::OnOptionalVarintType::OnOptionalVarintType;
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
-                                               Context&... context) const {
-    ScopedLimiter scoped_limiter(value);
-    uint64_t repr;
-    while (ReadVarint64(value.reader(), repr)) {
-      if constexpr (TraitsHaveIsValid<Traits>::value) {
-        if (ABSL_PREDICT_FALSE(!Traits::IsValid(repr))) {
-          return Traits::InvalidError(value, repr);
-        }
-      }
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        // Comparison against `absl::CancelledError()` is a fast path of
-        // `absl::IsCancelled()`.
-        if (ABSL_PREDICT_FALSE(status != absl::CancelledError())) {
-          status = AnnotateByReader(std::move(status), value.reader());
-        }
-        return status;
-      }
-    }
-    if (ABSL_PREDICT_FALSE(value.reader().pos() < value.reader().max_pos())) {
-      return ReadPackedVarintError(value.reader());
-    }
-    return absl::OkStatus();
-  }
+  template <typename... Context,
+            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                   Value, Context&...>,
+                             int> = 0>
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
+                                               Context&... context) const;
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromCord(
-      CordIteratorSpan value, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
-      Context&... context) const {
-    const size_t limit =
-        CordIteratorSpan::Remaining(value.iterator()) - value.length();
-    uint64_t repr;
-    while (ReadVarint64(value.iterator(),
-                        CordIteratorSpan::Remaining(value.iterator()) - limit,
-                        repr)) {
-      if constexpr (TraitsHaveIsValid<Traits>::value) {
-        if (ABSL_PREDICT_FALSE(!Traits::IsValid(repr))) {
-          return Traits::InvalidError(value, repr);
-        }
-      }
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
-    }
-    if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(value.iterator()) >
-                           limit)) {
-      return ReadPackedVarintError();
-    }
-    return absl::OkStatus();
-  }
+  template <typename... Context,
+            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                   Value, Context&...>,
+                             int> = 0>
+  absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
+                                             std::string& scratch,
+                                             Context&... context) const;
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
-                                               Context&... context) const {
-    const char* cursor = value.data();
-    const char* const limit = value.data() + value.size();
-    uint64_t repr;
-    while (const size_t length =
-               ReadVarint64(cursor, PtrDistance(cursor, limit), repr)) {
-      cursor += length;
-      if constexpr (TraitsHaveIsValid<Traits>::value) {
-        if (ABSL_PREDICT_FALSE(!Traits::IsValid(repr))) {
-          return Traits::InvalidError(repr);
-        }
-      }
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
-    }
-    if (ABSL_PREDICT_FALSE(cursor < limit)) return ReadPackedVarintError();
-    return absl::OkStatus();
-  }
+  template <typename... Context,
+            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                   Value, Context&...>,
+                             int> = 0>
+  absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
+                                               Context&... context) const;
 };
 
-template <typename Traits, int field_number, typename Action>
-class OnOptionalFixed32Impl {
+template <typename Value, int field_number, typename Action>
+class OnOptionalFixedType {
  public:
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
             std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
                              int> = 0>
-  explicit constexpr OnOptionalFixed32Impl(ActionInitializer&& action)
+  explicit constexpr OnOptionalFixedType(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint32_t>())), Context&...>,
-          int> = 0>
+  template <typename... Context,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::bool_constant<sizeof(Value) == sizeof(uint32_t)>,
+                    std::is_invocable_r<absl::Status, const Action&, Value,
+                                        Context&...>>,
+                int> = 0>
   absl::Status HandleFixed32(uint32_t repr, Context&... context) const {
-    return action_(Traits::Decode(repr), context...);
+    return action_(std::bit_cast<Value>(repr), context...);
   }
 
- protected:
-  const Action& action() const { return action_; }
-
- private:
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Action action_;
-};
-
-template <typename Traits, int field_number, typename Action>
-class OnRepeatedFixed32Impl
-    : public OnOptionalFixed32Impl<Traits, field_number, Action> {
- public:
-  static constexpr int kFieldNumber = field_number;
-
-  using OnRepeatedFixed32Impl::OnOptionalFixed32Impl::OnOptionalFixed32Impl;
-
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint32_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
-                                               Context&... context) const {
-    if (ABSL_PREDICT_FALSE(value.length() % sizeof(uint32_t) > 0)) {
-      return ReadPackedFixed32Error(value.reader());
-    }
-    Position length = value.length();
-    while (length > 0) {
-      uint32_t repr;
-      if (ABSL_PREDICT_FALSE(!ReadLittleEndian32(value.reader(), repr))) {
-        return ReadPackedFixed32Error(value.reader());
-      }
-      length -= sizeof(uint32_t);
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        // Comparison against `absl::CancelledError()` is a fast path of
-        // `absl::IsCancelled()`.
-        if (ABSL_PREDICT_FALSE(status != absl::CancelledError())) {
-          status = AnnotateByReader(std::move(status), value.reader());
-        }
-        return status;
-      }
-    }
-    return absl::OkStatus();
-  }
-
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint32_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromCord(
-      CordIteratorSpan value, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
-      Context&... context) const {
-    if (ABSL_PREDICT_FALSE(value.length() % sizeof(uint32_t) > 0)) {
-      return ReadPackedFixed32Error();
-    }
-    Position length = value.length();
-    while (length > 0) {
-      char buffer[sizeof(uint32_t)];
-      CordIteratorSpan::Read(value.iterator(), sizeof(uint32_t), buffer);
-      const uint32_t repr = ReadLittleEndian32(buffer);
-      length -= sizeof(uint32_t);
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
-    }
-    return absl::OkStatus();
-  }
-
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint32_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
-                                               Context&... context) const {
-    if (ABSL_PREDICT_FALSE(value.size() % sizeof(uint32_t) > 0)) {
-      return ReadPackedFixed32Error();
-    }
-    const char* cursor = value.data();
-    const char* const limit = value.data() + value.size();
-    while (cursor < limit) {
-      const uint32_t repr = ReadLittleEndian32(cursor);
-      cursor += sizeof(uint32_t);
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
-    }
-    return absl::OkStatus();
-  }
-};
-
-template <typename Traits, int field_number, typename Action>
-class OnOptionalFixed64Impl {
- public:
-  static constexpr int kFieldNumber = field_number;
-
-  template <typename ActionInitializer,
-            std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
-                             int> = 0>
-  explicit constexpr OnOptionalFixed64Impl(ActionInitializer&& action)
-      : action_(std::forward<ActionInitializer>(action)) {}
-
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
+  template <typename... Context,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::bool_constant<sizeof(Value) == sizeof(uint64_t)>,
+                    std::is_invocable_r<absl::Status, const Action&, Value,
+                                        Context&...>>,
+                int> = 0>
   absl::Status HandleFixed64(uint64_t repr, Context&... context) const {
-    return action_(Traits::Decode(repr), context...);
+    return action_(std::bit_cast<Value>(repr), context...);
   }
 
  protected:
@@ -966,109 +647,44 @@ class OnOptionalFixed64Impl {
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Action action_;
 };
 
-template <typename Traits, int field_number, typename Action>
-class OnRepeatedFixed64Impl
-    : public OnOptionalFixed64Impl<Traits, field_number, Action> {
+template <typename Value, int field_number, typename Action>
+class OnRepeatedFixedType
+    : public OnOptionalFixedType<Value, field_number, Action> {
  public:
-  using OnRepeatedFixed64Impl::OnOptionalFixed64Impl::OnOptionalFixed64Impl;
+  using OnRepeatedFixedType::OnOptionalFixedType::OnOptionalFixedType;
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
-                                               Context&... context) const {
-    if (ABSL_PREDICT_FALSE(value.length() % sizeof(uint64_t) > 0)) {
-      return ReadPackedFixed64Error(value.reader());
-    }
-    Position length = value.length();
-    while (length > 0) {
-      uint64_t repr;
-      if (ABSL_PREDICT_FALSE(!ReadLittleEndian64(value.reader(), repr))) {
-        return ReadPackedFixed64Error(value.reader());
-      }
-      length -= sizeof(uint64_t);
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        // Comparison against `absl::CancelledError()` is a fast path of
-        // `absl::IsCancelled()`.
-        if (ABSL_PREDICT_FALSE(status != absl::CancelledError())) {
-          status = AnnotateByReader(std::move(status), value.reader());
-        }
-        return status;
-      }
-    }
-    return absl::OkStatus();
-  }
+  template <typename... Context,
+            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                   Value, Context&...>,
+                             int> = 0>
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
+                                               Context&... context) const;
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromCord(
-      CordIteratorSpan value, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
-      Context&... context) const {
-    if (ABSL_PREDICT_FALSE(value.length() % sizeof(uint64_t) > 0)) {
-      return ReadPackedFixed64Error();
-    }
-    Position length = value.length();
-    while (length > 0) {
-      char buffer[sizeof(uint64_t)];
-      CordIteratorSpan::Read(value.iterator(), sizeof(uint64_t), buffer);
-      const uint64_t repr = ReadLittleEndian64(buffer);
-      length -= sizeof(uint64_t);
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
-    }
-    return absl::OkStatus();
-  }
+  template <typename... Context,
+            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                   Value, Context&...>,
+                             int> = 0>
+  absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
+                                             std::string& scratch,
+                                             Context&... context) const;
 
-  template <
-      typename... Context,
-      std::enable_if_t<
-          std::is_invocable_r_v<
-              absl::Status, const Action&,
-              decltype(Traits::Decode(std::declval<uint64_t>())), Context&...>,
-          int> = 0>
-  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
-                                               Context&... context) const {
-    if (ABSL_PREDICT_FALSE(value.size() % sizeof(uint64_t) > 0)) {
-      return ReadPackedFixed64Error();
-    }
-    const char* cursor = value.data();
-    const char* const limit = value.data() + value.size();
-    while (cursor < limit) {
-      const uint64_t repr = ReadLittleEndian64(cursor);
-      cursor += sizeof(uint64_t);
-      if (absl::Status status =
-              this->action()(Traits::Decode(repr), context...);
-          ABSL_PREDICT_FALSE(!status.ok())) {
-        return status;
-      }
-    }
-    return absl::OkStatus();
-  }
+  template <typename... Context,
+            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                   Value, Context&...>,
+                             int> = 0>
+  absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
+                                               Context&... context) const;
 };
 
 template <int field_number, typename Action>
-class OnLengthDelimitedImpl {
+class OnLengthDelimitedType {
  public:
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
             std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
                              int> = 0>
-  explicit constexpr OnLengthDelimitedImpl(ActionInitializer&& action)
+  explicit constexpr OnLengthDelimitedType(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
   template <
@@ -1085,24 +701,24 @@ class OnLengthDelimitedImpl {
                            std::is_invocable_r<absl::Status, const Action&,
                                                absl::Cord&&, Context&...>>,
                        int> = 0>
-  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value,
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
                                                Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, ReaderSpan<>,
                                       Context&...>) {
       return SkipLengthDelimitedFromReader(
-          value, [&] { return action_(std::move(value), context...); });
+          repr, [&] { return action_(std::move(repr), context...); });
     } else if constexpr (std::is_invocable_v<const Action&, absl::string_view,
                                              Context&...>) {
-      return HandleString<absl::string_view>(std::move(value), context...);
+      return HandleString<absl::string_view>(std::move(repr), context...);
     } else if constexpr (std::is_invocable_v<const Action&, std::string&&,
                                              Context&...>) {
-      return HandleString<std::string>(std::move(value), context...);
+      return HandleString<std::string>(std::move(repr), context...);
     } else if constexpr (std::is_invocable_v<const Action&, Chain&&,
                                              Context&...>) {
-      return HandleString<Chain>(std::move(value), context...);
+      return HandleString<Chain>(std::move(repr), context...);
     } else if constexpr (std::is_invocable_v<const Action&, absl::Cord&&,
                                              Context&...>) {
-      return HandleString<absl::Cord>(std::move(value), context...);
+      return HandleString<absl::Cord>(std::move(repr), context...);
     } else {
       static_assert(false, "No string-like type accepted");
     }
@@ -1122,26 +738,26 @@ class OnLengthDelimitedImpl {
                            std::is_invocable_r<absl::Status, const Action&,
                                                absl::Cord, Context&...>>,
                        int> = 0>
-  absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan value,
+  absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
                                              std::string& scratch,
                                              Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, CordIteratorSpan,
                                       Context&...>) {
       return SkipLengthDelimitedFromCord(
-          value, [&] { return action_(std::move(value), context...); });
+          repr, [&] { return action_(std::move(repr), context...); });
     } else if constexpr (std::is_invocable_v<const Action&, absl::string_view,
                                              Context&...>) {
-      return action_(std::move(value).ToStringView(scratch), context...);
+      return action_(std::move(repr).ToStringView(scratch), context...);
     } else if constexpr (std::is_invocable_v<const Action&, std::string&&,
                                              Context&...>) {
-      std::move(value).ToString(scratch);
+      std::move(repr).ToString(scratch);
       return action_(std::move(scratch), context...);
     } else if constexpr (std::is_invocable_v<const Action&, Chain,
                                              Context&...>) {
-      return action_(Chain(std::move(value).ToCord()), context...);
+      return action_(Chain(std::move(repr).ToCord()), context...);
     } else if constexpr (std::is_invocable_v<const Action&, absl::Cord,
                                              Context&...>) {
-      return action_(std::move(value).ToCord(), context...);
+      return action_(std::move(repr).ToCord(), context...);
     } else {
       static_assert(false, "No string-like type accepted");
     }
@@ -1159,20 +775,20 @@ class OnLengthDelimitedImpl {
                            std::is_invocable_r<absl::Status, const Action&,
                                                absl::Cord&&, Context&...>>,
                        int> = 0>
-  absl::Status HandleLengthDelimitedFromString(absl::string_view value,
+  absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
                                                Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, absl::string_view,
                                       Context&...>) {
-      return action_(value, context...);
+      return action_(repr, context...);
     } else if constexpr (std::is_invocable_v<const Action&, std::string&&,
                                              Context&...>) {
-      return action_(std::string(value), context...);
+      return action_(std::string(repr), context...);
     } else if constexpr (std::is_invocable_v<const Action&, Chain&&,
                                              Context&...>) {
-      return action_(Chain(value), context...);
+      return action_(Chain(repr), context...);
     } else if constexpr (std::is_invocable_v<const Action&, absl::Cord&&,
                                              Context&...>) {
-      return action_(absl::Cord(value), context...);
+      return action_(absl::Cord(repr), context...);
     } else {
       static_assert(false, "No string-like type accepted");
     }
@@ -1180,18 +796,19 @@ class OnLengthDelimitedImpl {
 
  private:
   template <typename StringType, typename... Context>
-  absl::Status HandleString(ReaderSpan<> value, Context&... context) const {
-    StringType value_string;
-    if (ABSL_PREDICT_FALSE(!value.reader().Read(IntCast<size_t>(value.length()),
-                                                value_string))) {
+  absl::Status HandleString(ReaderSpan<> repr, Context&... context) const {
+    StringType value;
+    if (ABSL_PREDICT_FALSE(
+            !repr.reader().Read(IntCast<size_t>(repr.length()), value))) {
       return serialized_message_reader_internal::ReadLengthDelimitedValueError(
-          value.reader());
+          repr.reader());
     }
-    absl::Status status = action_(std::move(value_string), context...);
+    absl::Status status = action_(std::move(value), context...);
     // Comparison against `absl::CancelledError()` is a fast path of
     // `absl::IsCancelled()`.
     if (ABSL_PREDICT_FALSE(!status.ok() && status != absl::CancelledError())) {
-      status = AnnotateByReader(std::move(status), value.reader());
+      status = field_handlers_internal::AnnotateByReader(std::move(status),
+                                                         repr.reader());
     }
     return status;
   }
@@ -1200,14 +817,14 @@ class OnLengthDelimitedImpl {
 };
 
 template <int field_number, typename Action>
-class OnStartGroupImpl {
+class BeforeGroupType {
  public:
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
             std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
                              int> = 0>
-  explicit constexpr OnStartGroupImpl(ActionInitializer&& action)
+  explicit constexpr BeforeGroupType(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
   template <typename... Context,
@@ -1223,14 +840,14 @@ class OnStartGroupImpl {
 };
 
 template <int field_number, typename Action>
-class OnEndGroupImpl {
+class AfterGroupType {
  public:
   static constexpr int kFieldNumber = field_number;
 
   template <typename ActionInitializer,
             std::enable_if_t<std::is_convertible_v<ActionInitializer&&, Action>,
                              int> = 0>
-  explicit constexpr OnEndGroupImpl(ActionInitializer&& action)
+  explicit constexpr AfterGroupType(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
   template <typename... Context,
@@ -1245,7 +862,190 @@ class OnEndGroupImpl {
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Action action_;
 };
 
-}  // namespace field_handlers_internal
+template <typename Value, VarintKind kind, int field_number, typename Action>
+template <typename... Context,
+          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                 Value, Context&...>,
+                           int>>
+absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
+    HandleLengthDelimitedFromReader(ReaderSpan<> repr,
+                                    Context&... context) const {
+  ScopedLimiter scoped_limiter(repr);
+  uint64_t element;
+  while (ReadVarint64(repr.reader(), element)) {
+    if (ABSL_PREDICT_FALSE(
+            (!field_handlers_internal::VarintIsValid<Value, kind>(element)))) {
+      return field_handlers_internal::VarintOverflowError<Value, kind>(
+          repr.reader(), element);
+    }
+    if (absl::Status status = this->action()(
+            field_handlers_internal::DecodeVarint<Value, kind>(element),
+            context...);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      // Comparison against `absl::CancelledError()` is a fast path of
+      // `absl::IsCancelled()`.
+      if (ABSL_PREDICT_FALSE(status != absl::CancelledError())) {
+        status = field_handlers_internal::AnnotateByReader(std::move(status),
+                                                           repr.reader());
+      }
+      return status;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(repr.reader().pos() < repr.reader().max_pos())) {
+    return field_handlers_internal::ReadPackedVarintError(repr.reader());
+  }
+  return absl::OkStatus();
+}
+
+template <typename Value, VarintKind kind, int field_number, typename Action>
+template <typename... Context,
+          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                 Value, Context&...>,
+                           int>>
+absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
+    HandleLengthDelimitedFromCord(CordIteratorSpan repr,
+                                  ABSL_ATTRIBUTE_UNUSED std::string& scratch,
+                                  Context&... context) const {
+  const size_t limit =
+      CordIteratorSpan::Remaining(repr.iterator()) - repr.length();
+  uint64_t element;
+  while (ReadVarint64(repr.iterator(),
+                      CordIteratorSpan::Remaining(repr.iterator()) - limit,
+                      element)) {
+    if (ABSL_PREDICT_FALSE(
+            (!field_handlers_internal::VarintIsValid<Value, kind>(element)))) {
+      return field_handlers_internal::VarintOverflowError<Value, kind>(element);
+    }
+    if (absl::Status status = this->action()(
+            field_handlers_internal::DecodeVarint<Value, kind>(element),
+            context...);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(repr.iterator()) >
+                         limit)) {
+    return field_handlers_internal::ReadPackedVarintError();
+  }
+  return absl::OkStatus();
+}
+
+template <typename Value, VarintKind kind, int field_number, typename Action>
+template <typename... Context,
+          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                 Value, Context&...>,
+                           int>>
+absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
+    HandleLengthDelimitedFromString(absl::string_view repr,
+                                    Context&... context) const {
+  const char* cursor = repr.data();
+  const char* const limit = repr.data() + repr.size();
+  uint64_t element;
+  while (const size_t length =
+             ReadVarint64(cursor, PtrDistance(cursor, limit), element)) {
+    cursor += length;
+    if (ABSL_PREDICT_FALSE(
+            (!field_handlers_internal::VarintIsValid<Value, kind>(element)))) {
+      return field_handlers_internal::VarintOverflowError<Value, kind>(element);
+    }
+    if (absl::Status status = this->action()(
+            field_handlers_internal::DecodeVarint<Value, kind>(element),
+            context...);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+  }
+  if (ABSL_PREDICT_FALSE(cursor < limit)) {
+    return field_handlers_internal::ReadPackedVarintError();
+  }
+  return absl::OkStatus();
+}
+
+template <typename Value, int field_number, typename Action>
+template <typename... Context,
+          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                 Value, Context&...>,
+                           int>>
+absl::Status OnRepeatedFixedType<Value, field_number, Action>::
+    HandleLengthDelimitedFromReader(ReaderSpan<> repr,
+                                    Context&... context) const {
+  if (ABSL_PREDICT_FALSE(repr.length() % sizeof(Value) > 0)) {
+    return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>(
+        repr.reader());
+  }
+  Position length = repr.length();
+  while (length > 0) {
+    Value element;
+    if (ABSL_PREDICT_FALSE(!ReadLittleEndian<Value>(repr.reader(), element))) {
+      return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>(
+          repr.reader());
+    }
+    if (absl::Status status = this->action()(element, context...);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      // Comparison against `absl::CancelledError()` is a fast path of
+      // `absl::IsCancelled()`.
+      if (ABSL_PREDICT_FALSE(status != absl::CancelledError())) {
+        status = field_handlers_internal::AnnotateByReader(std::move(status),
+                                                           repr.reader());
+      }
+      return status;
+    }
+    length -= sizeof(Value);
+  }
+  return absl::OkStatus();
+}
+
+template <typename Value, int field_number, typename Action>
+template <typename... Context,
+          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                 Value, Context&...>,
+                           int>>
+absl::Status
+OnRepeatedFixedType<Value, field_number, Action>::HandleLengthDelimitedFromCord(
+    CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
+    Context&... context) const {
+  if (ABSL_PREDICT_FALSE(repr.length() % sizeof(Value) > 0)) {
+    return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>();
+  }
+  Position length = repr.length();
+  while (length > 0) {
+    char buffer[sizeof(Value)];
+    CordIteratorSpan::Read(repr.iterator(), sizeof(Value), buffer);
+    const Value element = ReadLittleEndian<Value>(buffer);
+    if (absl::Status status = this->action()(element, context...);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    length -= sizeof(Value);
+  }
+  return absl::OkStatus();
+}
+
+template <typename Value, int field_number, typename Action>
+template <typename... Context,
+          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
+                                                 Value, Context&...>,
+                           int>>
+absl::Status OnRepeatedFixedType<Value, field_number, Action>::
+    HandleLengthDelimitedFromString(absl::string_view repr,
+                                    Context&... context) const {
+  if (ABSL_PREDICT_FALSE(repr.size() % sizeof(Value) > 0)) {
+    return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>();
+  }
+  const char* cursor = repr.data();
+  const char* const limit = repr.data() + repr.size();
+  while (cursor < limit) {
+    const Value element = ReadLittleEndian<Value>(cursor);
+    if (absl::Status status = this->action()(element, context...);
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    cursor += sizeof(Value);
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace field_handlers
 
 }  // namespace riegeli
 

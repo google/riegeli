@@ -588,41 +588,41 @@ inline absl::Status AnnotateWithSourceAndFieldNumber(absl::Status status,
   return status;
 }
 
-ABSL_ATTRIBUTE_COLD absl::Status ReadTagError(Reader& src);
 ABSL_ATTRIBUTE_COLD absl::Status ReadTagError();
-ABSL_ATTRIBUTE_COLD absl::Status ReadVarintError(Reader& src, int field_number);
+ABSL_ATTRIBUTE_COLD absl::Status ReadTagError(Reader& src);
 ABSL_ATTRIBUTE_COLD absl::Status ReadVarintError(int field_number);
+ABSL_ATTRIBUTE_COLD absl::Status ReadVarintError(Reader& src, int field_number);
+ABSL_ATTRIBUTE_COLD absl::Status ReadFixed32Error(int field_number);
 ABSL_ATTRIBUTE_COLD absl::Status ReadFixed32Error(Reader& src,
                                                   int field_number);
-ABSL_ATTRIBUTE_COLD absl::Status ReadFixed32Error(int field_number);
+ABSL_ATTRIBUTE_COLD absl::Status ReadFixed64Error(int field_number);
 ABSL_ATTRIBUTE_COLD absl::Status ReadFixed64Error(Reader& src,
                                                   int field_number);
-ABSL_ATTRIBUTE_COLD absl::Status ReadFixed64Error(int field_number);
-ABSL_ATTRIBUTE_COLD absl::Status NotEnoughError(LimitingReaderBase& src,
-                                                int field_number,
-                                                uint32_t expected_length);
 ABSL_ATTRIBUTE_COLD absl::Status NotEnoughError(int field_number,
                                                 uint32_t expected_length,
                                                 size_t available);
-ABSL_ATTRIBUTE_COLD absl::Status ReadLengthDelimitedLengthError(
-    Reader& src, int field_number);
+ABSL_ATTRIBUTE_COLD absl::Status NotEnoughError(LimitingReaderBase& src,
+                                                int field_number,
+                                                uint32_t expected_length);
 ABSL_ATTRIBUTE_COLD absl::Status ReadLengthDelimitedLengthError(
     int field_number);
-ABSL_ATTRIBUTE_COLD absl::Status ReadLengthDelimitedValueError(
+ABSL_ATTRIBUTE_COLD absl::Status ReadLengthDelimitedLengthError(
     Reader& src, int field_number);
 ABSL_ATTRIBUTE_COLD absl::Status ReadLengthDelimitedValueError(Reader& src);
+ABSL_ATTRIBUTE_COLD absl::Status ReadLengthDelimitedValueError(
+    Reader& src, int field_number);
+ABSL_ATTRIBUTE_COLD absl::Status InvalidWireTypeError(uint32_t tag);
 ABSL_ATTRIBUTE_COLD absl::Status InvalidWireTypeError(Reader& src,
                                                       uint32_t tag);
-ABSL_ATTRIBUTE_COLD absl::Status InvalidWireTypeError(uint32_t tag);
 
 template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadVarintField(
-    int field_number, uint64_t value, absl::Status& status,
+    int field_number, uint64_t repr, absl::Status& status,
     const FieldHandler& field_handler, Context&... context) {
   if constexpr (IsStaticFieldHandlerForVarint<FieldHandler,
                                               Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
-      status = field_handler.HandleVarint(value, context...);
+      status = field_handler.HandleVarint(repr, context...);
       return true;
     }
   }
@@ -630,7 +630,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadVarintField(
                                                Context...>::value) {
     auto maybe_accepted = field_handler.AcceptVarint(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleVarint(*std::move(maybe_accepted), value,
+      status = field_handler.HandleVarint(*std::move(maybe_accepted), repr,
                                           context...);
       return true;
     }
@@ -640,12 +640,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadVarintField(
 
 template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed32Field(
-    int field_number, uint32_t value, absl::Status& status,
+    int field_number, uint32_t repr, absl::Status& status,
     const FieldHandler& field_handler, Context&... context) {
   if constexpr (IsStaticFieldHandlerForFixed32<FieldHandler,
                                                Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
-      status = field_handler.HandleFixed32(value, context...);
+      status = field_handler.HandleFixed32(repr, context...);
       return true;
     }
   }
@@ -653,7 +653,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed32Field(
                                                 Context...>::value) {
     auto maybe_accepted = field_handler.AcceptFixed32(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleFixed32(*std::move(maybe_accepted), value,
+      status = field_handler.HandleFixed32(*std::move(maybe_accepted), repr,
                                            context...);
       return true;
     }
@@ -663,12 +663,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed32Field(
 
 template <typename FieldHandler, typename... Context>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed64Field(
-    int field_number, uint64_t value, absl::Status& status,
+    int field_number, uint64_t repr, absl::Status& status,
     const FieldHandler& field_handler, Context&... context) {
   if constexpr (IsStaticFieldHandlerForFixed64<FieldHandler,
                                                Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
-      status = field_handler.HandleFixed64(value, context...);
+      status = field_handler.HandleFixed64(repr, context...);
       return true;
     }
   }
@@ -676,7 +676,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed64Field(
                                                 Context...>::value) {
     auto maybe_accepted = field_handler.AcceptFixed64(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleFixed64(*std::move(maybe_accepted), value,
+      status = field_handler.HandleFixed64(*std::move(maybe_accepted), repr,
                                            context...);
       return true;
     }
@@ -699,13 +699,12 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromReader(
   } else if constexpr (IsStaticFieldHandlerForLengthDelimitedFromString<
                            FieldHandler, Context...>::value) {
     if (field_number == FieldHandler::kFieldNumber) {
-      absl::string_view value_string;
-      if (ABSL_PREDICT_FALSE(!src.Read(length, value_string))) {
+      absl::string_view value;
+      if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
         status = ReadLengthDelimitedValueError(src);
         return true;
       }
-      status = field_handler.HandleLengthDelimitedFromString(value_string,
-                                                             context...);
+      status = field_handler.HandleLengthDelimitedFromString(value, context...);
       return true;
     }
   }
@@ -721,13 +720,13 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromReader(
                            FieldHandler, Context...>::value) {
     auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
     if (maybe_accepted) {
-      absl::string_view value_string;
-      if (ABSL_PREDICT_FALSE(!src.Read(length, value_string))) {
+      absl::string_view value;
+      if (ABSL_PREDICT_FALSE(!src.Read(length, value))) {
         status = ReadLengthDelimitedValueError(src);
         return true;
       }
       status = field_handler.HandleLengthDelimitedFromString(
-          *std::move(maybe_accepted), value_string, context...);
+          *std::move(maybe_accepted), value, context...);
       return true;
     }
   }

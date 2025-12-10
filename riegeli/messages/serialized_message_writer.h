@@ -364,27 +364,27 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleVarint(int field_number, uint64_t value,
+  absl::Status HandleVarint(int field_number, uint64_t repr,
                             Context&... context) const {
-    return message_writer(context...).WriteUInt64(field_number, value);
+    return message_writer(context...).WriteUInt64(field_number, repr);
   }
 
   std::optional<int> AcceptFixed32(int field_number) const {
     return field_number;
   }
 
-  absl::Status HandleFixed32(int field_number, uint32_t value,
+  absl::Status HandleFixed32(int field_number, uint32_t repr,
                              Context&... context) const {
-    return message_writer(context...).WriteFixed32(field_number, value);
+    return message_writer(context...).WriteFixed32(field_number, repr);
   }
 
   std::optional<int> AcceptFixed64(int field_number) const {
     return field_number;
   }
 
-  absl::Status HandleFixed64(int field_number, uint64_t value,
+  absl::Status HandleFixed64(int field_number, uint64_t repr,
                              Context&... context) const {
-    return message_writer(context...).WriteFixed64(field_number, value);
+    return message_writer(context...).WriteFixed64(field_number, repr);
   }
 
   std::optional<int> AcceptLengthDelimited(int field_number) const {
@@ -392,23 +392,22 @@ class CopyingFieldHandler {
   }
 
   absl::Status HandleLengthDelimitedFromReader(int field_number,
-                                               ReaderSpan<> value,
+                                               ReaderSpan<> repr,
                                                Context&... context) const {
-    return message_writer(context...)
-        .CopyString(field_number, std::move(value));
+    return message_writer(context...).CopyString(field_number, std::move(repr));
   }
 
   absl::Status HandleLengthDelimitedFromCord(
-      int field_number, CordIteratorSpan value,
+      int field_number, CordIteratorSpan repr,
       ABSL_ATTRIBUTE_UNUSED std::string& scratch, Context&... context) const {
     return message_writer(context...)
-        .WriteString(field_number, std::move(value));
+        .WriteString(field_number, std::move(repr));
   }
 
   absl::Status HandleLengthDelimitedFromString(int field_number,
-                                               absl::string_view value,
+                                               absl::string_view repr,
                                                Context&... context) const {
-    return message_writer(context...).WriteString(field_number, value);
+    return message_writer(context...).WriteString(field_number, repr);
   }
 
   std::optional<int> AcceptStartGroup(int field_number) const {

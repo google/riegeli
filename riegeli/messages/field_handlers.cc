@@ -37,8 +37,69 @@ absl::Status AnnotateByReader(absl::Status status, Reader& reader) {
   }
 }
 
-absl::Status ReadPackedVarintError(Reader& src) {
-  return src.StatusOrAnnotate(ReadPackedVarintError());
+template <>
+absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(
+    uint64_t repr) {
+  return absl::InvalidArgumentError(
+      absl::StrCat("int32 field overflow: ", repr));
+}
+
+template <>
+absl::Status VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
+    uint64_t repr) {
+  return absl::InvalidArgumentError(
+      absl::StrCat("uint32 field overflow: ", repr));
+}
+
+template <>
+absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
+    uint64_t repr) {
+  return absl::InvalidArgumentError(
+      absl::StrCat("sint32 field overflow: ", repr));
+}
+
+template <>
+absl::Status VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(
+    uint64_t repr) {
+  return absl::InvalidArgumentError(
+      absl::StrCat("bool field overflow: ", repr));
+}
+
+absl::Status EnumOverflowError(uint64_t repr) {
+  return absl::InvalidArgumentError(
+      absl::StrCat("enum field overflow: ", repr));
+}
+
+template <>
+absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(
+    Reader& src, uint64_t repr) {
+  return src.StatusOrAnnotate(
+      VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(repr));
+}
+
+template <>
+absl::Status VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
+    Reader& src, uint64_t repr) {
+  return src.StatusOrAnnotate(
+      VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(repr));
+}
+
+template <>
+absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
+    Reader& src, uint64_t repr) {
+  return src.StatusOrAnnotate(
+      VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(repr));
+}
+
+absl::Status EnumOverflowError(Reader& src, uint64_t repr) {
+  return src.StatusOrAnnotate(EnumOverflowError(repr));
+}
+
+template <>
+absl::Status VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(
+    Reader& src, uint64_t repr) {
+  return src.StatusOrAnnotate(
+      VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(repr));
 }
 
 absl::Status ReadPackedVarintError() {
@@ -46,63 +107,30 @@ absl::Status ReadPackedVarintError() {
       "Could not read a varint element of a packed repeated field");
 }
 
-absl::Status ReadPackedFixed32Error(Reader& src) {
-  return src.StatusOrAnnotate(ReadPackedFixed32Error());
+absl::Status ReadPackedVarintError(Reader& src) {
+  return src.StatusOrAnnotate(ReadPackedVarintError());
 }
 
-absl::Status ReadPackedFixed32Error() {
+template <>
+absl::Status ReadPackedFixedError<sizeof(uint32_t)>() {
   return absl::InvalidArgumentError(
       "Could not read a fixed32 element of a packed repeated field");
 }
 
-absl::Status ReadPackedFixed64Error(Reader& src) {
-  return src.StatusOrAnnotate(ReadPackedFixed64Error());
-}
-
-absl::Status ReadPackedFixed64Error() {
+template <>
+absl::Status ReadPackedFixedError<sizeof(uint64_t)>() {
   return absl::InvalidArgumentError(
       "Could not read a fixed64 element of a packed repeated field");
 }
 
-absl::Status InvalidEnumError(uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("enum field overflow: ", repr));
+template <>
+absl::Status ReadPackedFixedError<sizeof(uint32_t)>(Reader& src) {
+  return src.StatusOrAnnotate(ReadPackedFixedError<sizeof(uint32_t)>());
 }
 
-absl::Status Int32Traits::InvalidError(Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(InvalidError(repr));
-}
-
-absl::Status Int32Traits::InvalidError(uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("int32 field overflow: ", repr));
-}
-
-absl::Status UInt32Traits::InvalidError(Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(InvalidError(repr));
-}
-
-absl::Status UInt32Traits::InvalidError(uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("uint32 field overflow: ", repr));
-}
-
-absl::Status SInt32Traits::InvalidError(Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(InvalidError(repr));
-}
-
-absl::Status SInt32Traits::InvalidError(uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("sint32 field overflow: ", repr));
-}
-
-absl::Status BoolTraits::InvalidError(Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(InvalidError(repr));
-}
-
-absl::Status BoolTraits::InvalidError(uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("bool field overflow: ", repr));
+template <>
+absl::Status ReadPackedFixedError<sizeof(uint64_t)>(Reader& src) {
+  return src.StatusOrAnnotate(ReadPackedFixedError<sizeof(uint64_t)>());
 }
 
 }  // namespace riegeli::field_handlers_internal

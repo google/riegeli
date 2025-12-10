@@ -77,12 +77,16 @@ absl::Status AnnotateWithSourceAndFieldNumberSlow(absl::Status status,
                                      field_number);
 }
 
+absl::Status ReadTagError() {
+  return absl::InvalidArgumentError("Could not read field tag");
+}
+
 absl::Status ReadTagError(Reader& src) {
   return src.StatusOrAnnotate(ReadTagError());
 }
 
-absl::Status ReadTagError() {
-  return absl::InvalidArgumentError("Could not read field tag");
+absl::Status ReadVarintError(int field_number) {
+  return AnnotateWithFieldNumberSlow(ReadVarintError(), field_number);
 }
 
 absl::Status ReadVarintError(Reader& src, int field_number) {
@@ -90,8 +94,8 @@ absl::Status ReadVarintError(Reader& src, int field_number) {
                                               field_number);
 }
 
-absl::Status ReadVarintError(int field_number) {
-  return AnnotateWithFieldNumberSlow(ReadVarintError(), field_number);
+absl::Status ReadFixed32Error(int field_number) {
+  return AnnotateWithFieldNumberSlow(ReadFixed32Error(), field_number);
 }
 
 absl::Status ReadFixed32Error(Reader& src, int field_number) {
@@ -99,23 +103,13 @@ absl::Status ReadFixed32Error(Reader& src, int field_number) {
                                               field_number);
 }
 
-absl::Status ReadFixed32Error(int field_number) {
-  return AnnotateWithFieldNumberSlow(ReadFixed32Error(), field_number);
+absl::Status ReadFixed64Error(int field_number) {
+  return AnnotateWithFieldNumberSlow(ReadFixed64Error(), field_number);
 }
 
 absl::Status ReadFixed64Error(Reader& src, int field_number) {
   return AnnotateWithSourceAndFieldNumberSlow(ReadFixed64Error(), src,
                                               field_number);
-}
-
-absl::Status ReadFixed64Error(int field_number) {
-  return AnnotateWithFieldNumberSlow(ReadFixed64Error(), field_number);
-}
-
-absl::Status NotEnoughError(LimitingReaderBase& src, int field_number,
-                            uint32_t expected_length) {
-  return AnnotateWithSourceAndFieldNumberSlow(
-      NotEnoughError(expected_length, src.max_length()), src, field_number);
 }
 
 absl::Status NotEnoughError(int field_number, uint32_t expected_length,
@@ -124,9 +118,10 @@ absl::Status NotEnoughError(int field_number, uint32_t expected_length,
                                      field_number);
 }
 
-absl::Status ReadLengthDelimitedLengthError(Reader& src, int field_number) {
-  return AnnotateWithSourceAndFieldNumberSlow(ReadLengthDelimitedLengthError(),
-                                              src, field_number);
+absl::Status NotEnoughError(LimitingReaderBase& src, int field_number,
+                            uint32_t expected_length) {
+  return AnnotateWithSourceAndFieldNumberSlow(
+      NotEnoughError(expected_length, src.max_length()), src, field_number);
 }
 
 absl::Status ReadLengthDelimitedLengthError(int field_number) {
@@ -134,9 +129,9 @@ absl::Status ReadLengthDelimitedLengthError(int field_number) {
                                      field_number);
 }
 
-absl::Status ReadLengthDelimitedValueError(Reader& src, int field_number) {
-  return AnnotateWithFieldNumberSlow(ReadLengthDelimitedValueError(src),
-                                     field_number);
+absl::Status ReadLengthDelimitedLengthError(Reader& src, int field_number) {
+  return AnnotateWithSourceAndFieldNumberSlow(ReadLengthDelimitedLengthError(),
+                                              src, field_number);
 }
 
 absl::Status ReadLengthDelimitedValueError(Reader& src) {
@@ -144,13 +139,18 @@ absl::Status ReadLengthDelimitedValueError(Reader& src) {
       absl::InvalidArgumentError("Could not read a length-delimited field"));
 }
 
-absl::Status InvalidWireTypeError(Reader& src, uint32_t tag) {
-  return src.StatusOrAnnotate(InvalidWireTypeError(tag));
+absl::Status ReadLengthDelimitedValueError(Reader& src, int field_number) {
+  return AnnotateWithFieldNumberSlow(ReadLengthDelimitedValueError(src),
+                                     field_number);
 }
 
 absl::Status InvalidWireTypeError(uint32_t tag) {
   return absl::InvalidArgumentError(absl::StrCat(
       "Invalid wire type: ", static_cast<int>(GetTagWireType(tag))));
+}
+
+absl::Status InvalidWireTypeError(Reader& src, uint32_t tag) {
+  return src.StatusOrAnnotate(InvalidWireTypeError(tag));
 }
 
 }  // namespace riegeli::serialized_message_reader_internal

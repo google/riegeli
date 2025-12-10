@@ -156,18 +156,18 @@ namespace riegeli {
 // Static and unbound field handlers provide at least one of the following
 // member functions, with parameters followed by `Context&...`:
 // ```
-//   absl::Status HandleVarint(uint64_t value) const;
+//   absl::Status HandleVarint(uint64_t repr) const;
 //
-//   absl::Status HandleFixed32(uint32_t value) const;
+//   absl::Status HandleFixed32(uint32_t repr) const;
 //
-//   absl::Status HandleFixed64(uint64_t value) const;
+//   absl::Status HandleFixed64(uint64_t repr) const;
 //
 //   // Applicable to a `Reader` source.
 //   //
 //   // `HandleLengthDelimitedFromReader()` must read to the end of the
 //   // `ReaderSpan<>` or fail. `SkipLengthDelimitedFromReader()` can be used
 //   // to ensure this property.
-//   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> value) const;
+//   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr) const;
 //
 //   // Applicable to a `Cord` source.
 //   //
@@ -176,11 +176,11 @@ namespace riegeli {
 //   // `HandleLengthDelimitedFromCord()` must read to the end of the
 //   // `CordIteratorSpan` or fail. `SkipLengthDelimitedFromCord()` can be used
 //   // to ensure this property.
-//   absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan value,
+//   absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
 //                                              std::string& scratch) const;
 //
 //   // Applicable to a string source.
-//   absl::Status HandleLengthDelimitedFromString(absl::string_view value)
+//   absl::Status HandleLengthDelimitedFromString(absl::string_view repr)
 //       const;
 //
 //   absl::Status HandleStartGroup() const;
@@ -210,7 +210,7 @@ namespace riegeli {
 // ```
 //   MaybeAccepted AcceptX(int field_number) const;`
 //
-//   absl::Status HandleX(Accepted accepted, T... value) const;
+//   absl::Status HandleX(Accepted accepted, T... repr) const;
 // ```
 //
 // For length-delimited fields, a single `AcceptLengthDelimited()` function
