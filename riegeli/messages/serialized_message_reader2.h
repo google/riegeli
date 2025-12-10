@@ -303,6 +303,142 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
   absl::Status ReadMessageFromString(absl::string_view src,
                                      Context&... context) const;
 
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleVarintField(
+      int field_number, uint64_t value, absl::Status& status,
+      Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (serialized_message_reader_internal::ReadVarintField(
+                  field_number, value, status,
+                  serialized_message_reader_internal::DerefPointer(
+                      std::get<index>(field_handlers_)),
+                  context...) ||
+              HandleVarintField<index + 1>(field_number, value, status,
+                                           context...));
+    } else {
+      return false;
+    }
+  }
+
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleFixed32Field(
+      int field_number, uint32_t value, absl::Status& status,
+      Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (serialized_message_reader_internal::ReadFixed32Field(
+                  field_number, value, status,
+                  serialized_message_reader_internal::DerefPointer(
+                      std::get<index>(field_handlers_)),
+                  context...) ||
+              HandleFixed32Field<index + 1>(field_number, value, status,
+                                            context...));
+    } else {
+      return false;
+    }
+  }
+
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleFixed64Field(
+      int field_number, uint64_t value, absl::Status& status,
+      Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (serialized_message_reader_internal::ReadFixed64Field(
+                  field_number, value, status,
+                  serialized_message_reader_internal::DerefPointer(
+                      std::get<index>(field_handlers_)),
+                  context...) ||
+              HandleFixed64Field<index + 1>(field_number, value, status,
+                                            context...));
+    } else {
+      return false;
+    }
+  }
+
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleLengthDelimitedFieldFromReader(
+      int field_number, LimitingReaderBase& src, size_t length,
+      absl::Status& status, Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (serialized_message_reader_internal::
+                  ReadLengthDelimitedFieldFromReader(
+                      field_number, src, length, status,
+                      serialized_message_reader_internal::DerefPointer(
+                          std::get<index>(field_handlers_)),
+                      context...) ||
+              HandleLengthDelimitedFieldFromReader<index + 1>(
+                  field_number, src, length, status, context...));
+    } else {
+      return false;
+    }
+  }
+
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleLengthDelimitedFieldFromCord(
+      int field_number, absl::Cord::CharIterator& src, size_t length,
+      std::string& scratch, absl::Status& status, Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (
+          serialized_message_reader_internal::ReadLengthDelimitedFieldFromCord(
+              field_number, src, length, scratch, status,
+              serialized_message_reader_internal::DerefPointer(
+                  std::get<index>(field_handlers_)),
+              context...) ||
+          HandleLengthDelimitedFieldFromCord<index + 1>(
+              field_number, src, length, scratch, status, context...));
+    } else {
+      return false;
+    }
+  }
+
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleLengthDelimitedFieldFromString(
+      int field_number, const char* cursor, size_t length, absl::Status& status,
+      Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (serialized_message_reader_internal::
+                  ReadLengthDelimitedFieldFromString(
+                      field_number, cursor, length, status,
+                      serialized_message_reader_internal::DerefPointer(
+                          std::get<index>(field_handlers_)),
+                      context...) ||
+              HandleLengthDelimitedFieldFromString<index + 1>(
+                  field_number, cursor, length, status, context...));
+    } else {
+      return false;
+    }
+  }
+
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleStartGroupField(
+      int field_number, absl::Status& status, Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (
+          serialized_message_reader_internal::ReadStartGroupField(
+              field_number, status,
+              serialized_message_reader_internal::DerefPointer(
+                  std::get<index>(field_handlers_)),
+              context...) ||
+          HandleStartGroupField<index + 1>(field_number, status, context...));
+    } else {
+      return false;
+    }
+  }
+
+  template <size_t index = 0>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleEndGroupField(
+      int field_number, absl::Status& status, Context&... context) const {
+    if constexpr (index < sizeof...(FieldHandlers)) {
+      return (serialized_message_reader_internal::ReadEndGroupField(
+                  field_number, status,
+                  serialized_message_reader_internal::DerefPointer(
+                      std::get<index>(field_handlers_)),
+                  context...) ||
+              HandleEndGroupField<index + 1>(field_number, status, context...));
+    } else {
+      return false;
+    }
+  }
+
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS std::tuple<FieldHandlers...> field_handlers_;
 };
 
@@ -433,17 +569,7 @@ absl::Status SerializedMessageReaderType<
                 src, field_number);
           }
           absl::Status status;
-          if (std::apply(
-                  [&](const auto&... field_handlers) {
-                    return (
-                        serialized_message_reader_internal::ReadVarintField(
-                            field_number, value, status,
-                            serialized_message_reader_internal::DerefPointer(
-                                field_handlers),
-                            context...) ||
-                        ...);
-                  },
-                  field_handlers_)) {
+          if (HandleVarintField(field_number, value, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               return serialized_message_reader_internal::
                   AnnotateWithSourceAndFieldNumber(std::move(status), src,
@@ -467,16 +593,7 @@ absl::Status SerializedMessageReaderType<
               src, field_number);
         }
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::ReadFixed32Field(
-                              field_number, value, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                          ...);
-                },
-                field_handlers_)) {
+        if (HandleFixed32Field(field_number, value, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::
                 AnnotateWithSourceAndFieldNumber(std::move(status), src,
@@ -492,16 +609,7 @@ absl::Status SerializedMessageReaderType<
               src, field_number);
         }
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::ReadFixed64Field(
-                              field_number, value, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                          ...);
-                },
-                field_handlers_)) {
+        if (HandleFixed64Field(field_number, value, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::
                 AnnotateWithSourceAndFieldNumber(std::move(status), src,
@@ -533,17 +641,8 @@ absl::Status SerializedMessageReaderType<
           }
           const Position end_pos = src.pos() + size_t{length};
           absl::Status status;
-          if (std::apply(
-                  [&](const auto&... field_handlers) {
-                    return (serialized_message_reader_internal::
-                                ReadLengthDelimitedFieldFromReader(
-                                    field_number, src, size_t{length}, status,
-                                    serialized_message_reader_internal::
-                                        DerefPointer(field_handlers),
-                                    context...) ||
-                            ...);
-                  },
-                  field_handlers_)) {
+          if (HandleLengthDelimitedFieldFromReader(
+                  field_number, src, size_t{length}, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
@@ -568,17 +667,7 @@ absl::Status SerializedMessageReaderType<
       }
       case WireType::kStartGroup: {
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (
-                      serialized_message_reader_internal::ReadStartGroupField(
-                          field_number, status,
-                          serialized_message_reader_internal::DerefPointer(
-                              field_handlers),
-                          context...) ||
-                      ...);
-                },
-                field_handlers_)) {
+        if (HandleStartGroupField(field_number, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::
                 AnnotateWithSourceAndFieldNumber(std::move(status), src,
@@ -589,16 +678,7 @@ absl::Status SerializedMessageReaderType<
       }
       case WireType::kEndGroup: {
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::ReadEndGroupField(
-                              field_number, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                          ...);
-                },
-                field_handlers_)) {
+        if (HandleEndGroupField(field_number, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::
                 AnnotateWithSourceAndFieldNumber(std::move(status), src,
@@ -644,17 +724,7 @@ inline absl::Status SerializedMessageReaderType<
                 field_number);
           }
           absl::Status status;
-          if (std::apply(
-                  [&](const auto&... field_handlers) {
-                    return (
-                        serialized_message_reader_internal::ReadVarintField(
-                            field_number, value, status,
-                            serialized_message_reader_internal::DerefPointer(
-                                field_handlers),
-                            context...) ||
-                        ...);
-                  },
-                  field_handlers_)) {
+          if (HandleVarintField(field_number, value, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
@@ -685,17 +755,7 @@ inline absl::Status SerializedMessageReaderType<
           CordIteratorSpan::Read(src, sizeof(uint32_t), buffer);
           const uint32_t value = ReadLittleEndian32(buffer);
           absl::Status status;
-          if (std::apply(
-                  [&](const auto&... field_handlers) {
-                    return (
-                        serialized_message_reader_internal::ReadFixed32Field(
-                            field_number, value, status,
-                            serialized_message_reader_internal::DerefPointer(
-                                field_handlers),
-                            context...) ||
-                        ...);
-                  },
-                  field_handlers_)) {
+          if (HandleFixed32Field(field_number, value, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
@@ -722,17 +782,7 @@ inline absl::Status SerializedMessageReaderType<
           CordIteratorSpan::Read(src, sizeof(uint64_t), buffer);
           const uint64_t value = ReadLittleEndian64(buffer);
           absl::Status status;
-          if (std::apply(
-                  [&](const auto&... field_handlers) {
-                    return (
-                        serialized_message_reader_internal::ReadFixed64Field(
-                            field_number, value, status,
-                            serialized_message_reader_internal::DerefPointer(
-                                field_handlers),
-                            context...) ||
-                        ...);
-                  },
-                  field_handlers_)) {
+          if (HandleFixed64Field(field_number, value, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
@@ -766,18 +816,9 @@ inline absl::Status SerializedMessageReaderType<
                                   std::remove_pointer_t<FieldHandlers>,
                                   Context...>...>) {
           absl::Status status;
-          if (std::apply(
-                  [&](const auto&... field_handlers) {
-                    return (serialized_message_reader_internal::
-                                ReadLengthDelimitedFieldFromCord(
-                                    field_number, src, size_t{length}, scratch,
-                                    status,
-                                    serialized_message_reader_internal::
-                                        DerefPointer(field_handlers),
-                                    context...) ||
-                            ...);
-                  },
-                  field_handlers_)) {
+          if (HandleLengthDelimitedFieldFromCord(field_number, src,
+                                                 size_t{length}, scratch,
+                                                 status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
@@ -800,17 +841,7 @@ inline absl::Status SerializedMessageReaderType<
       }
       case WireType::kStartGroup: {
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (
-                      serialized_message_reader_internal::ReadStartGroupField(
-                          field_number, status,
-                          serialized_message_reader_internal::DerefPointer(
-                              field_handlers),
-                          context...) ||
-                      ...);
-                },
-                field_handlers_)) {
+        if (HandleStartGroupField(field_number, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::AnnotateWithFieldNumber(
                 std::move(status), field_number);
@@ -820,16 +851,7 @@ inline absl::Status SerializedMessageReaderType<
       }
       case WireType::kEndGroup: {
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::ReadEndGroupField(
-                              field_number, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                          ...);
-                },
-                field_handlers_)) {
+        if (HandleEndGroupField(field_number, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::AnnotateWithFieldNumber(
                 std::move(status), field_number);
@@ -879,17 +901,7 @@ inline absl::Status SerializedMessageReaderType<
           }
           cursor += length_of_value;
           absl::Status status;
-          if (std::apply(
-                  [&](const auto&... field_handlers) {
-                    return (
-                        serialized_message_reader_internal::ReadVarintField(
-                            field_number, value, status,
-                            serialized_message_reader_internal::DerefPointer(
-                                field_handlers),
-                            context...) ||
-                        ...);
-                  },
-                  field_handlers_)) {
+          if (HandleVarintField(field_number, value, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
@@ -916,16 +928,7 @@ inline absl::Status SerializedMessageReaderType<
         const uint32_t value = ReadLittleEndian32(cursor);
         cursor += sizeof(uint32_t);
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::ReadFixed32Field(
-                              field_number, value, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                          ...);
-                },
-                field_handlers_)) {
+        if (HandleFixed32Field(field_number, value, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::AnnotateWithFieldNumber(
                 std::move(status), field_number);
@@ -941,16 +944,7 @@ inline absl::Status SerializedMessageReaderType<
         const uint64_t value = ReadLittleEndian64(cursor);
         cursor += sizeof(uint64_t);
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::ReadFixed64Field(
-                              field_number, value, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                          ...);
-                },
-                field_handlers_)) {
+        if (HandleFixed64Field(field_number, value, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::AnnotateWithFieldNumber(
                 std::move(status), field_number);
@@ -975,18 +969,8 @@ inline absl::Status SerializedMessageReaderType<
               field_number, length, available_for_value);
         }
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (
-                      serialized_message_reader_internal::
-                          ReadLengthDelimitedFieldFromString(
-                              field_number, cursor, size_t{length}, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                      ...);
-                },
-                field_handlers_)) {
+        if (HandleLengthDelimitedFieldFromString(
+                field_number, cursor, size_t{length}, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::AnnotateWithFieldNumber(
                 std::move(status), field_number);
@@ -997,17 +981,7 @@ inline absl::Status SerializedMessageReaderType<
       }
       case WireType::kStartGroup: {
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (
-                      serialized_message_reader_internal::ReadStartGroupField(
-                          field_number, status,
-                          serialized_message_reader_internal::DerefPointer(
-                              field_handlers),
-                          context...) ||
-                      ...);
-                },
-                field_handlers_)) {
+        if (HandleStartGroupField(field_number, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::AnnotateWithFieldNumber(
                 std::move(status), field_number);
@@ -1017,16 +991,7 @@ inline absl::Status SerializedMessageReaderType<
       }
       case WireType::kEndGroup: {
         absl::Status status;
-        if (std::apply(
-                [&](const auto&... field_handlers) {
-                  return (serialized_message_reader_internal::ReadEndGroupField(
-                              field_number, status,
-                              serialized_message_reader_internal::DerefPointer(
-                                  field_handlers),
-                              context...) ||
-                          ...);
-                },
-                field_handlers_)) {
+        if (HandleEndGroupField(field_number, status, context...)) {
           if (ABSL_PREDICT_FALSE(!status.ok())) {
             return serialized_message_reader_internal::AnnotateWithFieldNumber(
                 std::move(status), field_number);
