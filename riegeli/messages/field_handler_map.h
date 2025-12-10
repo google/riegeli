@@ -186,8 +186,8 @@ class FieldHandlerMapImpl {
     return &iter->second;
   }
 
-  absl::Status HandleVarint(const FieldAction<uint64_t>& handler, uint64_t repr,
-                            Context&... context) const {
+  absl::Status DynamicHandleVarint(const FieldAction<uint64_t>& handler,
+                                   uint64_t repr, Context&... context) const {
     return handler(repr, context...);
   }
 
@@ -198,8 +198,8 @@ class FieldHandlerMapImpl {
     return &iter->second;
   }
 
-  absl::Status HandleFixed32(const FieldAction<uint32_t>& handler,
-                             uint32_t repr, Context&... context) const {
+  absl::Status DynamicHandleFixed32(const FieldAction<uint32_t>& handler,
+                                    uint32_t repr, Context&... context) const {
     return handler(repr, context...);
   }
 
@@ -210,8 +210,8 @@ class FieldHandlerMapImpl {
     return &iter->second;
   }
 
-  absl::Status HandleFixed64(const FieldAction<uint64_t>& handler,
-                             uint64_t repr, Context&... context) const {
+  absl::Status DynamicHandleFixed64(const FieldAction<uint64_t>& handler,
+                                    uint64_t repr, Context&... context) const {
     return handler(repr, context...);
   }
 
@@ -222,7 +222,7 @@ class FieldHandlerMapImpl {
     return &iter->second;
   }
 
-  absl::Status HandleLengthDelimitedFromReader(
+  absl::Status DynamicHandleLengthDelimitedFromReader(
       const LengthDelimitedHandler& handler, ReaderSpan<> repr,
       Context&... context) const {
     return handler.action(handler.children.get(), std::move(repr), context...);
@@ -234,8 +234,8 @@ class FieldHandlerMapImpl {
     return &iter->second;
   }
 
-  absl::Status HandleStartGroup(const FieldAction<>& handler,
-                                Context&... context) const {
+  absl::Status DynamicHandleStartGroup(const FieldAction<>& handler,
+                                       Context&... context) const {
     return handler(context...);
   }
 
@@ -245,8 +245,8 @@ class FieldHandlerMapImpl {
     return &iter->second;
   }
 
-  absl::Status HandleEndGroup(const FieldAction<>& handler,
-                              Context&... context) const {
+  absl::Status DynamicHandleEndGroup(const FieldAction<>& handler,
+                                     Context&... context) const {
     return handler(context...);
   }
 

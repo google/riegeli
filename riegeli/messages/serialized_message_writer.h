@@ -364,8 +364,8 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleVarint(int field_number, uint64_t repr,
-                            Context&... context) const {
+  absl::Status DynamicHandleVarint(int field_number, uint64_t repr,
+                                   Context&... context) const {
     return message_writer(context...).WriteUInt64(field_number, repr);
   }
 
@@ -373,8 +373,8 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleFixed32(int field_number, uint32_t repr,
-                             Context&... context) const {
+  absl::Status DynamicHandleFixed32(int field_number, uint32_t repr,
+                                    Context&... context) const {
     return message_writer(context...).WriteFixed32(field_number, repr);
   }
 
@@ -382,8 +382,8 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleFixed64(int field_number, uint64_t repr,
-                             Context&... context) const {
+  absl::Status DynamicHandleFixed64(int field_number, uint64_t repr,
+                                    Context&... context) const {
     return message_writer(context...).WriteFixed64(field_number, repr);
   }
 
@@ -391,22 +391,20 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleLengthDelimitedFromReader(int field_number,
-                                               ReaderSpan<> repr,
-                                               Context&... context) const {
+  absl::Status DynamicHandleLengthDelimitedFromReader(
+      int field_number, ReaderSpan<> repr, Context&... context) const {
     return message_writer(context...).CopyString(field_number, std::move(repr));
   }
 
-  absl::Status HandleLengthDelimitedFromCord(
+  absl::Status DynamicHandleLengthDelimitedFromCord(
       int field_number, CordIteratorSpan repr,
       ABSL_ATTRIBUTE_UNUSED std::string& scratch, Context&... context) const {
     return message_writer(context...)
         .WriteString(field_number, std::move(repr));
   }
 
-  absl::Status HandleLengthDelimitedFromString(int field_number,
-                                               absl::string_view repr,
-                                               Context&... context) const {
+  absl::Status DynamicHandleLengthDelimitedFromString(
+      int field_number, absl::string_view repr, Context&... context) const {
     return message_writer(context...).WriteString(field_number, repr);
   }
 
@@ -414,7 +412,8 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleStartGroup(int field_number, Context&... context) const {
+  absl::Status DynamicHandleStartGroup(int field_number,
+                                       Context&... context) const {
     return message_writer(context...).OpenGroup(field_number);
   }
 
@@ -422,7 +421,8 @@ class CopyingFieldHandler {
     return field_number;
   }
 
-  absl::Status HandleEndGroup(int field_number, Context&... context) const {
+  absl::Status DynamicHandleEndGroup(int field_number,
+                                     Context&... context) const {
     return message_writer(context...).CloseGroup(field_number);
   }
 

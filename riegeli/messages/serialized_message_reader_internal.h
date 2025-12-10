@@ -173,7 +173,7 @@ struct IsDynamicFieldHandlerForVarintImpl<
                               decltype(std::declval<const T&>().AcceptVarint(
                                   std::declval<int>()))>,
         std::is_convertible<
-            decltype(std::declval<const T&>().HandleVarint(
+            decltype(std::declval<const T&>().DynamicHandleVarint(
                 *std::declval<const T&>().AcceptVarint(std::declval<int>()),
                 std::declval<uint64_t>(), std::declval<Context&>()...)),
             absl::Status>>>,
@@ -190,7 +190,7 @@ struct IsDynamicFieldHandlerForFixed32Impl<
                               decltype(std::declval<const T&>().AcceptFixed32(
                                   std::declval<int>()))>,
         std::is_convertible<
-            decltype(std::declval<const T&>().HandleFixed32(
+            decltype(std::declval<const T&>().DynamicHandleFixed32(
                 *std::declval<const T&>().AcceptFixed32(std::declval<int>()),
                 std::declval<uint32_t>(), std::declval<Context&>()...)),
             absl::Status>>>,
@@ -207,7 +207,7 @@ struct IsDynamicFieldHandlerForFixed64Impl<
                               decltype(std::declval<const T&>().AcceptFixed64(
                                   std::declval<int>()))>,
         std::is_convertible<
-            decltype(std::declval<const T&>().HandleFixed64(
+            decltype(std::declval<const T&>().DynamicHandleFixed64(
                 *std::declval<const T&>().AcceptFixed64(std::declval<int>()),
                 std::declval<uint64_t>(), std::declval<Context&>()...)),
             absl::Status>>>,
@@ -225,10 +225,12 @@ struct IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl<
             bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
                       std::declval<int>()))>,
         std::is_convertible<
-            decltype(std::declval<const T&>().HandleLengthDelimitedFromReader(
-                *std::declval<const T&>().AcceptLengthDelimited(
-                    std::declval<int>()),
-                std::declval<ReaderSpan<>>(), std::declval<Context&>()...)),
+            decltype(std::declval<const T&>()
+                         .DynamicHandleLengthDelimitedFromReader(
+                             *std::declval<const T&>().AcceptLengthDelimited(
+                                 std::declval<int>()),
+                             std::declval<ReaderSpan<>>(),
+                             std::declval<Context&>()...)),
             absl::Status>>>,
     Context...> : std::true_type {};
 
@@ -243,11 +245,13 @@ struct IsDynamicFieldHandlerForLengthDelimitedFromCordImpl<
             bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
                       std::declval<int>()))>,
         std::is_convertible<
-            decltype(std::declval<const T&>().HandleLengthDelimitedFromCord(
-                *std::declval<const T&>().AcceptLengthDelimited(
-                    std::declval<int>()),
-                std::declval<CordIteratorSpan>(), std::declval<std::string&>(),
-                std::declval<Context&>()...)),
+            decltype(std::declval<const T&>()
+                         .DynamicHandleLengthDelimitedFromCord(
+                             *std::declval<const T&>().AcceptLengthDelimited(
+                                 std::declval<int>()),
+                             std::declval<CordIteratorSpan>(),
+                             std::declval<std::string&>(),
+                             std::declval<Context&>()...)),
             absl::Status>>>,
     Context...> : std::true_type {};
 
@@ -263,11 +267,12 @@ struct IsDynamicFieldHandlerForLengthDelimitedFromStringImpl<
             bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
                       std::declval<int>()))>,
         std::is_convertible<
-            decltype(std::declval<const T&>().HandleLengthDelimitedFromString(
-                *std::declval<const T&>().AcceptLengthDelimited(
-                    std::declval<int>()),
-                std::declval<absl::string_view>(),
-                std::declval<Context&>()...)),
+            decltype(std::declval<const T&>()
+                         .DynamicHandleLengthDelimitedFromString(
+                             *std::declval<const T&>().AcceptLengthDelimited(
+                                 std::declval<int>()),
+                             std::declval<absl::string_view>(),
+                             std::declval<Context&>()...)),
             absl::Status>>>,
     Context...> : std::true_type {};
 
@@ -281,11 +286,11 @@ struct IsDynamicFieldHandlerForStartGroupImpl<
         std::is_constructible<
             bool, decltype(std::declval<const T&>().AcceptStartGroup(
                       std::declval<int>()))>,
-        std::is_convertible<decltype(std::declval<const T&>().HandleStartGroup(
-                                *std::declval<const T&>().AcceptStartGroup(
-                                    std::declval<int>()),
-                                std::declval<Context&>()...)),
-                            absl::Status>>>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().DynamicHandleStartGroup(
+                *std::declval<const T&>().AcceptStartGroup(std::declval<int>()),
+                std::declval<Context&>()...)),
+            absl::Status>>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -298,11 +303,11 @@ struct IsDynamicFieldHandlerForEndGroupImpl<
         std::is_constructible<bool,
                               decltype(std::declval<const T&>().AcceptEndGroup(
                                   std::declval<int>()))>,
-        std::is_convertible<decltype(std::declval<const T&>().HandleEndGroup(
-                                *std::declval<const T&>().AcceptEndGroup(
-                                    std::declval<int>()),
-                                std::declval<Context&>()...)),
-                            absl::Status>>>,
+        std::is_convertible<
+            decltype(std::declval<const T&>().DynamicHandleEndGroup(
+                *std::declval<const T&>().AcceptEndGroup(std::declval<int>()),
+                std::declval<Context&>()...)),
+            absl::Status>>>,
     Context...> : std::true_type {};
 
 template <typename T, typename... Context>
@@ -630,8 +635,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadVarintField(
                                                Context...>::value) {
     auto maybe_accepted = field_handler.AcceptVarint(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleVarint(*std::move(maybe_accepted), repr,
-                                          context...);
+      status = field_handler.DynamicHandleVarint(*std::move(maybe_accepted),
+                                                 repr, context...);
       return true;
     }
   }
@@ -653,8 +658,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed32Field(
                                                 Context...>::value) {
     auto maybe_accepted = field_handler.AcceptFixed32(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleFixed32(*std::move(maybe_accepted), repr,
-                                           context...);
+      status = field_handler.DynamicHandleFixed32(*std::move(maybe_accepted),
+                                                  repr, context...);
       return true;
     }
   }
@@ -676,8 +681,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadFixed64Field(
                                                 Context...>::value) {
     auto maybe_accepted = field_handler.AcceptFixed64(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleFixed64(*std::move(maybe_accepted), repr,
-                                           context...);
+      status = field_handler.DynamicHandleFixed64(*std::move(maybe_accepted),
+                                                  repr, context...);
       return true;
     }
   }
@@ -712,7 +717,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromReader(
                     FieldHandler, Context...>::value) {
     auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleLengthDelimitedFromReader(
+      status = field_handler.DynamicHandleLengthDelimitedFromReader(
           *std::move(maybe_accepted), ReaderSpan<>(&src, length), context...);
       return true;
     }
@@ -725,7 +730,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromReader(
         status = ReadLengthDelimitedValueError(src);
         return true;
       }
-      status = field_handler.HandleLengthDelimitedFromString(
+      status = field_handler.DynamicHandleLengthDelimitedFromString(
           *std::move(maybe_accepted), value, context...);
       return true;
     }
@@ -757,7 +762,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromCord(
                     FieldHandler, Context...>::value) {
     auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleLengthDelimitedFromCord(
+      status = field_handler.DynamicHandleLengthDelimitedFromCord(
           *std::move(maybe_accepted), CordIteratorSpan(&src, length), scratch,
           context...);
       return true;
@@ -766,7 +771,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromCord(
                            FieldHandler, Context...>::value) {
     auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleLengthDelimitedFromString(
+      status = field_handler.DynamicHandleLengthDelimitedFromString(
           *std::move(maybe_accepted),
           CordIteratorSpan(&src, length).ToStringView(scratch), context...);
       return true;
@@ -791,7 +796,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadLengthDelimitedFieldFromString(
                     FieldHandler, Context...>::value) {
     auto maybe_accepted = field_handler.AcceptLengthDelimited(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleLengthDelimitedFromString(
+      status = field_handler.DynamicHandleLengthDelimitedFromString(
           *std::move(maybe_accepted), absl::string_view(src, length),
           context...);
       return true;
@@ -815,8 +820,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadStartGroupField(
                                                    Context...>::value) {
     auto maybe_accepted = field_handler.AcceptStartGroup(field_number);
     if (maybe_accepted) {
-      status = field_handler.HandleStartGroup(*std::move(maybe_accepted),
-                                              context...);
+      status = field_handler.DynamicHandleStartGroup(*std::move(maybe_accepted),
+                                                     context...);
       return true;
     }
   }
@@ -838,8 +843,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadEndGroupField(
                                                  Context...>::value) {
     auto maybe_accepted = field_handler.AcceptEndGroup(field_number);
     if (maybe_accepted) {
-      status =
-          field_handler.HandleEndGroup(*std::move(maybe_accepted), context...);
+      status = field_handler.DynamicHandleEndGroup(*std::move(maybe_accepted),
+                                                   context...);
       return true;
     }
   }

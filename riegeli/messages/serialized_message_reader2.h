@@ -206,17 +206,17 @@ namespace riegeli {
 //
 // Dynamic field handlers provide at least one of the following pairs of
 // member functions corresponding to some wire type `X` as above, with `T...`
-// as above, and with `HandleX()` parameters followed by `Context&...`
+// as above, and with `DynamicHandleX()` parameters followed by `Context&...`
 // ```
 //   MaybeAccepted AcceptX(int field_number) const;`
 //
-//   absl::Status HandleX(Accepted accepted, T... repr) const;
+//   absl::Status DynamicHandleX(Accepted accepted, T... repr) const;
 // ```
 //
 // For length-delimited fields, a single `AcceptLengthDelimited()` function
-// corresponds to `HandleLengthDelimitedFromReader()`,
-// `HandleLengthDelimitedFromCord()`, and/or
-// `HandleLengthDelimitedFromString()`.
+// corresponds to `DynamicHandleLengthDelimitedFromReader()`,
+// `DynamicHandleLengthDelimitedFromCord()`, and/or
+// `DynamicHandleLengthDelimitedFromString()`.
 //
 // `MaybeAccepted` is some type explicitly convertible to `bool`, with
 // `operator*` returning some `Accepted` type, such as `std::optional<Accepted>`
