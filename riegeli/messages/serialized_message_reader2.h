@@ -142,11 +142,17 @@ namespace riegeli {
 // Users of defined field handlers do not need to be concerned with this.
 // This is relevant for writing custom field handlers.
 //
-// A field handler is applicable to a `Reader` source, and possibly also to a
-// string source. If `SerializedMessageReader2::ReadMessage()` is called with a
-// string and all field handlers are applicable to a string source, then field
-// handlers are called with the string source. Otherwise, the source is wrapped
-// in an appropriate `Reader` if needed.
+// A field handler of a length-delimited field is applicable to a `Reader`
+// source, and possibly also directly applicable to a `Cord` and/or string
+// source. Applicability to a string source implies applicability to a `Reader`
+// and `Cord` source, by reading a `string_view` from the `Reader` or `Cord`
+// first.
+//
+// If `SerializedMessageReader2::ReadMessage()` is called with a `Cord` or
+// string, and some field handlers are not directly applicable to that source,
+// then the source is wrapped in an appropriate `Reader`. This is done on the
+// level of the whole `ReadMessage()`, instead of creating a `Reader` for each
+// affected field, so that the cost of creating a `Reader` is paid once.
 //
 // Field handlers have a `static constexpr int kFieldNumber` member variable:
 //  * For static field handlers: a positive field number.
@@ -162,14 +168,14 @@ namespace riegeli {
 //
 //   absl::Status HandleFixed64(uint64_t repr) const;
 //
-//   // Applicable to a `Reader` source.
+//   // Directly applicable to a `Reader` source.
 //   //
 //   // `HandleLengthDelimitedFromReader()` must read to the end of the
 //   // `ReaderSpan<>` or fail. `SkipLengthDelimitedFromReader()` can be used
 //   // to ensure this property.
 //   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr) const;
 //
-//   // Applicable to a `Cord` source.
+//   // Directly applicable to a `Cord` source.
 //   //
 //   // May use `scratch` for storage for temporary data.
 //   //
@@ -179,7 +185,7 @@ namespace riegeli {
 //   absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
 //                                              std::string& scratch) const;
 //
-//   // Applicable to a string source.
+//   // Directly applicable to a string source.
 //   absl::Status HandleLengthDelimitedFromString(absl::string_view repr)
 //       const;
 //

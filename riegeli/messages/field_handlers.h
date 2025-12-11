@@ -404,15 +404,14 @@ OnRepeatedEnum(Action&& action) {
 // value is guaranteed to be a substring of the original string. This guarantee
 // is absent for a `Reader` or `Cord` source.
 //
-// If the action accepts `ReaderSpan<>`, `CordIteratorSpan`, and
-// `absl::string_view`, then the action parameter can be declared as `auto`,
-// or `auto` if concepts are supported. This is convenient
-// if the implementation can treat these types uniformly,
-// e.g. when it the value is passed to `riegeli::ParseMessage()` or
-// `SerializedMessageReader2::ReadMessage()`.
+// If the action accepts the first candidate for each source type, i.e.
+// `ReaderSpan<>`, `CordIteratorSpan`, and `absl::string_view`, then the action
+// parameter can be declared as `auto`. This is convenient if the implementation
+// can treat these types uniformly, e.g. when the value is passed to
+// `riegeli::ParseMessage()` or `SerializedMessageReader2::ReadMessage()`.
 //
-// Alternatively, the action can use `absl::Overload{}` to provide variants
-// with separate implementations.
+// Alternatively, the action can use `absl::Overload{}` to provide variants with
+// separate implementations for these parameter types.
 template <int field_number = kUnboundFieldNumber, typename Action>
 constexpr OnLengthDelimitedType<field_number, std::decay_t<Action>>
 OnLengthDelimited(Action&& action) {
