@@ -81,13 +81,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI Buffer {
 
  private:
   void AllocateInternal(size_t min_capacity);
-  void DeleteInternal() {
-#if __cpp_sized_deallocation
-    operator delete(data_, capacity_);
-#else
-    operator delete(data_);
-#endif
-  }
+  void DeleteInternal() { operator delete(data_, capacity_); }
   void DumpStructure(absl::string_view substr, std::ostream& dest) const;
 
   char* data_ = nullptr;
