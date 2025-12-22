@@ -29,6 +29,8 @@
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -46,22 +48,23 @@ absl::Status SerializedMessageWriter::LengthOverflowError(Position length) {
                    length));
 }
 
-absl::Status SerializedMessageWriter::CopyStringFailed(Reader& src,
-                                                       Writer& dest) {
-  return !dest.ok() ? dest.status()
-                    : src.StatusOrAnnotate(absl::InvalidArgumentError(
-                          "Could not read a length-delimited field"));
+absl::Status SerializedMessageWriter::WriteStringFailed(Reader& src,
+                                                        Writer& dest) {
+  return !dest.ok()
+             ? dest.status()
+             : src.StatusOrAnnotate(absl::InvalidArgumentError(
+                   "Could not read contents for a length-delimited field"));
 }
 
-absl::Status SerializedMessageWriter::CopyString(int field_number,
-                                                 AnyRef<Reader*> src) {
+absl::Status SerializedMessageWriter::WriteString(int field_number,
+                                                  AnyRef<Reader*> src) {
   if (src.IsOwning()) src->SetReadAllHint(true);
   if (src->SupportsSize()) {
     const std::optional<Position> size = src->Size();
     if (ABSL_PREDICT_FALSE(size == std::nullopt)) return src->status();
-    if (absl::Status status =
-            CopyString(field_number,
-                       ReaderSpan(src.get(), SaturatingSub(*size, src->pos())));
+    if (absl::Status status = WriteString(
+            field_number,
+            ReaderSpan(src.get(), SaturatingSub(*size, src->pos())));
         ABSL_PREDICT_FALSE(!status.ok())) {
       return status;
     }
@@ -77,6 +80,23 @@ absl::Status SerializedMessageWriter::CopyString(int field_number,
     }
     return WriteString(field_number, std::move(contents));
   }
+}
+
+absl::Status SerializedMessageWriter::WriteString(int field_number,
+                                                  CordIteratorSpan src) {
+  if (src.length() <= kMaxBytesToCopy) {
+    if (absl::Status status = WriteLengthUnchecked(field_number, src.length());
+        ABSL_PREDICT_FALSE(!status.ok())) {
+      return status;
+    }
+    if (ABSL_PREDICT_FALSE(!writer().Push(src.length()))) {
+      return writer().status();
+    }
+    CordIteratorSpan::Read(src.iterator(), src.length(), writer().cursor());
+    writer().move_cursor(src.length());
+    return absl::OkStatus();
+  }
+  return WriteString(field_number, std::move(src).ToCord());
 }
 
 void SerializedMessageWriter::OpenLengthDelimited() {

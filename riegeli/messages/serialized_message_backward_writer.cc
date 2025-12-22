@@ -25,6 +25,8 @@
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/copy_all.h"
@@ -42,15 +44,16 @@ absl::Status SerializedMessageBackwardWriter::LengthOverflowError(
                    length));
 }
 
-absl::Status SerializedMessageBackwardWriter::CopyStringFailed(
+absl::Status SerializedMessageBackwardWriter::WriteStringFailed(
     Reader& src, BackwardWriter& dest) {
-  return !dest.ok() ? dest.status()
-                    : src.StatusOrAnnotate(absl::InvalidArgumentError(
-                          "Could not read a length-delimited field"));
+  return !dest.ok()
+             ? dest.status()
+             : src.StatusOrAnnotate(absl::InvalidArgumentError(
+                   "Could not read contents for a length-delimited field"));
 }
 
-absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
-                                                         AnyRef<Reader*> src) {
+absl::Status SerializedMessageBackwardWriter::WriteString(int field_number,
+                                                          AnyRef<Reader*> src) {
   if (src.IsOwning()) src->SetReadAllHint(true);
   const Position pos_after = writer().pos();
   if (absl::Status status = CopyAll(std::move(src), writer());
@@ -60,6 +63,19 @@ absl::Status SerializedMessageBackwardWriter::CopyString(int field_number,
   RIEGELI_ASSERT_GE(writer().pos(), pos_after)
       << "CopyAll() decreased dest.pos()";
   return WriteLengthUnchecked(field_number, writer().pos() - pos_after);
+}
+
+absl::Status SerializedMessageBackwardWriter::WriteString(
+    int field_number, CordIteratorSpan src) {
+  if (src.length() <= kMaxBytesToCopy) {
+    if (ABSL_PREDICT_FALSE(!writer().Push(src.length()))) {
+      return writer().status();
+    }
+    writer().move_cursor(src.length());
+    CordIteratorSpan::Read(src.iterator(), src.length(), writer().cursor());
+    return WriteLengthUnchecked(field_number, src.length());
+  }
+  return WriteString(field_number, std::move(src).ToCord());
 }
 
 void SerializedMessageBackwardWriter::OpenLengthDelimited() {

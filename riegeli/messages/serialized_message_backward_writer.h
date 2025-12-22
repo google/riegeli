@@ -28,11 +28,11 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -158,19 +158,10 @@ class SerializedMessageBackwardWriter {
     requires(IsStringifiable<Values>::value && ...)
 #endif
   absl::Status WriteString(int field_number, Values&&... values);
-
-  // Writes the field tag of a length-delimited field and copies the field value
-  // from a `Reader`.
-  //
-  // For `absl::string_view`, this is equivalent to `WriteString()`.
-  // This is useful for generic handlers of length-delimited fields for
-  // `SerializedMessageReader2`.
-  absl::Status CopyString(int field_number, AnyRef<Reader*> src);
+  absl::Status WriteString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
-  absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
-  absl::Status CopyString(int field_number, absl::string_view src) {
-    return WriteString(field_number, src);
-  }
+  absl::Status WriteString(int field_number, ReaderSpan<ReaderType> src);
+  absl::Status WriteString(int field_number, CordIteratorSpan src);
 
   // Writes the field tag of a length-delimited field and serializes a message
   // as the field value.
@@ -245,7 +236,7 @@ class SerializedMessageBackwardWriter {
 
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
-  ABSL_ATTRIBUTE_COLD static absl::Status CopyStringFailed(
+  ABSL_ATTRIBUTE_COLD static absl::Status WriteStringFailed(
       Reader& src, BackwardWriter& dest);
 
   BackwardWriter* absl_nullable dest_ = nullptr;
@@ -503,7 +494,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
 }
 
 template <typename ReaderType>
-absl::Status SerializedMessageBackwardWriter::CopyString(
+absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, ReaderSpan<ReaderType> src) {
   if (ABSL_PREDICT_FALSE(src.length() >
                          uint32_t{std::numeric_limits<int32_t>::max()})) {
@@ -511,7 +502,7 @@ absl::Status SerializedMessageBackwardWriter::CopyString(
   }
   if (ABSL_PREDICT_FALSE(
           !src.reader().Copy(IntCast<size_t>(src.length()), writer()))) {
-    return CopyStringFailed(src.reader(), writer());
+    return WriteStringFailed(src.reader(), writer());
   }
   return WriteLengthUnchecked(field_number, src.length());
 }

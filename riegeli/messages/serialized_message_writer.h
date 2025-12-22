@@ -154,19 +154,10 @@ class SerializedMessageWriter {
     requires(IsStringifiable<Values>::value && ...)
 #endif
   absl::Status WriteString(int field_number, Values&&... values);
-
-  // Writes the field tag of a length-delimited field and copies the field value
-  // from a `Reader`.
-  //
-  // For `absl::string_view`, this is equivalent to `WriteString()`.
-  // This is useful for generic handlers of length-delimited fields for
-  // `SerializedMessageReader2`.
-  absl::Status CopyString(int field_number, AnyRef<Reader*> src);
+  absl::Status WriteString(int field_number, AnyRef<Reader*> src);
   template <typename ReaderType>
-  absl::Status CopyString(int field_number, ReaderSpan<ReaderType> src);
-  absl::Status CopyString(int field_number, absl::string_view src) {
-    return WriteString(field_number, src);
-  }
+  absl::Status WriteString(int field_number, ReaderSpan<ReaderType> src);
+  absl::Status WriteString(int field_number, CordIteratorSpan src);
 
   // Writes the field tag of a length-delimited field and serializes a message
   // as the field value.
@@ -329,8 +320,8 @@ class SerializedMessageWriter {
 
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
-  ABSL_ATTRIBUTE_COLD static absl::Status CopyStringFailed(Reader& src,
-                                                           Writer& dest);
+  ABSL_ATTRIBUTE_COLD static absl::Status WriteStringFailed(Reader& src,
+                                                            Writer& dest);
 
   Writer* absl_nullable dest_ = nullptr;
   std::vector<CordWriter<absl::Cord>> submessages_;
@@ -393,7 +384,8 @@ class CopyingFieldHandler {
 
   absl::Status DynamicHandleLengthDelimitedFromReader(
       int field_number, ReaderSpan<> repr, Context&... context) const {
-    return message_writer(context...).CopyString(field_number, std::move(repr));
+    return message_writer(context...)
+        .WriteString(field_number, std::move(repr));
   }
 
   absl::Status DynamicHandleLengthDelimitedFromCord(
@@ -702,14 +694,14 @@ inline absl::Status SerializedMessageWriter::WriteString(int field_number,
 }
 
 template <typename ReaderType>
-absl::Status SerializedMessageWriter::CopyString(int field_number,
-                                                 ReaderSpan<ReaderType> src) {
+absl::Status SerializedMessageWriter::WriteString(int field_number,
+                                                  ReaderSpan<ReaderType> src) {
   if (absl::Status status = WriteLengthUnchecked(field_number, src.length());
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
   if (ABSL_PREDICT_FALSE(!src.reader().Copy(src.length(), writer()))) {
-    return CopyStringFailed(src.reader(), writer());
+    return WriteStringFailed(src.reader(), writer());
   }
   return absl::OkStatus();
 }

@@ -408,7 +408,8 @@ OnRepeatedEnum(Action&& action) {
 // `ReaderSpan<>`, `CordIteratorSpan`, and `absl::string_view`, then the action
 // parameter can be declared as `auto`. This is convenient if the implementation
 // can treat these types uniformly, e.g. when the value is passed to
-// `riegeli::ParseMessage()` or `SerializedMessageReader2::ReadMessage()`.
+// `riegeli::ParseMessage()`, `SerializedMessageReader2::ReadMessage()`, or
+// `SerializedMessageWriter::WriteString()`.
 //
 // Alternatively, the action can use `absl::Overload{}` to provide variants with
 // separate implementations for these parameter types.
