@@ -59,7 +59,7 @@ bool TFRecordRecognizer::CheckFileFormat(
     return Fail(absl::InvalidArgumentError("Truncated TFRecord file"));
   }
   if (tensorflow::crc32c::Unmask(
-          ReadLittleEndian32(reader->cursor() + sizeof(uint64_t))) !=
+          ReadLittleEndian<uint32_t>(reader->cursor() + sizeof(uint64_t))) !=
       tensorflow::crc32c::Value(reader->cursor(), sizeof(uint64_t))) {
     return Fail(absl::InvalidArgumentError("Corrupted TFRecord file"));
   }

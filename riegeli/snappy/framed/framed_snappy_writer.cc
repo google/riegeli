@@ -136,7 +136,7 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
                       compressed_chunk + 2 * sizeof(uint32_t),
                       &compressed_length, {/*level=*/compression_level_});
   if (compressed_length < uncompressed_length) {
-    WriteLittleEndian32(
+    WriteLittleEndian<uint32_t>(
         IntCast<uint32_t>(0x00 /* Compressed data */ |
                           ((sizeof(uint32_t) + compressed_length) << 8)),
         compressed_chunk);
@@ -144,12 +144,12 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
     std::memcpy(compressed_chunk + 2 * sizeof(uint32_t), uncompressed_data,
                 uncompressed_length);
     compressed_length = uncompressed_length;
-    WriteLittleEndian32(
+    WriteLittleEndian<uint32_t>(
         IntCast<uint32_t>(0x01 /* Uncompressed data */ |
                           ((sizeof(uint32_t) + compressed_length) << 8)),
         compressed_chunk);
   }
-  WriteLittleEndian32(
+  WriteLittleEndian<uint32_t>(
       MaskCrc32c(
           DigestFrom(absl::string_view(uncompressed_data, uncompressed_length),
                      Crc32cDigester())),

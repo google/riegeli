@@ -103,7 +103,7 @@ struct DigestConverterImpl<
         HasDigestConverterImpl<std::array<char, sizeof(uint32_t)>, To>>>> {
   static To Convert(uint32_t digest) {
     std::array<char, sizeof(uint32_t)> result;
-    riegeli::WriteBigEndian32(digest, result.data());
+    riegeli::WriteBigEndian<uint32_t>(digest, result.data());
     return DigestConverterImpl<std::array<char, sizeof(uint32_t)>, To>::Convert(
         result);
   }
@@ -117,7 +117,7 @@ struct DigestConverterImpl<
         HasDigestConverterImpl<std::array<char, sizeof(uint64_t)>, To>>>> {
   static To Convert(uint64_t digest) {
     std::array<char, sizeof(uint64_t)> result;
-    riegeli::WriteBigEndian64(digest, result.data());
+    riegeli::WriteBigEndian<uint64_t>(digest, result.data());
     return DigestConverterImpl<std::array<char, sizeof(uint64_t)>, To>::Convert(
         result);
   }
@@ -131,7 +131,7 @@ struct DigestConverterImpl<
         HasDigestConverterImpl<std::array<char, sizeof(absl::uint128)>, To>>>> {
   static To Convert(absl::uint128 digest) {
     std::array<char, sizeof(absl::uint128)> result;
-    riegeli::WriteBigEndian128(digest, result.data());
+    riegeli::WriteBigEndian<absl::uint128>(digest, result.data());
     return DigestConverterImpl<std::array<char, sizeof(absl::uint128)>,
                                To>::Convert(result);
   }
@@ -151,7 +151,7 @@ struct DigestConverterImpl<std::array<char, sizeof(uint32_t)>, To,
                                    To, std::array<char, sizeof(uint32_t)>>>,
                                std::is_constructible<To, uint32_t>>>> {
   static To Convert(std::array<char, sizeof(uint32_t)> digest) {
-    return To(riegeli::ReadBigEndian32(digest.data()));
+    return To(riegeli::ReadBigEndian<uint32_t>(digest.data()));
   }
 };
 
@@ -162,7 +162,7 @@ struct DigestConverterImpl<std::array<char, sizeof(uint64_t)>, To,
                                    To, std::array<char, sizeof(uint64_t)>>>,
                                std::is_constructible<To, uint64_t>>>> {
   static To Convert(std::array<char, sizeof(uint64_t)> digest) {
-    return To(riegeli::ReadBigEndian64(digest.data()));
+    return To(riegeli::ReadBigEndian<uint64_t>(digest.data()));
   }
 };
 
@@ -174,7 +174,7 @@ struct DigestConverterImpl<
                                To, std::array<char, sizeof(absl::uint128)>>>,
                            std::is_constructible<To, absl::uint128>>>> {
   static To Convert(std::array<char, sizeof(absl::uint128)> digest) {
-    return To(riegeli::ReadBigEndian128(digest.data()));
+    return To(riegeli::ReadBigEndian<absl::uint128>(digest.data()));
   }
 };
 
@@ -189,8 +189,8 @@ struct DigestConverterImpl<
                                To>>>> {
   static To Convert(const std::array<uint64_t, size>& digest) {
     std::array<char, size * sizeof(uint64_t)> result;
-    riegeli::WriteBigEndian64s(absl::MakeConstSpan(digest.data(), size),
-                               result.data());
+    riegeli::WriteBigEndians<uint64_t>(absl::MakeConstSpan(digest.data(), size),
+                                       result.data());
     return DigestConverterImpl<std::array<char, size * sizeof(uint64_t)>,
                                To>::Convert(result);
   }
@@ -212,7 +212,7 @@ struct DigestConverterImpl<
             To, std::array<uint64_t, size / sizeof(uint64_t)>>>>> {
   static To Convert(const std::array<char, size>& digest) {
     std::array<uint64_t, size / sizeof(uint64_t)> result;
-    riegeli::ReadBigEndian64s(
+    riegeli::ReadBigEndians<uint64_t>(
         digest.data(), absl::MakeSpan(result.data(), size / sizeof(uint64_t)));
     return To(result);
   }

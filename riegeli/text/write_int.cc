@@ -71,7 +71,7 @@ template <DigitCase digit_case>
 inline __m128i WriteHex4Impl(uint16_t src) {
   // Convert to Big Endian.
   char encoded[2];
-  riegeli::WriteBigEndian16(src, encoded);
+  riegeli::WriteBigEndian<uint16_t>(src, encoded);
   // Load 16-bit value to 128-bit register.
   const __m128i value = _mm_loadu_si16(encoded);
   // Shift right by 4 bits.
@@ -88,7 +88,7 @@ template <DigitCase digit_case>
 inline __m128i WriteHex8Impl(uint32_t src) {
   // Convert to Big Endian.
   char encoded[4];
-  riegeli::WriteBigEndian32(src, encoded);
+  riegeli::WriteBigEndian<uint32_t>(src, encoded);
   // Load 32-bit value to 128-bit register.
   const __m128i value = _mm_loadu_si32(encoded);
   // Shift right by 4 bits.
@@ -105,7 +105,7 @@ template <DigitCase digit_case>
 inline __m128i WriteHex16Impl(uint64_t src) {
   // Convert to Big Endian.
   char encoded[8];
-  riegeli::WriteBigEndian64(src, encoded);
+  riegeli::WriteBigEndian<uint64_t>(src, encoded);
   // Load 64-bit value to 128-bit register.
   const __m128i value = _mm_loadu_si64(&encoded);
   // Shift right by 4 bits.
@@ -158,7 +158,7 @@ inline char* WriteHex2Impl(uint8_t src, char* dest) {
   // `DigitCase::kLower`, or [23..28] to ['A'..'F'] for `DigitCase::kUpper`.
   out += 0x2a2a;
   // Write the result, swapping the bytes.
-  riegeli::WriteBigEndian16(out, dest);
+  riegeli::WriteBigEndian<uint16_t>(out, dest);
 #endif
   return dest + 2;
 }
@@ -183,7 +183,7 @@ inline char* WriteHex4Impl(uint16_t src, char* dest) {
   // Swap the first and the last byte.
   out = (out << 24) | (out >> 24) | (out & 0x00ffff00);
   // Write the result.
-  riegeli::WriteLittleEndian32(out, dest);
+  riegeli::WriteLittleEndian<uint32_t>(out, dest);
 #endif
   return dest + 4;
 }

@@ -107,7 +107,7 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
   Reader& src = *SrcReader();
   truncated_ = false;
   while (src.Pull(sizeof(uint32_t))) {
-    const uint32_t chunk_header = ReadLittleEndian32(src.cursor());
+    const uint32_t chunk_header = ReadLittleEndian<uint32_t>(src.cursor());
     const uint8_t chunk_type = static_cast<uint8_t>(chunk_header);
     const size_t chunk_length = IntCast<size_t>(chunk_header >> 8);
     if (ABSL_PREDICT_FALSE(!src.Pull(sizeof(uint32_t) + chunk_length))) {
@@ -130,7 +130,7 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
           return FailInvalidStream("compressed data too short");
         }
         const uint32_t checksum =
-            ReadLittleEndian32(src.cursor() + sizeof(uint32_t));
+            ReadLittleEndian<uint32_t>(src.cursor() + sizeof(uint32_t));
         const char* const compressed_data = src.cursor() + 2 * sizeof(uint32_t);
         const size_t compressed_length = chunk_length - sizeof(uint32_t);
         size_t uncompressed_length;
@@ -176,7 +176,7 @@ bool FramedSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
           return FailInvalidStream("uncompressed data too short");
         }
         const uint32_t checksum =
-            ReadLittleEndian32(src.cursor() + sizeof(uint32_t));
+            ReadLittleEndian<uint32_t>(src.cursor() + sizeof(uint32_t));
         const char* const uncompressed_data =
             src.cursor() + 2 * sizeof(uint32_t);
         const size_t uncompressed_length = chunk_length - sizeof(uint32_t);

@@ -105,7 +105,7 @@ bool HadoopSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
       if (ABSL_PREDICT_FALSE(src.available() > 0)) truncated_ = true;
       return false;
     }
-    remaining_chunk_length_ = ReadBigEndian32(src.cursor());
+    remaining_chunk_length_ = ReadBigEndian<uint32_t>(src.cursor());
     src.move_cursor(sizeof(uint32_t));
   }
   size_t uncompressed_length;
@@ -119,7 +119,7 @@ bool HadoopSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
       truncated_ = true;
       return false;
     }
-    const uint32_t compressed_length = ReadBigEndian32(src.cursor());
+    const uint32_t compressed_length = ReadBigEndian<uint32_t>(src.cursor());
     if (ABSL_PREDICT_FALSE(compressed_length >
                            std::numeric_limits<uint32_t>::max() -
                                sizeof(uint32_t))) {

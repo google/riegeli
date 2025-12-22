@@ -331,7 +331,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteFixed32(
   if (ABSL_PREDICT_FALSE(!writer().Push(length))) return writer().status();
   writer().move_cursor(length);
   char* const ptr = WriteVarint32(tag, writer().cursor());
-  WriteLittleEndian32(value, ptr);
+  WriteLittleEndian<uint32_t>(value, ptr);
   return absl::OkStatus();
 }
 
@@ -342,7 +342,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteFixed64(
   if (ABSL_PREDICT_FALSE(!writer().Push(length))) return writer().status();
   writer().move_cursor(length);
   char* const ptr = WriteVarint32(tag, writer().cursor());
-  WriteLittleEndian64(value, ptr);
+  WriteLittleEndian<uint64_t>(value, ptr);
   return absl::OkStatus();
 }
 
@@ -418,7 +418,7 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedBool(
 
 inline absl::Status SerializedMessageBackwardWriter::WritePackedFixed32(
     uint32_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteLittleEndian32(value, writer()))) {
+  if (ABSL_PREDICT_FALSE(!WriteLittleEndian<uint32_t>(value, writer()))) {
     return writer().status();
   }
   return absl::OkStatus();
@@ -426,7 +426,7 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedFixed32(
 
 inline absl::Status SerializedMessageBackwardWriter::WritePackedFixed64(
     uint64_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteLittleEndian64(value, writer()))) {
+  if (ABSL_PREDICT_FALSE(!WriteLittleEndian<uint64_t>(value, writer()))) {
     return writer().status();
   }
   return absl::OkStatus();

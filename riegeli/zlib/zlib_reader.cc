@@ -382,7 +382,7 @@ std::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src) {
   const Position pos_before = src.pos();
   uint32_t uncompressed_size;
   if (ABSL_PREDICT_FALSE(!src.Seek(*compressed_size - sizeof(uint32_t)) ||
-                         !ReadLittleEndian32(src, uncompressed_size) ||
+                         !ReadLittleEndian<uint32_t>(src, uncompressed_size) ||
                          !src.Seek(pos_before))) {
     return std::nullopt;
   }

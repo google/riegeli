@@ -618,7 +618,7 @@ absl::Status SerializedMessageReaderType<
       }
       case WireType::kFixed32: {
         uint32_t value;
-        if (ABSL_PREDICT_FALSE(!ReadLittleEndian32(src, value))) {
+        if (ABSL_PREDICT_FALSE(!ReadLittleEndian<uint32_t>(src, value))) {
           return serialized_message_reader_internal::ReadFixed32Error(
               src, field_number);
         }
@@ -634,7 +634,7 @@ absl::Status SerializedMessageReaderType<
       }
       case WireType::kFixed64: {
         uint64_t value;
-        if (ABSL_PREDICT_FALSE(!ReadLittleEndian64(src, value))) {
+        if (ABSL_PREDICT_FALSE(!ReadLittleEndian<uint64_t>(src, value))) {
           return serialized_message_reader_internal::ReadFixed64Error(
               src, field_number);
         }
@@ -782,7 +782,7 @@ inline absl::Status SerializedMessageReaderType<
                                                        Context...>...>) {
           char buffer[sizeof(uint32_t)];
           CordIteratorSpan::Read(src, sizeof(uint32_t), buffer);
-          const uint32_t value = ReadLittleEndian32(buffer);
+          const uint32_t value = ReadLittleEndian<uint32_t>(buffer);
           absl::Status status;
           if (HandleFixed32Field(field_number, value, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -809,7 +809,7 @@ inline absl::Status SerializedMessageReaderType<
                                                        Context...>...>) {
           char buffer[sizeof(uint64_t)];
           CordIteratorSpan::Read(src, sizeof(uint64_t), buffer);
-          const uint64_t value = ReadLittleEndian64(buffer);
+          const uint64_t value = ReadLittleEndian<uint64_t>(buffer);
           absl::Status status;
           if (HandleFixed64Field(field_number, value, status, context...)) {
             if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -953,7 +953,7 @@ inline absl::Status SerializedMessageReaderType<
           return serialized_message_reader_internal::ReadFixed32Error(
               field_number);
         }
-        const uint32_t value = ReadLittleEndian32(cursor);
+        const uint32_t value = ReadLittleEndian<uint32_t>(cursor);
         cursor += sizeof(uint32_t);
         absl::Status status;
         if (HandleFixed32Field(field_number, value, status, context...)) {
@@ -969,7 +969,7 @@ inline absl::Status SerializedMessageReaderType<
           return serialized_message_reader_internal::ReadFixed64Error(
               field_number);
         }
-        const uint64_t value = ReadLittleEndian64(cursor);
+        const uint64_t value = ReadLittleEndian<uint64_t>(cursor);
         cursor += sizeof(uint64_t);
         absl::Status status;
         if (HandleFixed64Field(field_number, value, status, context...)) {

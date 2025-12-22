@@ -66,8 +66,8 @@ inline size_t CommonPrefix(absl::string_view a, absl::string_view b) {
   // Compare whole blocks, except for the last pair.
   const size_t limit = min_length - sizeof(uint64_t);
   while (length < limit) {
-    const uint64_t xor_result = ReadLittleEndian64(a.data() + length) ^
-                                ReadLittleEndian64(b.data() + length);
+    const uint64_t xor_result = ReadLittleEndian<uint64_t>(a.data() + length) ^
+                                ReadLittleEndian<uint64_t>(b.data() + length);
     if (xor_result != 0) {
       return length + IntCast<size_t>(absl::countr_zero(xor_result)) / 8;
     }
@@ -75,8 +75,8 @@ inline size_t CommonPrefix(absl::string_view a, absl::string_view b) {
   }
   // Compare the last, possible incomplete blocks as whole blocks shifted
   // backwards.
-  const uint64_t xor_result = ReadLittleEndian64(a.data() + limit) ^
-                              ReadLittleEndian64(b.data() + limit);
+  const uint64_t xor_result = ReadLittleEndian<uint64_t>(a.data() + limit) ^
+                              ReadLittleEndian<uint64_t>(b.data() + limit);
   if (xor_result != 0) {
     return limit + IntCast<size_t>(absl::countr_zero(xor_result)) / 8;
   }

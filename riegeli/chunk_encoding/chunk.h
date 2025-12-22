@@ -44,31 +44,35 @@ class ChunkHeader {
   static constexpr size_t size() { return sizeof(bytes_); }
 
   uint64_t computed_header_hash() const;
-  uint64_t stored_header_hash() const { return ReadLittleEndian64(bytes_); }
+  uint64_t stored_header_hash() const {
+    return ReadLittleEndian<uint64_t>(bytes_);
+  }
   uint64_t data_size() const {
-    return ReadLittleEndian64(bytes_ + sizeof(uint64_t));
+    return ReadLittleEndian<uint64_t>(bytes_ + sizeof(uint64_t));
   }
   uint64_t data_hash() const {
-    return ReadLittleEndian64(bytes_ + 2 * sizeof(uint64_t));
+    return ReadLittleEndian<uint64_t>(bytes_ + 2 * sizeof(uint64_t));
   }
   ChunkType chunk_type() const {
     return static_cast<ChunkType>(
-        ReadLittleEndian64(bytes_ + 3 * sizeof(uint64_t)) & 0xff);
+        ReadLittleEndian<uint64_t>(bytes_ + 3 * sizeof(uint64_t)) & 0xff);
   }
   uint64_t num_records() const {
-    return ReadLittleEndian64(bytes_ + 3 * sizeof(uint64_t)) >> 8;
+    return ReadLittleEndian<uint64_t>(bytes_ + 3 * sizeof(uint64_t)) >> 8;
   }
   uint64_t decoded_data_size() const {
-    return ReadLittleEndian64(bytes_ + 4 * sizeof(uint64_t));
+    return ReadLittleEndian<uint64_t>(bytes_ + 4 * sizeof(uint64_t));
   }
 
  private:
-  void set_header_hash(uint64_t value) { WriteLittleEndian64(value, bytes_); }
+  void set_header_hash(uint64_t value) {
+    WriteLittleEndian<uint64_t>(value, bytes_);
+  }
   void set_data_size(uint64_t value) {
-    WriteLittleEndian64(value, bytes_ + sizeof(uint64_t));
+    WriteLittleEndian<uint64_t>(value, bytes_ + sizeof(uint64_t));
   }
   void set_data_hash(uint64_t value) {
-    WriteLittleEndian64(value, bytes_ + 2 * sizeof(uint64_t));
+    WriteLittleEndian<uint64_t>(value, bytes_ + 2 * sizeof(uint64_t));
   }
   void set_chunk_type_and_num_records(ChunkType chunk_type,
                                       uint64_t num_records) {
@@ -76,11 +80,12 @@ class ChunkHeader {
         << "Failed precondition of "
            "ChunkHeader::set_chunk_type_and_num_records(): "
            "number of records out of range";
-    WriteLittleEndian64(static_cast<uint64_t>(chunk_type) | (num_records << 8),
-                        bytes_ + 3 * sizeof(uint64_t));
+    WriteLittleEndian<uint64_t>(
+        static_cast<uint64_t>(chunk_type) | (num_records << 8),
+        bytes_ + 3 * sizeof(uint64_t));
   }
   void set_decoded_data_size(uint64_t value) {
-    WriteLittleEndian64(value, bytes_ + 4 * sizeof(uint64_t));
+    WriteLittleEndian<uint64_t>(value, bytes_ + 4 * sizeof(uint64_t));
   }
 
   // Representation (Little Endian):

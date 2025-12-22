@@ -50,21 +50,25 @@ class BlockHeader {
     return chunk_encoding_internal::Hash(absl::string_view(
         bytes() + sizeof(uint64_t), size() - sizeof(uint64_t)));
   }
-  uint64_t stored_header_hash() const { return ReadLittleEndian64(bytes_); }
+  uint64_t stored_header_hash() const {
+    return ReadLittleEndian<uint64_t>(bytes_);
+  }
   uint64_t previous_chunk() const {
-    return ReadLittleEndian64(bytes_ + sizeof(uint64_t));
+    return ReadLittleEndian<uint64_t>(bytes_ + sizeof(uint64_t));
   }
   uint64_t next_chunk() const {
-    return ReadLittleEndian64(bytes_ + 2 * sizeof(uint64_t));
+    return ReadLittleEndian<uint64_t>(bytes_ + 2 * sizeof(uint64_t));
   }
 
  private:
-  void set_header_hash(uint64_t value) { WriteLittleEndian64(value, bytes_); }
+  void set_header_hash(uint64_t value) {
+    WriteLittleEndian<uint64_t>(value, bytes_);
+  }
   void set_previous_chunk(uint64_t value) {
-    WriteLittleEndian64(value, bytes_ + sizeof(uint64_t));
+    WriteLittleEndian<uint64_t>(value, bytes_ + sizeof(uint64_t));
   }
   void set_next_chunk(uint64_t value) {
-    WriteLittleEndian64(value, bytes_ + 2 * sizeof(uint64_t));
+    WriteLittleEndian<uint64_t>(value, bytes_ + 2 * sizeof(uint64_t));
   }
 
   // Representation (Little Endian):

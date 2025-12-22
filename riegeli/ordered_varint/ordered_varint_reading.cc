@@ -31,7 +31,7 @@ bool ReadOrderedVarint32Slow(Reader& src, uint32_t& dest) {
       << "Failed precondition of ReadOrderedVarint32Slow(): length is 1";
   if (first_byte < 0xc0) {
     if (ABSL_PREDICT_FALSE(!src.Pull(2))) return false;
-    dest = ReadBigEndian16(src.cursor()) & ~(uint16_t{0x80} << 8);
+    dest = ReadBigEndian<uint16_t>(src.cursor()) & ~(uint16_t{0x80} << 8);
     if (ABSL_PREDICT_FALSE(dest < uint32_t{1} << 7)) return false;
     src.move_cursor(2);
     return true;
@@ -40,20 +40,20 @@ bool ReadOrderedVarint32Slow(Reader& src, uint32_t& dest) {
     dest = (static_cast<uint32_t>(static_cast<uint8_t>(src.cursor()[0]) &
                                   ~uint8_t{0xc0})
             << (2 * 8)) |
-           ReadBigEndian16(src.cursor() + 1);
+           ReadBigEndian<uint16_t>(src.cursor() + 1);
     if (ABSL_PREDICT_FALSE(dest < uint32_t{1} << (2 * 7))) return false;
     src.move_cursor(3);
     return true;
   } else if (first_byte < 0xf0) {
     if (ABSL_PREDICT_FALSE(!src.Pull(4))) return false;
-    dest = ReadBigEndian32(src.cursor()) & ~(uint32_t{0xe0} << (3 * 8));
+    dest = ReadBigEndian<uint32_t>(src.cursor()) & ~(uint32_t{0xe0} << (3 * 8));
     if (ABSL_PREDICT_FALSE(dest < uint32_t{1} << (3 * 7))) return false;
     src.move_cursor(4);
     return true;
   } else {
     if (ABSL_PREDICT_FALSE(first_byte > 0xf0)) return false;
     if (ABSL_PREDICT_FALSE(!src.Pull(5))) return false;
-    dest = ReadBigEndian32(src.cursor() + 1);
+    dest = ReadBigEndian<uint32_t>(src.cursor() + 1);
     if (ABSL_PREDICT_FALSE(dest < uint32_t{1} << (4 * 7))) return false;
     src.move_cursor(5);
     return true;
@@ -68,7 +68,7 @@ bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest) {
       << "Failed precondition of ReadOrderedVarint64Slow(): length is 1";
   if (first_byte < 0xc0) {
     if (ABSL_PREDICT_FALSE(!src.Pull(2))) return false;
-    dest = ReadBigEndian16(src.cursor()) & ~(uint16_t{0x80} << 8);
+    dest = ReadBigEndian<uint16_t>(src.cursor()) & ~(uint16_t{0x80} << 8);
     if (ABSL_PREDICT_FALSE(dest < uint32_t{1} << 7)) return false;
     src.move_cursor(2);
     return true;
@@ -77,13 +77,13 @@ bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest) {
     dest = (static_cast<uint32_t>(static_cast<uint8_t>(src.cursor()[0]) &
                                   ~uint8_t{0xc0})
             << (2 * 8)) |
-           ReadBigEndian16(src.cursor() + 1);
+           ReadBigEndian<uint16_t>(src.cursor() + 1);
     if (ABSL_PREDICT_FALSE(dest < uint32_t{1} << (2 * 7))) return false;
     src.move_cursor(3);
     return true;
   } else if (first_byte < 0xf0) {
     if (ABSL_PREDICT_FALSE(!src.Pull(4))) return false;
-    dest = ReadBigEndian32(src.cursor()) & ~(uint32_t{0xe0} << (3 * 8));
+    dest = ReadBigEndian<uint32_t>(src.cursor()) & ~(uint32_t{0xe0} << (3 * 8));
     if (ABSL_PREDICT_FALSE(dest < uint32_t{1} << (3 * 7))) return false;
     src.move_cursor(4);
     return true;
@@ -92,37 +92,37 @@ bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest) {
     dest = (static_cast<uint64_t>(static_cast<uint8_t>(src.cursor()[0]) &
                                   ~uint8_t{0xf0})
             << (4 * 8)) |
-           ReadBigEndian32(src.cursor() + 1);
+           ReadBigEndian<uint32_t>(src.cursor() + 1);
     if (ABSL_PREDICT_FALSE(dest < uint64_t{1} << (4 * 7))) return false;
     src.move_cursor(5);
     return true;
   } else if (first_byte < 0xfc) {
     if (ABSL_PREDICT_FALSE(!src.Pull(6))) return false;
-    dest = (static_cast<uint64_t>(ReadBigEndian16(src.cursor()) &
+    dest = (static_cast<uint64_t>(ReadBigEndian<uint16_t>(src.cursor()) &
                                   ~(uint16_t{0xf8} << 8))
             << (4 * 8)) |
-           ReadBigEndian32(src.cursor() + 2);
+           ReadBigEndian<uint32_t>(src.cursor() + 2);
     if (ABSL_PREDICT_FALSE(dest < uint64_t{1} << (5 * 7))) return false;
     src.move_cursor(6);
     return true;
   } else if (first_byte < 0xfe) {
     if (ABSL_PREDICT_FALSE(!src.Pull(7))) return false;
-    dest = (static_cast<uint64_t>(ReadBigEndian32(src.cursor()) &
+    dest = (static_cast<uint64_t>(ReadBigEndian<uint32_t>(src.cursor()) &
                                   ~(uint32_t{0xfc} << (3 * 8)))
             << (3 * 8)) |
-           ReadBigEndian32(src.cursor() + 3);
+           ReadBigEndian<uint32_t>(src.cursor() + 3);
     if (ABSL_PREDICT_FALSE(dest < uint64_t{1} << (6 * 7))) return false;
     src.move_cursor(7);
     return true;
   } else if (first_byte < 0xff) {
     if (ABSL_PREDICT_FALSE(!src.Pull(8))) return false;
-    dest = ReadBigEndian64(src.cursor()) & ~(uint64_t{0xfe} << (7 * 8));
+    dest = ReadBigEndian<uint64_t>(src.cursor()) & ~(uint64_t{0xfe} << (7 * 8));
     if (ABSL_PREDICT_FALSE(dest < uint64_t{1} << (7 * 7))) return false;
     src.move_cursor(8);
     return true;
   } else {
     if (ABSL_PREDICT_FALSE(!src.Pull(9))) return false;
-    dest = ReadBigEndian64(src.cursor() + 1);
+    dest = ReadBigEndian<uint64_t>(src.cursor() + 1);
     if (ABSL_PREDICT_FALSE(dest < uint64_t{1} << (8 * 7))) return false;
     src.move_cursor(9);
     return true;

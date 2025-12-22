@@ -285,7 +285,7 @@ void SerializedMessageReaderBase::OnFixed32(
   SetAction(field_path, WireType::kFixed32,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint32_t value;
-              if (ABSL_PREDICT_FALSE(!ReadLittleEndian32(src, value))) {
+              if (ABSL_PREDICT_FALSE(!ReadLittleEndian<uint32_t>(src, value))) {
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     "Could not read a fixed32 field"));
               }
@@ -295,7 +295,7 @@ void SerializedMessageReaderBase::OnFixed32(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
                                                TypeErasedRef context) {
         uint32_t value;
-        while (ReadLittleEndian32(src, value)) {
+        while (ReadLittleEndian<uint32_t>(src, value)) {
           if (absl::Status status = action(value, src, context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;
@@ -317,7 +317,7 @@ void SerializedMessageReaderBase::OnFixed64(
   SetAction(field_path, WireType::kFixed64,
             [action](LimitingReaderBase& src, TypeErasedRef context) {
               uint64_t value;
-              if (ABSL_PREDICT_FALSE(!ReadLittleEndian64(src, value))) {
+              if (ABSL_PREDICT_FALSE(!ReadLittleEndian<uint64_t>(src, value))) {
                 return src.StatusOrAnnotate(absl::InvalidArgumentError(
                     "Could not read a fixed64 field"));
               }
@@ -327,7 +327,7 @@ void SerializedMessageReaderBase::OnFixed64(
       field_path, [action = std::move(action)](LimitingReaderBase& src,
                                                TypeErasedRef context) {
         uint64_t value;
-        while (ReadLittleEndian64(src, value)) {
+        while (ReadLittleEndian<uint64_t>(src, value)) {
           if (absl::Status status = action(value, src, context);
               ABSL_PREDICT_FALSE(!status.ok())) {
             return status;

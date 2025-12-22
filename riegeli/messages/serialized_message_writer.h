@@ -525,7 +525,7 @@ inline absl::Status SerializedMessageWriter::WriteFixed32(int field_number,
     return writer().status();
   }
   char* ptr = WriteVarint32(tag, writer().cursor());
-  WriteLittleEndian32(value, ptr);
+  WriteLittleEndian<uint32_t>(value, ptr);
   ptr += sizeof(uint32_t);
   writer().set_cursor(ptr);
   return absl::OkStatus();
@@ -543,7 +543,7 @@ inline absl::Status SerializedMessageWriter::WriteFixed64(int field_number,
     return writer().status();
   }
   char* ptr = WriteVarint32(tag, writer().cursor());
-  WriteLittleEndian64(value, ptr);
+  WriteLittleEndian<uint64_t>(value, ptr);
   ptr += sizeof(uint64_t);
   writer().set_cursor(ptr);
   return absl::OkStatus();
@@ -614,7 +614,7 @@ inline absl::Status SerializedMessageWriter::WritePackedBool(bool value) {
 
 inline absl::Status SerializedMessageWriter::WritePackedFixed32(
     uint32_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteLittleEndian32(value, writer()))) {
+  if (ABSL_PREDICT_FALSE(!WriteLittleEndian<uint32_t>(value, writer()))) {
     return writer().status();
   }
   return absl::OkStatus();
@@ -622,7 +622,7 @@ inline absl::Status SerializedMessageWriter::WritePackedFixed32(
 
 inline absl::Status SerializedMessageWriter::WritePackedFixed64(
     uint64_t value) {
-  if (ABSL_PREDICT_FALSE(!WriteLittleEndian64(value, writer()))) {
+  if (ABSL_PREDICT_FALSE(!WriteLittleEndian<uint64_t>(value, writer()))) {
     return writer().status();
   }
   return absl::OkStatus();

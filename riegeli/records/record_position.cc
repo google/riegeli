@@ -81,9 +81,9 @@ std::string RecordPosition::ToBytes() const {
 bool RecordPosition::FromBytes(absl::string_view serialized) {
   if (serialized.size() == 2 * sizeof(uint64_t)) {
     // Reading the old format is temporarily supported too.
-    const uint64_t chunk_begin = ReadBigEndian64(&serialized[0]);
+    const uint64_t chunk_begin = ReadBigEndian<uint64_t>(&serialized[0]);
     const uint64_t record_index =
-        ReadBigEndian64(&serialized[sizeof(uint64_t)]);
+        ReadBigEndian<uint64_t>(&serialized[sizeof(uint64_t)]);
     if (ABSL_PREDICT_FALSE(record_index > std::numeric_limits<uint64_t>::max() -
                                               chunk_begin)) {
       return false;

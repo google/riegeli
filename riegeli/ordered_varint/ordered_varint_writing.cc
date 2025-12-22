@@ -29,26 +29,26 @@ bool WriteOrderedVarint32Slow(uint32_t data, Writer& dest) {
       << "Failed precondition of WriteOrderedVarint32Slow(): data too small";
   if (data < uint32_t{1} << (2 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(2))) return false;
-    WriteBigEndian16(IntCast<uint16_t>(data) | uint16_t{0x80} << 8,
-                     dest.cursor());
+    WriteBigEndian<uint16_t>(IntCast<uint16_t>(data) | uint16_t{0x80} << 8,
+                             dest.cursor());
     dest.move_cursor(2);
     return true;
   } else if (data < uint32_t{1} << (3 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(3))) return false;
     dest.cursor()[0] = static_cast<char>(static_cast<uint8_t>(data >> (2 * 8)) |
                                          uint8_t{0xc0});
-    WriteBigEndian16(static_cast<uint16_t>(data), dest.cursor() + 1);
+    WriteBigEndian<uint16_t>(static_cast<uint16_t>(data), dest.cursor() + 1);
     dest.move_cursor(3);
     return true;
   } else if (data < uint32_t{1} << (4 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(4))) return false;
-    WriteBigEndian32(data | uint32_t{0xe0} << (3 * 8), dest.cursor());
+    WriteBigEndian<uint32_t>(data | uint32_t{0xe0} << (3 * 8), dest.cursor());
     dest.move_cursor(4);
     return true;
   } else {
     if (ABSL_PREDICT_FALSE(!dest.Push(5))) return false;
     dest.cursor()[0] = static_cast<char>(0xf0);
-    WriteBigEndian32(data, dest.cursor() + 1);
+    WriteBigEndian<uint32_t>(data, dest.cursor() + 1);
     dest.move_cursor(5);
     return true;
   }
@@ -59,55 +59,55 @@ bool WriteOrderedVarint64Slow(uint64_t data, Writer& dest) {
       << "Failed precondition of WriteOrderedVarint64Slow(): data too small";
   if (data < uint64_t{1} << (2 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(2))) return false;
-    WriteBigEndian16(IntCast<uint16_t>(data) | uint16_t{0x80} << 8,
-                     dest.cursor());
+    WriteBigEndian<uint16_t>(IntCast<uint16_t>(data) | uint16_t{0x80} << 8,
+                             dest.cursor());
     dest.move_cursor(2);
     return true;
   } else if (data < uint64_t{1} << (3 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(3))) return false;
     dest.cursor()[0] = static_cast<char>(static_cast<uint8_t>(data >> (2 * 8)) |
                                          uint8_t{0xc0});
-    WriteBigEndian16(static_cast<uint16_t>(data), dest.cursor() + 1);
+    WriteBigEndian<uint16_t>(static_cast<uint16_t>(data), dest.cursor() + 1);
     dest.move_cursor(3);
     return true;
   } else if (data < uint64_t{1} << (4 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(4))) return false;
-    WriteBigEndian32(IntCast<uint32_t>(data) | uint32_t{0xe0} << (3 * 8),
-                     dest.cursor());
+    WriteBigEndian<uint32_t>(
+        IntCast<uint32_t>(data) | uint32_t{0xe0} << (3 * 8), dest.cursor());
     dest.move_cursor(4);
     return true;
   } else if (data < uint64_t{1} << (5 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(5))) return false;
     dest.cursor()[0] = static_cast<char>(static_cast<uint8_t>(data >> (4 * 8)) |
                                          uint8_t{0xf0});
-    WriteBigEndian32(static_cast<uint32_t>(data), dest.cursor() + 1);
+    WriteBigEndian<uint32_t>(static_cast<uint32_t>(data), dest.cursor() + 1);
     dest.move_cursor(5);
     return true;
   } else if (data < uint64_t{1} << (6 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(6))) return false;
-    WriteBigEndian16(
+    WriteBigEndian<uint16_t>(
         static_cast<uint16_t>(data >> (4 * 8)) | uint16_t{0xf8} << 8,
         dest.cursor());
-    WriteBigEndian32(static_cast<uint32_t>(data), dest.cursor() + 2);
+    WriteBigEndian<uint32_t>(static_cast<uint32_t>(data), dest.cursor() + 2);
     dest.move_cursor(6);
     return true;
   } else if (data < uint64_t{1} << (7 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(7))) return false;
-    WriteBigEndian32(
+    WriteBigEndian<uint32_t>(
         static_cast<uint32_t>(data >> (3 * 8)) | uint32_t{0xfc} << (3 * 8),
         dest.cursor());
-    WriteBigEndian32(static_cast<uint32_t>(data), dest.cursor() + 3);
+    WriteBigEndian<uint32_t>(static_cast<uint32_t>(data), dest.cursor() + 3);
     dest.move_cursor(7);
     return true;
   } else if (data < uint64_t{1} << (8 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(8))) return false;
-    WriteBigEndian64(data | uint64_t{0xfe} << (7 * 8), dest.cursor());
+    WriteBigEndian<uint64_t>(data | uint64_t{0xfe} << (7 * 8), dest.cursor());
     dest.move_cursor(8);
     return true;
   } else {
     if (ABSL_PREDICT_FALSE(!dest.Push(9))) return false;
     dest.cursor()[0] = static_cast<char>(0xff);
-    WriteBigEndian64(data, dest.cursor() + 1);
+    WriteBigEndian<uint64_t>(data, dest.cursor() + 1);
     dest.move_cursor(9);
     return true;
   }
