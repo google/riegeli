@@ -14,8 +14,9 @@
 
 #include "riegeli/messages/serialized_message_rewriter.h"
 
-#include <cstddef>
-#include <cstdint>
+#include <stddef.h>
+#include <stdint.h>
+
 #include <limits>
 
 #include "absl/base/optimization.h"

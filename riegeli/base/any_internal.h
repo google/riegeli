@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <algorithm>
-#include <cstddef>
 #include <memory>
 #include <new>
 #include <type_traits>
