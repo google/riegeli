@@ -45,23 +45,24 @@ struct IsFieldHandlerWithStaticFieldNumber : std::false_type {};
 
 template <typename T>
 struct IsFieldHandlerWithStaticFieldNumber<
-    T, std::enable_if_t<(T::kFieldNumber > 0)>> : std::true_type {};
+    T, std::enable_if_t<(std::remove_reference_t<T>::kFieldNumber > 0)>>
+    : std::true_type {};
 
 template <typename T, typename Enable = void>
 struct IsFieldHandlerWithDynamicFieldNumber : std::false_type {};
 
 template <typename T>
 struct IsFieldHandlerWithDynamicFieldNumber<
-    T, std::enable_if_t<T::kFieldNumber == kDynamicFieldNumber>>
-    : std::true_type {};
+    T, std::enable_if_t<std::remove_reference_t<T>::kFieldNumber ==
+                        kDynamicFieldNumber>> : std::true_type {};
 
 template <typename T, typename Enable = void>
 struct IsFieldHandlerWithUnboundFieldNumber : std::false_type {};
 
 template <typename T>
 struct IsFieldHandlerWithUnboundFieldNumber<
-    T, std::enable_if_t<(T::kFieldNumber == kUnboundFieldNumber)>>
-    : std::true_type {};
+    T, std::enable_if_t<(std::remove_reference_t<T>::kFieldNumber ==
+                         kUnboundFieldNumber)>> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
 struct IsStaticFieldHandlerForVarintImpl : std::false_type {};
@@ -555,16 +556,6 @@ template <typename T, typename... Context>
 struct IsFieldHandlerFromString
     : std::disjunction<IsStaticFieldHandlerFromString<T, Context...>,
                        IsDynamicFieldHandlerFromString<T, Context...>> {};
-
-template <typename FieldHandler>
-inline const std::remove_pointer_t<FieldHandler>& DerefPointer(
-    const FieldHandler& field_handler) {
-  if constexpr (std::is_pointer_v<FieldHandler>) {
-    return *field_handler;
-  } else {
-    return field_handler;
-  }
-}
 
 ABSL_ATTRIBUTE_COLD absl::Status AnnotateWithFieldNumberSlow(
     absl::Status status, int field_number);

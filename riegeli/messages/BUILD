@@ -149,6 +149,8 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:cord_iterator_span",
         "//riegeli/base:dependency",
+        "//riegeli/base:initializer",
+        "//riegeli/base:reset",
         "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "//riegeli/bytes:chain_reader",

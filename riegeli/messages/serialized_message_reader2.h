@@ -37,6 +37,8 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/dependency.h"
+#include "riegeli/base/initializer.h"
+#include "riegeli/base/reset.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
@@ -117,10 +119,9 @@ namespace riegeli {
 // the field number. Annotations are skipped for `absl::CancelledError()` to
 // make it more efficient to cancel a handler when cancellation is likely.
 //
-// A field handler can also be expressed as a raw pointer to a const-qualified
-// proper field handler. A proper field handler is owned by the
-// `SerializedMessageReader2`. By passing a pointer, the field handler can be
-// managed outside of the `SerializedMessageReader2`.
+// A field handler can also be expressed as a reference to a const-qualified
+// proper field handler, to avoid `SerializedMessageReader2` taking the
+// ownership. Use `std::cref()` in a `SerializedMessageReader2()` call.
 
 // Context types
 // -------------
@@ -261,18 +262,50 @@ class SerializedMessageReaderType;
 template <typename... FieldHandlers, typename... Context>
 class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
  public:
-  // Constructs a `SerializedMessageReaderType` from field handlers.
-  template <typename... FieldHandlerInitializers,
-            std::enable_if_t<std::conjunction_v<
-                                 NotSameRef<SerializedMessageReaderType,
-                                            FieldHandlerInitializers&&...>,
-                                 std::is_convertible<FieldHandlerInitializers&&,
-                                                     FieldHandlers>...>,
-                             int> = 0>
+  // Creates a `SerializedMessageReader2` with default-initialized field
+  // handlers. Designed for `Reset()`.
+  SerializedMessageReaderType() = default;
+
+  // Constructs a `SerializedMessageReader2` from field handlers.
+  template <
+      typename... FieldHandlerInitializers,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::bool_constant<(sizeof...(FieldHandlerInitializers) > 0)>,
+              NotSameRef<SerializedMessageReaderType,
+                         FieldHandlerInitializers&&...>,
+              std::is_convertible<FieldHandlerInitializers&&,
+                                  FieldHandlers>...>,
+          int> = 0>
   explicit constexpr SerializedMessageReaderType(
       FieldHandlerInitializers&&... field_handlers)
       : field_handlers_(
             std::forward<FieldHandlerInitializers>(field_handlers)...) {}
+
+  SerializedMessageReaderType(const SerializedMessageReaderType&) = default;
+  SerializedMessageReaderType& operator=(const SerializedMessageReaderType&) =
+      default;
+
+  SerializedMessageReaderType(SerializedMessageReaderType&& that) = default;
+  SerializedMessageReaderType& operator=(SerializedMessageReaderType&& that) =
+      default;
+
+  // Makes `*this` equivalent to a newly constructed `SerializedMessageReader2`.
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
+    ResetImpl(std::index_sequence_for<FieldHandlers...>());
+  }
+  template <
+      typename... FieldHandlerInitializers,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::bool_constant<(sizeof...(FieldHandlerInitializers) > 0)>,
+              SupportsReset<FieldHandlers, FieldHandlerInitializers&&>...>,
+          int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      FieldHandlerInitializers&&... field_handlers) {
+    ResetImpl(std::index_sequence_for<FieldHandlers...>(),
+              std::forward<FieldHandlerInitializers>(field_handlers)...);
+  }
 
   // Reads a serialized message, letting field handlers process the fields.
   //
@@ -301,6 +334,20 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
   absl::Status ReadMessage(CordIteratorSpan src, Context&... context) const;
 
  private:
+  template <size_t... indices>
+  void ResetImpl(std::index_sequence<indices...>) {
+    (riegeli::Reset(std::get<indices>(field_handlers_)), ...);
+  }
+  template <
+      size_t... indices, typename... FieldHandlerInitializers,
+      std::enable_if_t<(sizeof...(FieldHandlerInitializers) > 0), int> = 0>
+  void ResetImpl(std::index_sequence<indices...>,
+                 FieldHandlerInitializers&&... field_handlers) {
+    (riegeli::Reset(std::get<indices>(field_handlers_),
+                    std::forward<FieldHandlerInitializers>(field_handlers)...),
+     ...);
+  }
+
   template <typename ReaderType>
   absl::Status ReadMessageFromReader(ReaderType& src,
                                      Context&... context) const;
@@ -315,9 +362,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
       Context&... context) const {
     if constexpr (index < sizeof...(FieldHandlers)) {
       return (serialized_message_reader_internal::ReadVarintField(
-                  field_number, value, status,
-                  serialized_message_reader_internal::DerefPointer(
-                      std::get<index>(field_handlers_)),
+                  field_number, value, status, std::get<index>(field_handlers_),
                   context...) ||
               HandleVarintField<index + 1>(field_number, value, status,
                                            context...));
@@ -332,9 +377,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
       Context&... context) const {
     if constexpr (index < sizeof...(FieldHandlers)) {
       return (serialized_message_reader_internal::ReadFixed32Field(
-                  field_number, value, status,
-                  serialized_message_reader_internal::DerefPointer(
-                      std::get<index>(field_handlers_)),
+                  field_number, value, status, std::get<index>(field_handlers_),
                   context...) ||
               HandleFixed32Field<index + 1>(field_number, value, status,
                                             context...));
@@ -349,9 +392,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
       Context&... context) const {
     if constexpr (index < sizeof...(FieldHandlers)) {
       return (serialized_message_reader_internal::ReadFixed64Field(
-                  field_number, value, status,
-                  serialized_message_reader_internal::DerefPointer(
-                      std::get<index>(field_handlers_)),
+                  field_number, value, status, std::get<index>(field_handlers_),
                   context...) ||
               HandleFixed64Field<index + 1>(field_number, value, status,
                                             context...));
@@ -368,9 +409,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
       return (serialized_message_reader_internal::
                   ReadLengthDelimitedFieldFromReader(
                       field_number, src, length, status,
-                      serialized_message_reader_internal::DerefPointer(
-                          std::get<index>(field_handlers_)),
-                      context...) ||
+                      std::get<index>(field_handlers_), context...) ||
               HandleLengthDelimitedFieldFromReader<index + 1>(
                   field_number, src, length, status, context...));
     } else {
@@ -386,9 +425,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
       return (
           serialized_message_reader_internal::ReadLengthDelimitedFieldFromCord(
               field_number, src, length, scratch, status,
-              serialized_message_reader_internal::DerefPointer(
-                  std::get<index>(field_handlers_)),
-              context...) ||
+              std::get<index>(field_handlers_), context...) ||
           HandleLengthDelimitedFieldFromCord<index + 1>(
               field_number, src, length, scratch, status, context...));
     } else {
@@ -404,9 +441,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
       return (serialized_message_reader_internal::
                   ReadLengthDelimitedFieldFromString(
                       field_number, cursor, length, status,
-                      serialized_message_reader_internal::DerefPointer(
-                          std::get<index>(field_handlers_)),
-                      context...) ||
+                      std::get<index>(field_handlers_), context...) ||
               HandleLengthDelimitedFieldFromString<index + 1>(
                   field_number, cursor, length, status, context...));
     } else {
@@ -420,9 +455,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
     if constexpr (index < sizeof...(FieldHandlers)) {
       return (
           serialized_message_reader_internal::ReadStartGroupField(
-              field_number, status,
-              serialized_message_reader_internal::DerefPointer(
-                  std::get<index>(field_handlers_)),
+              field_number, status, std::get<index>(field_handlers_),
               context...) ||
           HandleStartGroupField<index + 1>(field_number, status, context...));
     } else {
@@ -435,9 +468,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
       int field_number, absl::Status& status, Context&... context) const {
     if constexpr (index < sizeof...(FieldHandlers)) {
       return (serialized_message_reader_internal::ReadEndGroupField(
-                  field_number, status,
-                  serialized_message_reader_internal::DerefPointer(
-                      std::get<index>(field_handlers_)),
+                  field_number, status, std::get<index>(field_handlers_),
                   context...) ||
               HandleEndGroupField<index + 1>(field_number, status, context...));
     } else {
@@ -465,29 +496,27 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
 // `Context` types must be specified explicitly for `SerializedMessageReader2`.
 // Field handlers and their actions must accept compatible `Context&...`
 // parameters.
-template <typename... Context, typename... FieldHandlerInitializers
+template <
+    typename... Context, typename... FieldHandlerInitializers
 #if !__cpp_concepts
-          ,
-          std::enable_if_t<
-              std::conjunction_v<IsFieldHandler<
-                  std::remove_pointer_t<std::decay_t<FieldHandlerInitializers>>,
-                  Context...>...>,
-              int> = 0
+    ,
+    std::enable_if_t<std::conjunction_v<IsFieldHandler<
+                         TargetT<FieldHandlerInitializers>, Context...>...>,
+                     int> = 0
 #endif
-          >
+    >
 #if __cpp_concepts
 // For conjunctions, `requires` gives better error messages than
 // `std::enable_if_t`, indicating the relevant argument.
-  requires(IsFieldHandler<
-               std::remove_pointer_t<std::decay_t<FieldHandlerInitializers>>,
-               Context...>::value &&
-           ...)
+  requires(
+      IsFieldHandler<TargetT<FieldHandlerInitializers>, Context...>::value &&
+      ...)
 #endif
 constexpr SerializedMessageReaderType<
-    std::tuple<std::decay_t<FieldHandlerInitializers>...>, Context...>
+    std::tuple<TargetT<FieldHandlerInitializers>...>, Context...>
 SerializedMessageReader2(FieldHandlerInitializers&&... field_handlers) {
   return SerializedMessageReaderType<
-      std::tuple<std::decay_t<FieldHandlerInitializers>...>, Context...>(
+      std::tuple<TargetT<FieldHandlerInitializers>...>, Context...>(
       std::forward<FieldHandlerInitializers>(field_handlers)...);
 }
 
@@ -560,10 +589,10 @@ absl::Status SerializedMessageReaderType<
     const int field_number = GetTagFieldNumber(tag);
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
-        if constexpr (
-            std::disjunction_v<
-                serialized_message_reader_internal::IsFieldHandlerForVarint<
-                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+        if constexpr (std::disjunction_v<
+                          serialized_message_reader_internal::
+                              IsFieldHandlerForVarint<FieldHandlers,
+                                                      Context...>...>) {
           uint64_t value;
           if (ABSL_PREDICT_FALSE(!ReadVarint64(src, value))) {
             return serialized_message_reader_internal::ReadVarintError(
@@ -630,8 +659,7 @@ absl::Status SerializedMessageReaderType<
         if constexpr (std::disjunction_v<
                           serialized_message_reader_internal::
                               IsFieldHandlerForLengthDelimited<
-                                  std::remove_pointer_t<FieldHandlers>,
-                                  Context...>...>) {
+                                  FieldHandlers, Context...>...>) {
           static_assert(
               std::is_same_v<ReaderType, LimitingReaderBase>,
               "If there are any field handlers for length-delimited fields, "
@@ -714,10 +742,10 @@ inline absl::Status SerializedMessageReaderType<
     const int field_number = GetTagFieldNumber(tag);
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
-        if constexpr (
-            std::disjunction_v<
-                serialized_message_reader_internal::IsFieldHandlerForVarint<
-                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+        if constexpr (std::disjunction_v<
+                          serialized_message_reader_internal::
+                              IsFieldHandlerForVarint<FieldHandlers,
+                                                      Context...>...>) {
           uint64_t value;
           if (ABSL_PREDICT_FALSE(!ReadVarint64(
                   src, CordIteratorSpan::Remaining(src) - limit, value))) {
@@ -748,10 +776,10 @@ inline absl::Status SerializedMessageReaderType<
           return serialized_message_reader_internal::ReadFixed32Error(
               field_number);
         }
-        if constexpr (
-            std::disjunction_v<
-                serialized_message_reader_internal::IsFieldHandlerForFixed32<
-                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+        if constexpr (std::disjunction_v<
+                          serialized_message_reader_internal::
+                              IsFieldHandlerForFixed32<FieldHandlers,
+                                                       Context...>...>) {
           char buffer[sizeof(uint32_t)];
           CordIteratorSpan::Read(src, sizeof(uint32_t), buffer);
           const uint32_t value = ReadLittleEndian32(buffer);
@@ -775,10 +803,10 @@ inline absl::Status SerializedMessageReaderType<
           return serialized_message_reader_internal::ReadFixed64Error(
               field_number);
         }
-        if constexpr (
-            std::disjunction_v<
-                serialized_message_reader_internal::IsFieldHandlerForFixed64<
-                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+        if constexpr (std::disjunction_v<
+                          serialized_message_reader_internal::
+                              IsFieldHandlerForFixed64<FieldHandlers,
+                                                       Context...>...>) {
           char buffer[sizeof(uint64_t)];
           CordIteratorSpan::Read(src, sizeof(uint64_t), buffer);
           const uint64_t value = ReadLittleEndian64(buffer);
@@ -814,8 +842,7 @@ inline absl::Status SerializedMessageReaderType<
         if constexpr (std::disjunction_v<
                           serialized_message_reader_internal::
                               IsFieldHandlerForLengthDelimited<
-                                  std::remove_pointer_t<FieldHandlers>,
-                                  Context...>...>) {
+                                  FieldHandlers, Context...>...>) {
           absl::Status status;
           if (HandleLengthDelimitedFieldFromCord(field_number, src,
                                                  size_t{length}, scratch,
@@ -889,10 +916,10 @@ inline absl::Status SerializedMessageReaderType<
     const int field_number = GetTagFieldNumber(tag);
     switch (GetTagWireType(tag)) {
       case WireType::kVarint: {
-        if constexpr (
-            std::disjunction_v<
-                serialized_message_reader_internal::IsFieldHandlerForVarint<
-                    std::remove_pointer_t<FieldHandlers>, Context...>...>) {
+        if constexpr (std::disjunction_v<
+                          serialized_message_reader_internal::
+                              IsFieldHandlerForVarint<FieldHandlers,
+                                                      Context...>...>) {
           uint64_t value;
           const size_t length_of_value =
               ReadVarint64(cursor, PtrDistance(cursor, limit), value);
@@ -1027,8 +1054,7 @@ absl::Status SerializedMessageReaderType<
   absl::Status status;
   if constexpr (std::disjunction_v<serialized_message_reader_internal::
                                        IsFieldHandlerForLengthDelimited<
-                                           std::remove_pointer_t<FieldHandlers>,
-                                           Context...>...>) {
+                                           FieldHandlers, Context...>...>) {
     if constexpr (std::is_convertible_v<
                       typename DependencyRef<Reader*, Src>::Subhandle,
                       LimitingReaderBase*>) {
@@ -1064,8 +1090,7 @@ absl::Status SerializedMessageReaderType<
     const {
   if constexpr (std::conjunction_v<serialized_message_reader_internal::
                                        IsFieldHandlerFromString<
-                                           std::remove_pointer_t<FieldHandlers>,
-                                           Context...>...>) {
+                                           FieldHandlers, Context...>...>) {
     return ReadMessageFromString(src, context...);
   } else {
     return ReadMessage(StringReader(src), context...);
@@ -1084,12 +1109,12 @@ template <typename... FieldHandlers, typename... Context>
 absl::Status SerializedMessageReaderType<
     std::tuple<FieldHandlers...>,
     Context...>::ReadMessage(const absl::Cord& src, Context&... context) const {
-  if constexpr (
-      std::conjunction_v<std::disjunction<
-          serialized_message_reader_internal::IsFieldHandlerFromCord<
-              std::remove_pointer_t<FieldHandlers>, Context...>,
-          serialized_message_reader_internal::IsFieldHandlerFromString<
-              std::remove_pointer_t<FieldHandlers>, Context...>>...>) {
+  if constexpr (std::conjunction_v<std::disjunction<
+                    serialized_message_reader_internal::IsFieldHandlerFromCord<
+                        FieldHandlers, Context...>,
+                    serialized_message_reader_internal::
+                        IsFieldHandlerFromString<FieldHandlers,
+                                                 Context...>>...>) {
     absl::Cord::CharIterator iter = src.char_begin();
     return ReadMessageFromCord(iter, CordIteratorSpan::Remaining(iter),
                                context...);
@@ -1103,12 +1128,12 @@ absl::Status SerializedMessageReaderType<
     std::tuple<FieldHandlers...>, Context...>::ReadMessage(CordIteratorSpan src,
                                                            Context&... context)
     const {
-  if constexpr (
-      std::conjunction_v<std::disjunction<
-          serialized_message_reader_internal::IsFieldHandlerFromCord<
-              std::remove_pointer_t<FieldHandlers>, Context...>,
-          serialized_message_reader_internal::IsFieldHandlerFromString<
-              std::remove_pointer_t<FieldHandlers>, Context...>>...>) {
+  if constexpr (std::conjunction_v<std::disjunction<
+                    serialized_message_reader_internal::IsFieldHandlerFromCord<
+                        FieldHandlers, Context...>,
+                    serialized_message_reader_internal::
+                        IsFieldHandlerFromString<FieldHandlers,
+                                                 Context...>>...>) {
     return ReadMessageFromCord(src.iterator(), src.length(), context...);
   } else {
     return ReadMessage(CordReader(std::move(src)), context...);

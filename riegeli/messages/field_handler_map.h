@@ -46,8 +46,8 @@ class FieldHandlerMapImpl;
 
 // A map of field handlers for `SerializedMessageReader2` registered at runtime.
 //
-// A pointer to a `FieldHandlerMap` is itself a dynamic field handler, to be
-// used with `SerializedMessageReader2` with compatible `Context` types.
+// A `FieldHandlerMap` is itself a dynamic field handler, used with
+// `SerializedMessageReader2` with compatible `Context...`.
 //
 // Registered field handlers must be unbound, not yet associated with a field
 // number. The field number is specified during registration.
