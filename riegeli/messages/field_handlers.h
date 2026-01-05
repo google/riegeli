@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
@@ -626,7 +627,7 @@ class OnOptionalFixedType {
                                         Context&...>>,
                 int> = 0>
   absl::Status HandleFixed32(uint32_t repr, Context&... context) const {
-    return action_(std::bit_cast<Value>(repr), context...);
+    return action_(absl::bit_cast<Value>(repr), context...);
   }
 
   template <typename... Context,
@@ -637,7 +638,7 @@ class OnOptionalFixedType {
                                         Context&...>>,
                 int> = 0>
   absl::Status HandleFixed64(uint64_t repr, Context&... context) const {
-    return action_(std::bit_cast<Value>(repr), context...);
+    return action_(absl::bit_cast<Value>(repr), context...);
   }
 
  protected:

@@ -160,6 +160,7 @@ cc_library(
         "//riegeli/bytes:string_reader",
         "//riegeli/endian:endian_reading",
         "//riegeli/varint:varint_reading",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/status",
