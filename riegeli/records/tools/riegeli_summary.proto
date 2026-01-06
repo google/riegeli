@@ -1,4 +1,4 @@
-syntax = "proto2";
+edition = "2024";
 
 package riegeli.summary;
 
@@ -10,6 +10,7 @@ import "riegeli/records/records_metadata.proto";
 // as structured data.
 
 enum ChunkType {
+  CHUNK_TYPE_ZERO = 0;
   FILE_SIGNATURE = 0x73;
   FILE_METADATA = 0x6d;
   PADDING = 0x70;
@@ -25,24 +26,25 @@ enum CompressionType {
 }
 
 message SimpleChunk {
-  optional CompressionType compression_type = 1;
-  repeated uint64 record_sizes = 2 [packed = true];
+  CompressionType compression_type = 1;
+  repeated uint64 record_sizes = 2;
   repeated bytes records = 3;
 }
 
 message TransposedChunk {
-  optional CompressionType compression_type = 1;
-  repeated uint64 record_sizes = 2 [packed = true];
+  CompressionType compression_type = 1;
+  repeated uint64 record_sizes = 2;
   repeated bytes records = 3;
 }
 
 message Chunk {
-  optional uint64 chunk_begin = 1;
-  optional ChunkType chunk_type = 2;
-  optional uint64 data_size = 3;
-  optional uint64 num_records = 4;
-  optional uint64 decoded_data_size = 5;
-  oneof Data {
+  uint64 chunk_begin = 1;
+  ChunkType chunk_type = 2;
+  uint64 data_size = 3;
+  uint64 num_records = 4;
+  uint64 decoded_data_size = 5;
+
+  oneof data {
     riegeli.RecordsMetadata file_metadata_chunk = 6;
     SimpleChunk simple_chunk = 7;
     TransposedChunk transposed_chunk = 8;
@@ -53,7 +55,7 @@ message Chunk {
 // appears incrementally.
 //
 // message File {
-//   optional string filename = 1;
-//   optional uint64 file_size = 2;
+//   string filename = 1;
+//   uint64 file_size = 2;
 //   repeated Chunk chunk = 3;
 // }

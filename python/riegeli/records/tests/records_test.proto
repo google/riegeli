@@ -1,8 +1,8 @@
-syntax = "proto2";
+edition = "2024";
 
 package riegeli.tests;
 
 message SimpleMessage {
-  optional int32 id = 1;
-  optional bytes payload = 2;
+  int32 id = 1;
+  bytes payload = 2;
 }
