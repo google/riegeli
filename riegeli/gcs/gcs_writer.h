@@ -253,11 +253,18 @@ class GcsWriter
       std::index_sequence<indices...>) {
     std::vector<google::cloud::storage::ComposeSourceObject> source_objects;
     source_objects.reserve(2);
+#if __cpp_aggregate_paren_init
+    source_objects.emplace_back(
+        object_.object_name(),
+        already_composed_ ? std::nullopt : object_.generation(), std::nullopt);
+    source_objects.emplace_back(*temp_object_name_, std::nullopt, std::nullopt);
+#else
     source_objects.push_back(google::cloud::storage::ComposeSourceObject{
         object_.object_name(),
         already_composed_ ? std::nullopt : object_.generation(), std::nullopt});
     source_objects.push_back(google::cloud::storage::ComposeSourceObject{
         *temp_object_name_, std::nullopt, std::nullopt});
+#endif
     already_composed_ = true;
     return client_->ComposeObject(object_.bucket_name(), source_objects,
                                   object_.object_name(),

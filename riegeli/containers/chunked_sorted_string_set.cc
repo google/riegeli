@@ -305,7 +305,11 @@ inline void ChunkedSortedStringSet::Builder::AddChunk() {
   const size_t cumulative_end_index =
       (chunks_.empty() ? 0 : chunks_.back().cumulative_end_index) +
       current_builder_.size();
+#if __cpp_aggregate_paren_init
+  chunks_.emplace_back(current_builder_.Build(), cumulative_end_index);
+#else
   chunks_.push_back(Chunk{current_builder_.Build(), cumulative_end_index});
+#endif
 }
 
 }  // namespace riegeli

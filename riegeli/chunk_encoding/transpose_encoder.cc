@@ -421,9 +421,15 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
             const uint32_t end_of_submessage_pos =
                 GetPosInTagsList(node, chunk_encoding_internal::Subtype::
                                            kLengthDelimitedEndOfSubmessage);
+#if __cpp_aggregate_paren_init
+            message_stack_.emplace_back(end_of_submessage_pos,
+                                        parent_message_id,
+                                        IntCast<size_t>(parent_max_record_pos));
+#else
             message_stack_.push_back(
                 MessageFrame{end_of_submessage_pos, parent_message_id,
                              IntCast<size_t>(parent_max_record_pos)});
+#endif
             parent_message_id = node->second.message_id;
             continue;
           }
