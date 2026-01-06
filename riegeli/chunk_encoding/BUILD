@@ -89,7 +89,7 @@ cc_library(
     hdrs = ["hash.h"],
     deps = [
         "//riegeli/base:chain",
-        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/strings:string_view",
         "@highwayhash//:hh_types",
         "@highwayhash//:highwayhash_dynamic",
@@ -297,6 +297,7 @@ cc_library(
         "//riegeli/varint:varint_reading",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:string_view",

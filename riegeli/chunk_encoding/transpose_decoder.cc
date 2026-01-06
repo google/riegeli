@@ -29,6 +29,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -530,15 +531,15 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   }
 
   uint32_t num_buffers;
-  std::vector<uint32_t> first_buffer_indices;
-  std::vector<uint32_t> bucket_indices;
+  std::optional<absl::FixedArray<uint32_t>> first_buffer_indices;
+  std::optional<absl::FixedArray<uint32_t>> bucket_indices;
   if (projection_enabled) {
     if (ABSL_PREDICT_FALSE(!ParseBuffersForFiltering(
             context, header_decompressor.reader(), src, first_buffer_indices,
             bucket_indices))) {
       return false;
     }
-    num_buffers = IntCast<uint32_t>(bucket_indices.size());
+    num_buffers = IntCast<uint32_t>(bucket_indices->size());
   } else {
     if (ABSL_PREDICT_FALSE(
             !ParseBuffers(context, header_decompressor.reader(), src))) {
@@ -561,21 +562,19 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
       context.state_machine_nodes;
   bool has_nonproto_op = false;
   size_t num_subtypes = 0;
-  std::vector<uint32_t> tags;
-  tags.reserve(state_machine_size);
+  absl::FixedArray<uint32_t> tags(state_machine_size);
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t tag;
     if (ABSL_PREDICT_FALSE(!ReadVarint32(header_decompressor.reader(), tag))) {
       return Fail(header_decompressor.reader().StatusOrAnnotate(
           absl::InvalidArgumentError("Reading field tag failed")));
     }
-    tags.push_back(tag);
+    tags[i] = tag;
     if (ValidTag(tag) && chunk_encoding_internal::HasSubtype(tag)) {
       ++num_subtypes;
     }
   }
-  std::vector<uint32_t> next_node_indices;
-  next_node_indices.reserve(state_machine_size);
+  absl::FixedArray<uint32_t> next_node_indices(state_machine_size);
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t next_node;
     if (ABSL_PREDICT_FALSE(
@@ -583,7 +582,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
       return Fail(header_decompressor.reader().StatusOrAnnotate(
           absl::InvalidArgumentError("Reading next node index failed")));
     }
-    next_node_indices.push_back(next_node);
+    next_node_indices[i] = next_node;
   }
   std::string subtypes;
   if (ABSL_PREDICT_FALSE(
@@ -612,9 +611,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
           return Fail(absl::InvalidArgumentError("Buffer index too large"));
         }
         if (projection_enabled) {
-          const uint32_t bucket = bucket_indices[buffer_index];
+          const uint32_t bucket = (*bucket_indices)[buffer_index];
           state_machine_node.buffer = GetBuffer(
-              context, bucket, buffer_index - first_buffer_indices[bucket]);
+              context, bucket, buffer_index - (*first_buffer_indices)[bucket]);
           if (ABSL_PREDICT_FALSE(state_machine_node.buffer == nullptr)) {
             return false;
           }
@@ -674,10 +673,10 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
             if (ABSL_PREDICT_FALSE(buffer_index >= num_buffers)) {
               return Fail(absl::InvalidArgumentError("Buffer index too large"));
             }
-            const uint32_t bucket = bucket_indices[buffer_index];
+            const uint32_t bucket = (*bucket_indices)[buffer_index];
             context.node_templates[i].bucket_index = bucket;
             context.node_templates[i].buffer_within_bucket_index =
-                buffer_index - first_buffer_indices[bucket];
+                buffer_index - (*first_buffer_indices)[bucket];
           } else {
             context.node_templates[i].bucket_index = kInvalidPos;
           }
@@ -741,9 +740,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
           absl::InvalidArgumentError("Missing buffer for non-proto records"));
     }
     if (projection_enabled) {
-      const uint32_t bucket = bucket_indices[num_buffers - 1];
+      const uint32_t bucket = (*bucket_indices)[num_buffers - 1];
       context.nonproto_lengths = GetBuffer(
-          context, bucket, num_buffers - 1 - first_buffer_indices[bucket]);
+          context, bucket, num_buffers - 1 - (*first_buffer_indices)[bucket]);
       if (ABSL_PREDICT_FALSE(context.nonproto_lengths == nullptr)) return false;
     } else {
       context.nonproto_lengths = &context.buffers.back();
@@ -876,8 +875,8 @@ inline bool TransposeDecoder::ParseBuffers(Context& context,
 
 inline bool TransposeDecoder::ParseBuffersForFiltering(
     Context& context, Reader& header_reader, Reader& src,
-    std::vector<uint32_t>& first_buffer_indices,
-    std::vector<uint32_t>& bucket_indices) {
+    std::optional<absl::FixedArray<uint32_t>>& first_buffer_indices,
+    std::optional<absl::FixedArray<uint32_t>>& bucket_indices) {
   uint32_t num_buckets;
   if (ABSL_PREDICT_FALSE(!ReadVarint32(header_reader, num_buckets))) {
     return Fail(header_reader.StatusOrAnnotate(
@@ -891,17 +890,18 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
     return Fail(header_reader.StatusOrAnnotate(
         absl::InvalidArgumentError("Reading number of buffers failed")));
   }
-  if (ABSL_PREDICT_FALSE(num_buffers > bucket_indices.max_size())) {
+  if (ABSL_PREDICT_FALSE(num_buffers >
+                         absl::FixedArray<uint32_t>(0).max_size())) {
     return Fail(absl::ResourceExhaustedError("Too many buffers"));
   }
+  first_buffer_indices.emplace(num_buckets);
+  bucket_indices.emplace(num_buffers);
   if (num_buckets == 0) {
     if (ABSL_PREDICT_FALSE(num_buffers != 0)) {
       return Fail(absl::InvalidArgumentError("Too few buckets"));
     }
     return true;
   }
-  first_buffer_indices.reserve(num_buckets);
-  bucket_indices.reserve(num_buffers);
   context.buckets.reserve(num_buckets);
   for (uint32_t bucket_index = 0; bucket_index < num_buckets; ++bucket_index) {
     uint64_t bucket_length;
@@ -922,7 +922,7 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
   }
 
   uint32_t bucket_index = 0;
-  first_buffer_indices.push_back(0);
+  (*first_buffer_indices)[0] = 0;
   std::optional<uint64_t> remaining_bucket_size =
       chunk_encoding_internal::UncompressedSize(
           context.buckets[0].compressed_data, context.compression_type);
@@ -945,10 +945,10 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
       return Fail(absl::InvalidArgumentError("Buffer does not fit in bucket"));
     }
     *remaining_bucket_size -= buffer_length;
-    bucket_indices.push_back(bucket_index);
+    (*bucket_indices)[buffer_index] = bucket_index;
     while (*remaining_bucket_size == 0 && bucket_index + 1 < num_buckets) {
       ++bucket_index;
-      first_buffer_indices.push_back(buffer_index + 1);
+      (*first_buffer_indices)[bucket_index] = buffer_index + 1;
       remaining_bucket_size = chunk_encoding_internal::UncompressedSize(
           context.buckets[bucket_index].compressed_data,
           context.compression_type);

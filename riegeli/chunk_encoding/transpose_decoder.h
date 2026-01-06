@@ -18,10 +18,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/container/fixed_array.h"
 #include "absl/types/span.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
@@ -103,10 +105,10 @@ class TransposeDecoder : public Object {
   // When projection is enabled, buckets are decompressed on demand.
   // `bucket_indices` contains bucket index for each buffer.
   // `first_buffer_indices` contains the index of first buffer for each bucket.
-  bool ParseBuffersForFiltering(Context& context, Reader& header_reader,
-                                Reader& src,
-                                std::vector<uint32_t>& first_buffer_indices,
-                                std::vector<uint32_t>& bucket_indices);
+  bool ParseBuffersForFiltering(
+      Context& context, Reader& header_reader, Reader& src,
+      std::optional<absl::FixedArray<uint32_t>>& first_buffer_indices,
+      std::optional<absl::FixedArray<uint32_t>>& bucket_indices);
 
   // Precondition: `projection_enabled`.
   Reader* GetBuffer(Context& context, uint32_t bucket_index,

@@ -14,11 +14,12 @@
 
 #include "riegeli/chunk_encoding/hash.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <optional>
 
-#include "absl/container/inlined_vector.h"
+#include "absl/container/fixed_array.h"
 #include "absl/strings/string_view.h"
 #include "highwayhash/hh_types.h"
 #include "highwayhash/highwayhash_target.h"
@@ -50,11 +51,10 @@ uint64_t Hash(const Chain& data) {
       flat != std::nullopt) {
     return Hash(*flat);
   }
-  absl::InlinedVector<highwayhash::StringView, 16> fragments;
-  fragments.reserve(data.blocks().size());
+  absl::FixedArray<highwayhash::StringView> fragments(data.blocks().size());
+  size_t i = 0;
   for (const absl::string_view fragment : data.blocks()) {
-    fragments.push_back(
-        highwayhash::StringView{fragment.data(), fragment.size()});
+    fragments[i++] = highwayhash::StringView{fragment.data(), fragment.size()};
   }
   highwayhash::HHResult64 result;
   highwayhash::InstructionSets::Run<highwayhash::HighwayHashCat>(
