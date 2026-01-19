@@ -20,7 +20,6 @@
 #include <optional>
 #include <utility>
 
-#include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -165,9 +164,10 @@ class BufferedReader : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
-  using Reader::ReadOrPullSomeSlow;
-  bool ReadOrPullSomeSlow(size_t max_length,
-                          absl::FunctionRef<char*(size_t&)> get_dest) override;
+  using Reader::ReadSomeSlow;
+  bool ReadSomeSlow(size_t max_length, char* dest) override;
+  using Reader::CopySomeSlow;
+  bool CopySomeSlow(size_t max_length, Writer& dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;

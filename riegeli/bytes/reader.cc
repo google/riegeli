@@ -23,9 +23,7 @@
 #include <string>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
@@ -118,6 +116,9 @@ bool Reader::ReadAndAppend(size_t length, std::string& dest,
     if (length_read != nullptr) *length_read = length;
     return true;
   }
+  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppend(string&): "
+         "string size overflow";
   if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
   return ReadSlow(length, dest);
 }
@@ -133,30 +134,27 @@ bool Reader::ReadAndAppend(size_t length, Chain& dest, size_t* length_read) {
     if (length_read != nullptr) *length_read = length;
     return true;
   }
-  // Check the size before calling virtual `ReadSlow(Chain&)`.
-  if (length_read != nullptr) {
-    return ReadSlowWithSizeCheck(length, dest, *length_read);
-  }
-  return ReadSlowWithSizeCheck(length, dest);
+  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppend(Chain&): "
+         "Chain size overflow";
+  if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
+  return ReadSlow(length, dest);
 }
 
 bool Reader::ReadAndAppend(size_t length, absl::Cord& dest,
                            size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(
-          available() >= length && length <= kMaxBytesToCopy &&
-          // `absl::Cord::Append()` does not check for size overflow.
-          length <= std::numeric_limits<size_t>::max() - dest.size())) {
+  // `absl::Cord::Append()` does not check for size overflow.
+  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppend(Cord&): "
+         "Cord size overflow";
+  if (ABSL_PREDICT_TRUE(available() >= length && length <= kMaxBytesToCopy)) {
     dest.Append(absl::string_view(cursor(), length));
     move_cursor(length);
     if (length_read != nullptr) *length_read = length;
     return true;
   }
-  // Check the size in case it would overflow in the fast path, and before
-  // calling virtual `ReadSlow(absl::Cord&)`.
-  if (length_read != nullptr) {
-    return ReadSlowWithSizeCheck(length, dest, *length_read);
-  }
-  return ReadSlowWithSizeCheck(length, dest);
+  if (length_read != nullptr) return ReadSlow(length, dest, *length_read);
+  return ReadSlow(length, dest);
 }
 
 bool Reader::Copy(Position length, Writer& dest, Position* length_read) {
@@ -181,7 +179,9 @@ bool Reader::Copy(size_t length, BackwardWriter& dest) {
 
 bool Reader::ReadSome(size_t max_length, std::string& dest,
                       size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(available() >= max_length)) {
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    max_length = UnsignedMin(max_length, available());
     dest.assign(cursor(), max_length);
     move_cursor(max_length);
     if (length_read != nullptr) *length_read = max_length;
@@ -195,14 +195,20 @@ bool Reader::ReadSome(size_t max_length, std::string& dest,
 }
 
 bool Reader::ReadSome(size_t max_length, Chain& dest, size_t* length_read) {
-  dest.Clear();
-  if (ABSL_PREDICT_TRUE(available() >= max_length &&
-                        max_length <= kMaxBytesToCopy)) {
-    dest.Append(absl::string_view(cursor(), max_length));
-    move_cursor(max_length);
-    if (length_read != nullptr) *length_read = max_length;
-    return true;
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    max_length = UnsignedMin(max_length, available());
+    if (ABSL_PREDICT_TRUE(max_length <= kMaxBytesToCopy)) {
+      dest.Reset(absl::string_view(cursor(), max_length));
+      move_cursor(max_length);
+      if (length_read != nullptr) *length_read = max_length;
+      return true;
+    }
+    dest.Clear();
+    if (length_read != nullptr) return ReadSlow(max_length, dest, *length_read);
+    return ReadSlow(max_length, dest);
   }
+  dest.Clear();
   if (length_read != nullptr) {
     return ReadSomeSlow(max_length, dest, *length_read);
   }
@@ -211,12 +217,18 @@ bool Reader::ReadSome(size_t max_length, Chain& dest, size_t* length_read) {
 
 bool Reader::ReadSome(size_t max_length, absl::Cord& dest,
                       size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(available() >= max_length &&
-                        max_length <= kMaxBytesToCopy)) {
-    dest = absl::string_view(cursor(), max_length);
-    move_cursor(max_length);
-    if (length_read != nullptr) *length_read = max_length;
-    return true;
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    max_length = UnsignedMin(max_length, available());
+    if (ABSL_PREDICT_TRUE(max_length <= kMaxBytesToCopy)) {
+      dest = absl::string_view(cursor(), max_length);
+      move_cursor(max_length);
+      if (length_read != nullptr) *length_read = max_length;
+      return true;
+    }
+    dest.Clear();
+    if (length_read != nullptr) return ReadSlow(max_length, dest, *length_read);
+    return ReadSlow(max_length, dest);
   }
   dest.Clear();
   if (length_read != nullptr) {
@@ -227,14 +239,22 @@ bool Reader::ReadSome(size_t max_length, absl::Cord& dest,
 
 bool Reader::ReadAndAppendSome(size_t max_length, std::string& dest,
                                size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(available() >= max_length &&
-                        max_length <=
-                            std::numeric_limits<size_t>::max() - dest.size())) {
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppendSome(string&): "
+         "string size overflow";
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    max_length = UnsignedMin(max_length, available());
+    // `std::string::append()` checks for size overflow.
     dest.append(cursor(), max_length);
     move_cursor(max_length);
     if (length_read != nullptr) *length_read = max_length;
     return true;
   }
+  RIEGELI_CHECK_LE(max_length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppendSome(string&): "
+         "string size overflow";
   if (length_read != nullptr) {
     return ReadSomeSlow(max_length, dest, *length_read);
   }
@@ -243,14 +263,30 @@ bool Reader::ReadAndAppendSome(size_t max_length, std::string& dest,
 
 bool Reader::ReadAndAppendSome(size_t max_length, Chain& dest,
                                size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(
-          available() >= max_length && max_length <= kMaxBytesToCopy &&
-          max_length <= std::numeric_limits<size_t>::max() - dest.size())) {
-    dest.Append(absl::string_view(cursor(), max_length));
-    move_cursor(max_length);
-    if (length_read != nullptr) *length_read = max_length;
-    return true;
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppendSome(Chain&): "
+         "Chain size overflow";
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    max_length = UnsignedMin(max_length, available());
+    if (ABSL_PREDICT_TRUE(max_length <= kMaxBytesToCopy)) {
+      // `Chain::Append()` checks for size overflow.
+      dest.Append(absl::string_view(cursor(), max_length));
+      move_cursor(max_length);
+      if (length_read != nullptr) *length_read = max_length;
+      return true;
+    }
+    RIEGELI_CHECK_LE(max_length,
+                     std::numeric_limits<size_t>::max() - dest.size())
+        << "Failed precondition of Reader::ReadAndAppendSome(Chain&): "
+           "Chain size overflow";
+    if (length_read != nullptr) return ReadSlow(max_length, dest, *length_read);
+    return ReadSlow(max_length, dest);
   }
+  RIEGELI_CHECK_LE(max_length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppendSome(Chain&): "
+         "Chain size overflow";
   if (length_read != nullptr) {
     return ReadSomeSlow(max_length, dest, *length_read);
   }
@@ -259,13 +295,21 @@ bool Reader::ReadAndAppendSome(size_t max_length, Chain& dest,
 
 bool Reader::ReadAndAppendSome(size_t max_length, absl::Cord& dest,
                                size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(
-          available() >= max_length && max_length <= kMaxBytesToCopy &&
-          max_length <= std::numeric_limits<size_t>::max() - dest.size())) {
-    dest.Append(absl::string_view(cursor(), max_length));
-    move_cursor(max_length);
-    if (length_read != nullptr) *length_read = max_length;
-    return true;
+  // `absl::Cord::Append()` does not check for size overflow.
+  RIEGELI_CHECK_LE(max_length, std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadAndAppendSome(Cord&): "
+         "Cord size overflow";
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    max_length = UnsignedMin(max_length, available());
+    if (ABSL_PREDICT_TRUE(max_length <= kMaxBytesToCopy)) {
+      dest.Append(absl::string_view(cursor(), max_length));
+      move_cursor(max_length);
+      if (length_read != nullptr) *length_read = max_length;
+      return true;
+    }
+    if (length_read != nullptr) return ReadSlow(max_length, dest, *length_read);
+    return ReadSlow(max_length, dest);
   }
   if (length_read != nullptr) {
     return ReadSomeSlow(max_length, dest, *length_read);
@@ -274,31 +318,27 @@ bool Reader::ReadAndAppendSome(size_t max_length, absl::Cord& dest,
 }
 
 bool Reader::CopySome(size_t max_length, Writer& dest, size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(available() >= max_length &&
-                        max_length <= kMaxBytesToCopy)) {
-    const absl::string_view data(cursor(), max_length);
-    move_cursor(max_length);
-    if (length_read != nullptr) *length_read = max_length;
-    return dest.Write(data);
+  if (ABSL_PREDICT_TRUE(available() > 0) ||
+      ABSL_PREDICT_FALSE(max_length == 0)) {
+    max_length = UnsignedMin(max_length, available());
+    if (ABSL_PREDICT_TRUE(max_length <= kMaxBytesToCopy)) {
+      const absl::string_view data(cursor(), max_length);
+      move_cursor(max_length);
+      if (length_read != nullptr) *length_read = max_length;
+      return dest.Write(data);
+    }
+    if (length_read != nullptr) {
+      Position length_read_pos;
+      const bool copy_ok = CopySlow(max_length, dest, length_read_pos);
+      *length_read = IntCast<size_t>(length_read_pos);
+      return copy_ok;
+    }
+    return CopySlow(max_length, dest);
   }
   if (length_read != nullptr) {
     return CopySomeSlow(max_length, dest, *length_read);
   }
   return CopySomeSlow(max_length, dest);
-}
-
-bool Reader::ReadOrPullSome(size_t max_length,
-                            absl::FunctionRef<char*(size_t&)> get_dest,
-                            size_t* length_read) {
-  if (ABSL_PREDICT_TRUE(available() > 0) ||
-      ABSL_PREDICT_FALSE(max_length == 0)) {
-    if (length_read != nullptr) *length_read = 0;
-    return true;
-  }
-  if (length_read != nullptr) {
-    return ReadOrPullSomeSlow(max_length, get_dest, *length_read);
-  }
-  return ReadOrPullSomeSlow(max_length, get_dest);
 }
 
 bool Reader::ReadSlow(size_t length, char* dest) {
@@ -342,10 +382,10 @@ bool Reader::ReadSlow(size_t length, std::string& dest) {
   RIEGELI_ASSERT_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(string&): "
          "enough data available, use Read(string&) instead";
-  const size_t dest_pos = dest.size();
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest_pos)
+  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(string&): "
          "string size overflow";
+  const size_t dest_pos = dest.size();
   ResizeStringAmortized(dest, dest_pos + length);
   size_t length_read;
   if (ABSL_PREDICT_FALSE(!ReadSlow(length, &dest[dest_pos], length_read))) {
@@ -378,13 +418,6 @@ bool Reader::ReadSlow(size_t length, std::string& dest, size_t& length_read) {
   return true;
 }
 
-bool Reader::ReadSlowWithSizeCheck(size_t length, Chain& dest) {
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadAndAppend(Chain&): "
-         "Chain size overflow";
-  return ReadSlow(length, dest);
-}
-
 bool Reader::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
@@ -402,14 +435,6 @@ bool Reader::ReadSlow(size_t length, Chain& dest) {
     length -= length_read;
   } while (length > 0);
   return true;
-}
-
-bool Reader::ReadSlowWithSizeCheck(size_t length, Chain& dest,
-                                   size_t& length_read) {
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadAndAppend(Chain&): "
-         "Chain size overflow";
-  return ReadSlow(length, dest, length_read);
 }
 
 bool Reader::ReadSlow(size_t length, Chain& dest, size_t& length_read) {
@@ -433,13 +458,6 @@ bool Reader::ReadSlow(size_t length, Chain& dest, size_t& length_read) {
       << "Reader::ReadSlow(Chain&) succeeded but read less than requested";
   length_read = length;
   return true;
-}
-
-bool Reader::ReadSlowWithSizeCheck(size_t length, absl::Cord& dest) {
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadAndAppend(Cord&): "
-         "Cord size overflow";
-  return ReadSlow(length, dest);
 }
 
 bool Reader::ReadSlow(size_t length, absl::Cord& dest) {
@@ -472,14 +490,6 @@ bool Reader::ReadSlow(size_t length, absl::Cord& dest) {
         cord_internal::kCordBufferBlockSize, length);
     span = buffer.available_up_to(length);
   }
-}
-
-bool Reader::ReadSlowWithSizeCheck(size_t length, absl::Cord& dest,
-                                   size_t& length_read) {
-  RIEGELI_CHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
-      << "Failed precondition of Reader::ReadAndAppend(Cord&): "
-         "Cord size overflow";
-  return ReadSlow(length, dest, length_read);
 }
 
 bool Reader::ReadSlow(size_t length, absl::Cord& dest, size_t& length_read) {
@@ -565,28 +575,26 @@ bool Reader::CopySlow(size_t length, BackwardWriter& dest) {
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, char* dest) {
-  RIEGELI_ASSERT_LT(available(), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
-         "enough data available, use ReadSome(char*) instead";
-  size_t length_read;
-  const bool read_ok = ReadOrPullSome(
-      max_length, [dest](ABSL_ATTRIBUTE_UNUSED size_t& length) { return dest; },
-      &length_read);
-  if (length_read == 0) {
-    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
-    RIEGELI_ASSERT_GT(available(), 0u)
-        << "Reader::ReadOrPullSome() succeeded but read none and pulled none";
-    max_length = UnsignedMin(max_length, available());
-    std::memcpy(dest, cursor(), max_length);
-    move_cursor(max_length);
-  }
+         "nothing to read, use ReadSome(char*) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
+  if (ABSL_PREDICT_FALSE(!PullSlow(1, max_length))) return false;
+  max_length = UnsignedMin(max_length, available());
+  std::memcpy(dest, cursor(), max_length);
+  move_cursor(max_length);
   return true;
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, char* dest, size_t& length_read) {
-  RIEGELI_ASSERT_LT(available(), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
-         "enough data available, use ReadSome(char*) instead";
+         "nothing to read, use ReadSome(char*) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
   const Position pos_before = pos();
   const bool read_ok = ReadSomeSlow(max_length, dest);
   RIEGELI_ASSERT_GE(pos(), pos_before)
@@ -605,41 +613,36 @@ bool Reader::ReadSomeSlow(size_t max_length, char* dest, size_t& length_read) {
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, std::string& dest) {
-  RIEGELI_ASSERT_LT(available(), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(string&): "
-         "enough data available, use ReadSome(string&) instead";
-  const size_t dest_size_before = dest.size();
-  const size_t remaining =
-      std::numeric_limits<size_t>::max() - dest_size_before;
-  RIEGELI_CHECK_GT(remaining, 0u)
-      << "Failed precondition of Reader::ReadSome(string&): "
+         "nothing to read, use ReadSome(string&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(string&): "
+         "some data available, use ReadSome(string&) instead";
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSomeSlow(string&): "
          "string size overflow";
-  max_length = UnsignedMin(max_length, remaining);
+  const size_t dest_pos = dest.size();
+  ResizeStringAmortized(dest, dest_pos + max_length);
   size_t length_read;
-  const bool read_ok = ReadOrPullSome(
-      max_length,
-      [&dest, dest_size_before](size_t& length) {
-        ResizeStringAmortized(dest, dest_size_before + length);
-        return &dest[dest_size_before];
-      },
-      &length_read);
-  dest.erase(dest_size_before + length_read);
-  if (length_read == 0) {
-    if (ABSL_PREDICT_FALSE(!read_ok)) return false;
-    RIEGELI_ASSERT_GT(available(), 0u)
-        << "Reader::ReadOrPullSome() succeeded but read none and pulled none";
-    max_length = UnsignedMin(max_length, available());
-    dest.append(cursor(), max_length);
-    move_cursor(max_length);
-  }
-  return true;
+  const bool read_ok = ReadSomeSlow(max_length, &dest[dest_pos], length_read);
+  dest.erase(dest_pos + length_read);
+  return read_ok;
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, std::string& dest,
                           size_t& length_read) {
-  RIEGELI_ASSERT_LT(available(), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(string&): "
-         "enough data available, use ReadSome(string&) instead";
+         "nothing to read, use ReadSome(string&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(string&): "
+         "some data available, use ReadSome(string&) instead";
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSomeSlow(string&): "
+         "string size overflow";
   const Position pos_before = pos();
   const bool read_ok = ReadSomeSlow(max_length, dest);
   RIEGELI_ASSERT_GE(pos(), pos_before)
@@ -658,23 +661,33 @@ bool Reader::ReadSomeSlow(size_t max_length, std::string& dest,
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
-         "enough data available, use ReadSome(Chain&) instead";
-  const size_t remaining = std::numeric_limits<size_t>::max() - dest.size();
-  RIEGELI_CHECK_GT(remaining, 0u)
-      << "Failed precondition of Reader::ReadSome(Chain&): "
+         "nothing to read, use ReadSome(Chain&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
+         "some data available, use ReadSome(Chain&) instead";
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
          "Chain size overflow";
-  max_length = UnsignedMin(max_length, remaining);
-  if (ABSL_PREDICT_FALSE(!Pull(1, max_length))) return false;
+  if (ABSL_PREDICT_FALSE(!PullSlow(1, max_length))) return false;
+  max_length = UnsignedMin(max_length, available());
   // Should always succeed.
-  return ReadAndAppend(UnsignedMin(max_length, available()), dest);
+  return ReadAndAppend(max_length, dest);
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, Chain& dest, size_t& length_read) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
-         "enough data available, use ReadSome(Chain&) instead";
+         "nothing to read, use ReadSome(Chain&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
+         "some data available, use ReadSome(Chain&) instead";
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSomeSlow(Chain&): "
+         "Chain size overflow";
   const Position pos_before = pos();
   const bool read_ok = ReadSomeSlow(max_length, dest);
   RIEGELI_ASSERT_GE(pos(), pos_before)
@@ -693,24 +706,34 @@ bool Reader::ReadSomeSlow(size_t max_length, Chain& dest, size_t& length_read) {
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
-         "enough data available, use ReadSome(Cord&) instead";
-  const size_t remaining = std::numeric_limits<size_t>::max() - dest.size();
-  RIEGELI_CHECK_GT(remaining, 0u)
-      << "Failed precondition of Reader::ReadSome(Cord&): "
+         "nothing to read, use ReadSome(Cord&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
+         "some data available, use ReadSome(Cord&) instead";
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
          "Cord size overflow";
-  max_length = UnsignedMin(max_length, remaining);
-  if (ABSL_PREDICT_FALSE(!Pull(1, max_length))) return false;
+  if (ABSL_PREDICT_FALSE(!PullSlow(1, max_length))) return false;
+  max_length = UnsignedMin(max_length, available());
   // Should always succeed.
-  return ReadAndAppend(UnsignedMin(max_length, available()), dest);
+  return ReadAndAppend(max_length, dest);
 }
 
 bool Reader::ReadSomeSlow(size_t max_length, absl::Cord& dest,
                           size_t& length_read) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
-         "enough data available, use ReadSome(Cord&) instead";
+         "nothing to read, use ReadSome(Cord&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
+         "some data available, use ReadSome(Cord&) instead";
+  RIEGELI_ASSERT_LE(max_length,
+                    std::numeric_limits<size_t>::max() - dest.size())
+      << "Failed precondition of Reader::ReadSomeSlow(Cord&): "
+         "Cord size overflow";
   const Position pos_before = pos();
   const bool read_ok = ReadSomeSlow(max_length, dest);
   RIEGELI_ASSERT_GE(pos(), pos_before)
@@ -729,34 +752,30 @@ bool Reader::ReadSomeSlow(size_t max_length, absl::Cord& dest,
 }
 
 bool Reader::CopySomeSlow(size_t max_length, Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
-         "enough data available, use CopySome(Writer&) instead";
-  size_t length_read;
-  const bool read_ok = ReadOrPullSome(
-      max_length,
-      [&dest](size_t& length) {
-        dest.Push(1, length);
-        length = UnsignedMin(length, dest.available());
-        return dest.cursor();
-      },
-      &length_read);
-  if (length_read > 0) {
-    dest.move_cursor(length_read);
-    return true;
+         "nothing to read, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
+  if (ABSL_PREDICT_FALSE(!PullSlow(1, max_length))) return false;
+  max_length = UnsignedMin(max_length, available());
+  if (available() >= max_length && max_length <= kMaxBytesToCopy) {
+    const absl::string_view data(cursor(), max_length);
+    move_cursor(max_length);
+    return dest.Write(data);
   }
-  if (ABSL_PREDICT_FALSE(!read_ok)) return false;
-  RIEGELI_ASSERT_GT(available(), 0u)
-      << "Reader::ReadOrPullSome() succeeded but read none and pulled none";
-  // Should succeed unless `dest` fails.
-  return Copy(UnsignedMin(max_length, available()), dest);
+  return CopySlow(max_length, dest);
 }
 
 bool Reader::CopySomeSlow(size_t max_length, Writer& dest,
                           size_t& length_read) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), max_length)
+  RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
-         "enough data available, use CopySome(Writer&) instead";
+         "nothing to read, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
   const Position pos_before = pos();
   const bool copy_ok = CopySomeSlow(max_length, dest);
   RIEGELI_ASSERT_GE(pos(), pos_before)
@@ -774,48 +793,6 @@ bool Reader::CopySomeSlow(size_t max_length, Writer& dest,
         << "Reader::CopySomeSlow(Writer&) succeeded but read none";
   }
   return copy_ok;
-}
-
-bool Reader::ReadOrPullSomeSlow(size_t max_length,
-                                absl::FunctionRef<char*(size_t&)> get_dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
-  return PullSlow(1, max_length);
-}
-
-bool Reader::ReadOrPullSomeSlow(size_t max_length,
-                                absl::FunctionRef<char*(size_t&)> get_dest,
-                                size_t& length_read) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
-  const Position pos_before = limit_pos();
-  const bool read_ok = ReadOrPullSomeSlow(max_length, get_dest);
-  RIEGELI_ASSERT_GE(pos(), pos_before)
-      << "Reader::ReadOrPullSomeSlow() decreased pos()";
-  RIEGELI_ASSERT_LE(pos() - pos_before, max_length)
-      << "Reader::ReadOrPullSomeSlow() read more than requested";
-  length_read = IntCast<size_t>(pos() - pos_before);
-  if (!read_ok) {
-    RIEGELI_ASSERT_EQ(length_read, 0u)
-        << "Reader::ReadOrPullSomeSlow() failed but read some";
-  } else if (length_read == 0) {
-    RIEGELI_ASSERT_GT(available(), 0u)
-        << "Reader::ReadOrPullSomeSlow() succeeded but "
-           "read none and pulled none";
-  } else {
-    RIEGELI_ASSERT_EQ(available(), 0u)
-        << "Reader::ReadOrPullSomeSlow() succeeded but "
-           "read some and pulled some";
-  }
-  return read_ok;
 }
 
 void Reader::ReadHintSlow(size_t min_length, size_t recommended_length) {

@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -152,19 +151,32 @@ bool PositionShiftingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return MakeBuffer(src) && copy_ok;
 }
 
-bool PositionShiftingReaderBase::ReadOrPullSomeSlow(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool PositionShiftingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "nothing to read, use ReadSome(char*) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const bool read_ok = src.ReadOrPullSome(max_length, get_dest);
+  const bool read_ok = src.ReadSome(max_length, dest);
   return MakeBuffer(src) && read_ok;
+}
+
+bool PositionShiftingReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "nothing to read, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Reader& src = *SrcReader();
+  SyncBuffer(src);
+  const bool copy_ok = src.CopySome(max_length, dest);
+  return MakeBuffer(src) && copy_ok;
 }
 
 void PositionShiftingReaderBase::ReadHintSlow(size_t min_length,

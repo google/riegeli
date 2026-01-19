@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -146,20 +145,34 @@ bool PrefixLimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return copy_ok;
 }
 
-bool PrefixLimitingReaderBase::ReadOrPullSomeSlow(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool PrefixLimitingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "nothing to read, use ReadSome(char*) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const bool read_ok = src.ReadOrPullSome(max_length, get_dest);
+  const bool read_ok = src.ReadSome(max_length, dest);
   MakeBuffer(src);
   return read_ok;
+}
+
+bool PrefixLimitingReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "nothing to copy, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Reader& src = *SrcReader();
+  SyncBuffer(src);
+  const bool copy_ok = src.CopySome(max_length, dest);
+  MakeBuffer(src);
+  return copy_ok;
 }
 
 void PrefixLimitingReaderBase::ReadHintSlow(size_t min_length,

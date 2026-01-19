@@ -25,7 +25,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -83,7 +82,9 @@ std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
       ABSL_PREDICT_FALSE(!status.ok())) {
     Reader::Reset(kClosed);
     FailOperation(status, "FileSystem::NewRandomAccessFile()");
-    return nullptr;
+    RIEGELI_ASSERT(src == nullptr)
+        << "FileSystem::NewRandomAccessFile() should store "
+           "null RandomAccessFile on failure";
   }
   return src;
 }
@@ -270,9 +271,9 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
     riegeli::null_safe_memcpy(dest, cursor(), available_length);
     dest += available_length;
     length -= available_length;
-    SyncBuffer();
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     ::tensorflow::RandomAccessFile* const src = SrcFile();
+    SyncBuffer();
     size_t length_to_read = length;
     if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
@@ -566,30 +567,60 @@ bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
-bool FileReaderBase::ReadOrPullSomeSlow(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool FileReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "nothing to read, use ReadSome(char*) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
-    // Read directly to `get_dest(max_length)`.
-    SyncBuffer();
+    // Read directly to `dest`.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
     ::tensorflow::RandomAccessFile* const src = SrcFile();
+    SyncBuffer();
     if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
       max_length = UnsignedMin(max_length, *exact_size() - limit_pos());
     }
-    char* const dest = get_dest(max_length);
-    if (ABSL_PREDICT_FALSE(max_length == 0)) return false;
     const Position pos_before = limit_pos();
     ReadToDest(max_length, src, dest);
-    return limit_pos() > pos_before;
+    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+        << "FileReaderBase::ReadToDest() decreased limit_pos()";
+    return limit_pos() != pos_before;
   }
-  return PullSlow(1, max_length);
+  return Reader::ReadSomeSlow(max_length, dest);
+}
+
+bool FileReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "nothing to read, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
+  if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
+    // Copy directly to `dest`.
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
+    ::tensorflow::RandomAccessFile* const src = SrcFile();
+    SyncBuffer();
+    if (exact_size() != std::nullopt) {
+      if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
+      max_length = UnsignedMin(max_length, *exact_size() - limit_pos());
+    }
+    if (ABSL_PREDICT_FALSE(!dest.Push(1, max_length))) return false;
+    max_length = UnsignedMin(max_length, dest.available());
+    const Position pos_before = limit_pos();
+    ReadToDest(max_length, src, dest.cursor());
+    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+        << "BufferedReader::ReadInternal() decreased limit_pos()";
+    const Position length_read = limit_pos() - pos_before;
+    RIEGELI_ASSERT_LE(length_read, max_length)
+        << "BufferedReader::ReadInternal() read more than requested";
+    dest.move_cursor(IntCast<size_t>(length_read));
+    return length_read > 0;
+  }
+  return Reader::CopySomeSlow(max_length, dest);
 }
 
 bool FileReaderBase::SyncImpl(SyncType sync_type) {

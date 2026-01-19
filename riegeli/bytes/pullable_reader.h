@@ -22,7 +22,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
@@ -93,9 +92,9 @@ class PullableReader : public Reader {
   //   `!scratch_used()`
   virtual bool PullBehindScratch(size_t recommended_length) = 0;
 
-  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadOrPullSomeSlow()`,
-  // `ReadHintSlow()`, `SyncImpl()`, and `SeekSlow()`, called while scratch is
-  // not used.
+  // Implementation of `ReadSlow()`, `CopySlow()`, `ReadSomeSlow()`,
+  // `CopySomeSlow()`, `ReadHintSlow()`, `SyncImpl()`, and `SeekSlow()`, called
+  // while scratch is not used.
   //
   // Regarding `SyncBehindScratch()`, if scratch was used but not all data from
   // scratch were read and `!SupportsRandomAccess()`, seeking back is not
@@ -112,8 +111,8 @@ class PullableReader : public Reader {
   virtual bool ReadBehindScratch(size_t length, absl::Cord& dest);
   virtual bool CopyBehindScratch(Position length, Writer& dest);
   virtual bool CopyBehindScratch(size_t length, BackwardWriter& dest);
-  virtual bool ReadOrPullSomeBehindScratch(
-      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest);
+  virtual bool ReadSomeBehindScratch(size_t max_length, char* dest);
+  virtual bool CopySomeBehindScratch(size_t max_length, Writer& dest);
   virtual void ReadHintBehindScratch(size_t min_length,
                                      size_t recommended_length);
   virtual bool SyncBehindScratch(SyncType sync_type);
@@ -127,9 +126,10 @@ class PullableReader : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
-  using Reader::ReadOrPullSomeSlow;
-  bool ReadOrPullSomeSlow(size_t max_length,
-                          absl::FunctionRef<char*(size_t&)> get_dest) override;
+  using Reader::ReadSomeSlow;
+  bool ReadSomeSlow(size_t max_length, char* dest) override;
+  using Reader::CopySomeSlow;
+  bool CopySomeSlow(size_t max_length, Writer& dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SyncImpl(SyncType sync_type) override;
   bool SeekSlow(Position new_pos) override;

@@ -25,7 +25,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/arithmetic.h"
@@ -245,9 +244,10 @@ class LimitingReaderBase : public Reader {
   using Reader::CopySlow;
   bool CopySlow(Position length, Writer& dest) override;
   bool CopySlow(size_t length, BackwardWriter& dest) override;
-  using Reader::ReadOrPullSomeSlow;
-  bool ReadOrPullSomeSlow(size_t max_length,
-                          absl::FunctionRef<char*(size_t&)> get_dest) override;
+  using Reader::ReadSomeSlow;
+  bool ReadSomeSlow(size_t max_length, char* dest) override;
+  using Reader::CopySomeSlow;
+  bool CopySomeSlow(size_t max_length, Writer& dest) override;
   void ReadHintSlow(size_t min_length, size_t recommended_length) override;
   bool SeekSlow(Position new_pos) override;
   std::optional<Position> SizeImpl() override;

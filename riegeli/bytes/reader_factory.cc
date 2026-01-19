@@ -25,7 +25,6 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -67,9 +66,10 @@ class ReaderFactoryBase::ConcurrentReader : public PullableReader {
   bool ReadBehindScratch(size_t length, absl::Cord& dest) override;
   using PullableReader::CopyBehindScratch;
   bool CopyBehindScratch(Position length, Writer& dest) override;
-  using PullableReader::ReadOrPullSomeBehindScratch;
-  bool ReadOrPullSomeBehindScratch(
-      size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) override;
+  using PullableReader::ReadSomeBehindScratch;
+  bool ReadSomeBehindScratch(size_t max_length, char* dest) override;
+  using PullableReader::CopySomeBehindScratch;
+  bool CopySomeBehindScratch(size_t max_length, Writer& dest) override;
   void ReadHintBehindScratch(size_t min_length,
                              size_t recommended_length) override;
   bool SyncBehindScratch(SyncType sync_type) override;
@@ -354,12 +354,9 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
   if (length <= available()) {
-    if (ABSL_PREDICT_FALSE(!dest.Write(
-            ExternalRef(*iter_, absl::string_view(cursor(), length))))) {
-      return false;
-    }
+    const absl::string_view data(cursor(), length);
     move_cursor(length);
-    return true;
+    return dest.Write(ExternalRef(*iter_, data));
   }
   if (iter_ != secondary_buffer_.blocks().cend()) {
     if (ABSL_PREDICT_FALSE(!dest.Write(
@@ -405,24 +402,26 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
   }
 }
 
-bool ReaderFactoryBase::ConcurrentReader::ReadOrPullSomeBehindScratch(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool ReaderFactoryBase::ConcurrentReader::ReadSomeBehindScratch(
+    size_t max_length, char* dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
-         "nothing to read, use ReadOrPullSome() instead";
+      << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
+         "nothing to read, use ReadSome(char*) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
-         "some data available, use ReadOrPullSome() instead";
+      << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
+         "some data available, use ReadSome(char*) instead";
   RIEGELI_ASSERT(!scratch_used())
-      << "Failed precondition of Reader::ReadOrPullSomeBehindScratch(): "
+      << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
          "scratch used";
   if (iter_ != secondary_buffer_.blocks().cend()) ++iter_;
   set_buffer();
   for (;;) {
     while (iter_ != secondary_buffer_.blocks().cend()) {
       if (ABSL_PREDICT_TRUE(!iter_->empty())) {
-        set_buffer(iter_->data(), iter_->size());
-        move_limit_pos(available());
+        max_length = UnsignedMin(max_length, iter_->size());
+        set_buffer(iter_->data(), iter_->size(), max_length);
+        move_limit_pos(start_to_limit());
+        std::memcpy(dest, start(), start_to_cursor());
         return true;
       }
       ++iter_;
@@ -434,18 +433,64 @@ bool ReaderFactoryBase::ConcurrentReader::ReadOrPullSomeBehindScratch(
     absl::MutexLock lock(shared_->mutex);
     if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
     if (max_length >= buffer_sizer_.BufferLength(pos())) {
-      // Read directly to `get_dest(max_length)`.
-      size_t length_read;
-      const bool read_ok =
-          shared_->reader->ReadOrPullSome(max_length, get_dest, &length_read);
-      move_limit_pos(length_read);
-      if (ABSL_PREDICT_FALSE(!read_ok)) {
+      // Read directly to `dest`.
+      if (ABSL_PREDICT_FALSE(!shared_->reader->ReadSome(max_length, dest))) {
         if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
           return FailWithoutAnnotation(shared_->reader->status());
         }
         return false;
       }
-      if (length_read > 0) return true;
+      set_limit_pos(shared_->reader->pos());
+      return true;
+    }
+    if (ABSL_PREDICT_FALSE(!ReadSome())) return false;
+  }
+}
+
+bool ReaderFactoryBase::ConcurrentReader::CopySomeBehindScratch(
+    size_t max_length, Writer& dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of "
+         "PullableReader::CopySomeBehindScratch(Writer&): "
+         "nothing to read, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of "
+         "PullableReader::CopySomeBehindScratch(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of "
+         "PullableReader::CopySomeBehindScratch(Writer&): "
+         "scratch used";
+  if (iter_ != secondary_buffer_.blocks().cend()) ++iter_;
+  set_buffer();
+  for (;;) {
+    while (iter_ != secondary_buffer_.blocks().cend()) {
+      if (ABSL_PREDICT_TRUE(!iter_->empty())) {
+        max_length = UnsignedMin(max_length, iter_->size());
+        set_buffer(iter_->data(), iter_->size(), max_length);
+        move_limit_pos(start_to_limit());
+        return dest.Write(
+            ExternalRef(*iter_, absl::string_view(start(), start_to_cursor())));
+      }
+      ++iter_;
+    }
+
+    if (ABSL_PREDICT_FALSE(!ok())) return false;
+    secondary_buffer_.Clear();
+    iter_ = secondary_buffer_.blocks().cend();
+    absl::MutexLock lock(shared_->mutex);
+    if (ABSL_PREDICT_FALSE(!SyncPos())) return false;
+    if (max_length >= buffer_sizer_.BufferLength(pos())) {
+      // Copy directly to `dest`.
+      const bool copy_ok = shared_->reader->CopySome(max_length, dest);
+      set_limit_pos(shared_->reader->pos());
+      if (ABSL_PREDICT_FALSE(!copy_ok)) {
+        if (ABSL_PREDICT_FALSE(!shared_->reader->ok())) {
+          return FailWithoutAnnotation(shared_->reader->status());
+        }
+        return false;
+      }
+      return true;
     }
     if (ABSL_PREDICT_FALSE(!ReadSome())) return false;
   }

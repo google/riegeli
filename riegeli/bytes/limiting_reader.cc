@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -242,31 +241,47 @@ bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
   return true;
 }
 
-bool LimitingReaderBase::ReadOrPullSomeSlow(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool LimitingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "nothing to read, use ReadSome(char*) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
+  RIEGELI_ASSERT_LE(pos(), max_pos_)
+      << "Failed invariant of LimitingReaderBase: "
+         "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
-  const Position max_length_to_copy = UnsignedMin(max_length, max_pos_ - pos());
-  bool write_ok = true;
-  const bool read_ok = src.ReadOrPullSome(
-      max_length_to_copy, [get_dest, &write_ok](size_t& length) {
-        char* const dest = get_dest(length);
-        if (ABSL_PREDICT_FALSE(length == 0)) write_ok = false;
-        return dest;
-      });
+  max_length = UnsignedMin(max_length, max_pos_ - pos());
+  const bool read_ok = src.ReadSome(max_length, dest);
   MakeBuffer(src);
-  if (ABSL_PREDICT_FALSE(!read_ok)) {
-    if (write_ok) return CheckEnough();
+  if (ABSL_PREDICT_FALSE(!read_ok)) return CheckEnough();
+  return max_length > 0;
+}
+
+bool LimitingReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "nothing to read, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_LE(pos(), max_pos_)
+      << "Failed invariant of LimitingReaderBase: "
+         "position already exceeds its limit";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  Reader& src = *SrcReader();
+  SyncBuffer(src);
+  max_length = UnsignedMin(max_length, max_pos_ - pos());
+  const bool copy_ok = src.CopySome(max_length, dest);
+  MakeBuffer(src);
+  if (ABSL_PREDICT_FALSE(!copy_ok)) {
+    if (dest.ok()) return CheckEnough();
     return false;
   }
-  return max_length_to_copy > 0;
+  return max_length > 0;
 }
 
 void LimitingReaderBase::ReadHintSlow(size_t min_length,

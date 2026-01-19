@@ -84,7 +84,10 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
     FailOperation(status,
                   append ? absl::string_view("FileSystem::NewAppendableFile()")
                          : absl::string_view("FileSystem::NewWritableFile()"));
-    return nullptr;
+    RIEGELI_ASSERT(dest == nullptr)
+        << (append ? absl::string_view("FileSystem::NewAppendableFile()")
+                   : absl::string_view("FileSystem::NewWritableFile()"))
+        << " should store null WritableFile on failure";
   }
   return dest;
 }

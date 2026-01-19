@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
@@ -291,21 +290,44 @@ bool PullableReader::CopyBehindScratch(size_t length, BackwardWriter& dest) {
   return dest.Write(std::move(data));
 }
 
-bool PullableReader::ReadOrPullSomeBehindScratch(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool PullableReader::ReadSomeBehindScratch(size_t max_length, char* dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
+         "nothing to read, use ReadSome(char*) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
+         "some data available, use ReadSome(char*) instead";
+  RIEGELI_ASSERT(!scratch_used())
+      << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
+         "scratch used";
+  if (ABSL_PREDICT_FALSE(!PullBehindScratch(max_length))) return false;
+  max_length = UnsignedMin(max_length, available());
+  std::memcpy(dest, cursor(), max_length);
+  move_cursor(max_length);
+  return true;
+}
+
+bool PullableReader::CopySomeBehindScratch(size_t max_length, Writer& dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
       << "Failed precondition of "
-         "PullableReader::ReadOrPullSomeBehindScratch(): "
-         "nothing to read, use ReadOrPullSome() instead";
+         "PullableReader::CopySomeBehindScratch(Writer&): "
+         "nothing to read, use CopySome(Writer&) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
       << "Failed precondition of "
-         "PullableReader::ReadOrPullSomeBehindScratch(): "
-         "some data available, use ReadOrPullSome() instead";
+         "PullableReader::CopySomeBehindScratch(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
   RIEGELI_ASSERT(!scratch_used())
       << "Failed precondition of "
-         "PullableReader::ReadOrPullSomeBehindScratch(): "
+         "PullableReader::CopySomeBehindScratch(Writer&): "
          "scratch used";
-  return PullBehindScratch(max_length);
+  if (ABSL_PREDICT_FALSE(!PullBehindScratch(max_length))) return false;
+  max_length = UnsignedMin(max_length, available());
+  if (available() >= max_length && max_length <= kMaxBytesToCopy) {
+    const absl::string_view data(cursor(), max_length);
+    move_cursor(max_length);
+    return dest.Write(data);
+  }
+  return CopyBehindScratch(max_length, dest);
 }
 
 void PullableReader::ReadHintBehindScratch(size_t min_length,
@@ -436,10 +458,9 @@ bool PullableReader::CopySlow(Position length, Writer& dest) {
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     if (!ScratchEnds()) {
       if (available() >= length) {
-        const bool write_ok = dest.Write(
-            ExternalRef(scratch_->buffer, absl::string_view(cursor(), length)));
+        const absl::string_view data(cursor(), length);
         move_cursor(length);
-        return write_ok;
+        return dest.Write(ExternalRef(scratch_->buffer, data));
       }
       length -= available();
       const bool write_ok =
@@ -465,10 +486,9 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
     Chain from_scratch;
     if (!ScratchEnds()) {
       if (available() >= length) {
-        const bool write_ok = dest.Write(
-            ExternalRef(scratch_->buffer, absl::string_view(cursor(), length)));
+        const absl::string_view data(cursor(), length);
         move_cursor(length);
-        return write_ok;
+        return dest.Write(ExternalRef(scratch_->buffer, data));
       }
       length -= available();
       from_scratch =
@@ -488,19 +508,50 @@ bool PullableReader::CopySlow(size_t length, BackwardWriter& dest) {
   return CopyBehindScratch(length, dest);
 }
 
-bool PullableReader::ReadOrPullSomeSlow(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool PullableReader::ReadSomeSlow(size_t max_length, char* dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "nothing to read, use ReadSome(char*) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
     SyncScratch();
-    if (available() > 0) return true;
+    if (available() > 0) {
+      max_length = UnsignedMin(max_length, available());
+      riegeli::null_safe_memcpy(dest, cursor(), max_length);
+      move_cursor(max_length);
+      return true;
+    }
   }
-  return ReadOrPullSomeBehindScratch(max_length, get_dest);
+  return ReadSomeBehindScratch(max_length, dest);
+}
+
+bool PullableReader::CopySomeSlow(size_t max_length, Writer& dest) {
+  RIEGELI_ASSERT_GT(max_length, 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "nothing to read, use CopySome(Writer&) instead";
+  RIEGELI_ASSERT_EQ(available(), 0u)
+      << "Failed precondition of Reader::CopySomeSlow(Writer&): "
+         "some data available, use CopySome(Writer&) instead";
+  if (ABSL_PREDICT_FALSE(scratch_used())) {
+    if (!ScratchEnds()) {
+      max_length = UnsignedMin(max_length, available());
+      const absl::string_view data(cursor(), max_length);
+      move_cursor(max_length);
+      return dest.Write(ExternalRef(scratch_->buffer, data));
+    }
+    if (available() > 0) {
+      max_length = UnsignedMin(max_length, available());
+      if (ABSL_PREDICT_TRUE(max_length <= kMaxBytesToCopy)) {
+        const absl::string_view data(cursor(), max_length);
+        move_cursor(max_length);
+        return dest.Write(data);
+      }
+      return CopyBehindScratch(max_length, dest);
+    }
+  }
+  return CopySomeBehindScratch(max_length, dest);
 }
 
 void PullableReader::ReadHintSlow(size_t min_length,

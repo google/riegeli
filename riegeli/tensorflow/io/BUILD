@@ -31,7 +31,6 @@ cc_library(
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:cord",

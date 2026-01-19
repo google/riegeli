@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -154,30 +153,23 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   return read_ok;
 }
 
-bool DigestingReaderBase::ReadOrPullSomeSlow(
-    size_t max_length, absl::FunctionRef<char*(size_t&)> get_dest) {
+bool DigestingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
   RIEGELI_ASSERT_GT(max_length, 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "nothing to read, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "nothing to read, use ReadSome(char*) instead";
   RIEGELI_ASSERT_EQ(available(), 0u)
-      << "Failed precondition of Reader::ReadOrPullSomeSlow(): "
-         "some data available, use ReadOrPullSome() instead";
+      << "Failed precondition of Reader::ReadSomeSlow(char*): "
+         "some data available, use ReadSome(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   if (ABSL_PREDICT_FALSE(!SyncBuffer(src))) return false;
-  char* dest;
   size_t length_read;
-  const bool read_ok = src.ReadOrPullSome(
-      max_length,
-      [get_dest, &dest](size_t& length) {
-        dest = get_dest(length);
-        return dest;
-      },
-      &length_read);
-  if (length_read > 0) {
+  bool read_ok = src.ReadSome(max_length, dest, &length_read);
+  if (ABSL_PREDICT_TRUE(read_ok)) {
     if (ABSL_PREDICT_FALSE(
             !WriteToDigester(absl::string_view(dest, length_read)))) {
-      FailFromDigester();
+      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      read_ok = false;
     }
   }
   MakeBuffer(src);
