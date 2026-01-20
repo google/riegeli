@@ -527,9 +527,8 @@ SerializedMessageReader2(FieldHandlerInitializers&&... field_handlers) {
 // With an action, the part of the field not read by the action is skipped.
 // Without an action, the whole field is skipped.
 
-template <
-    typename Action,
-    std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int> = 0>
+template <typename Action,
+          std::enable_if_t<std::is_invocable_v<Action>, int> = 0>
 absl::Status SkipLengthDelimitedFromReader(const ReaderSpan<>& value,
                                            Action&& action);
 
@@ -542,9 +541,8 @@ absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value);
 // With an action, the part of the field not read by the action is skipped.
 // Without an action, the whole field is skipped.
 
-template <
-    typename Action,
-    std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int> = 0>
+template <typename Action,
+          std::enable_if_t<std::is_invocable_v<Action>, int> = 0>
 absl::Status SkipLengthDelimitedFromCord(const CordIteratorSpan& value,
                                          Action&& action);
 
@@ -1140,8 +1138,7 @@ absl::Status SerializedMessageReaderType<
   }
 }
 
-template <typename Action,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int>>
+template <typename Action, std::enable_if_t<std::is_invocable_v<Action>, int>>
 inline absl::Status SkipLengthDelimitedFromReader(const ReaderSpan<>& value,
                                                   Action&& action) {
   LimitingReaderBase& reader = value.reader();
@@ -1165,8 +1162,7 @@ inline absl::Status SkipLengthDelimitedFromReader(ReaderSpan<> value) {
   return absl::OkStatus();
 }
 
-template <typename Action,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, Action>, int>>
+template <typename Action, std::enable_if_t<std::is_invocable_v<Action>, int>>
 inline absl::Status SkipLengthDelimitedFromCord(const CordIteratorSpan& value,
                                                 Action&& action) {
   absl::Cord::CharIterator& iterator = value.iterator();

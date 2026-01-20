@@ -78,11 +78,11 @@ class FieldHandlerMapImpl {
 
   struct LengthDelimitedHandler {
     template <typename Action,
-              std::enable_if_t<std::is_invocable_r_v<
-                                   absl::Status, const Action&,
-                                   const FieldHandlerMapImpl* absl_nullable,
-                                   ReaderSpan<>, Context&...>,
-                               int> = 0>
+              std::enable_if_t<
+                  std::is_invocable_v<const Action&,
+                                      const FieldHandlerMapImpl* absl_nullable,
+                                      ReaderSpan<>, Context&...>,
+                  int> = 0>
     explicit LengthDelimitedHandler(Action&& action)
         : action(std::forward<Action>(action)) {}
 
@@ -143,12 +143,11 @@ class FieldHandlerMapImpl {
   //
   // If the field number was already registered as a regular length-delimited
   // field, returns `nullptr`.
-  template <
-      typename ParentAction,
-      std::enable_if_t<std::is_invocable_r_v<absl::Status, const ParentAction&,
-                                             int, const FieldHandlerMapImpl&,
-                                             ReaderSpan<>, Context&...>,
-                       int> = 0>
+  template <typename ParentAction,
+            std::enable_if_t<std::is_invocable_v<const ParentAction&, int,
+                                                 const FieldHandlerMapImpl&,
+                                                 ReaderSpan<>, Context&...>,
+                             int> = 0>
   FieldHandlerMapImpl* absl_nullable RegisterParent(
       int field_number, ParentAction&& parent_action = DefaultParentAction());
 
@@ -401,11 +400,11 @@ bool FieldHandlerMapImpl<Associated, Context...>::RegisterField(
 template <typename Associated, typename... Context>
 template <
     typename ParentAction,
-    std::enable_if_t<std::is_invocable_r_v<
-                         absl::Status, const ParentAction&, int,
-                         const FieldHandlerMapImpl<Associated, Context...>&,
-                         ReaderSpan<>, Context&...>,
-                     int>>
+    std::enable_if_t<
+        std::is_invocable_v<const ParentAction&, int,
+                            const FieldHandlerMapImpl<Associated, Context...>&,
+                            ReaderSpan<>, Context&...>,
+        int>>
 auto FieldHandlerMapImpl<Associated, Context...>::RegisterParent(
     int field_number, ParentAction&& parent_action)
     -> FieldHandlerMapImpl* absl_nullable {

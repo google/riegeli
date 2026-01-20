@@ -559,10 +559,10 @@ class OnOptionalVarintType {
   explicit constexpr OnOptionalVarintType(ActionInitializer&& action)
       : action_(std::forward<ActionInitializer>(action)) {}
 
-  template <typename... Context,
-            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                   Value, Context&...>,
-                             int> = 0>
+  template <
+      typename... Context,
+      std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
+                       int> = 0>
   absl::Status HandleVarint(uint64_t repr, Context&... context) const {
     if (ABSL_PREDICT_FALSE(
             (!field_handlers_internal::VarintIsValid<Value, kind>(repr)))) {
@@ -585,25 +585,25 @@ class OnRepeatedVarintType
  public:
   using OnRepeatedVarintType::OnOptionalVarintType::OnOptionalVarintType;
 
-  template <typename... Context,
-            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                   Value, Context&...>,
-                             int> = 0>
+  template <
+      typename... Context,
+      std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
+                       int> = 0>
   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
                                                Context&... context) const;
 
-  template <typename... Context,
-            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                   Value, Context&...>,
-                             int> = 0>
+  template <
+      typename... Context,
+      std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
+                       int> = 0>
   absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
                                              std::string& scratch,
                                              Context&... context) const;
 
-  template <typename... Context,
-            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                   Value, Context&...>,
-                             int> = 0>
+  template <
+      typename... Context,
+      std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
+                       int> = 0>
   absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
                                                Context&... context) const;
 };
@@ -623,8 +623,7 @@ class OnOptionalFixedType {
             std::enable_if_t<
                 std::conjunction_v<
                     std::bool_constant<sizeof(Value) == sizeof(uint32_t)>,
-                    std::is_invocable_r<absl::Status, const Action&, Value,
-                                        Context&...>>,
+                    std::is_invocable<const Action&, Value, Context&...>>,
                 int> = 0>
   absl::Status HandleFixed32(uint32_t repr, Context&... context) const {
     return action_(absl::bit_cast<Value>(repr), context...);
@@ -634,8 +633,7 @@ class OnOptionalFixedType {
             std::enable_if_t<
                 std::conjunction_v<
                     std::bool_constant<sizeof(Value) == sizeof(uint64_t)>,
-                    std::is_invocable_r<absl::Status, const Action&, Value,
-                                        Context&...>>,
+                    std::is_invocable<const Action&, Value, Context&...>>,
                 int> = 0>
   absl::Status HandleFixed64(uint64_t repr, Context&... context) const {
     return action_(absl::bit_cast<Value>(repr), context...);
@@ -654,25 +652,25 @@ class OnRepeatedFixedType
  public:
   using OnRepeatedFixedType::OnOptionalFixedType::OnOptionalFixedType;
 
-  template <typename... Context,
-            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                   Value, Context&...>,
-                             int> = 0>
+  template <
+      typename... Context,
+      std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
+                       int> = 0>
   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
                                                Context&... context) const;
 
-  template <typename... Context,
-            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                   Value, Context&...>,
-                             int> = 0>
+  template <
+      typename... Context,
+      std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
+                       int> = 0>
   absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
                                              std::string& scratch,
                                              Context&... context) const;
 
-  template <typename... Context,
-            std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                   Value, Context&...>,
-                             int> = 0>
+  template <
+      typename... Context,
+      std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
+                       int> = 0>
   absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
                                                Context&... context) const;
 };
@@ -690,18 +688,14 @@ class OnLengthDelimitedType {
 
   template <
       typename... Context,
-      std::enable_if_t<std::disjunction_v<
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               ReaderSpan<>, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               absl::string_view, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               std::string&&, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               Chain&&, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               absl::Cord&&, Context&...>>,
-                       int> = 0>
+      std::enable_if_t<
+          std::disjunction_v<
+              std::is_invocable<const Action&, ReaderSpan<>, Context&...>,
+              std::is_invocable<const Action&, absl::string_view, Context&...>,
+              std::is_invocable<const Action&, std::string&&, Context&...>,
+              std::is_invocable<const Action&, Chain&&, Context&...>,
+              std::is_invocable<const Action&, absl::Cord&&, Context&...>>,
+          int> = 0>
   absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
                                                Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, ReaderSpan<>,
@@ -727,18 +721,14 @@ class OnLengthDelimitedType {
 
   template <
       typename... Context,
-      std::enable_if_t<std::disjunction_v<
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               CordIteratorSpan, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               absl::string_view, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               std::string&&, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               Chain, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               absl::Cord, Context&...>>,
-                       int> = 0>
+      std::enable_if_t<
+          std::disjunction_v<
+              std::is_invocable<const Action&, CordIteratorSpan, Context&...>,
+              std::is_invocable<const Action&, absl::string_view, Context&...>,
+              std::is_invocable<const Action&, std::string&&, Context&...>,
+              std::is_invocable<const Action&, Chain, Context&...>,
+              std::is_invocable<const Action&, absl::Cord, Context&...>>,
+          int> = 0>
   absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
                                              std::string& scratch,
                                              Context&... context) const {
@@ -766,16 +756,13 @@ class OnLengthDelimitedType {
 
   template <
       typename... Context,
-      std::enable_if_t<std::disjunction_v<
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               absl::string_view, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               std::string&&, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               Chain&&, Context&...>,
-                           std::is_invocable_r<absl::Status, const Action&,
-                                               absl::Cord&&, Context&...>>,
-                       int> = 0>
+      std::enable_if_t<
+          std::disjunction_v<
+              std::is_invocable<const Action&, absl::string_view, Context&...>,
+              std::is_invocable<const Action&, std::string&&, Context&...>,
+              std::is_invocable<const Action&, Chain&&, Context&...>,
+              std::is_invocable<const Action&, absl::Cord&&, Context&...>>,
+          int> = 0>
   absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
                                                Context&... context) const {
     if constexpr (std::is_invocable_v<const Action&, absl::string_view,
@@ -829,9 +816,8 @@ class BeforeGroupType {
       : action_(std::forward<ActionInitializer>(action)) {}
 
   template <typename... Context,
-            std::enable_if_t<
-                std::is_invocable_r_v<absl::Status, const Action&, Context&...>,
-                int> = 0>
+            std::enable_if_t<std::is_invocable_v<const Action&, Context&...>,
+                             int> = 0>
   absl::Status HandleStartGroup(Context&... context) const {
     return action_(context...);
   }
@@ -852,9 +838,8 @@ class AfterGroupType {
       : action_(std::forward<ActionInitializer>(action)) {}
 
   template <typename... Context,
-            std::enable_if_t<
-                std::is_invocable_r_v<absl::Status, const Action&, Context&...>,
-                int> = 0>
+            std::enable_if_t<std::is_invocable_v<const Action&, Context&...>,
+                             int> = 0>
   absl::Status HandleEndGroup(Context&... context) const {
     return action_(context...);
   }
@@ -865,9 +850,8 @@ class AfterGroupType {
 
 template <typename Value, VarintKind kind, int field_number, typename Action>
 template <typename... Context,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                 Value, Context&...>,
-                           int>>
+          std::enable_if_t<
+              std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
     HandleLengthDelimitedFromReader(ReaderSpan<> repr,
                                     Context&... context) const {
@@ -900,9 +884,8 @@ absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
 
 template <typename Value, VarintKind kind, int field_number, typename Action>
 template <typename... Context,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                 Value, Context&...>,
-                           int>>
+          std::enable_if_t<
+              std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
     HandleLengthDelimitedFromCord(CordIteratorSpan repr,
                                   ABSL_ATTRIBUTE_UNUSED std::string& scratch,
@@ -933,9 +916,8 @@ absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
 
 template <typename Value, VarintKind kind, int field_number, typename Action>
 template <typename... Context,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                 Value, Context&...>,
-                           int>>
+          std::enable_if_t<
+              std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
     HandleLengthDelimitedFromString(absl::string_view repr,
                                     Context&... context) const {
@@ -964,9 +946,8 @@ absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
 
 template <typename Value, int field_number, typename Action>
 template <typename... Context,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                 Value, Context&...>,
-                           int>>
+          std::enable_if_t<
+              std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status OnRepeatedFixedType<Value, field_number, Action>::
     HandleLengthDelimitedFromReader(ReaderSpan<> repr,
                                     Context&... context) const {
@@ -998,9 +979,8 @@ absl::Status OnRepeatedFixedType<Value, field_number, Action>::
 
 template <typename Value, int field_number, typename Action>
 template <typename... Context,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                 Value, Context&...>,
-                           int>>
+          std::enable_if_t<
+              std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status
 OnRepeatedFixedType<Value, field_number, Action>::HandleLengthDelimitedFromCord(
     CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
@@ -1024,9 +1004,8 @@ OnRepeatedFixedType<Value, field_number, Action>::HandleLengthDelimitedFromCord(
 
 template <typename Value, int field_number, typename Action>
 template <typename... Context,
-          std::enable_if_t<std::is_invocable_r_v<absl::Status, const Action&,
-                                                 Value, Context&...>,
-                           int>>
+          std::enable_if_t<
+              std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status OnRepeatedFixedType<Value, field_number, Action>::
     HandleLengthDelimitedFromString(absl::string_view repr,
                                     Context&... context) const {

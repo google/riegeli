@@ -51,10 +51,10 @@ struct SupportsDigesterBaseHandle : std::false_type {};
 
 template <typename T>
 struct SupportsDigesterBaseHandle<
-    T, std::enable_if_t<std::conjunction_v<
-           std::negation<std::is_const<T>>,
-           std::is_void<std::void_t<decltype(std::declval<T&>().Write(
-               std::declval<absl::string_view>()))>>>>> : std::true_type {};
+    T, std::enable_if_t<!std::is_const_v<T>,
+                        std::void_t<decltype(std::declval<T&>().Write(
+                            std::declval<absl::string_view>()))>>>
+    : std::true_type {};
 
 // Type-erased pointer to a target object called a digester, which observes data
 // being read or written.

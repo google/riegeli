@@ -70,10 +70,8 @@ struct IsStaticFieldHandlerForVarintImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForVarintImpl<
     T,
-    std::enable_if_t<std::is_convertible_v<
-        decltype(std::declval<const T&>().HandleVarint(
-            std::declval<uint64_t>(), std::declval<Context&>()...)),
-        absl::Status>>,
+    std::void_t<decltype(std::declval<const T&>().HandleVarint(
+        std::declval<uint64_t>(), std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -82,10 +80,8 @@ struct IsStaticFieldHandlerForFixed32Impl : std::false_type {};
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForFixed32Impl<
     T,
-    std::enable_if_t<std::is_convertible_v<
-        decltype(std::declval<const T&>().HandleFixed32(
-            std::declval<uint32_t>(), std::declval<Context&>()...)),
-        absl::Status>>,
+    std::void_t<decltype(std::declval<const T&>().HandleFixed32(
+        std::declval<uint32_t>(), std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -94,10 +90,8 @@ struct IsStaticFieldHandlerForFixed64Impl : std::false_type {};
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForFixed64Impl<
     T,
-    std::enable_if_t<std::is_convertible_v<
-        decltype(std::declval<const T&>().HandleFixed64(
-            std::declval<uint64_t>(), std::declval<Context&>()...)),
-        absl::Status>>,
+    std::void_t<decltype(std::declval<const T&>().HandleFixed64(
+        std::declval<uint64_t>(), std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -107,10 +101,9 @@ struct IsStaticFieldHandlerForLengthDelimitedFromReaderImpl : std::false_type {
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForLengthDelimitedFromReaderImpl<
     T,
-    std::enable_if_t<std::is_convertible_v<
+    std::void_t<
         decltype(std::declval<const T&>().HandleLengthDelimitedFromReader(
-            std::declval<ReaderSpan<>>(), std::declval<Context&>()...)),
-        absl::Status>>,
+            std::declval<ReaderSpan<>>(), std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -119,11 +112,9 @@ struct IsStaticFieldHandlerForLengthDelimitedFromCordImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForLengthDelimitedFromCordImpl<
     T,
-    std::enable_if_t<std::is_convertible_v<
-        decltype(std::declval<const T&>().HandleLengthDelimitedFromCord(
-            std::declval<CordIteratorSpan>(), std::declval<std::string&>(),
-            std::declval<Context&>()...)),
-        absl::Status>>,
+    std::void_t<decltype(std::declval<const T&>().HandleLengthDelimitedFromCord(
+        std::declval<CordIteratorSpan>(), std::declval<std::string&>(),
+        std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -133,10 +124,9 @@ struct IsStaticFieldHandlerForLengthDelimitedFromStringImpl : std::false_type {
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForLengthDelimitedFromStringImpl<
     T,
-    std::enable_if_t<std::is_convertible_v<
+    std::void_t<
         decltype(std::declval<const T&>().HandleLengthDelimitedFromString(
-            std::declval<absl::string_view>(), std::declval<Context&>()...)),
-        absl::Status>>,
+            std::declval<absl::string_view>(), std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -145,10 +135,8 @@ struct IsStaticFieldHandlerForStartGroupImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForStartGroupImpl<
     T,
-    std::enable_if_t<std::is_convertible_v<
-        decltype(std::declval<const T&>().HandleStartGroup(
-            std::declval<Context&>()...)),
-        absl::Status>>,
+    std::void_t<decltype(std::declval<const T&>().HandleStartGroup(
+        std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -157,10 +145,8 @@ struct IsStaticFieldHandlerForEndGroupImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsStaticFieldHandlerForEndGroupImpl<
     T,
-    std::enable_if_t<
-        std::is_convertible_v<decltype(std::declval<const T&>().HandleEndGroup(
-                                  std::declval<Context&>()...)),
-                              absl::Status>>,
+    std::void_t<decltype(std::declval<const T&>().HandleEndGroup(
+        std::declval<Context&>()...))>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -169,15 +155,13 @@ struct IsDynamicFieldHandlerForVarintImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForVarintImpl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<bool,
-                              decltype(std::declval<const T&>().AcceptVarint(
-                                  std::declval<int>()))>,
-        std::is_convertible<
-            decltype(std::declval<const T&>().DynamicHandleVarint(
-                *std::declval<const T&>().AcceptVarint(std::declval<int>()),
-                std::declval<uint64_t>(), std::declval<Context&>()...)),
-            absl::Status>>>,
+    std::enable_if_t<
+        std::is_constructible_v<bool,
+                                decltype(std::declval<const T&>().AcceptVarint(
+                                    std::declval<int>()))>,
+        std::void_t<decltype(std::declval<const T&>().DynamicHandleVarint(
+            *std::declval<const T&>().AcceptVarint(std::declval<int>()),
+            std::declval<uint64_t>(), std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -186,15 +170,13 @@ struct IsDynamicFieldHandlerForFixed32Impl : std::false_type {};
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForFixed32Impl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<bool,
-                              decltype(std::declval<const T&>().AcceptFixed32(
-                                  std::declval<int>()))>,
-        std::is_convertible<
-            decltype(std::declval<const T&>().DynamicHandleFixed32(
-                *std::declval<const T&>().AcceptFixed32(std::declval<int>()),
-                std::declval<uint32_t>(), std::declval<Context&>()...)),
-            absl::Status>>>,
+    std::enable_if_t<
+        std::is_constructible_v<bool,
+                                decltype(std::declval<const T&>().AcceptFixed32(
+                                    std::declval<int>()))>,
+        std::void_t<decltype(std::declval<const T&>().DynamicHandleFixed32(
+            *std::declval<const T&>().AcceptFixed32(std::declval<int>()),
+            std::declval<uint32_t>(), std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -203,15 +185,13 @@ struct IsDynamicFieldHandlerForFixed64Impl : std::false_type {};
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForFixed64Impl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<bool,
-                              decltype(std::declval<const T&>().AcceptFixed64(
-                                  std::declval<int>()))>,
-        std::is_convertible<
-            decltype(std::declval<const T&>().DynamicHandleFixed64(
-                *std::declval<const T&>().AcceptFixed64(std::declval<int>()),
-                std::declval<uint64_t>(), std::declval<Context&>()...)),
-            absl::Status>>>,
+    std::enable_if_t<
+        std::is_constructible_v<bool,
+                                decltype(std::declval<const T&>().AcceptFixed64(
+                                    std::declval<int>()))>,
+        std::void_t<decltype(std::declval<const T&>().DynamicHandleFixed64(
+            *std::declval<const T&>().AcceptFixed64(std::declval<int>()),
+            std::declval<uint64_t>(), std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -221,18 +201,17 @@ struct IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl : std::false_type {
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForLengthDelimitedFromReaderImpl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<
+    std::enable_if_t<
+        std::is_constructible_v<
             bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
                       std::declval<int>()))>,
-        std::is_convertible<
+        std::void_t<
             decltype(std::declval<const T&>()
                          .DynamicHandleLengthDelimitedFromReader(
                              *std::declval<const T&>().AcceptLengthDelimited(
                                  std::declval<int>()),
                              std::declval<ReaderSpan<>>(),
-                             std::declval<Context&>()...)),
-            absl::Status>>>,
+                             std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -241,19 +220,18 @@ struct IsDynamicFieldHandlerForLengthDelimitedFromCordImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForLengthDelimitedFromCordImpl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<
+    std::enable_if_t<
+        std::is_constructible_v<
             bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
                       std::declval<int>()))>,
-        std::is_convertible<
+        std::void_t<
             decltype(std::declval<const T&>()
                          .DynamicHandleLengthDelimitedFromCord(
                              *std::declval<const T&>().AcceptLengthDelimited(
                                  std::declval<int>()),
                              std::declval<CordIteratorSpan>(),
                              std::declval<std::string&>(),
-                             std::declval<Context&>()...)),
-            absl::Status>>>,
+                             std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -263,18 +241,17 @@ struct IsDynamicFieldHandlerForLengthDelimitedFromStringImpl : std::false_type {
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForLengthDelimitedFromStringImpl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<
+    std::enable_if_t<
+        std::is_constructible_v<
             bool, decltype(std::declval<const T&>().AcceptLengthDelimited(
                       std::declval<int>()))>,
-        std::is_convertible<
+        std::void_t<
             decltype(std::declval<const T&>()
                          .DynamicHandleLengthDelimitedFromString(
                              *std::declval<const T&>().AcceptLengthDelimited(
                                  std::declval<int>()),
                              std::declval<absl::string_view>(),
-                             std::declval<Context&>()...)),
-            absl::Status>>>,
+                             std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -283,15 +260,13 @@ struct IsDynamicFieldHandlerForStartGroupImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForStartGroupImpl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<
+    std::enable_if_t<
+        std::is_constructible_v<
             bool, decltype(std::declval<const T&>().AcceptStartGroup(
                       std::declval<int>()))>,
-        std::is_convertible<
-            decltype(std::declval<const T&>().DynamicHandleStartGroup(
-                *std::declval<const T&>().AcceptStartGroup(std::declval<int>()),
-                std::declval<Context&>()...)),
-            absl::Status>>>,
+        std::void_t<decltype(std::declval<const T&>().DynamicHandleStartGroup(
+            *std::declval<const T&>().AcceptStartGroup(std::declval<int>()),
+            std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename Enable, typename... Context>
@@ -300,15 +275,13 @@ struct IsDynamicFieldHandlerForEndGroupImpl : std::false_type {};
 template <typename T, typename... Context>
 struct IsDynamicFieldHandlerForEndGroupImpl<
     T,
-    std::enable_if_t<std::conjunction_v<
-        std::is_constructible<bool,
-                              decltype(std::declval<const T&>().AcceptEndGroup(
-                                  std::declval<int>()))>,
-        std::is_convertible<
-            decltype(std::declval<const T&>().DynamicHandleEndGroup(
-                *std::declval<const T&>().AcceptEndGroup(std::declval<int>()),
-                std::declval<Context&>()...)),
-            absl::Status>>>,
+    std::enable_if_t<
+        std::is_constructible_v<
+            bool, decltype(std::declval<const T&>().AcceptEndGroup(
+                      std::declval<int>()))>,
+        std::void_t<decltype(std::declval<const T&>().DynamicHandleEndGroup(
+            *std::declval<const T&>().AcceptEndGroup(std::declval<int>()),
+            std::declval<Context&>()...))>>,
     Context...> : std::true_type {};
 
 template <typename T, typename... Context>
