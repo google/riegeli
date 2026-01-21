@@ -85,9 +85,9 @@ inline absl::Status SerializeMessageUsingStream(
       << "Failed to serialize message of type " << src.GetTypeName()
       << ": SerializeWithCachedSizes() failed for an unknown reason";
   RIEGELI_ASSERT_EQ(IntCast<size_t>(coded_stream.ByteCount()), size)
-      << "Byte size calculation and serialization were inconsistent. This "
-         "may indicate a bug in protocol buffers or it may be caused by "
-         "concurrent modification of "
+      << "Byte size calculation and serialization were inconsistent. "
+         "This may indicate a bug in protocol buffers "
+         "or it may be caused by concurrent modification of "
       << src.GetTypeName();
   return absl::OkStatus();
 }
@@ -107,9 +107,9 @@ inline absl::Status SerializeMessageHavingSize(
         << src.GetTypeName()
         << " was modified concurrently during serialization";
     RIEGELI_ASSERT_EQ(PtrDistance(dest.cursor(), cursor), size)
-        << "Byte size calculation and serialization were inconsistent. This "
-           "may indicate a bug in protocol buffers or it may be caused by "
-           "concurrent modification of "
+        << "Byte size calculation and serialization were inconsistent. "
+           "This may indicate a bug in protocol buffers "
+           "or it may be caused by concurrent modification of "
         << src.GetTypeName();
     dest.set_cursor(cursor);
     return absl::OkStatus();
@@ -133,9 +133,9 @@ inline absl::Status SerializeMessageHavingSize(
         << src.GetTypeName()
         << " was modified concurrently during serialization";
     RIEGELI_ASSERT_EQ(PtrDistance(dest.cursor(), cursor), size)
-        << "Byte size calculation and serialization were inconsistent. This "
-           "may indicate a bug in protocol buffers or it may be caused by "
-           "concurrent modification of "
+        << "Byte size calculation and serialization were inconsistent. "
+           "This may indicate a bug in protocol buffers "
+           "or it may be caused by concurrent modification of "
         << src.GetTypeName();
     return absl::OkStatus();
   }
@@ -222,30 +222,35 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     return FailSizeOverflow(src, size);
   }
   dest.clear();
-  ResizeStringAmortized(dest, size);
-  if (options.deterministic() == std::nullopt) {
-    // Creating a string, which is necessarily flat.
-    // `SerializeWithCachedSizesToArray()` is faster than
-    // `SerializeWithCachedSizes()`.
-    char* const cursor =
-        reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
-            reinterpret_cast<uint8_t*>(&dest[0])));
-    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
-        << src.GetTypeName()
-        << " was modified concurrently during serialization";
-    RIEGELI_ASSERT_EQ(PtrDistance(dest.data(), cursor), size)
-        << "Byte size calculation and serialization were inconsistent. This "
-           "may indicate a bug in protocol buffers or it may be caused by "
-           "concurrent modification of "
-        << src.GetTypeName();
-    return absl::OkStatus();
-  }
-  riegeli::ArrayWriter writer(&dest[0], size);
-  const absl::Status status =
-      SerializeMessageUsingStream(src, writer, options.deterministic(), size);
-  RIEGELI_EVAL_ASSERT(writer.Close()) << "ArrayWriter has no reason to fail "
-                                         "if the size does not overflow: "
-                                      << writer.status();
+  absl::Status status;
+  riegeli::StringResizeAndOverwriteAmortized(
+      dest, size, [&](char* data, size_t size) {
+        if (options.deterministic() == std::nullopt) {
+          // Creating a string, which is necessarily flat.
+          // `SerializeWithCachedSizesToArray()` is faster than
+          // `SerializeWithCachedSizes()`.
+          char* const cursor =
+              reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
+                  reinterpret_cast<uint8_t*>(data)));
+          RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+              << src.GetTypeName()
+              << " was modified concurrently during serialization";
+          RIEGELI_ASSERT_EQ(PtrDistance(data, cursor), size)
+              << "Byte size calculation and serialization were inconsistent. "
+                 "This may indicate a bug in protocol buffers "
+                 "or it may be caused by concurrent modification of "
+              << src.GetTypeName();
+          return size;
+        }
+        riegeli::ArrayWriter writer(data, size);
+        status = SerializeMessageUsingStream(src, writer,
+                                             options.deterministic(), size);
+        RIEGELI_EVAL_ASSERT(writer.Close())
+            << "ArrayWriter has no reason to fail "
+               "if the size does not overflow: "
+            << writer.status();
+        return writer.written().size();
+      });
   return status;
 }
 
@@ -272,9 +277,9 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
         << src.GetTypeName()
         << " was modified concurrently during serialization";
     RIEGELI_ASSERT_EQ(PtrDistance(data, cursor), size)
-        << "Byte size calculation and serialization were inconsistent. This "
-           "may indicate a bug in protocol buffers or it may be caused by "
-           "concurrent modification of "
+        << "Byte size calculation and serialization were inconsistent. "
+           "This may indicate a bug in protocol buffers "
+           "or it may be caused by concurrent modification of "
         << src.GetTypeName();
     return absl::OkStatus();
   }
@@ -312,9 +317,9 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
         << src.GetTypeName()
         << " was modified concurrently during serialization";
     RIEGELI_ASSERT_EQ(PtrDistance(buffer.data(), cursor), size)
-        << "Byte size calculation and serialization were inconsistent. This "
-           "may indicate a bug in protocol buffers or it may be caused by "
-           "concurrent modification of "
+        << "Byte size calculation and serialization were inconsistent. "
+           "This may indicate a bug in protocol buffers "
+           "or it may be caused by concurrent modification of "
         << src.GetTypeName();
     return absl::OkStatus();
   }
@@ -358,9 +363,9 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
         << src.GetTypeName()
         << " was modified concurrently during serialization";
     RIEGELI_ASSERT_EQ(PtrDistance(buffer.data(), cursor), size)
-        << "Byte size calculation and serialization were inconsistent. This "
-           "may indicate a bug in protocol buffers or it may be caused by "
-           "concurrent modification of "
+        << "Byte size calculation and serialization were inconsistent. "
+           "This may indicate a bug in protocol buffers "
+           "or it may be caused by concurrent modification of "
         << src.GetTypeName();
     dest.Append(std::move(buffer));
     return absl::OkStatus();

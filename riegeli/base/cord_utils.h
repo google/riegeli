@@ -18,8 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <string>
-
 #include "absl/base/nullability.h"
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
@@ -74,9 +72,6 @@ inline size_t MaxBytesToCopyToCord(absl::Cord& dest) {
 // `dest[]` must have sufficient size for `src.size()`, and `dest` may be
 // `nullptr` only if `src.empty()`.
 void CopyCordToArray(const absl::Cord& src, char* absl_nullable dest);
-
-// Appends `src` to `dest`.
-void AppendCordToString(const absl::Cord& src, std::string& dest);
 
 // Variants of `absl::Cord` operations with different block sizing tradeoffs:
 //  * `MakeBlockyCord(src)` is like `absl::Cord(src)`.

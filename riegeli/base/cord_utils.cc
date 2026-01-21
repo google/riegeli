@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <cstring>
-#include <string>
 #include <utility>
 
 #include "absl/base/nullability.h"
@@ -37,12 +36,6 @@ void CopyCordToArray(const absl::Cord& src, char* absl_nullable dest) {
     std::memcpy(dest, fragment.data(), fragment.size());
     dest += fragment.size();
   }
-}
-
-void AppendCordToString(const absl::Cord& src, std::string& dest) {
-  const size_t old_size = dest.size();
-  ResizeStringAmortized(dest, old_size + src.size());
-  CopyCordToArray(src, &dest[old_size]);
 }
 
 absl::Cord MakeBlockyCord(absl::string_view src) {

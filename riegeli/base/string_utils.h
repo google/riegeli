@@ -18,16 +18,43 @@
 #include <stddef.h>
 
 #include <string>
+#include <utility>
 
 #include "absl/base/nullability.h"
+#include "absl/strings/resize_and_overwrite.h"
+#include "riegeli/base/assert.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-// Resizes `dest` to `new_size`, ensuring that repeated growth has the cost
-// proportional to the final size. New contents are unspecified.
-void ResizeStringAmortized(std::string& dest, size_t new_size);
+namespace string_utils_internal {
+
+void ReserveAmortized(std::string& dest, size_t new_size);
+
+}  // namespace string_utils_internal
+
+// Like `std::string::resize()`, ensuring that repeated growth has the cost
+// proportional to the final size.
+inline void StringResizeAmortized(std::string& dest, size_t new_size) {
+  if (new_size > dest.capacity()) {
+    string_utils_internal::ReserveAmortized(dest, new_size);
+  }
+  RIEGELI_ASSUME_GE(dest.capacity(), new_size);
+  dest.resize(new_size);
+}
+
+// Like `absl::StringResizeAndOverwrite()`, ensuring that repeated growth has
+// the cost proportional to the final size.
+template <typename Op>
+inline void StringResizeAndOverwriteAmortized(std::string& dest,
+                                              size_t new_size, Op op) {
+  if (new_size > dest.capacity()) {
+    string_utils_internal::ReserveAmortized(dest, new_size);
+  }
+  RIEGELI_ASSUME_GE(dest.capacity(), new_size);
+  return absl::StringResizeAndOverwrite(dest, new_size, std::move(op));
+}
 
 }  // namespace riegeli
 

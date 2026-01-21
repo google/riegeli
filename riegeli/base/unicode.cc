@@ -28,6 +28,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/strings/resize_and_overwrite.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -49,7 +50,7 @@ bool Utf8ToWide(absl::string_view src, std::wstring& dest) {
   if (ABSL_PREDICT_FALSE(dest_size == 0)) return false;
   dest.resize(IntCast<size_t>(dest_size));
   MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, src.data(),
-                      IntCast<int>(src.size()), &dest[0], dest_size);
+                      IntCast<int>(src.size()), dest.data(), dest_size);
   return true;
 }
 
@@ -64,10 +65,13 @@ bool WideToUtf8(absl::Span<const wchar_t> src, std::string& dest) {
       CP_UTF8, WC_ERR_INVALID_CHARS, src.data(), IntCast<int>(src.size()),
       nullptr, 0, nullptr, nullptr);
   if (ABSL_PREDICT_FALSE(dest_size == 0)) return false;
-  dest.resize(IntCast<size_t>(dest_size));
-  WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, src.data(),
-                      IntCast<int>(src.size()), &dest[0], dest_size, nullptr,
-                      nullptr);
+  absl::StringResizeAndOverwrite(
+      dest, IntCast<size_t>(dest_size), [&](char* data, size_t size) {
+        WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, src.data(),
+                            IntCast<int>(src.size()), data, IntCast<int>(size),
+                            nullptr, nullptr);
+        return size;
+      });
   return true;
 }
 
@@ -77,10 +81,13 @@ std::string WideToUtf8Lossy(absl::Span<const wchar_t> src) {
   const int dest_size = WideCharToMultiByte(CP_UTF8, 0, src.data(),
                                             SaturatingIntCast<int>(src.size()),
                                             nullptr, 0, nullptr, nullptr);
-  dest.resize(IntCast<size_t>(dest_size));
-  WideCharToMultiByte(CP_UTF8, 0, src.data(),
-                      SaturatingIntCast<int>(src.size()), &dest[0], dest_size,
-                      nullptr, nullptr);
+  absl::StringResizeAndOverwrite(
+      dest, IntCast<size_t>(dest_size), [&](char* data, size_t size) {
+        WideCharToMultiByte(CP_UTF8, 0, src.data(),
+                            SaturatingIntCast<int>(src.size()), data,
+                            IntCast<int>(size), nullptr, nullptr);
+        return size;
+      });
   return dest;
 }
 

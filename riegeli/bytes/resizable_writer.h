@@ -327,7 +327,7 @@ class ResizableWriter : public ResizableWriterBase {
 template <typename Alloc = std::allocator<char>>
 struct StringResizableTraits {
   using Resizable = std::basic_string<char, std::char_traits<char>, Alloc>;
-  static char* Data(Resizable& dest) { return &dest[0]; }
+  static char* Data(Resizable& dest) { return dest.data(); }
   static size_t Size(const Resizable& dest) { return dest.size(); }
   static constexpr bool kIsStable = false;
   static bool Resize(Resizable& dest, size_t new_size, size_t used_size) {

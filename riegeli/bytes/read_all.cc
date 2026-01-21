@@ -25,6 +25,7 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/resize_and_overwrite.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -100,16 +101,20 @@ absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
       return absl::OkStatus();
     }
     size_t remaining_max_length = max_length;
-    const size_t dest_pos = dest.size();
-    if (src.available() < dest.capacity() - dest_pos) {
+    const size_t old_size = dest.size();
+    if (src.available() < dest.capacity() - old_size) {
       // Try to fill all remaining space in `dest`, to avoid copying through the
       // `Chain` in case the remaining length is smaller.
       const size_t length =
-          UnsignedMin(dest.capacity() - dest_pos, remaining_max_length);
-      dest.resize(dest_pos + length);
+          UnsignedMin(dest.capacity() - old_size, remaining_max_length);
+      bool read_ok;
       size_t length_read;
-      if (!src.Read(length, &dest[dest_pos], &length_read)) {
-        dest.erase(dest_pos + length_read);
+      absl::StringResizeAndOverwrite(
+          dest, old_size + length, [&](char* data, size_t size) {
+            read_ok = src.Read(size - old_size, data + old_size, &length_read);
+            return old_size + length_read;
+          });
+      if (!read_ok) {
         if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
         return absl::OkStatus();
       }

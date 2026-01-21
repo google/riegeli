@@ -28,6 +28,7 @@
 #include "absl/base/optimization.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/resize_and_overwrite.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
@@ -522,8 +523,10 @@ inline void Chain::Initialize(const Chain& src) {
 inline std::string Chain::ToString() const {
   if (begin_ == end_) return std::string(short_data());
   std::string dest;
-  dest.resize(size_);
-  CopyToSlow(&dest[0]);
+  absl::StringResizeAndOverwrite(dest, size_, [&](char* data, size_t size) {
+    CopyToSlow(data);
+    return size;
+  });
   return dest;
 }
 
@@ -593,12 +596,15 @@ inline void Chain::CopyToSlow(char* dest) const {
 }
 
 void Chain::AppendTo(std::string& dest) const& {
-  const size_t size_before = dest.size();
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - size_before)
+  const size_t old_size = dest.size();
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - old_size)
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
-  ResizeStringAmortized(dest, size_before + size_);
-  CopyTo(&dest[size_before]);
+  riegeli::StringResizeAndOverwriteAmortized(dest, old_size + size_,
+                                             [&](char* data, size_t size) {
+                                               CopyTo(data + old_size);
+                                               return size;
+                                             });
 }
 
 void Chain::AppendTo(std::string& dest) && {
@@ -616,12 +622,15 @@ void Chain::AppendTo(std::string& dest) && {
       }
     }
   }
-  const size_t size_before = dest.size();
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - size_before)
+  const size_t old_size = dest.size();
+  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - old_size)
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
-  ResizeStringAmortized(dest, size_before + size_);
-  CopyTo(&dest[size_before]);
+  riegeli::StringResizeAndOverwriteAmortized(dest, old_size + size_,
+                                             [&](char* data, size_t size) {
+                                               CopyTo(data + old_size);
+                                               return size;
+                                             });
 }
 
 void Chain::AppendTo(absl::Cord& dest) const& {

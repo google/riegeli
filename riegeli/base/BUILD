@@ -146,7 +146,9 @@ cc_library(
     hdrs = ["string_utils.h"],
     deps = [
         ":arithmetic",
+        ":assert",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/strings:resize_and_overwrite",
     ],
 )
 
@@ -181,6 +183,7 @@ cc_library(
             ":arithmetic",
             "@com_google_absl//absl/base:core_headers",
             "@com_google_absl//absl/base:nullability",
+            "@com_google_absl//absl/strings:resize_and_overwrite",
             "@com_google_absl//absl/strings:string_view",
             "@com_google_absl//absl/types:span",
         ],
@@ -399,6 +402,7 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:resize_and_overwrite",
         "@com_google_absl//absl/strings:string_view",
     ],
 )
@@ -560,6 +564,7 @@ cc_library(
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:resize_and_overwrite",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],

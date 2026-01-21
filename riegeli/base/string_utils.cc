@@ -23,18 +23,14 @@
 
 ABSL_POINTERS_DEFAULT_NONNULL
 
-namespace riegeli {
+namespace riegeli::string_utils_internal {
 
-void ResizeStringAmortized(std::string& dest, size_t new_size) {
-  if (new_size > dest.capacity()) {
-    dest.reserve(
-        dest.capacity() == std::string().capacity()
-            ? new_size
-            : UnsignedMax(new_size,
-                          UnsignedMin(dest.capacity() + dest.capacity() / 2,
-                                      dest.max_size())));
-  }
-  dest.resize(new_size);
+void ReserveAmortized(std::string& dest, size_t new_size) {
+  dest.reserve(dest.capacity() == std::string().capacity()
+                   ? new_size
+                   : UnsignedMax(new_size, UnsignedMin(dest.capacity() +
+                                                           dest.capacity() / 2,
+                                                       dest.max_size())));
 }
 
-}  // namespace riegeli
+}  // namespace riegeli::string_utils_internal

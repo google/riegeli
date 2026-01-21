@@ -385,14 +385,15 @@ bool Reader::ReadSlow(size_t length, std::string& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(string&): "
          "string size overflow";
-  const size_t dest_pos = dest.size();
-  ResizeStringAmortized(dest, dest_pos + length);
-  size_t length_read;
-  if (ABSL_PREDICT_FALSE(!ReadSlow(length, &dest[dest_pos], length_read))) {
-    dest.erase(dest_pos + length_read);
-    return false;
-  }
-  return true;
+  const size_t old_size = dest.size();
+  bool read_ok;
+  riegeli::StringResizeAndOverwriteAmortized(
+      dest, old_size + length, [&](char* data, size_t size) {
+        size_t length_read;
+        read_ok = ReadSlow(size - old_size, data + old_size, length_read);
+        return old_size + length_read;
+      });
+  return read_ok;
 }
 
 bool Reader::ReadSlow(size_t length, std::string& dest, size_t& length_read) {
@@ -623,11 +624,14 @@ bool Reader::ReadSomeSlow(size_t max_length, std::string& dest) {
                     std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSomeSlow(string&): "
          "string size overflow";
-  const size_t dest_pos = dest.size();
-  ResizeStringAmortized(dest, dest_pos + max_length);
-  size_t length_read;
-  const bool read_ok = ReadSomeSlow(max_length, &dest[dest_pos], length_read);
-  dest.erase(dest_pos + length_read);
+  const size_t old_size = dest.size();
+  bool read_ok;
+  riegeli::StringResizeAndOverwriteAmortized(
+      dest, old_size + max_length, [&](char* data, size_t size) {
+        size_t length_read;
+        read_ok = ReadSomeSlow(size - old_size, data + old_size, length_read);
+        return old_size + length_read;
+      });
   return read_ok;
 }
 

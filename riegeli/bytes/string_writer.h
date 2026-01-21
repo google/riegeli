@@ -357,7 +357,7 @@ class StringWriter<Dest>::Mover {
   void Done(StringWriter& self) {
     if (uses_buffer_) {
       std::string& dest = *self.dest_;
-      self.set_buffer(&dest[0], dest.size(), start_to_cursor_);
+      self.set_buffer(dest.data(), dest.size(), start_to_cursor_);
     }
   }
 

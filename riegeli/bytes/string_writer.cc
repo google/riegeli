@@ -65,7 +65,7 @@ inline void StringWriterBase::MakeDestBuffer(std::string& dest,
   RIEGELI_ASSERT(!uses_secondary_buffer())
       << "Failed precondition in StringWriterBase::MakeDestBuffer(): "
          "secondary buffer is used";
-  set_buffer(&dest[0], dest.size(), cursor_index);
+  set_buffer(dest.data(), dest.size(), cursor_index);
   set_start_pos(0);
 }
 
@@ -170,7 +170,7 @@ bool StringWriterBase::WriteSlow(ExternalRef src) {
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        std::memcpy(&dest[cursor_index], src.data(), src.size());
+        std::memcpy(dest.data() + cursor_index, src.data(), src.size());
       } else {
         dest.erase(cursor_index);
         // TODO: When `absl::string_view` becomes C++17
@@ -210,7 +210,7 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        src.CopyTo(&dest[cursor_index]);
+        src.CopyTo(dest.data() + cursor_index);
       } else {
         dest.erase(cursor_index);
         src.AppendTo(dest);
@@ -248,7 +248,7 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        src.CopyTo(&dest[cursor_index]);
+        src.CopyTo(dest.data() + cursor_index);
       } else {
         dest.erase(cursor_index);
         std::move(src).AppendTo(dest);
@@ -286,10 +286,10 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        cord_internal::CopyCordToArray(src, &dest[cursor_index]);
+        cord_internal::CopyCordToArray(src, dest.data() + cursor_index);
       } else {
         dest.erase(cursor_index);
-        cord_internal::AppendCordToString(src, dest);
+        absl::AppendCordToString(src, &dest);
       }
       GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;
@@ -324,10 +324,10 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
     const size_t new_cursor_index = cursor_index + src.size();
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        cord_internal::CopyCordToArray(src, &dest[cursor_index]);
+        cord_internal::CopyCordToArray(src, dest.data() + cursor_index);
       } else {
         dest.erase(cursor_index);
-        cord_internal::AppendCordToString(src, dest);
+        absl::AppendCordToString(src, &dest);
       }
       GrowDestToCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;
@@ -362,7 +362,7 @@ bool StringWriterBase::WriteSlow(ByteFill src) {
     const size_t new_cursor_index = cursor_index + IntCast<size_t>(src.size());
     if (new_cursor_index <= dest.capacity()) {
       if (ABSL_PREDICT_FALSE(new_cursor_index <= dest.size())) {
-        std::memset(&dest[cursor_index], src.fill(),
+        std::memset(dest.data() + cursor_index, src.fill(),
                     IntCast<size_t>(src.size()));
       } else {
         dest.erase(cursor_index);

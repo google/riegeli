@@ -22,6 +22,7 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/resize_and_overwrite.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/string_utils.h"
@@ -57,8 +58,11 @@ absl::string_view CordIteratorSpan::ToStringView(std::string& scratch) && {
     return chunk.substr(0, length);
   }
   scratch.clear();
-  ResizeStringAmortized(scratch, length);
-  ReadSlow(iter, length, scratch.data());
+  riegeli::StringResizeAndOverwriteAmortized(scratch, length,
+                                             [&](char* data, size_t size) {
+                                               ReadSlow(iter, size, data);
+                                               return size;
+                                             });
   return scratch;
 }
 
@@ -66,8 +70,10 @@ void CordIteratorSpan::ToString(std::string& dest) && {
   absl::Cord::CharIterator& iter = *iterator_;
   size_t length = length_;
   dest.clear();
-  dest.resize(length);
-  Read(iter, length, dest.data());
+  absl::StringResizeAndOverwrite(dest, length, [&](char* data, size_t size) {
+    Read(iter, size, data);
+    return size;
+  });
 }
 
 }  // namespace riegeli
