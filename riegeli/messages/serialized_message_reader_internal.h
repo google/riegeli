@@ -530,6 +530,41 @@ struct IsFieldHandlerFromString
     : std::disjunction<IsStaticFieldHandlerFromString<T, Context...>,
                        IsDynamicFieldHandlerFromString<T, Context...>> {};
 
+template <typename T, typename... Context>
+struct IsUnboundFieldHandlerFromString
+    : std::conjunction<
+          IsFieldHandlerWithUnboundFieldNumber<T>,
+          std::disjunction<
+              IsStaticFieldHandlerForVarint<T, Context...>,
+              IsStaticFieldHandlerForFixed32<T, Context...>,
+              IsStaticFieldHandlerForFixed64<T, Context...>,
+              IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
+              IsStaticFieldHandlerForStartGroup<T, Context...>,
+              IsStaticFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
+              std::negation<std::disjunction<
+                  IsStaticFieldHandlerForLengthDelimitedFromReader<T,
+                                                                   Context...>,
+                  IsStaticFieldHandlerForLengthDelimitedFromCord<
+                      T, Context...>>>>> {};
+
+template <typename T, typename... Context>
+struct IsUnboundFieldHandler
+    : std::conjunction<
+          IsFieldHandlerWithUnboundFieldNumber<T>,
+          std::disjunction<
+              IsStaticFieldHandlerForVarint<T, Context...>,
+              IsStaticFieldHandlerForFixed32<T, Context...>,
+              IsStaticFieldHandlerForFixed64<T, Context...>,
+              IsStaticFieldHandlerForLengthDelimited<T, Context...>,
+              IsStaticFieldHandlerForStartGroup<T, Context...>,
+              IsStaticFieldHandlerForEndGroup<T, Context...>>,
+          std::disjunction<
+              IsStaticFieldHandlerForLengthDelimited<T, Context...>,
+              std::negation<IsStaticFieldHandlerForLengthDelimitedFromCord<
+                  T, Context...>>>> {};
+
 ABSL_ATTRIBUTE_COLD absl::Status AnnotateWithFieldNumberSlow(
     absl::Status status, int field_number);
 ABSL_ATTRIBUTE_COLD absl::Status AnnotateWithSourceAndFieldNumberSlow(

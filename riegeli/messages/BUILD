@@ -178,6 +178,8 @@ cc_library(
         ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
+        "//riegeli/base:cord_iterator_span",
+        "//riegeli/base:initializer",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
@@ -185,7 +187,6 @@ cc_library(
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

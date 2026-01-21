@@ -244,10 +244,31 @@ inline constexpr int kUnboundFieldNumber =
 template <typename T, typename... Context>
 struct IsFieldHandler;
 
-// `IsUnboundFieldHandler<T, Context...>::value` is `true` if `T` is a valid
-// argument type for `FieldHandlerMap::RegisterField()`.
+// `IsUnboundFieldHandlerFromString<T, Context...>::value` is `true` if `T` is a
+// valid argument type for `FieldHandlerMap::Builder::RegisterField()`.
+//
+// A length-delimited field handler must be directly applicable to a string
+// source.
+template <typename T, typename... Context>
+struct IsUnboundFieldHandlerFromString;
+
+// Like `IsUnboundFieldHandlerFromString`, but does not require the field
+// handler to be directly applicable to a string source.
 template <typename T, typename... Context>
 struct IsUnboundFieldHandler;
+
+// `IsUnboundFieldHandler<T, Context...>::value` is `true` if `T` is a valid
+// argument type for `FieldHandlerMap::Builder::RegisterParent()`, assuming that
+// `Context...` begins with `const FieldHandlerMap&`.
+//
+// The field handler must be directly applicable to a string source.
+template <typename T, typename... Context>
+struct IsUnboundFieldHandlerForLengthDelimitedFromString;
+
+// Like `IsUnboundFieldHandlerForLengthDelimitedFromString`, but does not
+// require the field handler to be directly applicable to a string source.
+template <typename T, typename... Context>
+struct IsUnboundFieldHandlerForLengthDelimited;
 
 // For technical reasons related to template argument deduction,
 // `SerializedMessageReader2` is not a class template but a function template.
@@ -558,23 +579,31 @@ struct IsFieldHandler
                            IsDynamicFieldHandler<T, Context...>> {};
 
 template <typename T, typename... Context>
+struct IsUnboundFieldHandlerFromString
+    : serialized_message_reader_internal::IsUnboundFieldHandlerFromString<
+          T, Context...> {};
+
+template <typename T, typename... Context>
 struct IsUnboundFieldHandler
+    : serialized_message_reader_internal::IsUnboundFieldHandler<T, Context...> {
+};
+
+template <typename T, typename... Context>
+struct IsUnboundFieldHandlerForLengthDelimitedFromString
     : std::conjunction<
           serialized_message_reader_internal::
               IsFieldHandlerWithUnboundFieldNumber<T>,
-          std::disjunction<
-              serialized_message_reader_internal::IsStaticFieldHandlerForVarint<
-                  T, Context...>,
-              serialized_message_reader_internal::
-                  IsStaticFieldHandlerForFixed32<T, Context...>,
-              serialized_message_reader_internal::
-                  IsStaticFieldHandlerForFixed64<T, Context...>,
-              serialized_message_reader_internal::
-                  IsStaticFieldHandlerForLengthDelimited<T, Context...>,
-              serialized_message_reader_internal::
-                  IsStaticFieldHandlerForStartGroup<T, Context...>,
-              serialized_message_reader_internal::
-                  IsStaticFieldHandlerForEndGroup<T, Context...>>> {};
+          serialized_message_reader_internal::
+              IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>> {
+};
+
+template <typename T, typename... Context>
+struct IsUnboundFieldHandlerForLengthDelimited
+    : std::conjunction<
+          serialized_message_reader_internal::
+              IsFieldHandlerWithUnboundFieldNumber<T>,
+          serialized_message_reader_internal::
+              IsStaticFieldHandlerForLengthDelimited<T, Context...>> {};
 
 template <typename... FieldHandlers, typename... Context>
 template <typename ReaderType>
