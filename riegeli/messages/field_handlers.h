@@ -72,7 +72,8 @@ class BeforeGroupType;
 template <int field_number, typename Action>
 class AfterGroupType;
 
-// Common field handlers for `SerializedMessageReader2` and `FieldHandlerMap`.
+// Common field handlers for `SerializedMessageReader2`, `DynamicFieldHandler`,
+// and `FieldHandlerMap`.
 //
 // For a `MessageType` with generated code, the field number of a field named
 // `foo_bar` can be obtained as `MessageType::kFooBarFieldNumber`.

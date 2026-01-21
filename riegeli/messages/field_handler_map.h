@@ -58,8 +58,11 @@ class FieldHandlerMapBuilder;
 // number. The field number is specified during registration.
 //
 // Field handlers for length-delimited fields must be directly applicable to a
-// string source. This makes `FieldHandlerMap` itself is directly applicable to
-// a string and `Cord` source.
+// string source. This makes `FieldHandlerMap` itself directly applicable to a
+// string or `Cord` source.
+//
+// `DynamicFieldHandler` is similar to a `FieldHandlerMap` with a single
+// registered field handler, but more efficient and without type erasure.
 template <typename... Context>
 class FieldHandlerMap {
  private:

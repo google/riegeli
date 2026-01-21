@@ -103,13 +103,14 @@ namespace riegeli {
 //
 // Static and dynamic field handlers can be used directly with
 // `SerializedMessageReader2`. Unbound field handlers are meant to be registered
-// with a `FieldHandlerMap`, with field numbers known at runtime.
+// with `DynamicFieldHandler` or `FieldHandlerMap`, with field numbers known
+// at runtime.
 //
 // A family of functions returning static and unbound field handlers is defined
 // in namespace `riegeli::field_handlers`.
 //
-// The primary dynamic field handlers are `FieldHandlerMap` and
-// `CopyingFieldHandler`.
+// The primary dynamic field handlers are `DynamicFieldHandler`,
+// `FieldHandlerMap`, and `CopyingFieldHandler`.
 //
 // All field handlers stored in a single `SerializedMessageReader2` are usually
 // conceptually associated with a single message type.
@@ -244,8 +245,9 @@ inline constexpr int kUnboundFieldNumber =
 template <typename T, typename... Context>
 struct IsFieldHandler;
 
-// `IsUnboundFieldHandlerFromString<T, Context...>::value` is `true` if `T` is a
-// valid argument type for `FieldHandlerMap::Builder::RegisterField()`.
+// `IsUnboundFieldHandlerFromString<T, Context...>::value` is `true` if `T`
+// is a valid argument type for `DynamicFieldHandler()` or
+// `FieldHandlerMap::Builder::RegisterField()`.
 //
 // A length-delimited field handler must be directly applicable to a string
 // source.
