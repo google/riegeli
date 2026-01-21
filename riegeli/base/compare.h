@@ -206,11 +206,6 @@ inline StrongOrdering RIEGELI_COMPARE(T* a, T* b) {
                  : StrongOrdering::equal;
 }
 
-#endif
-
-#if !defined(__cpp_lib_three_way_comparison) || \
-    !defined(ABSL_USES_STD_STRING_VIEW)
-
 inline StrongOrdering RIEGELI_COMPARE(absl::string_view a,
                                       absl::string_view b) {
   return AsStrongOrdering(a.compare(b));
