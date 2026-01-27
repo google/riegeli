@@ -150,8 +150,11 @@ struct TestReturnsOrderingOrSearchGuide : std::false_type {};
 template <typename Test, typename Pos>
 struct TestReturnsOrderingOrSearchGuide<
     Test, Pos,
-    std::enable_if_t<IsOrderingOrSearchGuide<
-        decltype(std::declval<Test>()(std::declval<Pos>())), Pos>::value>>
+    std::enable_if_t<std::conjunction_v<
+                         IsOrderingOrSearchGuide<
+                             std::invoke_result_t<Test, Pos>, Pos>,
+                         std::negation<IsOptionalOrderingOrSearchGuide<
+                                           std::invoke_result_t<Test, Pos>, Pos>>>>>
     : std::true_type {};
 
 template <typename Test, typename Pos, typename Enable = void>
@@ -161,7 +164,7 @@ template <typename Test, typename Pos>
 struct TestReturnsOptionalOrderingOrSearchGuide<
     Test, Pos,
     std::enable_if_t<IsOptionalOrderingOrSearchGuide<
-        decltype(std::declval<Test>()(std::declval<Pos>())), Pos>::value>>
+        std::invoke_result_t<Test, Pos>, Pos>::value>>
     : std::true_type {};
 
 template <typename Test, typename Pos, typename Enable = void>
@@ -171,7 +174,7 @@ template <typename Test, typename Pos>
 struct TestReturnsStatusOrOrderingOrSearchGuide<
     Test, Pos,
     std::enable_if_t<IsStatusOrOrderingOrSearchGuide<
-        decltype(std::declval<Test>()(std::declval<Pos>())), Pos>::value>>
+                         std::invoke_result_t<Test, Pos>, Pos>::value>>
     : std::true_type {};
 
 }  // namespace binary_search_internal
