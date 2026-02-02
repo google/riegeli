@@ -331,7 +331,7 @@ class SerializedMessageWriter {
   //   `writer_ == (submessages_.empty() ? dest_ : &submessages_.back())`
 };
 
-// A field handler for `SerializedMessageReader2` which copies any field to a
+// A field handler for `SerializedMessageReader` which copies any field to a
 // `SerializedMessageWriter`.
 //
 // It is meant to be used as the last field handler, so that remaining fields
@@ -342,7 +342,7 @@ class SerializedMessageWriter {
 template <typename... Context>
 class CopyingFieldHandler {
  public:
-  // This is `kDynamicFieldNumber` from `serialized_message_reader2.h`.
+  // This is `kDynamicFieldNumber` from `serialized_message_reader.h`.
   // Avoid adding a dependency just for that.
   static constexpr int kFieldNumber = -1;
 

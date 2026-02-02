@@ -38,7 +38,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
 #include "riegeli/messages/map_entry_field.h"  // IWYU pragma: export
-#include "riegeli/messages/serialized_message_reader2.h"
+#include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
 #include "riegeli/varint/varint_reading.h"
 
@@ -72,7 +72,7 @@ class BeforeGroupType;
 template <int field_number, typename Action>
 class AfterGroupType;
 
-// Common field handlers for `SerializedMessageReader2`, `DynamicFieldHandler`,
+// Common field handlers for `SerializedMessageReader`, `DynamicFieldHandler`,
 // and `FieldHandlerMap`.
 //
 // For a `MessageType` with generated code, the field number of a field named
@@ -410,7 +410,7 @@ OnRepeatedEnum(Action&& action) {
 // `ReaderSpan<>`, `CordIteratorSpan`, and `absl::string_view`, then the action
 // parameter can be declared as `auto`. This is convenient if the implementation
 // can treat these types uniformly, e.g. when the value is passed to
-// `riegeli::ParseMessage()`, `SerializedMessageReader2::ReadMessage()`, or
+// `riegeli::ParseMessage()`, `SerializedMessageReader::ReadMessage()`, or
 // `SerializedMessageWriter::WriteString()`.
 //
 // Alternatively, the action can use `absl::Overload{}` to provide variants with

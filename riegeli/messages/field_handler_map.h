@@ -36,7 +36,7 @@
 #include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/bytes/limiting_reader.h"
-#include "riegeli/messages/serialized_message_reader2.h"
+#include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -46,10 +46,10 @@ namespace riegeli {
 template <typename... Context>
 class FieldHandlerMapBuilder;
 
-// A map of field handlers for `SerializedMessageReader2` registered at runtime.
+// A map of field handlers for `SerializedMessageReader` registered at runtime.
 //
 // A `FieldHandlerMap` is itself a dynamic field handler, used with
-// `SerializedMessageReader2` with compatible `Context...`.
+// `SerializedMessageReader` with compatible `Context...`.
 //
 // `FieldHandlerMap` is created from `FieldHandlerMap::Builder`, with which
 // field handlers are registered.

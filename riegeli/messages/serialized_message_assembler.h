@@ -44,7 +44,7 @@
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/messages/field_handler_map.h"
-#include "riegeli/messages/serialized_message_reader2.h"
+#include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_writer.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -558,7 +558,7 @@ absl::Status SerializedMessageAssembler::RewriteFields(
 
   // Rewrite fields which are present in the base message.
   if (absl::Status status =
-          SerializedMessageReader2<
+          SerializedMessageReader<
               const absl::Span<FieldValues>, const absl::Span<const bool>,
               const absl::Span<bool>, SerializedMessageWriter>(
               std::cref(message.handlers), CopyingHandler())

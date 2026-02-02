@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_MESSAGES_SERIALIZED_MESSAGE_READER2_H_
-#define RIEGELI_MESSAGES_SERIALIZED_MESSAGE_READER2_H_
+#ifndef RIEGELI_MESSAGES_SERIALIZED_MESSAGE_READER_H_
+#define RIEGELI_MESSAGES_SERIALIZED_MESSAGE_READER_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -55,10 +55,10 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-// Overview of `SerializedMessageReader2`
+// Overview of `SerializedMessageReader`
 // --------------------------------------
 //
-// `SerializedMessageReader2` reads a serialized proto message, performing
+// `SerializedMessageReader` reads a serialized proto message, performing
 // specified actions on encountering particular fields, instead of filling an
 // in-memory message object like in `ParseMessage()`.
 //
@@ -102,7 +102,7 @@ namespace riegeli {
 //    statically known.
 //
 // Static and dynamic field handlers can be used directly with
-// `SerializedMessageReader2`. Unbound field handlers are meant to be registered
+// `SerializedMessageReader`. Unbound field handlers are meant to be registered
 // with `DynamicFieldHandler` or `FieldHandlerMap`, with field numbers known
 // at runtime.
 //
@@ -112,7 +112,7 @@ namespace riegeli {
 // The primary dynamic field handlers are `DynamicFieldHandler`,
 // `FieldHandlerMap`, and `CopyingFieldHandler`.
 //
-// All field handlers stored in a single `SerializedMessageReader2` are usually
+// All field handlers stored in a single `SerializedMessageReader` are usually
 // conceptually associated with a single message type.
 //
 // If a field handler returns a failed `absl::Status`, `ReadMessage()` is
@@ -121,19 +121,19 @@ namespace riegeli {
 // make it more efficient to cancel a handler when cancellation is likely.
 //
 // A field handler can also be expressed as a reference to a const-qualified
-// proper field handler, to avoid `SerializedMessageReader2` taking the
-// ownership. Use `std::cref()` in a `SerializedMessageReader2()` call.
+// proper field handler, to avoid `SerializedMessageReader` taking the
+// ownership. Use `std::cref()` in a `SerializedMessageReader()` call.
 
 // Context types
 // -------------
 //
 // It is recommended to make field handler actions stateless, i.e. independent
 // from any state specific to the message object being read. This makes field
-// handlers and `SerializedMessageReader2` themselves stateless. Such a
-// `SerializedMessageReader2` can usually be stored in a `static constexpr`
+// handlers and `SerializedMessageReader` themselves stateless. Such a
+// `SerializedMessageReader` can usually be stored in a `static constexpr`
 // variable and reused for multiple messages.
 //
-// To facilitate this, the `SerializedMessageReader2`, its field handlers, and
+// To facilitate this, the `SerializedMessageReader`, its field handlers, and
 // their actions are parameterized by a sequence of `Context` types. Actions of
 // field handlers receive additional `Context&...` parameters. Reading a
 // serialized message provides `Context&...` arguments.
@@ -150,7 +150,7 @@ namespace riegeli {
 // and `Cord` source, by reading a `string_view` from the `Reader` or `Cord`
 // first.
 //
-// If `SerializedMessageReader2::ReadMessage()` is called with a `Cord` or
+// If `SerializedMessageReader::ReadMessage()` is called with a `Cord` or
 // string, and some field handlers are not directly applicable to that source,
 // then the source is wrapped in an appropriate `Reader`. This is done on the
 // level of the whole `ReadMessage()`, instead of creating a `Reader` for each
@@ -241,7 +241,7 @@ inline constexpr int kUnboundFieldNumber =
     serialized_message_reader_internal::kUnboundFieldNumber;
 
 // `IsFieldHandler<T, Context...>::value` is `true` if `T` is a valid argument
-// type for `SerializedMessageReader2<Context...>`.
+// type for `SerializedMessageReader<Context...>`.
 template <typename T, typename... Context>
 struct IsFieldHandler;
 
@@ -273,7 +273,7 @@ template <typename T, typename... Context>
 struct IsUnboundFieldHandlerForLengthDelimited;
 
 // For technical reasons related to template argument deduction,
-// `SerializedMessageReader2` is not a class template but a function template.
+// `SerializedMessageReader` is not a class template but a function template.
 // Its return type is called `SerializedMessageReaderType`.
 //
 // The type is usually spelled `const auto`, preferably `static constexpr auto`.
@@ -285,11 +285,11 @@ class SerializedMessageReaderType;
 template <typename... FieldHandlers, typename... Context>
 class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
  public:
-  // Creates a `SerializedMessageReader2` with default-initialized field
+  // Creates a `SerializedMessageReader` with default-initialized field
   // handlers. Designed for `Reset()`.
   SerializedMessageReaderType() = default;
 
-  // Constructs a `SerializedMessageReader2` from field handlers.
+  // Constructs a `SerializedMessageReader` from field handlers.
   template <
       typename... FieldHandlerInitializers,
       std::enable_if_t<
@@ -313,7 +313,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
   SerializedMessageReaderType& operator=(SerializedMessageReaderType&& that) =
       default;
 
-  // Makes `*this` equivalent to a newly constructed `SerializedMessageReader2`.
+  // Makes `*this` equivalent to a newly constructed `SerializedMessageReader`.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
     ResetImpl(std::index_sequence_for<FieldHandlers...>());
   }
@@ -508,7 +508,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
 // Typical usage:
 // ```
 //   static constexpr auto message_reader =
-//       riegeli::SerializedMessageReader2<Context...>(
+//       riegeli::SerializedMessageReader<Context...>(
 //           field_handlers...);
 //   absl::Status status = message_reader.ReadMessage(src, context...);
 // ```
@@ -516,7 +516,7 @@ class SerializedMessageReaderType<std::tuple<FieldHandlers...>, Context...> {
 // In the `message_reader` name, it can be helpful to replace `message` with the
 // actual message type being read.
 //
-// `Context` types must be specified explicitly for `SerializedMessageReader2`.
+// `Context` types must be specified explicitly for `SerializedMessageReader`.
 // Field handlers and their actions must accept compatible `Context&...`
 // parameters.
 template <
@@ -537,7 +537,7 @@ template <
 #endif
 constexpr SerializedMessageReaderType<
     std::tuple<TargetT<FieldHandlerInitializers>...>, Context...>
-SerializedMessageReader2(FieldHandlerInitializers&&... field_handlers) {
+SerializedMessageReader(FieldHandlerInitializers&&... field_handlers) {
   return SerializedMessageReaderType<
       std::tuple<TargetT<FieldHandlerInitializers>...>, Context...>(
       std::forward<FieldHandlerInitializers>(field_handlers)...);
@@ -1218,4 +1218,4 @@ inline absl::Status SkipLengthDelimitedFromCord(CordIteratorSpan value) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_MESSAGES_SERIALIZED_MESSAGE_READER2_H_
+#endif  // RIEGELI_MESSAGES_SERIALIZED_MESSAGE_READER_H_

@@ -33,7 +33,7 @@
 #include "riegeli/base/reset.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/field_handler_map.h"
-#include "riegeli/messages/serialized_message_reader2.h"
+#include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_writer.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL

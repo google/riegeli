@@ -26,7 +26,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/bytes/limiting_reader.h"
-#include "riegeli/messages/serialized_message_reader2.h"
+#include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -36,7 +36,7 @@ namespace riegeli {
 template <typename FieldHandler>
 class DynamicFieldHandlerType;
 
-// A field handler for `SerializedMessageReader2` for a single field, with the
+// A field handler for `SerializedMessageReader` for a single field, with the
 // field number specified at runtime.
 //
 // It is created from an unbound field handler.

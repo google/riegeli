@@ -111,7 +111,7 @@ cc_library(
 
 cc_library(
     name = "serialized_message_reader_internal",
-    srcs = ["serialized_message_reader2.cc"],
+    srcs = ["serialized_message_reader.cc"],
     hdrs = ["serialized_message_reader_internal.h"],
     visibility = ["//visibility:private"],
     deps = [
@@ -131,14 +131,14 @@ cc_library(
 )
 
 cc_library(
-    name = "serialized_message_reader2",
+    name = "serialized_message_reader",
     srcs = [
         "field_handlers.cc",
         "map_entry_field.h",
     ],
     hdrs = [
         "field_handlers.h",
-        "serialized_message_reader2.h",
+        "serialized_message_reader.h",
     ],
     deps = [
         ":message_wire_format",
@@ -174,7 +174,7 @@ cc_library(
     name = "dynamic_field_handler",
     hdrs = ["dynamic_field_handler.h"],
     deps = [
-        ":serialized_message_reader2",
+        ":serialized_message_reader",
         ":serialized_message_reader_internal",
         "//riegeli/base:cord_iterator_span",
         "//riegeli/bytes:limiting_reader",
@@ -189,7 +189,7 @@ cc_library(
     name = "field_handler_map",
     hdrs = ["field_handler_map.h"],
     deps = [
-        ":serialized_message_reader2",
+        ":serialized_message_reader",
         ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -279,7 +279,7 @@ cc_library(
     hdrs = ["serialized_message_assembler.h"],
     deps = [
         ":field_handler_map",
-        ":serialized_message_reader2",
+        ":serialized_message_reader",
         ":serialized_message_writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
