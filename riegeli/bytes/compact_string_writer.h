@@ -28,7 +28,7 @@
 
 namespace riegeli {
 
-namespace compact_string_internal {
+namespace compact_string_writer_internal {
 
 // `ResizableTraits` for `CompactString`.
 struct CompactStringResizableTraits {
@@ -62,7 +62,7 @@ struct CompactStringResizableTraits {
   }
 };
 
-}  // namespace compact_string_internal
+}  // namespace compact_string_writer_internal
 
 // Template parameter independent part of `CompactStringWriter`.
 using CompactStringWriterBase = ResizableWriterBase;
@@ -90,10 +90,16 @@ using CompactStringWriterBase = ResizableWriterBase;
 // The `CompactString` must not be accessed until the `CompactStringWriter` is
 // closed or no longer used, except that it is allowed to read the
 // `CompactString` immediately after `Flush()`.
+//
+// `CompactStringWriter` is more efficient than `StringWriter`
+// because the destination can be resized with uninitialized space.
+// `VectorWriter` with `UninitializedVector<char>` or
+// `UninitializedInlinedVector<char, inlined_size>` can also be used
+// for this purpose.
 template <typename Dest = CompactString*>
 class CompactStringWriter
     : public ResizableWriter<
-          compact_string_internal::CompactStringResizableTraits, Dest> {
+          compact_string_writer_internal::CompactStringResizableTraits, Dest> {
  public:
   using CompactStringWriter::ResizableWriter::ResizableWriter;
 

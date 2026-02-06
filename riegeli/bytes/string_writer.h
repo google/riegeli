@@ -201,6 +201,11 @@ class StringWriterBase : public Writer {
 // The `std::string` must not be accessed until the `StringWriter` is closed or
 // no longer used, except that it is allowed to read the `std::string`
 // immediately after `Flush()`.
+//
+// `VectorWriter` with `UninitializedVector<char>` or
+// `UninitializedInlinedVector<char, inlined_size>`, as well as
+// `CompactStringWriter`, is more efficient than `StringWriter`
+// because the destination can be resized with uninitialized space.
 template <typename Dest = std::string*>
 class StringWriter : public StringWriterBase {
  public:

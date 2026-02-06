@@ -22,7 +22,6 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
@@ -192,7 +191,7 @@ class ResizableWriterBase : public Writer {
 // It supports `Seek()` and `ReadMode()`.
 //
 // The `ResizableTraits` template parameter specifies how the resizable is
-// represented. It should contain at least the following static members:
+// represented. It must support at least the following static members:
 //
 // ```
 //   // The type of the resizable. It should be movable if
@@ -372,17 +371,42 @@ struct StringResizableTraits {
   }
 };
 
-// `ResizableTraits` for `std::vector<T>`.
+// `ResizableTraits` for `std::vector<T, Alloc>` including
+// `UninitializedVector<T>`, `absl::InlinedVector<T, inlined_size, Alloc>`
+// including `UninitializedInlinedVector<T, inlined_size>`, or a similar type.
+// Its value type must be trivially copyable, usually `char`.
+//
+// The vector type must support at least the following members:
+//
+// ```
+//   using value_type = ...;
+//
+//   value_type* data();
+//   size_t size() const;
+//   size_t max_size() const;
+//   size_t capacity() const;
+//
+//   iterator begin();
+//   iterator end();
+//
+//   void resize(size_t new_size);
+//   void reserve(size_t new_capacity);
+//   void erase(iterator first, iterator last);
+// ```
 //
 // Warning: byte contents are reinterpreted as values of type `T`, and the size
 // is rounded up to a multiple of the element type.
-template <typename T, typename Allocator = std::allocator<T>>
+template <typename VectorType>
 struct VectorResizableTraits {
-  static_assert(
-      std::is_trivially_copyable_v<T>,
-      "Parameter of VectorResizableTraits must be trivially copyable");
+ private:
+  using T = typename VectorType::value_type;
 
-  using Resizable = std::vector<T, Allocator>;
+ public:
+  static_assert(std::is_trivially_copyable_v<T>,
+                "Value type of the parameter of VectorResizableTraits must be "
+                "trivially copyable");
+
+  using Resizable = VectorType;
   static char* Data(Resizable& dest) {
     return reinterpret_cast<char*>(dest.data());
   }
@@ -421,9 +445,18 @@ struct VectorResizableTraits {
                       size_t used_size) {
     if (new_num_elements > dest.capacity()) {
       dest.erase(dest.begin() + SizeToNumElements(used_size), dest.end());
-      dest.reserve(UnsignedMax(
-          new_num_elements,
-          UnsignedMin(dest.capacity() + dest.capacity() / 2, dest.max_size())));
+      if constexpr (std::is_default_constructible_v<Resizable>) {
+        dest.reserve(
+            dest.capacity() <= Resizable().capacity()
+                ? new_num_elements
+                : UnsignedMax(new_num_elements,
+                              UnsignedMin(dest.capacity() + dest.capacity() / 2,
+                                          dest.max_size())));
+      } else {
+        dest.reserve(UnsignedMax(
+            new_num_elements, UnsignedMin(dest.capacity() + dest.capacity() / 2,
+                                          dest.max_size())));
+      }
     }
   }
 };

@@ -895,6 +895,18 @@ cc_library(
 )
 
 cc_library(
+    name = "vector_writer",
+    hdrs = ["vector_writer.h"],
+    deps = [
+        ":resizable_writer",
+        "//riegeli/base:dependency",
+        "//riegeli/base:initializer",
+        "//riegeli/base:object",
+        "//riegeli/base:uninitialized_vector",
+    ],
+)
+
+cc_library(
     name = "compact_string_writer",
     hdrs = ["compact_string_writer.h"],
     deps = [

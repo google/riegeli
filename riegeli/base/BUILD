@@ -606,6 +606,15 @@ cc_library(
 )
 
 cc_library(
+    name = "uninitialized_vector",
+    hdrs = ["uninitialized_vector.h"],
+    deps = [
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:inlined_vector",
+    ],
+)
+
+cc_library(
     name = "compact_string",
     srcs = ["compact_string.cc"],
     hdrs = ["compact_string.h"],
