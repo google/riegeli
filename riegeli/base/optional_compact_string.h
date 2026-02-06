@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
@@ -38,8 +37,8 @@ namespace riegeli {
 // `OptionalCompactString` is either null or stores data equivalent to a
 // `CompactString`. It allows examining the contents as `absl::string_view` or
 // `const char*`, but not as `CompactString`, except by copying or moving from.
-class ABSL_NULLABILITY_COMPATIBLE ABSL_ATTRIBUTE_TRIVIAL_ABI
-    OptionalCompactString : public WithCompare<OptionalCompactString> {
+class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
+    : public WithCompare<OptionalCompactString> {
  private:
   class StringViewPointer {
    public:
@@ -200,9 +199,6 @@ class ABSL_NULLABILITY_COMPATIBLE ABSL_ATTRIBUTE_TRIVIAL_ABI
   }
 
  private:
-  // For `ABSL_NULLABILITY_COMPATIBLE`.
-  using pointer = const absl::string_view*;
-
   static constexpr uintptr_t kNullRepr = 0;
 
   uintptr_t repr_ = kNullRepr;

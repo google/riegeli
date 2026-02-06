@@ -636,7 +636,6 @@ cc_library(
         ":compare",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:string_view",
     ],
 )
