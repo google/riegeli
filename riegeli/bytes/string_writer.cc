@@ -77,6 +77,7 @@ inline void StringWriterBase::GrowDestToCapacityAndMakeBuffer(
          "secondary buffer is used";
   dest.resize(dest.capacity());
   MakeDestBuffer(dest, cursor_index);
+  MarkPoisoned(cursor(), available());
 }
 
 inline void StringWriterBase::SyncSecondaryBuffer() {

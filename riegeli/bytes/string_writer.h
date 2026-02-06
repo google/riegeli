@@ -311,7 +311,8 @@ inline void StringWriterBase::Initialize(std::string* dest, bool append) {
   if (append) {
     set_start_pos(dest->size());
   } else {
-    dest->clear();
+    set_buffer(dest->data(), dest->size());
+    MarkPoisoned(cursor(), available());
   }
 }
 
