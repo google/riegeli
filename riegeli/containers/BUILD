@@ -19,6 +19,7 @@ cc_library(
         "//riegeli/base:debug",
         "//riegeli/base:dependency",
         "//riegeli/base:iterable",
+        "//riegeli/base:optional_compact_string",
         "//riegeli/base:stream_utils",
         "//riegeli/bytes:compact_string_writer",
         "//riegeli/bytes:reader",

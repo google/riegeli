@@ -298,8 +298,9 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
   size_t current_length = 0;
   CompactString current_if_validated_and_shared;
   std::optional<absl::string_view> current_if_validated;
-  if (options.decode_state() != nullptr) {
-    current_if_validated = options.decode_state()->last;
+  if (options.decode_state() != nullptr &&
+      options.decode_state()->last != nullptr) {
+    current_if_validated = *options.decode_state()->last;
   }
   const absl::string_view encoded_view = encoded;
   const char* ptr = encoded_view.data();

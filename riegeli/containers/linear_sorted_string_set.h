@@ -22,7 +22,6 @@
 #include <initializer_list>
 #include <iosfwd>
 #include <iterator>
-#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -38,6 +37,7 @@
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/iterable.h"
+#include "riegeli/base/optional_compact_string.h"
 #include "riegeli/bytes/compact_string_writer.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -66,9 +66,9 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
     // Total number of elements decoded so far. The size is calculated as a side
     // effect of structural validation; calling `size()` later would be slower.
     size_t cumulative_size = 0;
-    // If not `std::nullopt`, the last element in the last decoded set.
-    // Meaningful only if `DecodeOptions::validate()`.
-    std::optional<CompactString> last;
+    // If not `nullptr`, the last element in the last decoded set. Meaningful
+    // only if `DecodeOptions::validate()`.
+    OptionalCompactString last;
   };
 
   // Options for `Decode()`.
