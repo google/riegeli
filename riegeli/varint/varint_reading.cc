@@ -390,6 +390,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SkipVarintFromCordLoop(
   if constexpr (canonical) {
     if (ABSL_PREDICT_FALSE(byte == 0)) return false;
   }
+  ++src;
   return true;
 }
 
@@ -482,6 +483,7 @@ bool ReadVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available,
                                         initial_index>(src, chunk.data(), acc,
                                                        dest);
   }
+  if (ABSL_PREDICT_FALSE(available == initial_index)) return false;
   // Do not inline this call to avoid a frame pointer.
   return ReadVarintFromCord<T, canonical, initial_index>(src, available, acc,
                                                          dest);
@@ -602,6 +604,7 @@ size_t CopyVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available,
     return CopyVarintFromCordBufferLoop<T, canonical, initial_index,
                                         initial_index>(src, chunk.data(), dest);
   }
+  if (ABSL_PREDICT_FALSE(available == initial_index)) return 0;
   // Do not inline this call to avoid a frame pointer.
   return CopyVarintFromCord<T, canonical, initial_index>(src, available, dest);
 }
@@ -703,6 +706,7 @@ bool SkipVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available) {
     return SkipVarintFromCordBufferLoop<T, canonical, initial_index,
                                         initial_index>(src, chunk.data());
   }
+  if (ABSL_PREDICT_FALSE(available == initial_index)) return false;
   // Do not inline this call to avoid a frame pointer.
   return SkipVarintFromCord<T, canonical, initial_index>(src, available);
 }
