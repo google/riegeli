@@ -77,7 +77,7 @@ inline void StringWriterBase::GrowDestToCapacityAndMakeBuffer(
          "secondary buffer is used";
   dest.resize(dest.capacity());
   MakeDestBuffer(dest, cursor_index);
-  MarkPoisoned(cursor(), available());
+  MarkPoisoned(start() + used_size(), start_to_limit() - used_size());
 }
 
 inline void StringWriterBase::SyncSecondaryBuffer() {
@@ -136,9 +136,15 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       // are written than space requested.
       //
       // Resize `dest` also if data follow the current position.
-      const size_t size_hint =
-          cursor_index + UnsignedMax(min_length, recommended_length);
+      const size_t size_hint = SaturatingAdd(
+          cursor_index, UnsignedMax(min_length, recommended_length));
+      // Before C++20, `std::string::reserve()` with a reduced capacity is a
+      // non-binding shrink request. Since C++20, it has no effect.
+#if __cplusplus >= 202002
+      dest.reserve(size_hint);
+#else
       if (dest.capacity() < size_hint) dest.reserve(size_hint);
+#endif
     }
     if (min_length <= dest.capacity() - cursor_index) {
       GrowDestToCapacityAndMakeBuffer(dest, cursor_index);

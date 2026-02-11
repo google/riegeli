@@ -211,9 +211,10 @@ class ResizableWriterBase : public Writer {
 //   // itself is being moved.
 //   static constexpr bool kIsStable;
 //
-//   // Sets the size of `dest` to `new_size`. The prefix of data with
-//   // `used_size` is preserved. Remaining space is unspecified. Returns
-//   // `true` on success, or `false` on failure.
+//   // Sets the size of `dest` to `new_size`.
+//   //
+//   // The prefix of data with `used_size` is preserved. Remaining space is
+//   // unspecified. Returns `true` on success, or `false` on failure.
 //   //
 //   // The intent is to resize exactly to `new_size`, but the size reported by
 //   // `Size(dest)` can be larger than `new_size` if `dest` cannot represent
@@ -230,9 +231,11 @@ class ResizableWriterBase : public Writer {
 //
 //   // Increases the size of `dest` at least to `new_size`, or more to ensure
 //   // amortized constant time of reallocation, or more if this can be done
-//   // without allocating more. Does not decrease the size of `dest`.
+//   // without allocating more. Does not decrease the size of `dest` even if
+//   // `new_size < Size(dest)`.
+//   //
 //   // The prefix of data with `used_size` is preserved. Remaining space is
-//   // unspecified. Returns the `true` on success, or `false` on failure.
+//   // unspecified. Returns `true` on success, or `false` on failure.
 //   //
 //   // Preconditions:
 //   //   `used_size <= Size(dest)`

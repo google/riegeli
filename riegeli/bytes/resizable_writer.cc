@@ -93,8 +93,8 @@ bool ResizableWriterBase::PushSlow(size_t min_length,
       // data are written than space requested.
       //
       // Resize the destination also if data follow the current position.
-      return GrowDestAndMakeBuffer(IntCast<size_t>(pos()) +
-                                   UnsignedMax(min_length, recommended_length));
+      return GrowDestAndMakeBuffer(SaturatingAdd(
+          IntCast<size_t>(pos()), UnsignedMax(min_length, recommended_length)));
     }
     GrowDestToCapacityAndMakeBuffer();
     if (min_length <= available()) return true;
