@@ -32,7 +32,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "highwayhash",
-    version = "0.0.0-20240305-5ad3bf8",
+    version = "0.0.0-20240305-5ad3bf8.bcr.1",
 )
 bazel_dep(
     name = "lz4",
