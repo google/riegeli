@@ -171,6 +171,20 @@ cc_library(
 )
 
 cc_library(
+    name = "context_projection",
+    hdrs = ["context_projection.h"],
+    deps = [
+        ":serialized_message_reader_internal",
+        "//riegeli/base:cord_iterator_span",
+        "//riegeli/bytes:limiting_reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_library(
     name = "dynamic_field_handler",
     hdrs = ["dynamic_field_handler.h"],
     deps = [
