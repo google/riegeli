@@ -99,6 +99,9 @@ inline absl::Status SerializeMessageHavingSize(
     // The data are small, so making a flat output is harmless.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
+    //
+    // Avoid `nullptr` violation in `SerializeWithCachedSizesToArray()`.
+    if (size == 0) return absl::OkStatus();
     if (ABSL_PREDICT_FALSE(!dest.Push(size))) return dest.status();
     char* const cursor =
         reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
@@ -124,6 +127,9 @@ inline absl::Status SerializeMessageHavingSize(
     // The data are small, so making a flat output is harmless.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
+    //
+    // Avoid `nullptr` violation in `SerializeWithCachedSizesToArray()`.
+    if (size == 0) return absl::OkStatus();
     if (ABSL_PREDICT_FALSE(!dest.Push(size))) return dest.status();
     dest.move_cursor(size);
     char* const cursor =
@@ -222,6 +228,8 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     return FailSizeOverflow(src, size);
   }
   dest.clear();
+  // Avoid `nullptr` violation in `SerializeWithCachedSizesToArray()`.
+  if (size == 0) return absl::OkStatus();
   absl::Status status;
   riegeli::StringResizeAndOverwriteAmortized(
       dest, size, [&](char* data, size_t size) {
@@ -267,6 +275,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     return FailSizeOverflow(src, size);
   }
   char* const data = dest.resize(size, 0);
+  RIEGELI_ASSERT(data != nullptr) << "CompactString data are never nullptr";
   if (options.deterministic() == std::nullopt) {
     // Creating a string, which is necessarily flat.
     // `SerializeWithCachedSizesToArray()` is faster than
@@ -308,6 +317,8 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
     dest.Clear();
+    // Avoid `nullptr` violation in `SerializeWithCachedSizesToArray()`.
+    if (size == 0) return absl::OkStatus();
     const absl::Span<char> buffer =
         dest.AppendFixedBuffer(size, Chain::Options().set_size_hint(size));
     char* const cursor =
@@ -350,6 +361,8 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     // `SerializeWithCachedSizes()`.
     absl::CordBuffer buffer = dest.GetAppendBuffer(0, 0);
     dest.Clear();
+    // Avoid `nullptr` violation in `SerializeWithCachedSizesToArray()`.
+    if (size == 0) return absl::OkStatus();
     if (buffer.capacity() < size) {
       static_assert(kMaxBytesToCopy <= absl::CordBuffer::kDefaultLimit,
                     "Guarantees that buffer.capacity() will be at least size");
