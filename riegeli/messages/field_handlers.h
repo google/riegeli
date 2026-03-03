@@ -37,7 +37,6 @@
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
-#include "riegeli/messages/map_entry_field.h"  // IWYU pragma: export
 #include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
 #include "riegeli/varint/varint_reading.h"

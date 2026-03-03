@@ -110,6 +110,12 @@ cc_library(
 )
 
 cc_library(
+    name = "map_entry_field",
+    hdrs = ["map_entry_field.h"],
+    deps = ["@com_google_absl//absl/base:nullability"],
+)
+
+cc_library(
     name = "serialized_message_reader_internal",
     srcs = ["serialized_message_reader.cc"],
     hdrs = ["serialized_message_reader_internal.h"],
@@ -132,10 +138,7 @@ cc_library(
 
 cc_library(
     name = "serialized_message_reader",
-    srcs = [
-        "field_handlers.cc",
-        "map_entry_field.h",
-    ],
+    srcs = ["field_handlers.cc"],
     hdrs = [
         "field_handlers.h",
         "serialized_message_reader.h",
@@ -221,10 +224,7 @@ cc_library(
 
 cc_library(
     name = "serialized_message_writer",
-    srcs = [
-        "map_entry_field.h",
-        "serialized_message_writer.cc",
-    ],
+    srcs = ["serialized_message_writer.cc"],
     hdrs = ["serialized_message_writer.h"],
     deps = [
         ":message_wire_format",
@@ -257,10 +257,7 @@ cc_library(
 
 cc_library(
     name = "serialized_message_backward_writer",
-    srcs = [
-        "map_entry_field.h",
-        "serialized_message_backward_writer.cc",
-    ],
+    srcs = ["serialized_message_backward_writer.cc"],
     hdrs = ["serialized_message_backward_writer.h"],
     deps = [
         ":message_wire_format",

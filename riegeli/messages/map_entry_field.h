@@ -15,10 +15,6 @@
 #ifndef RIEGELI_MESSAGES_MAP_ENTRY_FIELD_H_
 #define RIEGELI_MESSAGES_MAP_ENTRY_FIELD_H_
 
-// IWYU pragma: private, include "riegeli/messages/field_handlers.h"
-// IWYU pragma: private, include "riegeli/messages/serialized_message_backward_writer.h"
-// IWYU pragma: private, include "riegeli/messages/serialized_message_writer.h"
-
 #include "absl/base/nullability.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
