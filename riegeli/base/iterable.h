@@ -63,9 +63,9 @@ template <typename Iterable, typename Element, typename Enable = void>
 struct IsIterableOf : std::false_type {};
 
 template <typename Iterable, typename Element>
-struct IsIterableOf<
-    Iterable, Element,
-    std::enable_if_t<std::is_convertible_v<ElementTypeT<Iterable>, Element>>>
+struct IsIterableOf<Iterable, Element,
+                    std::enable_if_t<std::is_convertible_v<
+                        ElementTypeT<Iterable>, const Element&>>>
     : std::true_type {};
 
 // `IsIterableOfPairsWithAssignableValues<Iterable, Key, Value>::value`

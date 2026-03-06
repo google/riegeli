@@ -212,6 +212,7 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:cord_iterator_span",
         "//riegeli/base:initializer",
+        "//riegeli/base:small_int_map",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",

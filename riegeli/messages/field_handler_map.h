@@ -18,8 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <memory>
-#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -35,6 +33,7 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/small_int_map.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
@@ -174,17 +173,12 @@ class FieldHandlerMap {
   // For `FieldAction` and `LengthDelimitedActions`.
   friend class FieldHandlerMapBuilder<Context...>;
 
-  // An optimized version of `absl::flat_hash_map<int, Value>` for keys being
-  // field numbers.
-  template <typename Value>
-  class FieldMap;
-
-  FieldMap<FieldAction<uint64_t>> varint_handlers_;
-  FieldMap<FieldAction<uint32_t>> fixed32_handlers_;
-  FieldMap<FieldAction<uint64_t>> fixed64_handlers_;
-  FieldMap<LengthDelimitedActions> length_delimited_handlers_;
-  FieldMap<FieldAction<>> start_group_handlers_;
-  FieldMap<FieldAction<>> end_group_handlers_;
+  SmallIntMap<int, FieldAction<uint64_t>, 1> varint_handlers_;
+  SmallIntMap<int, FieldAction<uint32_t>, 1> fixed32_handlers_;
+  SmallIntMap<int, FieldAction<uint64_t>, 1> fixed64_handlers_;
+  SmallIntMap<int, LengthDelimitedActions, 1> length_delimited_handlers_;
+  SmallIntMap<int, FieldAction<>, 1> start_group_handlers_;
+  SmallIntMap<int, FieldAction<>, 1> end_group_handlers_;
 };
 
 template <typename... Context>
@@ -413,181 +407,38 @@ struct FieldHandlerMap<Context...>::LengthDelimitedActions {
   FieldAction<absl::string_view> action_from_string;
 };
 
-// An optimized version of `absl::flat_hash_map<int, Value>` for keys being
-// field numbers.
-//
-// Stores an initial portion of the map in an array indexed by field number
-// minus 1. This relies on the assumption that typical field numbers are small.
-//
-// Non-positive field numbers are meaningless, but `FieldMap` works correctly
-// with them.
-template <typename... Context>
-template <typename Value>
-class FieldHandlerMap<Context...>::FieldMap {
- public:
-  FieldMap() = default;
-
-  // Builds `FieldMap` from an `absl::flat_hash_map`.
-  explicit FieldMap(absl::flat_hash_map<int, Value>&& map) {
-    if (!map.empty()) Optimize(std::move(map));
-  }
-
-  FieldMap(FieldMap&& that) noexcept;
-  FieldMap& operator=(FieldMap&& that) noexcept;
-
-  // Makes `*this` equivalent to a newly constructed `FieldMap`.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      absl::flat_hash_map<int, Value>&& map) {
-    Reset();
-    if (!map.empty()) Optimize(std::move(map));
-  }
-
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  const Value* absl_nullable Find(int field_number) const {
-    RIEGELI_ASSERT(field_number != kPoisonedNumSmallKeys ||
-                   small_map_ != nullptr)
-        << "Moved-from FieldHandlerMap";
-    if (static_cast<size_t>(field_number - 1) < num_small_keys_) {
-      return small_map_[field_number - 1];
-    }
-    if (ABSL_PREDICT_TRUE(large_map_ == std::nullopt)) return nullptr;
-    const auto iter = large_map_->find(field_number);
-    if (iter == large_map_->end()) return nullptr;
-    return &iter->second;
-  }
-
- private:
-  // A moved-from `FieldMap` has `num_small_keys_ == kPoisonedNumSmallKeys`
-  // and `small_map_ == nullptr`. In debug mode this asserts against using a
-  // moved-from object. In non-debug mode, if the field number is not too large,
-  // then this triggers a null pointer dereference with an offset up to 1MB,
-  // which is assumed to reliably crash.
-  static constexpr size_t kPoisonedNumSmallKeys =
-      (size_t{1} << 20) / sizeof(const Value*);
-
-  void Optimize(absl::flat_hash_map<int, Value>&& map);
-
-  // The size of `small_map_`, or `kPoisonedNumSmallKeys` for a moved-from
-  // `FieldMap`.
-  size_t num_small_keys_ = 0;
-  // Indexed by field number minus 1, where the field number is between 1 and
-  // `num_small_keys_`. Elements corresponding to registered fields point to
-  // elements of `small_values_`. The remaining elements are `nullptr`.
-  absl_nullable std::unique_ptr<const Value* absl_nullable[]> small_map_;
-  // Stores values for `small_map_`, in no particular order.
-  absl_nullable std::unique_ptr<Value[]> small_values_;
-  // If not `std::nullopt`, stores the mapping for field numbers too large for
-  // `small_map_`.
-  std::optional<absl::flat_hash_map<int, Value>> large_map_;
-};
-
-template <typename... Context>
-template <typename Value>
-FieldHandlerMap<Context...>::FieldMap<Value>::FieldMap(FieldMap&& that) noexcept
-    : num_small_keys_(
-          std::exchange(that.num_small_keys_, kPoisonedNumSmallKeys)),
-      small_map_(std::move(that.small_map_)),
-      small_values_(std::move(that.small_values_)),
-      large_map_(std::move(that.large_map_)) {}
-
-template <typename... Context>
-template <typename Value>
-auto FieldHandlerMap<Context...>::FieldMap<Value>::operator=(
-    FieldMap&& that) noexcept -> FieldMap& {
-  num_small_keys_ = std::exchange(that.num_small_keys_, kPoisonedNumSmallKeys);
-  small_map_ = std::move(that.small_map_);
-  small_values_ = std::move(that.small_values_);
-  large_map_ = std::move(that.large_map_);
-  return *this;
-}
-
-template <typename... Context>
-template <typename Value>
-void FieldHandlerMap<Context...>::FieldMap<Value>::Reset() {
-  num_small_keys_ = 0;
-  small_map_.reset();
-  small_values_.reset();
-  large_map_.reset();
-}
-
-template <typename... Context>
-template <typename Value>
-void FieldHandlerMap<Context...>::FieldMap<Value>::Optimize(
-    absl::flat_hash_map<int, Value>&& map) {
-  RIEGELI_ASSERT(!map.empty())
-      << "Failed precondition of FieldHandlerMap::FieldMap::Optimize(): "
-         "an empty map must have been handled before";
-  size_t max_key = 0;
-  for (const auto& entry : map) {
-    max_key = UnsignedMax(max_key, static_cast<size_t>(entry.first - 1));
-  }
-  // Prevent `small_map_` from wasting too much memory. A field number not
-  // larger than 128 is suitable for `small_map_`. If `map` has many elements,
-  // `small_map_` can cover more field numbers if it is at least 25% full.
-  const size_t max_num_small_keys = UnsignedMax(size_t{128}, map.size() * 4);
-  if (max_key < max_num_small_keys) {
-    // All field numbers are suitable for `small_map_`. `large_map_` is not
-    // used.
-    //
-    // There is no need for `small_map_` to cover keys larger than `max_key`,
-    // because their lookup is fast if `large_map_` is `std::nullopt`.
-    num_small_keys_ = max_key + 1;
-    small_map_ =
-        std::make_unique<const Value* absl_nullable[]>(num_small_keys_);
-    small_values_ = std::make_unique<Value[]>(map.size());
-    size_t small_values_index = 0;
-    for (auto& entry : map) {
-      Value* const value = &small_values_[small_values_index++];
-      small_map_[IntCast<size_t>(entry.first - 1)] = value;
-      *value = std::move(entry.second);
-    }
-  } else {
-    // Some field numbers are too large for `small_map_`. `large_map_` is used.
-    //
-    // `small_map_` covers all keys below `max_num_small_keys` rather than only
-    // to `max_key`, to reduce lookups in `large_map_`.
-    num_small_keys_ = max_num_small_keys;
-    small_map_ =
-        std::make_unique<const Value* absl_nullable[]>(max_num_small_keys);
-    size_t num_small_values = 0;
-    for (const auto& entry : map) {
-      num_small_values +=
-          static_cast<size_t>(entry.first - 1) < max_num_small_keys ? 1 : 0;
-    }
-    if (num_small_values > 0) {
-      small_values_ = std::make_unique<Value[]>(num_small_values);
-    }
-    large_map_.emplace();
-    large_map_->reserve(map.size() - num_small_values);
-    size_t small_values_index = 0;
-    for (auto& entry : map) {
-      if (static_cast<size_t>(entry.first - 1) < max_num_small_keys) {
-        Value* const value = &small_values_[small_values_index++];
-        small_map_[IntCast<size_t>(entry.first - 1)] = value;
-        *value = std::move(entry.second);
-      } else {
-        large_map_->try_emplace(entry.first, std::move(entry.second));
-      }
-    }
-    RIEGELI_ASSERT_EQ(small_values_index, num_small_values)
-        << "The whole small_values_ array should have been filled";
-  }
-#if RIEGELI_DEBUG
-  // Detect using a moved-from `FieldHandlerMap::Builder` if using a moved-from
-  // `absl::flat_hash_map` is detected.
-  ABSL_ATTRIBUTE_UNUSED absl::flat_hash_map<int, Value> moved = std::move(map);
-#endif
-}
-
 template <typename... Context>
 FieldHandlerMap<Context...>::FieldHandlerMap(Builder&& builder)
-    : varint_handlers_(std::move(builder.varint_handlers_)),
-      fixed32_handlers_(std::move(builder.fixed32_handlers_)),
-      fixed64_handlers_(std::move(builder.fixed64_handlers_)),
-      length_delimited_handlers_(std::move(builder.length_delimited_handlers_)),
-      start_group_handlers_(std::move(builder.start_group_handlers_)),
-      end_group_handlers_(std::move(builder.end_group_handlers_)) {}
+    : varint_handlers_(
+          std::make_move_iterator(builder.varint_handlers_.begin()),
+          std::make_move_iterator(builder.varint_handlers_.end()),
+          builder.varint_handlers_.size()),
+      fixed32_handlers_(
+          std::make_move_iterator(builder.fixed32_handlers_.begin()),
+          std::make_move_iterator(builder.fixed32_handlers_.end()),
+          builder.fixed32_handlers_.size()),
+      fixed64_handlers_(
+          std::make_move_iterator(builder.fixed64_handlers_.begin()),
+          std::make_move_iterator(builder.fixed64_handlers_.end()),
+          builder.fixed64_handlers_.size()),
+      length_delimited_handlers_(
+          std::make_move_iterator(builder.length_delimited_handlers_.begin()),
+          std::make_move_iterator(builder.length_delimited_handlers_.end()),
+          builder.length_delimited_handlers_.size()),
+      start_group_handlers_(
+          std::make_move_iterator(builder.start_group_handlers_.begin()),
+          std::make_move_iterator(builder.start_group_handlers_.end()),
+          builder.start_group_handlers_.size()),
+      end_group_handlers_(
+          std::make_move_iterator(builder.end_group_handlers_.begin()),
+          std::make_move_iterator(builder.end_group_handlers_.end()),
+          builder.end_group_handlers_.size()) {
+#if RIEGELI_DEBUG
+  // Detect using a moved-from `Builder` if using a moved-from
+  // `absl::flat_hash_map` is detected.
+  ABSL_ATTRIBUTE_UNUSED Builder moved = std::move(builder);
+#endif
+}
 
 template <typename... Context>
 void FieldHandlerMap<Context...>::Reset() {
@@ -601,13 +452,35 @@ void FieldHandlerMap<Context...>::Reset() {
 
 template <typename... Context>
 void FieldHandlerMap<Context...>::Reset(Builder&& builder) {
-  varint_handlers_.Reset(std::move(builder.varint_handlers_));
-  fixed32_handlers_.Reset(std::move(builder.fixed32_handlers_));
-  fixed64_handlers_.Reset(std::move(builder.fixed64_handlers_));
+  varint_handlers_.Reset(
+      std::make_move_iterator(builder.varint_handlers_.begin()),
+      std::make_move_iterator(builder.varint_handlers_.end()),
+      builder.varint_handlers_.size());
+  fixed32_handlers_.Reset(
+      std::make_move_iterator(builder.fixed32_handlers_.begin()),
+      std::make_move_iterator(builder.fixed32_handlers_.end()),
+      builder.fixed32_handlers_.size());
+  fixed64_handlers_.Reset(
+      std::make_move_iterator(builder.fixed64_handlers_.begin()),
+      std::make_move_iterator(builder.fixed64_handlers_.end()),
+      builder.fixed64_handlers_.size());
   length_delimited_handlers_.Reset(
-      std::move(builder.length_delimited_handlers_));
-  start_group_handlers_.Reset(std::move(builder.start_group_handlers_));
-  end_group_handlers_.Reset(std::move(builder.end_group_handlers_));
+      std::make_move_iterator(builder.length_delimited_handlers_.begin()),
+      std::make_move_iterator(builder.length_delimited_handlers_.end()),
+      builder.length_delimited_handlers_.size());
+  start_group_handlers_.Reset(
+      std::make_move_iterator(builder.start_group_handlers_.begin()),
+      std::make_move_iterator(builder.start_group_handlers_.end()),
+      builder.start_group_handlers_.size());
+  end_group_handlers_.Reset(
+      std::make_move_iterator(builder.end_group_handlers_.begin()),
+      std::make_move_iterator(builder.end_group_handlers_.end()),
+      builder.end_group_handlers_.size());
+#if RIEGELI_DEBUG
+  // Detect using a moved-from `Builder` if using a moved-from
+  // `absl::flat_hash_map` is detected.
+  ABSL_ATTRIBUTE_UNUSED Builder moved = std::move(builder);
+#endif
 }
 
 }  // namespace riegeli

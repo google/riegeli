@@ -650,6 +650,18 @@ cc_library(
 )
 
 cc_library(
+    name = "small_int_map",
+    hdrs = ["small_int_map.h"],
+    deps = [
+        ":arithmetic",
+        ":assert",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:flat_hash_map",
+    ],
+)
+
+cc_library(
     name = "binary_search",
     hdrs = ["binary_search.h"],
     deps = [
