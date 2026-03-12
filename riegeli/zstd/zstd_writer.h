@@ -104,14 +104,55 @@ class ZstdWriterBase : public BufferedWriter {
                "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
       }
-      window_log_ = window_log;
+      window_log_or_0_ = window_log.value_or(0);
       return *this;
     }
     Options&& set_window_log(std::optional<int> window_log) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_window_log(window_log));
     }
-    std::optional<int> window_log() const { return window_log_; }
+    std::optional<int> window_log() const {
+      if (window_log_or_0_ == 0) return std::nullopt;
+      return window_log_or_0_;
+    }
+
+    // Attempts to fit compressed block size into approximately
+    // `target_cblock_size`. A lower value allows the decompressor to begin
+    // decompression sooner, having less data available, at the cost of
+    // reducing compression density.
+    //
+    // Special value `std::nullopt` means no target.
+    //
+    // `target_cblock_size` must be `std::nullopt` or between
+    // `kMinTargetCBlockSize` (1340) and `kMaxTargetCBlockSize` (131072).
+    // Default: `std::nullopt`.
+    static constexpr int kMinTargetCBlockSize =
+        1340;  // `ZSTD_TARGETCBLOCKSIZE_MIN`
+    static constexpr int kMaxTargetCBlockSize =
+        1 << 17;  // `ZSTD_TARGETCBLOCKSIZE_MAX`
+    Options& set_target_cblock_size(std::optional<int> target_cblock_size) &
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      if (target_cblock_size != std::nullopt) {
+        RIEGELI_ASSERT_GE(*target_cblock_size, kMinTargetCBlockSize)
+            << "Failed precondition of "
+               "ZstdWriterBase::Options::set_target_cblock_size(): "
+               "target CBlock size out of range";
+        RIEGELI_ASSERT_LE(*target_cblock_size, kMaxTargetCBlockSize)
+            << "Failed precondition of "
+               "ZstdWriterBase::Options::set_target_cblock_size(): "
+               "target CBlock size out of range";
+      }
+      target_cblock_size_or_0_ = target_cblock_size.value_or(0);
+      return *this;
+    }
+    Options&& set_target_cblock_size(std::optional<int> target_cblock_size) &&
+        ABSL_ATTRIBUTE_LIFETIME_BOUND {
+      return std::move(set_target_cblock_size(target_cblock_size));
+    }
+    std::optional<int> target_cblock_size() const {
+      if (target_cblock_size_or_0_ == 0) return std::nullopt;
+      return target_cblock_size_or_0_;
+    }
 
     // Zstd dictionary. The same dictionary must be used for decompression.
     //
@@ -225,7 +266,8 @@ class ZstdWriterBase : public BufferedWriter {
 
    private:
     int compression_level_ = kDefaultCompressionLevel;
-    std::optional<int> window_log_;
+    int window_log_or_0_ = 0;
+    int target_cblock_size_or_0_ = 0;
     ZstdDictionary dictionary_;
     bool store_checksum_ = false;
     std::optional<Position> pledged_size_;
@@ -254,8 +296,8 @@ class ZstdWriterBase : public BufferedWriter {
   void Reset(BufferOptions buffer_options, ZstdDictionary&& dictionary,
              std::optional<Position> pledged_size, bool reserve_max_size,
              const RecyclingPoolOptions& recycling_pool_options);
-  void Initialize(Writer* dest, int compression_level,
-                  std::optional<int> window_log, bool store_checksum);
+  void Initialize(Writer* dest, int compression_level, int window_log_or_0,
+                  int target_cblock_size_or_0, bool store_checksum);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
   void DoneBehindBuffer(absl::string_view src) override;
@@ -418,7 +460,9 @@ inline ZstdWriter<Dest>::ZstdWriter(Initializer<Dest> dest, Options options)
                      options.reserve_max_size(),
                      options.recycling_pool_options()),
       dest_(std::move(dest)) {
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+  Initialize(dest_.get(), options.compression_level(),
+             options.window_log().value_or(0),
+             options.target_cblock_size().value_or(0),
              options.store_checksum());
 }
 
@@ -435,7 +479,9 @@ inline void ZstdWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
                         options.reserve_max_size(),
                         options.recycling_pool_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get(), options.compression_level(), options.window_log(),
+  Initialize(dest_.get(), options.compression_level(),
+             options.window_log().value_or(0),
+             options.target_cblock_size().value_or(0),
              options.store_checksum());
 }
 

@@ -13,6 +13,10 @@
 // limitations under the License.
 
 // Enables the experimental zstd API:
+//  * `ZSTD_WINDOWLOG_MIN`
+//  * `ZSTD_WINDOWLOG_MAX`
+//  * `ZSTD_TARGETCBLOCKSIZE_MIN`
+//  * `ZSTD_TARGETCBLOCKSIZE_MAX`
 //  * `ZSTD_c_srcSizeHint`
 #define ZSTD_STATIC_LINKING_ONLY
 
@@ -42,8 +46,16 @@
 
 namespace riegeli {
 
+static_assert(ZstdWriterBase::Options::kMinWindowLog == ZSTD_WINDOWLOG_MIN);
+static_assert(ZstdWriterBase::Options::kMaxWindowLog == ZSTD_WINDOWLOG_MAX);
+static_assert(ZstdWriterBase::Options::kMinTargetCBlockSize ==
+              ZSTD_TARGETCBLOCKSIZE_MIN);
+static_assert(ZstdWriterBase::Options::kMaxTargetCBlockSize ==
+              ZSTD_TARGETCBLOCKSIZE_MAX);
+
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
-                                std::optional<int> window_log,
+                                int window_log_or_0,
+                                int target_cblock_size_or_0,
                                 bool store_checksum) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
@@ -80,13 +92,23 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
       return;
     }
   }
-  if (window_log != std::nullopt) {
-    const size_t result = ZSTD_CCtx_setParameter(compressor_.get(),
-                                                 ZSTD_c_windowLog, *window_log);
+  if (window_log_or_0 != 0) {
+    const size_t result = ZSTD_CCtx_setParameter(
+        compressor_.get(), ZSTD_c_windowLog, window_log_or_0);
     if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
       Fail(absl::InternalError(
           absl::StrCat("ZSTD_CCtx_setParameter(ZSTD_c_windowLog) failed: ",
                        ZSTD_getErrorName(result))));
+      return;
+    }
+  }
+  if (target_cblock_size_or_0 != 0) {
+    const size_t result = ZSTD_CCtx_setParameter(
+        compressor_.get(), ZSTD_c_targetCBlockSize, target_cblock_size_or_0);
+    if (ABSL_PREDICT_FALSE(ZSTD_isError(result))) {
+      Fail(absl::InternalError(absl::StrCat(
+          "ZSTD_CCtx_setParameter(ZSTD_c_targetCBlockSize) failed: ",
+          ZSTD_getErrorName(result))));
       return;
     }
   }
