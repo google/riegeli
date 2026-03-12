@@ -162,18 +162,6 @@ absl::Status RecordWriterBase::Options::FromString(absl::string_view text) {
             set_final_padding(padding);
             return true;
           }));
-  Padding pad_to_block_boundary;
-  options_parser.AddOption(
-      "pad_to_block_boundary",
-      ValueParser::And(ValueParser::Enum({{"", Padding::kTrue},
-                                          {"true", Padding::kTrue},
-                                          {"false", Padding::kFalse},
-                                          {"initially", Padding::kInitially}},
-                                         &pad_to_block_boundary),
-                       [this, &pad_to_block_boundary](ValueParser&) {
-                         TranslatePadding(pad_to_block_boundary);
-                         return true;
-                       }));
   options_parser.AddOption(
       "parallelism",
       ValueParser::Int(0, std::numeric_limits<int>::max(), &parallelism_));

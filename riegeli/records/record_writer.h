@@ -65,13 +65,6 @@ void SetRecordType(const google::protobuf::Descriptor& descriptor,
 // Template parameter independent part of `RecordWriter`.
 class RecordWriterBase : public Object {
  public:
-  // Specifies when to write padding to a block boundary.
-  enum class Padding {
-    kFalse,      // Never.
-    kTrue,       // Initially, at `Flush()`, and at `Close()`.
-    kInitially,  // Initially.
-  };
-
   constexpr static Position kImplicitPadding = records_internal::kBlockSize;
 
   class Options {
@@ -95,7 +88,6 @@ class RecordWriterBase : public Object {
     //     "padding" (":" padding)? |
     //     "initial_padding" (":" padding)? |
     //     "final_padding" (":" padding)? |
-    //     "pad_to_block_boundary" (":" ("true" | "false" | "initially"))? |
     //     "parallelism" ":" parallelism
     //   brotli_level ::= integer in the range [0..11] (default 6)
     //   zstd_level ::= integer in the range [-131072..22] (default 3)
@@ -455,38 +447,6 @@ class RecordWriterBase : public Object {
     }
     Position final_padding() const { return final_padding_; }
 
-    // If `Padding::kTrue`, padding is written to reach a 64KB block boundary
-    // when the `RecordWriter` is created, before `Close()`, and before
-    // `Flush()`.
-    //
-    // Consequences:
-    //
-    //  1. Even if the existing file was corrupted or truncated, data appended
-    //     to it will be readable.
-    //
-    //  2. Physical concatenation of separately written files yields a valid
-    //     file (setting metadata in subsequent files is wasteful but harmless).
-    //
-    //  3. The cost is that up to 64KB is wasted when padding is written.
-    //
-    // If `Padding::kInitially`, padding is written when the `RecordWriter` is
-    // created. This can be used for the 1st purpose above.
-    //
-    // If `Padding::kFalse`, padding is never written.
-    //
-    // Default: `Padding::kFalse`.
-    ABSL_DEPRECATED("Use `set_padding()` or `set_initial_padding()` instead.")
-    Options& set_pad_to_block_boundary(Padding pad_to_block_boundary) &
-        ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      TranslatePadding(pad_to_block_boundary);
-      return *this;
-    }
-    ABSL_DEPRECATED("Use `set_padding()` or `set_initial_padding()` instead.")
-    Options&& set_pad_to_block_boundary(Padding pad_to_block_boundary) &&
-        ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      return std::move(set_pad_to_block_boundary(pad_to_block_boundary));
-    }
-
     // Maximum number of chunks being encoded in parallel in background. Larger
     // parallelism can increase throughput, up to a point where it no longer
     // matters; smaller parallelism reduces memory usage.
@@ -532,23 +492,6 @@ class RecordWriterBase : public Object {
     }
 
    private:
-    void TranslatePadding(Padding pad_to_block_boundary) {
-      switch (pad_to_block_boundary) {
-        case Padding::kTrue:
-          set_padding(kImplicitPadding);
-          return;
-        case Padding::kInitially:
-          set_initial_padding(kImplicitPadding);
-          set_final_padding(1);
-          return;
-        case Padding::kFalse:
-          set_padding(1);
-          return;
-      }
-      RIEGELI_ASSUME_UNREACHABLE() << "Unknown pad_to_block_boundary: "
-                                   << static_cast<int>(pad_to_block_boundary);
-    }
-
     bool transpose_ = false;
     CompressorOptions compressor_options_;
     std::optional<uint64_t> chunk_size_;
