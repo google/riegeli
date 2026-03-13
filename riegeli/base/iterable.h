@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "riegeli/base/type_traits.h"
 
@@ -259,6 +260,92 @@ struct IsRandomAccessIterable<
 // `size(iterable)` after `using std::size;`.
 using iterable_internal::IterableHasSize;
 
+// Represents the result of `operator->` if `operator*` returns a proxy
+// object rather than a true reference. In particular this can be used as
+// `iterator::pointer` if `iterator::reference` is not a true reference.
+template <typename Reference>
+class ArrowProxy {
+ public:
+  explicit ArrowProxy(Reference ref) : ref_(std::move(ref)) {}
+
+  ArrowProxy(const ArrowProxy& that) = default;
+  ArrowProxy& operator=(const ArrowProxy& that) = default;
+
+  ArrowProxy(ArrowProxy&& that) noexcept = default;
+  ArrowProxy& operator=(ArrowProxy&& that) noexcept = default;
+
+  const Reference* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return &ref_;
+  }
+
+ private:
+  Reference ref_;
+};
+
+// A pair-like type to be used as `iterator::reference` for iterators over a map
+// with a separate storage for keys and values. In C++20 this lets the iterator
+// satisfy `std::indirectly_readable`.
+//
+// It extends `std::pair<T1, T2>` with conversions from `std::pair<U1, U2>&`
+// and with `std::basic_common_reference` specializations.
+//
+// Since C++23, `std::pair<T1, T2>` can be used directly instead.
+template <typename T1, typename T2>
+class ReferencePair : public std::pair<T1, T2> {
+ public:
+  using ReferencePair::pair::pair;
+
+  template <
+      class U1, class U2,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::is_constructible<T1, U1&>, std::is_constructible<T2, U2&>,
+              std::negation<std::conjunction<std::is_convertible<U1&, T1>,
+                                             std::is_convertible<U2&, T2>>>>,
+          int> = 0>
+  explicit constexpr ReferencePair(std::pair<U1, U2>& p)
+      : ReferencePair::pair(p.first, p.second) {}
+
+  template <class U1, class U2,
+            std::enable_if_t<std::conjunction_v<std::is_convertible<U1&, T1>,
+                                                std::is_convertible<U2&, T2>>,
+                             int> = 0>
+  /*implicit*/ constexpr ReferencePair(std::pair<U1, U2>& p)
+      : ReferencePair::pair(p.first, p.second) {}
+};
+
 }  // namespace riegeli
+
+#if __cplusplus >= 202002L
+
+template <typename T1, typename T2, typename U1, typename U2,
+          template <typename> class TQual, template <typename> class UQual>
+struct std::basic_common_reference<riegeli::ReferencePair<T1, T2>,
+                                   std::pair<U1, U2>, TQual, UQual> {
+  using type =
+      riegeli::ReferencePair<std::common_reference_t<TQual<T1>, UQual<U1>>,
+                             std::common_reference_t<TQual<T2>, UQual<U2>>>;
+};
+
+template <typename T1, typename T2, typename U1, typename U2,
+          template <typename> class TQual, template <typename> class UQual>
+struct std::basic_common_reference<
+    std::pair<T1, T2>, riegeli::ReferencePair<U1, U2>, TQual, UQual> {
+  using type =
+      riegeli::ReferencePair<std::common_reference_t<TQual<T1>, UQual<U1>>,
+                             std::common_reference_t<TQual<T2>, UQual<U2>>>;
+};
+
+template <typename T1, typename T2, typename U1, typename U2,
+          template <typename> class TQual, template <typename> class UQual>
+struct std::basic_common_reference<riegeli::ReferencePair<T1, T2>,
+                                   riegeli::ReferencePair<U1, U2>, TQual,
+                                   UQual> {
+  using type =
+      riegeli::ReferencePair<std::common_reference_t<TQual<T1>, UQual<U1>>,
+                             std::common_reference_t<TQual<T2>, UQual<U2>>>;
+};
+
+#endif
 
 #endif  // RIEGELI_BASE_ITERABLE_H_

@@ -94,9 +94,9 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     size_t size_hint_ = 0;
   };
 
-  class Iterator;
   using SplitElement = LinearSortedStringSet::SplitElement;
-  class SplitElementIterator;
+  using SplitElementIterator =
+      IteratorImpl<LinearSortedStringSet::SplitElementIterator>;
   class SplitElements;
   class Builder;
   class NextInsertIterator;
@@ -169,7 +169,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   using value_type = absl::string_view;
   using reference = value_type;
   using const_reference = reference;
-  using iterator = Iterator;
+  using iterator = IteratorImpl<LinearSortedStringSet::iterator>;
   using const_iterator = iterator;
   using size_type = size_t;
   using difference_type = ptrdiff_t;
@@ -227,10 +227,10 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
       default;
 
   // Iteration over the set.
-  Iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  Iterator cbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  Iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
-  Iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  iterator cbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   // Returns a proxy for `LinearSortedStringSet` where each element is
   // represented as `SplitElement` rather than `absl::string_view`. This is
@@ -334,7 +334,8 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
 // Iterates over a `LinearSortedStringSet` in the sorted order.
 template <typename LinearIterator>
-class ChunkedSortedStringSet::IteratorImpl {
+class ChunkedSortedStringSet::IteratorImpl
+    : public WithEqual<IteratorImpl<LinearIterator>> {
  public:
   // `iterator_concept` is only `std::input_iterator_tag` because the
   // `std::forward_iterator` requirement and above require references to remain
@@ -346,17 +347,8 @@ class ChunkedSortedStringSet::IteratorImpl {
   using iterator_category = std::input_iterator_tag;
   using value_type = typename LinearIterator::value_type;
   using reference = value_type;
+  using pointer = ArrowProxy<reference>;
   using difference_type = ptrdiff_t;
-
-  class pointer {
-   public:
-    const reference* operator->() const { return &ref_; }
-
-   private:
-    friend class IteratorImpl<LinearIterator>;
-    explicit pointer(const reference& ref) : ref_(ref) {}
-    const reference& ref_;
-  };
 
   // A sentinel value, equal to `end()`.
   IteratorImpl() = default;
@@ -395,8 +387,10 @@ class ChunkedSortedStringSet::IteratorImpl {
     return tmp;
   }
 
- protected:
-  static bool Equal(const IteratorImpl& a, const IteratorImpl& b) {
+  // Iterators can be compared even if they are associated with different
+  // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
+  // other values are not equal.
+  friend bool operator==(const IteratorImpl& a, const IteratorImpl& b) {
     return a.current_iterator_ == b.current_iterator_;
   }
 
@@ -419,35 +413,6 @@ class ChunkedSortedStringSet::IteratorImpl {
   LinearIterator current_iterator_;
   Chunks::const_iterator current_chunk_iterator_ = Chunks::const_iterator();
   const ChunkedSortedStringSet* set_ = nullptr;
-};
-
-class ChunkedSortedStringSet::Iterator
-    : public IteratorImpl<LinearSortedStringSet::Iterator>,
-      public WithEqual<Iterator> {
- public:
-  using Iterator::IteratorImpl::IteratorImpl;
-
-  // Iterators can be compared even if they are associated with different
-  // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
-  // other values are not equal.
-  friend bool operator==(const Iterator& a, const Iterator& b) {
-    return Equal(a, b);
-  }
-};
-
-class ChunkedSortedStringSet::SplitElementIterator
-    : public IteratorImpl<LinearSortedStringSet::SplitElementIterator>,
-      public WithEqual<SplitElementIterator> {
- public:
-  using SplitElementIterator::IteratorImpl::IteratorImpl;
-
-  // Iterators can be compared even if they are associated with different
-  // `ChunkedSortedStringSet` objects. All `end()` values are equal, while all
-  // other values are not equal.
-  friend bool operator==(const SplitElementIterator& a,
-                         const SplitElementIterator& b) {
-    return Equal(a, b);
-  }
 };
 
 // A proxy for `ChunkedSortedStringSet` where each element is represented as
@@ -587,8 +552,8 @@ class ChunkedSortedStringSet::NextInsertIterator {
   using iterator_concept = std::output_iterator_tag;
   using iterator_category = std::output_iterator_tag;
   using value_type = absl::string_view;
-  using difference_type = ptrdiff_t;
   using pointer = void;
+  using difference_type = ptrdiff_t;
 
   class reference {
    public:
@@ -597,13 +562,13 @@ class ChunkedSortedStringSet::NextInsertIterator {
     // `std::string&&` is accepted with a template to avoid implicit conversions
     // to `std::string` which can be ambiguous against `absl::string_view`
     // (e.g. `const char*`).
-    reference& operator=(absl::string_view element) {
+    const reference& operator=(absl::string_view element) const {
       builder_->InsertNext(element);
       return *this;
     }
     template <typename Element,
               std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
-    reference& operator=(Element&& element) {
+    const reference& operator=(Element&& element) const {
       // `std::move(element)` is correct and `std::forward<Element>(element)` is
       // not necessary: `Element` is always `std::string`, never an lvalue
       // reference.
@@ -691,22 +656,22 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
   return builder.Build();
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::begin() const
+inline ChunkedSortedStringSet::iterator ChunkedSortedStringSet::begin() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  return Iterator(this);
+  return iterator(this);
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cbegin() const
+inline ChunkedSortedStringSet::iterator ChunkedSortedStringSet::cbegin() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return begin();
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::end() const
+inline ChunkedSortedStringSet::iterator ChunkedSortedStringSet::end() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  return Iterator();
+  return iterator();
 }
 
-inline ChunkedSortedStringSet::Iterator ChunkedSortedStringSet::cend() const
+inline ChunkedSortedStringSet::iterator ChunkedSortedStringSet::cend() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   return end();
 }

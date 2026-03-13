@@ -296,17 +296,8 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
   using iterator_category = std::input_iterator_tag;
   using value_type = absl::string_view;
   using reference = value_type;
+  using pointer = ArrowProxy<reference>;
   using difference_type = ptrdiff_t;
-
-  class pointer {
-   public:
-    const reference* operator->() const { return &ref_; }
-
-   private:
-    friend class Iterator;
-    explicit pointer(const reference& ref) : ref_(ref) {}
-    const reference& ref_;
-  };
 
   // A sentinel value, equal to `end()`.
   Iterator() = default;
@@ -481,17 +472,8 @@ class LinearSortedStringSet::SplitElementIterator
   using iterator_category = std::input_iterator_tag;
   using value_type = SplitElement;
   using reference = value_type;
+  using pointer = ArrowProxy<reference>;
   using difference_type = ptrdiff_t;
-
-  class pointer {
-   public:
-    const reference* operator->() const { return &ref_; }
-
-   private:
-    friend class SplitElementIterator;
-    explicit pointer(const reference& ref) : ref_(ref) {}
-    const reference& ref_;
-  };
 
   // A sentinel value, equal to `end()`.
   SplitElementIterator() = default;
@@ -708,13 +690,13 @@ class LinearSortedStringSet::NextInsertIterator {
     // `std::string&&` is accepted with a template to avoid implicit conversions
     // to `std::string` which can be ambiguous against `absl::string_view`
     // (e.g. `const char*`).
-    reference& operator=(absl::string_view element) {
+    const reference& operator=(absl::string_view element) const {
       builder_->InsertNext(element);
       return *this;
     }
     template <typename Element,
               std::enable_if_t<std::is_same_v<Element, std::string>, int> = 0>
-    reference& operator=(Element&& element) {
+    const reference& operator=(Element&& element) const {
       // `std::move(element)` is correct and `std::forward<Element>(element)` is
       // not necessary: `Element` is always `std::string`, never an lvalue
       // reference.

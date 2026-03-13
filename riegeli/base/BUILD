@@ -49,6 +49,7 @@ cc_library(
     hdrs = ["iterable.h"],
     deps = [
         ":type_traits",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
     ],
 )
@@ -553,6 +554,7 @@ cc_library(
         ":cord_utils",
         ":external_data",
         ":initializer",
+        ":iterable",
         ":memory_estimator",
         ":new_aligned",
         ":null_safe_memcpy",
@@ -595,6 +597,7 @@ cc_library(
         ":external_data",
         ":external_ref",
         ":global",
+        ":iterable",
         ":shared_buffer",
         ":types",
         "@com_google_absl//absl/base:core_headers",
@@ -643,6 +646,7 @@ cc_library(
         ":bytes_ref",
         ":compact_string",
         ":compare",
+        ":iterable",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings:string_view",

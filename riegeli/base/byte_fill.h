@@ -34,6 +34,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
+#include "riegeli/base/iterable.h"
 #include "riegeli/base/shared_buffer.h"
 #include "riegeli/base/types.h"
 
@@ -290,17 +291,8 @@ class ByteFill::BlockIterator : public WithCompare<BlockIterator> {
   using iterator_category = std::input_iterator_tag;
   using value_type = BlockRef;
   using reference = value_type;
+  using pointer = ArrowProxy<reference>;
   using difference_type = ptrdiff_t;
-
-  class pointer {
-   public:
-    const reference* operator->() const { return &ref_; }
-
-   private:
-    friend class BlockIterator;
-    explicit pointer(reference ref) : ref_(ref) {}
-    reference ref_;
-  };
 
   BlockIterator() = default;
 

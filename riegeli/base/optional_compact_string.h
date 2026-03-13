@@ -27,6 +27,7 @@
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
+#include "riegeli/base/iterable.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -39,17 +40,6 @@ namespace riegeli {
 // `const char*`, but not as `CompactString`, except by copying or moving from.
 class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
     : public WithCompare<OptionalCompactString> {
- private:
-  class StringViewPointer {
-   public:
-    const absl::string_view* operator->() const { return &ref_; }
-
-   private:
-    friend class OptionalCompactString;
-    explicit StringViewPointer(absl::string_view ref) : ref_(ref) {}
-    absl::string_view ref_;
-  };
-
  public:
   // Creates a null `OptionalCompactString`.
   OptionalCompactString() = default;
@@ -137,11 +127,12 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
     return CompactString::ViewFromRaw(&repr_);
   }
 
-  StringViewPointer operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ArrowProxy<absl::string_view> operator->() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(*this != nullptr)
         << "Failed precondition of OptionalCompactString::operator->: "
            "OptionalCompactString is nullptr";
-    return StringViewPointer(**this);
+    return ArrowProxy<absl::string_view>(**this);
   }
 
   // Ensures that the value is NUL-terminated after its size and returns

@@ -45,6 +45,7 @@
 #include "riegeli/base/external_ref_support.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/intrusive_shared_ptr.h"
+#include "riegeli/base/iterable.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ownership.h"
@@ -182,17 +183,8 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   using iterator_category = std::input_iterator_tag;
   using value_type = BlockRef;
   using reference = value_type;
+  using pointer = ArrowProxy<reference>;
   using difference_type = ptrdiff_t;
-
-  class pointer {
-   public:
-    const reference* operator->() const { return &ref_; }
-
-   private:
-    friend class BlockIterator;
-    explicit pointer(reference ref) : ref_(ref) {}
-    reference ref_;
-  };
 
   BlockIterator() = default;
 

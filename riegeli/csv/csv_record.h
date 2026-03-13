@@ -51,36 +51,6 @@
 
 namespace riegeli::csv_internal {
 
-// A pair-like type which supports C++20 `std::common_reference` with similar
-// enough pairs. This is needed for `CsvRecord::{,const_}iterator` to satisfy
-// C++20 input iterator requirements.
-//
-// Since C++23, `std::pair<T1, T2>` can be used directly instead, because it has
-// the necessary conversions and `std::basic_common_reference` specializations.
-template <typename T1, typename T2>
-class ReferencePair : public std::pair<T1, T2> {
- public:
-  using ReferencePair::pair::pair;
-
-  template <
-      class U1, class U2,
-      std::enable_if_t<
-          std::conjunction_v<
-              std::is_constructible<T1, U1&>, std::is_constructible<T2, U2&>,
-              std::negation<std::conjunction<std::is_convertible<U1&, T1>,
-                                             std::is_convertible<U2&, T2>>>>,
-          int> = 0>
-  explicit constexpr ReferencePair(std::pair<U1, U2>& p)
-      : ReferencePair::pair(p.first, p.second) {}
-
-  template <class U1, class U2,
-            std::enable_if_t<std::conjunction_v<std::is_convertible<U1&, T1>,
-                                                std::is_convertible<U2&, T2>>,
-                             int> = 0>
-  /*implicit*/ constexpr ReferencePair(std::pair<U1, U2>& p)
-      : ReferencePair::pair(p.first, p.second) {}
-};
-
 // `ToStringVector()` converts an iterable of elements convertible to
 // `absl::string_view` to a `std::vector<std::string>`.
 
@@ -95,40 +65,6 @@ inline std::vector<std::string> ToStringVector(Values&& values) {
 }
 
 }  // namespace riegeli::csv_internal
-
-#if __cplusplus >= 202002L
-
-template <typename T1, typename T2, template <typename> class TQual,
-          template <typename> class UQual>
-struct std::basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
-                                   std::pair<std::string, std::string>, TQual,
-                                   UQual> {
-  using type = riegeli::csv_internal::ReferencePair<
-      std::common_reference_t<TQual<T1>, UQual<std::string>>,
-      std::common_reference_t<TQual<T2>, UQual<std::string>>>;
-};
-
-template <typename T1, typename T2, template <typename> class TQual,
-          template <typename> class UQual>
-struct std::basic_common_reference<std::pair<std::string, std::string>,
-                                   riegeli::csv_internal::ReferencePair<T1, T2>,
-                                   TQual, UQual> {
-  using type = riegeli::csv_internal::ReferencePair<
-      std::common_reference_t<TQual<std::string>, UQual<T1>>,
-      std::common_reference_t<TQual<std::string>, UQual<T2>>>;
-};
-
-template <typename T1, typename T2, typename U1, typename U2,
-          template <typename> class TQual, template <typename> class UQual>
-struct std::basic_common_reference<riegeli::csv_internal::ReferencePair<T1, T2>,
-                                   riegeli::csv_internal::ReferencePair<U1, U2>,
-                                   TQual, UQual> {
-  using type = riegeli::csv_internal::ReferencePair<
-      std::common_reference_t<TQual<T1>, UQual<U1>>,
-      std::common_reference_t<TQual<T2>, UQual<U2>>>;
-};
-
-#endif
 
 namespace riegeli {
 
@@ -622,21 +558,12 @@ class CsvRecord : public WithEqual<CsvRecord> {
     // `LegacyForwardIterator` requirement and above require `reference` to be
     // a true reference type.
     using iterator_category = std::input_iterator_tag;
-    using value_type = std::pair<std::string, std::string>;
-    using reference = csv_internal::ReferencePair<
-        const std::string&,
-        typename std::iterator_traits<FieldIterator>::reference>;
+    using value_type = std::pair<const std::string, std::string>;
+    using reference =
+        ReferencePair<const std::string&,
+                      typename std::iterator_traits<FieldIterator>::reference>;
+    using pointer = ArrowProxy<reference>;
     using difference_type = ptrdiff_t;
-
-    class pointer {
-     public:
-      const reference* operator->() const { return &ref_; }
-
-     private:
-      friend class IteratorImpl<FieldIterator>;
-      explicit pointer(reference ref) : ref_(ref) {}
-      reference ref_;
-    };
 
     IteratorImpl() = default;
 
@@ -695,11 +622,9 @@ class CsvRecord : public WithEqual<CsvRecord> {
  public:
   using key_type = std::string;
   using mapped_type = std::string;
-  using value_type = std::pair<std::string, std::string>;
-  using reference =
-      csv_internal::ReferencePair<const std::string&, std::string&>;
-  using const_reference =
-      csv_internal::ReferencePair<const std::string&, const std::string&>;
+  using value_type = std::pair<const std::string, std::string>;
+  using reference = ReferencePair<const std::string&, std::string&>;
+  using const_reference = ReferencePair<const std::string&, const std::string&>;
   using iterator = IteratorImpl<std::vector<std::string>::iterator>;
   using const_iterator = IteratorImpl<std::vector<std::string>::const_iterator>;
   using reverse_iterator = std::reverse_iterator<iterator>;
