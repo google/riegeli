@@ -15,43 +15,141 @@
 #ifndef RIEGELI_BASE_ITERABLE_H_
 #define RIEGELI_BASE_ITERABLE_H_
 
+#include <stddef.h>
+
 #include <iterator>
 #include <type_traits>
 #include <utility>
 
-#include "absl/meta/type_traits.h"
-#include "riegeli/base/dependency.h"
+#include "absl/base/nullability.h"
+#include "riegeli/base/type_traits.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
+namespace iterable_internal {
+
 // Let unqualified `begin()` below refer either to a function named `begin()`
 // found via ADL or to `std::begin()`, as appropriate for the given iterable.
-// This is done in a separate namespace to avoid introducing a name
-// `riegeli::begin()`.
-
-namespace adl_begin_sandbox {
+// This is done in a separate namespace to avoid defining `riegeli::begin`.
+// Same for `end()` and `size()`.
 
 using std::begin;
+using std::end;
+using std::size;
+
+template <typename T, typename Enable = void>
+struct IsIterable : std::false_type {};
+
+template <typename T>
+struct IsIterable<T, std::void_t<decltype(*begin(std::declval<T&>()))>>
+    : std::true_type {};
+
+template <typename Iterable, typename Enable = void>
+struct IteratorType {};
 
 template <typename Iterable>
-using IteratorT = decltype(begin(std::declval<Iterable&>()));
+struct IteratorType<Iterable, std::enable_if_t<IsIterable<Iterable>::value>>
+    : type_identity<decltype(begin(std::declval<Iterable&>()))> {};
 
-}  // namespace adl_begin_sandbox
+template <typename Iterable, bool move = false, typename Enable = void>
+struct ElementTypeInternal {};
 
-// `IteratorT<Iterable>` is the type of the iterator over `Iterable`.
-using adl_begin_sandbox::IteratorT;
+template <typename Iterable>
+struct ElementTypeInternal<Iterable, false,
+                           std::enable_if_t<IsIterable<Iterable>::value>>
+    : type_identity<decltype(*begin(std::declval<Iterable&>()))> {};
+
+template <typename Iterable>
+struct ElementTypeInternal<Iterable, true,
+                           std::enable_if_t<IsIterable<Iterable>::value>>
+    : type_identity<decltype(*std::make_move_iterator(
+          begin(std::declval<Iterable&>())))> {};
+
+template <typename Iterable, typename Enable = void>
+struct IterableHasSize : std::false_type {};
+
+template <typename Iterable>
+struct IterableHasSize<
+    Iterable, std::enable_if_t<std::is_convertible_v<
+                  decltype(size(std::declval<const Iterable&>())), size_t>>>
+    : std::true_type {};
+
+}  // namespace iterable_internal
+
+// `IsIterable<T>::value` is `true` when `T` is iterable, supporting
+// `begin(iterable)` after `using std::begin;` (not all details are verified).
+using iterable_internal::IsIterable;
+
+// `HasMovableElements<Iterable>::value` is `true` when moving (rather than
+// copying) out of elements of `Iterable` is safe. This is the case when
+// `Iterable` owns its elements, i.e. it is not a view container like
+// `absl::Span<T>`, and it is not an lvalue reference.
+//
+// By default an iterable is detected as owning its elements when iterating over
+// `Iterable` and `const Iterable` yields elements of different types. This
+// also catches cases where `Iterable` always yields const elements or is const
+// itself. In these cases moving would be equivalent to copying, and trying to
+// move would just yield unnecessarily separate template instantiations.
+//
+// To customize that for a class `Iterable`, define a free function
+// `friend constexpr bool RiegeliHasMovableElements(Iterable*)` as a friend of
+// `Iterable` inside class definition or in the same namespace as `Iterable`,
+// so that it can be found via ADL.
+//
+// The argument of `RiegeliHasMovableElements(Iterable*)` is always a null
+// pointer, used to choose the right overload based on the type.
+
+template <typename Iterable, typename Enable = void>
+struct HasMovableElements
+    : std::negation<std::is_same<
+          typename iterable_internal::ElementTypeInternal<Iterable>::type,
+          typename iterable_internal::ElementTypeInternal<
+              const Iterable>::type>> {};
+
+template <typename Iterable>
+struct HasMovableElements<
+    Iterable,
+    std::enable_if_t<std::conjunction_v<
+        std::negation<std::is_reference<Iterable>>,
+        std::is_convertible<decltype(RiegeliHasMovableElements(
+                                static_cast<Iterable* absl_nullable>(nullptr))),
+                            bool>>>>
+    : std::bool_constant<RiegeliHasMovableElements(
+          static_cast<Iterable* absl_nullable>(nullptr))> {};
+
+template <typename Iterable>
+struct HasMovableElements<Iterable&> : std::false_type {};
+
+template <typename Iterable>
+struct HasMovableElements<Iterable&&> : HasMovableElements<Iterable> {};
+
+// `MaybeMakeMoveIterator<Iterable>(iterator)` is
+// `std::make_move_iterator(iterator)` or `iterator`, depending on whether
+// moving out of elements of `Iterable` is safe.
+template <typename Iterable, typename Iterator>
+inline auto MaybeMakeMoveIterator(Iterator iterator) {
+  if constexpr (HasMovableElements<Iterable>::value) {
+    return std::move_iterator<Iterator>(std::move(iterator));
+  } else {
+    return iterator;
+  }
+}
 
 // `ElementType<Iterable>::type` and `ElementTypeT<Iterable>` is the type of
 // elements yielded by iterating over `Iterable`.
+//
+// The result is a reference, except when iteration yields temporary objects.
+// If moving out of elements of `Iterable` is safe, this is an rvalue reference.
 
 template <typename Iterable, typename Enable = void>
 struct ElementType {};
 
 template <typename Iterable>
-struct ElementType<
-    Iterable, absl::void_t<decltype(*std::declval<IteratorT<Iterable>>())>> {
-  using type = decltype(*std::declval<IteratorT<Iterable>>());
-};
+struct ElementType<Iterable, std::enable_if_t<IsIterable<Iterable>::value>>
+    : iterable_internal::ElementTypeInternal<
+          Iterable, HasMovableElements<Iterable>::value> {};
 
 template <typename Iterable>
 using ElementTypeT = typename ElementType<Iterable>::type;
@@ -64,8 +162,26 @@ struct IsIterableOf : std::false_type {};
 
 template <typename Iterable, typename Element>
 struct IsIterableOf<Iterable, Element,
-                    std::enable_if_t<std::is_convertible_v<
-                        ElementTypeT<Iterable>, const Element&>>>
+                    std::enable_if_t<IsIterable<Iterable>::value>>
+    : std::is_convertible<ElementTypeT<Iterable>, Element> {};
+
+// `IsIterableOfPairs<Iterable, Key, Value>::value` is `true` when iterating
+// over `Iterable` yields pairs or pair proxies with keys convertible to `Key`
+// and values convertible to `Value`.
+
+template <typename Iterable, typename Key, typename Value,
+          typename Enable = void>
+struct IsIterableOfPairs : std::false_type {};
+
+template <typename Iterable, typename Key, typename Value>
+struct IsIterableOfPairs<
+    Iterable, Key, Value,
+    std::enable_if_t<std::conjunction_v<
+        IsIterable<Iterable>,
+        std::is_convertible<
+            decltype(std::declval<ElementTypeT<Iterable>>().first), Key>,
+        std::is_convertible<
+            decltype(std::declval<ElementTypeT<Iterable>>().second), Value>>>>
     : std::true_type {};
 
 // `IsIterableOfPairsWithAssignableValues<Iterable, Key, Value>::value`
@@ -80,10 +196,11 @@ template <typename Iterable, typename Key, typename Value>
 struct IsIterableOfPairsWithAssignableValues<
     Iterable, Key, Value,
     std::enable_if_t<std::conjunction_v<
+        IsIterable<Iterable>,
         std::is_convertible<
-            decltype(std::declval<IteratorT<Iterable>>()->first), Key>,
+            decltype(std::declval<ElementTypeT<Iterable>>().first), Key>,
         std::is_assignable<
-            decltype(std::declval<IteratorT<Iterable>>()->second), Value>>>>
+            decltype(std::declval<ElementTypeT<Iterable>>().second), Value>>>>
     : std::true_type {};
 
 // TODO: Use `typename std::iterator_traits<Iterator>::iterator_concept`
@@ -92,19 +209,16 @@ struct IsIterableOfPairsWithAssignableValues<
 namespace iterable_internal {
 
 template <typename Iterator, typename Enable = void>
-struct IteratorConcept {
-  using type = typename std::iterator_traits<Iterator>::iterator_category;
-};
+struct IteratorConcept
+    : type_identity<
+          typename std::iterator_traits<Iterator>::iterator_category> {};
 
 template <typename Iterator>
 struct IteratorConcept<
     Iterator,
-    std::void_t<typename std::iterator_traits<Iterator>::iterator_concept>> {
-  using type = typename std::iterator_traits<Iterator>::iterator_concept;
+    std::void_t<typename std::iterator_traits<Iterator>::iterator_concept>>
+    : type_identity<typename std::iterator_traits<Iterator>::iterator_concept> {
 };
-
-template <typename Iterator>
-using IteratorConceptT = typename IteratorConcept<Iterator>::type;
 
 }  // namespace iterable_internal
 
@@ -117,9 +231,13 @@ struct IsForwardIterable : std::false_type {};
 
 template <typename Iterable>
 struct IsForwardIterable<
-    Iterable, std::enable_if_t<std::is_convertible_v<
-                  iterable_internal::IteratorConceptT<IteratorT<Iterable>>,
-                  std::forward_iterator_tag>>> : std::true_type {};
+    Iterable,
+    std::enable_if_t<std::conjunction_v<
+        IsIterable<Iterable>,
+        std::is_convertible<
+            typename iterable_internal::IteratorConcept<
+                typename iterable_internal::IteratorType<Iterable>::type>::type,
+            std::forward_iterator_tag>>>> : std::true_type {};
 
 // `IsRandomAccessIterable<Iterable>::value` is `true` when the iterator over
 // `Iterable` is a random access iterator.
@@ -129,77 +247,17 @@ struct IsRandomAccessIterable : std::false_type {};
 
 template <typename Iterable>
 struct IsRandomAccessIterable<
-    Iterable, std::enable_if_t<std::is_convertible_v<
-                  iterable_internal::IteratorConceptT<IteratorT<Iterable>>,
-                  std::random_access_iterator_tag>>> : std::true_type {};
-
-// `HasMovableElements<Src>::value` is `true` when moving (rather than copying)
-// out of elements of the iterable provided by `Src` is safe.
-//
-// `Src` is the type of an object providing and possibly owning an iterable,
-// supporting `Dependency<const void*, Src>`.
-//
-// Moving out of elements of the iterable provided by `Src` is safe if `Src`
-// owns the iterable and the iterable owns its elements, i.e. it is not a view
-// container like `absl::Span<T>`.
-//
-// By default an iterable is detected as owning its elements when iterating over
-// `Iterable&` and `const Iterable&` yields elements of different types. This
-// also catches cases where `Iterable` always yields const elements or is const
-// itself. In these cases moving would be equivalent to copying, and trying to
-// move would just yield unnecessarily separate template instantiations.
-//
-// To customize that for a class `Iterable`, define a free function
-// `friend constexpr bool RiegeliHasMovableElements(Iterable*)` as a friend of
-// `Iterable` inside class definition or in the same namespace as `Iterable`,
-// so that it can be found via ADL.
-//
-// The argument of `RiegeliHasMovableElements(Iterable*)` is always a null
-// pointer, used to choose the right overload based on the type.
-
-namespace iterable_internal {
-
-template <typename Iterable, typename Enable = void>
-struct IterableHasMovableElements
-    : std::negation<
-          std::is_same<ElementTypeT<Iterable>, ElementTypeT<const Iterable>>> {
-};
-
-template <typename Iterable>
-struct IterableHasMovableElements<
     Iterable,
-    std::enable_if_t<std::is_convertible_v<
-        decltype(RiegeliHasMovableElements(static_cast<Iterable*>(nullptr))),
-        bool>>>
-    : std::bool_constant<RiegeliHasMovableElements(
-          static_cast<Iterable*>(nullptr))> {};
+    std::enable_if_t<std::conjunction_v<
+        IsIterable<Iterable>,
+        std::is_convertible<
+            typename iterable_internal::IteratorConcept<
+                typename iterable_internal::IteratorType<Iterable>::type>::type,
+            std::random_access_iterator_tag>>>> : std::true_type {};
 
-}  // namespace iterable_internal
-
-template <typename Src, typename Enable = void>
-struct HasMovableElements : std::false_type {};
-
-template <typename Src>
-struct HasMovableElements<
-    Src, std::enable_if_t<Dependency<const void*, Src>::kIsOwning>>
-    : iterable_internal::IterableHasMovableElements<std::remove_pointer_t<
-          typename Dependency<const void*, Src>::Subhandle>> {};
-
-// `MaybeMakeMoveIterator<Src>(iterator)` is `std::make_move_iterator(iterator)`
-// or `iterator`, depending on whether moving out of elements of the iterable
-// provided by `Src` is safe.
-
-template <typename Src, typename Iterator,
-          std::enable_if_t<!HasMovableElements<Src>::value, int> = 0>
-inline Iterator MaybeMakeMoveIterator(Iterator iterator) {
-  return iterator;
-}
-
-template <typename Src, typename Iterator,
-          std::enable_if_t<HasMovableElements<Src>::value, int> = 0>
-inline std::move_iterator<Iterator> MaybeMakeMoveIterator(Iterator iterator) {
-  return std::move_iterator<Iterator>(iterator);
-}
+// `IterableHasSize<Iterable>::value` is `true` when `Iterable` supports
+// `size(iterable)` after `using std::size;`.
+using iterable_internal::IterableHasSize;
 
 }  // namespace riegeli
 

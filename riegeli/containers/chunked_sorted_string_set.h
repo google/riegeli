@@ -653,10 +653,7 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
   auto iter = begin(src);
   using std::end;
   auto end_iter = end(src);
-  using SrcIterator = decltype(iter);
-  if (std::is_convertible_v<
-          typename std::iterator_traits<SrcIterator>::iterator_category,
-          std::random_access_iterator_tag>) {
+  if (IsRandomAccessIterable<Src>::value) {
     options.set_size_hint(std::distance(iter, end_iter));
   }
   ChunkedSortedStringSet::Builder builder(std::move(options));
@@ -674,12 +671,10 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
   auto iter = begin(src);
   using std::end;
   auto end_iter = end(src);
-  using SrcIterator = decltype(iter);
-  if (std::is_convertible_v<
-          typename std::iterator_traits<SrcIterator>::iterator_category,
-          std::random_access_iterator_tag>) {
+  if (IsRandomAccessIterable<Src>::value) {
     options.set_size_hint(std::distance(iter, end_iter));
   }
+  using SrcIterator = decltype(iter);
   std::vector<SrcIterator> iterators;
   iterators.reserve(options.size_hint());
   for (; iter != end_iter; ++iter) iterators.push_back(iter);

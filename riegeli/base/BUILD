@@ -45,6 +45,15 @@ cc_library(
 )
 
 cc_library(
+    name = "iterable",
+    hdrs = ["iterable.h"],
+    deps = [
+        ":type_traits",
+        "@com_google_absl//absl/base:nullability",
+    ],
+)
+
+cc_library(
     name = "stream_utils",
     srcs = ["stream_utils.cc"],
     hdrs = ["stream_utils.h"],
@@ -408,15 +417,6 @@ cc_library(
 )
 
 cc_library(
-    name = "iterable",
-    hdrs = ["iterable.h"],
-    deps = [
-        ":dependency",
-        "@com_google_absl//absl/meta:type_traits",
-    ],
-)
-
-cc_library(
     name = "status",
     srcs = [
         "errno_mapping.cc",
@@ -655,6 +655,8 @@ cc_library(
     deps = [
         ":arithmetic",
         ":assert",
+        ":iterable",
+        ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",

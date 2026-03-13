@@ -400,7 +400,7 @@ template <typename Src, typename Formatter>
 auto JoinType<Src, Formatter>::StringifiedSize() const {
   if constexpr (std::conjunction_v<IsForwardIterable<Src>,
                                    FormatterHasStringifiedSize<
-                                       Formatter, ElementTypeT<Src>>>) {
+                                       Formatter, ElementTypeT<const Src>>>) {
     using std::begin;
     using std::end;
     auto iter = begin(src_);

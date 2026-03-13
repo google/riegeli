@@ -779,9 +779,7 @@ inline LinearSortedStringSet LinearSortedStringSet::FromUnsorted(Src&& src) {
   auto end_iter = end(src);
   using SrcIterator = decltype(iter);
   std::vector<SrcIterator> iterators;
-  if (std::is_convertible_v<
-          typename std::iterator_traits<SrcIterator>::iterator_category,
-          std::random_access_iterator_tag>) {
+  if (IsRandomAccessIterable<Src>::value) {
     iterators.reserve(std::distance(iter, end_iter));
   }
   for (; iter != end_iter; ++iter) iterators.push_back(iter);
