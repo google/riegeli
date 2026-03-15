@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -39,6 +40,12 @@ namespace small_int_map_internal {
 
 template <typename T>
 class DelayedConstructor;
+template <typename T>
+class SizedDeleter;
+template <typename T>
+using SizedArray = std::unique_ptr<T[], SizedDeleter<T>>;
+template <typename T>
+SizedArray<T> MakeSizedArray(size_t size);
 
 }  // namespace small_int_map_internal
 
@@ -57,6 +64,8 @@ template <typename Key, typename Value, Key expected_min_key = 0,
           size_t array_capacity = 128>
 class SmallIntMap {
  public:
+  static size_t max_size();
+
   // Constructs an empty `SmallIntMap`.
   SmallIntMap() = default;
 
@@ -80,8 +89,8 @@ class SmallIntMap {
     Initialize(src);
   }
 
-  SmallIntMap(SmallIntMap&& that) noexcept;
-  SmallIntMap& operator=(SmallIntMap&& that) noexcept;
+  SmallIntMap(SmallIntMap&& that) = default;
+  SmallIntMap& operator=(SmallIntMap&& that) = default;
 
   // Makes `*this` equivalent to a newly constructed `SmallIntMap`.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
@@ -111,13 +120,13 @@ class SmallIntMap {
   // represented in an unsigned type with wrap-around.
   using RawKey = std::common_type_t<std::make_unsigned_t<Key>, size_t>;
 
-  // A moved-from `SmallIntMap` has `num_small_keys_ == kPoisonedNumSmallKeys`
-  // and `small_map_ == nullptr`. In debug mode this asserts against using a
-  // moved-from object. In non-debug mode, if the key is not too large,
-  // then this triggers a null pointer dereference with an offset up to 1MB,
-  // which is assumed to reliably crash.
-  static constexpr size_t kPoisonedNumSmallKeys =
-      (size_t{1} << 20) / sizeof(const Value*);
+  using SmallValues = small_int_map_internal::SizedArray<
+      small_int_map_internal::DelayedConstructor<Value>>;
+  using SmallMap =
+      small_int_map_internal::SizedArray<const Value* absl_nullable>;
+  using LargeMap = absl::flat_hash_map<Key, Value>;
+
+  static constexpr int kInverseMinLoadFactor = 4;  // 25%.
 
   static RawKey ToRawKey(Key key) {
     // Wrap-around is not an error.
@@ -132,21 +141,16 @@ class SmallIntMap {
 
   const Value* absl_nullable FindSlow(Key key) const;
 
-  // The size of `small_map_`, or `kPoisonedNumSmallKeys` for a moved-from
-  // `SmallIntMap`.
-  size_t num_small_keys_ = 0;
-  // Indexed by raw key, with the size of `num_small_keys_`. Elements
+  // Stores values for `small_map_`, in no particular order.
+  absl_nullable SmallValues small_values_;
+  // Indexed by raw key below `small_map_.get_deleter().size()`. Elements
   // corresponding to present values point to elements of `small_values_`.
   // The remaining elements are `nullptr`.
-  absl_nullable std::unique_ptr<const Value* absl_nullable[]> small_map_;
-  // Stores values for `small_map_`, in no particular order.
-  absl_nullable
-  std::unique_ptr<small_int_map_internal::DelayedConstructor<Value>[]>
-      small_values_;
+  absl_nullable SmallMap small_map_;
   // If not `nullptr`, stores the mapping for keys too large for `small_map_`.
   // Uses `std::unique_ptr` rather than `std::optional` to reduce memory usage
   // in the common case when `large_map_` is not used.
-  absl_nullable std::unique_ptr<absl::flat_hash_map<Key, Value>> large_map_;
+  absl_nullable std::unique_ptr<LargeMap> large_map_;
 };
 
 // Implementation details follow.
@@ -178,36 +182,79 @@ class DelayedConstructor {
   };
 };
 
+template <typename T>
+class SizedDeleter {
+ public:
+  static size_t max_size() {
+    return std::allocator_traits<std::allocator<T>>::max_size(
+        std::allocator<T>());
+  }
+
+  SizedDeleter() = default;
+
+  explicit SizedDeleter(size_t size) : size_(size) {}
+
+  SizedDeleter(SizedDeleter&& that) noexcept
+      : size_(std::exchange(that.size_, kPoisonedSize)) {}
+
+  SizedDeleter& operator=(SizedDeleter&& that) noexcept {
+    size_ = std::exchange(that.size_, kPoisonedSize);
+    return *this;
+  }
+
+  void operator()(T* ptr) const {
+    for (T* iter = ptr + size_; iter != ptr;) {
+      --iter;
+      iter->~T();
+    }
+    std::allocator<T>().deallocate(ptr, size_);
+  }
+
+  size_t size() const { return size_; }
+
+  // If the pointer associated with this deleter is `nullptr`, returns `true`
+  // when this deleter is moved-from. Otherwise the result is meaningless.
+  bool IsMovedFromIfNull() const { return size_ == kPoisonedSize; }
+
+ private:
+  // A moved-from `SizedDeleter` has `size_ == kPoisonedSize`. In debug mode
+  // this asserts against using a moved-from object. In non-debug mode, if the
+  // key is not too large, then this triggers a null pointer dereference with an
+  // offset up to 1MB, which is assumed to reliably crash.
+  static constexpr size_t kPoisonedSize = (size_t{1} << 20) / sizeof(T);
+
+  size_t size_ = 0;
+};
+
+template <typename T>
+inline SizedArray<T> MakeSizedArray(size_t size) {
+  T* const ptr = std::allocator<T>().allocate(size);
+  T* const end = ptr + size;
+  for (T* iter = ptr; iter != end; ++iter) {
+    new (iter) T();
+  }
+  return SizedArray<T>(ptr, SizedDeleter<T>(size));
+}
+
 }  // namespace small_int_map_internal
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-SmallIntMap<Key, Value, expected_min_key, array_capacity>::SmallIntMap(
-    SmallIntMap&& that) noexcept
-    : num_small_keys_(
-          std::exchange(that.num_small_keys_, kPoisonedNumSmallKeys)),
-      small_map_(std::move(that.small_map_)),
-      small_values_(std::move(that.small_values_)),
-      large_map_(std::move(that.large_map_)) {}
-
-template <typename Key, typename Value, Key expected_min_key,
-          size_t array_capacity>
-SmallIntMap<Key, Value, expected_min_key, array_capacity>&
-SmallIntMap<Key, Value, expected_min_key, array_capacity>::operator=(
-    SmallIntMap&& that) noexcept {
-  num_small_keys_ = std::exchange(that.num_small_keys_, kPoisonedNumSmallKeys);
-  small_map_ = std::move(that.small_map_);
-  small_values_ = std::move(that.small_values_);
-  large_map_ = std::move(that.large_map_);
-  return *this;
+inline size_t
+SmallIntMap<Key, Value, expected_min_key, array_capacity>::max_size() {
+  return UnsignedMin(small_int_map_internal::SizedDeleter<
+                         const Value* absl_nullable>::max_size(),
+                     small_int_map_internal::SizedDeleter<
+                         small_int_map_internal::DelayedConstructor<Value>>::
+                         max_size()) /
+         kInverseMinLoadFactor;
 }
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
 void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Reset() {
-  num_small_keys_ = 0;
-  small_map_.reset();
-  small_values_.reset();
+  small_values_ = SmallValues();
+  small_map_ = SmallMap();
   large_map_.reset();
 }
 
@@ -249,27 +296,28 @@ void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Optimize(
   RIEGELI_ASSERT_GE(size, 0u)
       << "Failed precondition of SmallIntMap::Optimize(): "
          "an empty map must have been handled before";
+  RIEGELI_CHECK_LE(size, max_size())
+      << "Failed precondition of SmallIntMap initialization: "
+         "size overflow";
   RawKey max_raw_key = 0;
   for (auto iter = first; iter != last; ++iter) {
     max_raw_key = UnsignedMax(max_raw_key, ToRawKey(iter->first));
   }
-  const size_t max_num_small_keys = UnsignedMax(array_capacity, size * 4);
-  size_t num_small_values;
+  const size_t max_num_small_keys =
+      UnsignedMax(array_capacity, size * kInverseMinLoadFactor);
   size_t small_values_index;
   if (max_raw_key < max_num_small_keys) {
     // All keys are suitable for `small_map_`. `large_map_` is not used.
     //
     // There is no need for `small_map_` to cover raw keys larger than
     // `max_raw_key` because their lookup is fast if `large_map_` is `nullptr`.
-    num_small_keys_ = IntCast<size_t>(max_raw_key) + 1;
+    RIEGELI_ASSUME_EQ(small_values_, nullptr) << "Initialization";
+    small_values_ = small_int_map_internal::MakeSizedArray<
+        small_int_map_internal::DelayedConstructor<Value>>(size);
     RIEGELI_ASSUME_EQ(small_map_, nullptr) << "Initialization";
     small_map_ =
-        std::make_unique<const Value* absl_nullable[]>(num_small_keys_);
-    num_small_values = size;
-    RIEGELI_ASSUME_EQ(small_values_, nullptr) << "Initialization";
-    small_values_ =
-        std::make_unique<small_int_map_internal::DelayedConstructor<Value>[]>(
-            num_small_values);
+        small_int_map_internal::MakeSizedArray<const Value* absl_nullable>(
+            IntCast<size_t>(max_raw_key) + 1);
     small_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
       // `(*iter).second` rather than `iter->second` allows moving from a move
@@ -287,11 +335,7 @@ void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Optimize(
     //
     // `small_map_` covers all raw keys below `max_num_small_keys` rather than
     // only up to `max_raw_key`, to reduce lookups in `large_map_`.
-    num_small_keys_ = max_num_small_keys;
-    RIEGELI_ASSUME_EQ(small_map_, nullptr) << "Initialization";
-    small_map_ =
-        std::make_unique<const Value* absl_nullable[]>(max_num_small_keys);
-    num_small_values = 0;
+    size_t num_small_values = 0;
     for (auto iter = first; iter != last; ++iter) {
       num_small_values += ToRawKey(iter->first) < max_num_small_keys ? 1 : 0;
     }
@@ -299,12 +343,15 @@ void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Optimize(
         << "Some keys should have been too large for small_map_";
     RIEGELI_ASSUME_EQ(small_values_, nullptr) << "Initialization";
     if (num_small_values > 0) {
-      small_values_ =
-          std::make_unique<small_int_map_internal::DelayedConstructor<Value>[]>(
-              num_small_values);
+      small_values_ = small_int_map_internal::MakeSizedArray<
+          small_int_map_internal::DelayedConstructor<Value>>(num_small_values);
     }
+    RIEGELI_ASSUME_EQ(small_map_, nullptr) << "Initialization";
+    small_map_ =
+        small_int_map_internal::MakeSizedArray<const Value* absl_nullable>(
+            max_num_small_keys);
     RIEGELI_ASSUME_EQ(large_map_, nullptr) << "Initialization";
-    large_map_ = std::make_unique<absl::flat_hash_map<Key, Value>>();
+    large_map_ = std::make_unique<LargeMap>();
     large_map_->reserve(size - num_small_values);
     small_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
@@ -328,7 +375,7 @@ void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Optimize(
       }
     }
   }
-  RIEGELI_ASSERT_EQ(small_values_index, num_small_values)
+  RIEGELI_ASSERT_EQ(small_values_index, small_values_.get_deleter().size())
       << "The whole small_values_ array should have been filled";
 }
 
@@ -336,10 +383,12 @@ template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
 ABSL_ATTRIBUTE_ALWAYS_INLINE const Value* absl_nullable
 SmallIntMap<Key, Value, expected_min_key, array_capacity>::Find(Key key) const {
-  RIEGELI_ASSERT(num_small_keys_ != kPoisonedNumSmallKeys ||
+  RIEGELI_ASSERT(!small_map_.get_deleter().IsMovedFromIfNull() ||
                  small_map_ != nullptr)
       << "Moved-from SmallIntMap";
-  if (ToRawKey(key) < num_small_keys_) return small_map_[ToRawKey(key)];
+  if (ToRawKey(key) < small_map_.get_deleter().size()) {
+    return small_map_[ToRawKey(key)];
+  }
   if (ABSL_PREDICT_TRUE(large_map_ == nullptr)) return nullptr;
   return FindSlow(key);
 }
