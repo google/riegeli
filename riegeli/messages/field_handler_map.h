@@ -30,7 +30,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/small_int_map.h"
@@ -409,36 +408,12 @@ struct FieldHandlerMap<Context...>::LengthDelimitedActions {
 
 template <typename... Context>
 FieldHandlerMap<Context...>::FieldHandlerMap(Builder&& builder)
-    : varint_handlers_(
-          std::make_move_iterator(builder.varint_handlers_.begin()),
-          std::make_move_iterator(builder.varint_handlers_.end()),
-          builder.varint_handlers_.size()),
-      fixed32_handlers_(
-          std::make_move_iterator(builder.fixed32_handlers_.begin()),
-          std::make_move_iterator(builder.fixed32_handlers_.end()),
-          builder.fixed32_handlers_.size()),
-      fixed64_handlers_(
-          std::make_move_iterator(builder.fixed64_handlers_.begin()),
-          std::make_move_iterator(builder.fixed64_handlers_.end()),
-          builder.fixed64_handlers_.size()),
-      length_delimited_handlers_(
-          std::make_move_iterator(builder.length_delimited_handlers_.begin()),
-          std::make_move_iterator(builder.length_delimited_handlers_.end()),
-          builder.length_delimited_handlers_.size()),
-      start_group_handlers_(
-          std::make_move_iterator(builder.start_group_handlers_.begin()),
-          std::make_move_iterator(builder.start_group_handlers_.end()),
-          builder.start_group_handlers_.size()),
-      end_group_handlers_(
-          std::make_move_iterator(builder.end_group_handlers_.begin()),
-          std::make_move_iterator(builder.end_group_handlers_.end()),
-          builder.end_group_handlers_.size()) {
-#if RIEGELI_DEBUG
-  // Detect using a moved-from `Builder` if using a moved-from
-  // `absl::flat_hash_map` is detected.
-  ABSL_ATTRIBUTE_UNUSED Builder moved = std::move(builder);
-#endif
-}
+    : varint_handlers_(std::move(builder.varint_handlers_)),
+      fixed32_handlers_(std::move(builder.fixed32_handlers_)),
+      fixed64_handlers_(std::move(builder.fixed64_handlers_)),
+      length_delimited_handlers_(std::move(builder.length_delimited_handlers_)),
+      start_group_handlers_(std::move(builder.start_group_handlers_)),
+      end_group_handlers_(std::move(builder.end_group_handlers_)) {}
 
 template <typename... Context>
 void FieldHandlerMap<Context...>::Reset() {
@@ -452,35 +427,13 @@ void FieldHandlerMap<Context...>::Reset() {
 
 template <typename... Context>
 void FieldHandlerMap<Context...>::Reset(Builder&& builder) {
-  varint_handlers_.Reset(
-      std::make_move_iterator(builder.varint_handlers_.begin()),
-      std::make_move_iterator(builder.varint_handlers_.end()),
-      builder.varint_handlers_.size());
-  fixed32_handlers_.Reset(
-      std::make_move_iterator(builder.fixed32_handlers_.begin()),
-      std::make_move_iterator(builder.fixed32_handlers_.end()),
-      builder.fixed32_handlers_.size());
-  fixed64_handlers_.Reset(
-      std::make_move_iterator(builder.fixed64_handlers_.begin()),
-      std::make_move_iterator(builder.fixed64_handlers_.end()),
-      builder.fixed64_handlers_.size());
+  varint_handlers_.Reset(std::move(builder.varint_handlers_));
+  fixed32_handlers_.Reset(std::move(builder.fixed32_handlers_));
+  fixed64_handlers_.Reset(std::move(builder.fixed64_handlers_));
   length_delimited_handlers_.Reset(
-      std::make_move_iterator(builder.length_delimited_handlers_.begin()),
-      std::make_move_iterator(builder.length_delimited_handlers_.end()),
-      builder.length_delimited_handlers_.size());
-  start_group_handlers_.Reset(
-      std::make_move_iterator(builder.start_group_handlers_.begin()),
-      std::make_move_iterator(builder.start_group_handlers_.end()),
-      builder.start_group_handlers_.size());
-  end_group_handlers_.Reset(
-      std::make_move_iterator(builder.end_group_handlers_.begin()),
-      std::make_move_iterator(builder.end_group_handlers_.end()),
-      builder.end_group_handlers_.size());
-#if RIEGELI_DEBUG
-  // Detect using a moved-from `Builder` if using a moved-from
-  // `absl::flat_hash_map` is detected.
-  ABSL_ATTRIBUTE_UNUSED Builder moved = std::move(builder);
-#endif
+      std::move(builder.length_delimited_handlers_));
+  start_group_handlers_.Reset(std::move(builder.start_group_handlers_));
+  end_group_handlers_.Reset(std::move(builder.end_group_handlers_));
 }
 
 }  // namespace riegeli

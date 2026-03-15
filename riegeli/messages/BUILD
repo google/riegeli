@@ -209,7 +209,6 @@ cc_library(
         ":serialized_message_reader",
         ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:cord_iterator_span",
         "//riegeli/base:initializer",
         "//riegeli/base:small_int_map",

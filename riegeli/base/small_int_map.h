@@ -16,8 +16,8 @@
 #define RIEGELI_BASE_SMALL_INT_MAP_H_
 
 #include <stddef.h>
-#include <stdint.h>
 
+#include <initializer_list>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -28,6 +28,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/iterable.h"
+#include "riegeli/base/type_traits.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 
@@ -55,16 +57,27 @@ template <typename Key, typename Value, Key expected_min_key = 0,
           size_t array_capacity = 128>
 class SmallIntMap {
  public:
+  // Constructs an empty `SmallIntMap`.
   SmallIntMap() = default;
 
-  // Builds `SmallIntMap` from a pair of iterators over pairs of key and value
-  // with no duplicate keys.
-  template <typename Iter>
-  explicit SmallIntMap(Iter first, Iter last, size_t size) {
-    RIEGELI_ASSERT_EQ(size, std::distance(first, last))
-        << "Failed precondition of SmallIntMap initialization: "
-           "size does not match the distance between iterators";
-    if (size > 0) Optimize(first, last, size);
+  // Builds `SmallIntMap` from an iterable `src`. Moves values if `src` is an
+  // rvalue which owns its elements.
+  template <typename Src,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<SmallIntMap, Src>, IsForwardIterable<Src>,
+                    IsIterableOfPairs<Src, Key, Value>,
+                    std::conditional_t<HasMovableElements<Src>::value,
+                                       std::is_move_constructible<Value>,
+                                       std::is_copy_constructible<Value>>>,
+                int> = 0>
+  explicit SmallIntMap(Src&& src) {
+    Initialize(std::forward<Src>(src));
+  }
+
+  // Builds `SmallIntMap` from an initializer list.
+  /*implicit*/ SmallIntMap(std::initializer_list<std::pair<Key, Value>> src) {
+    Initialize(src);
   }
 
   SmallIntMap(SmallIntMap&& that) noexcept;
@@ -72,13 +85,23 @@ class SmallIntMap {
 
   // Makes `*this` equivalent to a newly constructed `SmallIntMap`.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
-  template <typename Iter>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Iter first, Iter last, size_t size) {
-    RIEGELI_ASSERT_EQ(size, std::distance(first, last))
-        << "Failed precondition of SmallIntMap initialization: "
-           "size does not match the distance between iterators";
+  template <typename Src,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<SmallIntMap, Src>, IsForwardIterable<Src>,
+                    IsIterableOfPairs<Src, Key, Value>,
+                    std::conditional_t<HasMovableElements<Src>::value,
+                                       std::is_move_constructible<Value>,
+                                       std::is_copy_constructible<Value>>>,
+                int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Src&& src) {
     Reset();
-    if (size > 0) Optimize(first, last, size);
+    Initialize(std::forward<Src>(src));
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      std::initializer_list<std::pair<Key, Value>> src) {
+    Reset();
+    Initialize(src);
   }
 
   const Value* absl_nullable Find(Key key) const;
@@ -101,8 +124,11 @@ class SmallIntMap {
     return static_cast<RawKey>(key) - static_cast<RawKey>(expected_min_key);
   }
 
-  template <typename Iter>
-  void Optimize(Iter first, Iter last, size_t size);
+  template <typename Src>
+  void Initialize(Src&& src);
+
+  template <typename Src, typename Iterator>
+  void Optimize(Iterator first, Iterator last, size_t size);
 
   const Value* absl_nullable FindSlow(Key key) const;
 
@@ -187,9 +213,39 @@ void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Reset() {
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-template <typename Iter>
+template <typename Src>
+void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Initialize(
+    Src&& src) {
+  using std::begin;
+  using std::end;
+  if constexpr (IterableHasSize<Src>::value) {
+    using std::size;
+    const size_t src_size = size(src);
+    RIEGELI_ASSERT_EQ(src_size,
+                      IntCast<size_t>(std::distance(begin(src), end(src))))
+        << "Failed precondition of SmallIntMap initialization: "
+           "size does not match the distance between iterators";
+    if (src_size > 0) Optimize<Src>(begin(src), end(src), src_size);
+  } else {
+    auto first = begin(src);
+    auto last = end(src);
+    const size_t src_size = IntCast<size_t>(std::distance(first, last));
+    if (src_size > 0) Optimize<Src>(first, last, src_size);
+  }
+#if RIEGELI_DEBUG
+  // Detect building `SmallIntMap` from a moved-from `src` if possible.
+  if constexpr (std::conjunction_v<std::negation<std::is_reference<Src>>,
+                                   std::is_move_constructible<Src>>) {
+    ABSL_ATTRIBUTE_UNUSED Src moved = std::forward<Src>(src);
+  }
+#endif
+}
+
+template <typename Key, typename Value, Key expected_min_key,
+          size_t array_capacity>
+template <typename Src, typename Iterator>
 void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Optimize(
-    Iter first, Iter last, size_t size) {
+    Iterator first, Iterator last, size_t size) {
   RIEGELI_ASSERT_GE(size, 0u)
       << "Failed precondition of SmallIntMap::Optimize(): "
          "an empty map must have been handled before";
@@ -223,7 +279,8 @@ void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Optimize(
              "duplicate key: "
           << iter->first;
       small_map_[ToRawKey(iter->first)] =
-          &small_values_[small_values_index++].emplace((*iter).second);
+          &small_values_[small_values_index++].emplace(
+              (*MaybeMakeMoveIterator<Src>(iter)).second);
     }
   } else {
     // Some keys are too large for `small_map_`. `large_map_` is used.
@@ -259,10 +316,11 @@ void SmallIntMap<Key, Value, expected_min_key, array_capacity>::Optimize(
                "duplicate key: "
             << iter->first;
         small_map_[ToRawKey(iter->first)] =
-            &small_values_[small_values_index++].emplace((*iter).second);
+            &small_values_[small_values_index++].emplace(
+                (*MaybeMakeMoveIterator<Src>(iter)).second);
       } else {
-        const auto inserted =
-            large_map_->try_emplace(iter->first, (*iter).second);
+        const auto inserted = large_map_->try_emplace(
+            iter->first, (*MaybeMakeMoveIterator<Src>(iter)).second);
         RIEGELI_ASSERT(inserted.second)
             << "Failed precondition of SmallIntMap initialization: "
                "duplicate key: "
