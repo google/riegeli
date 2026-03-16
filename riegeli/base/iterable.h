@@ -83,6 +83,13 @@ struct IterableHasSize<
 // `begin(iterable)` after `using std::begin;` (not all details are verified).
 using iterable_internal::IsIterable;
 
+// `IteratorTypeT<Iterable>::type` and `IteratorTypeT<Iterable>` is the type of
+// iterators  over `Iterable`.
+using iterable_internal::IteratorType;
+
+template <typename Iterable>
+using IteratorTypeT = typename IteratorType<Iterable>::type;
+
 // `HasMovableElements<Iterable>::value` is `true` when moving (rather than
 // copying) out of elements of `Iterable` is safe. This is the case when
 // `Iterable` owns its elements, i.e. it is not a view container like
@@ -235,10 +242,9 @@ struct IsForwardIterable<
     Iterable,
     std::enable_if_t<std::conjunction_v<
         IsIterable<Iterable>,
-        std::is_convertible<
-            typename iterable_internal::IteratorConcept<
-                typename iterable_internal::IteratorType<Iterable>::type>::type,
-            std::forward_iterator_tag>>>> : std::true_type {};
+        std::is_convertible<typename iterable_internal::IteratorConcept<
+                                IteratorTypeT<Iterable>>::type,
+                            std::forward_iterator_tag>>>> : std::true_type {};
 
 // `IsRandomAccessIterable<Iterable>::value` is `true` when the iterator over
 // `Iterable` is a random access iterator.
@@ -251,10 +257,10 @@ struct IsRandomAccessIterable<
     Iterable,
     std::enable_if_t<std::conjunction_v<
         IsIterable<Iterable>,
-        std::is_convertible<
-            typename iterable_internal::IteratorConcept<
-                typename iterable_internal::IteratorType<Iterable>::type>::type,
-            std::random_access_iterator_tag>>>> : std::true_type {};
+        std::is_convertible<typename iterable_internal::IteratorConcept<
+                                IteratorTypeT<Iterable>>::type,
+                            std::random_access_iterator_tag>>>>
+    : std::true_type {};
 
 // `IterableHasSize<Iterable>::value` is `true` when `Iterable` supports
 // `size(iterable)` after `using std::size;`.
