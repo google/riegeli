@@ -228,7 +228,10 @@ class StableDependency<
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyNoDefault<Handle, Manager>,
           Handle, Manager>,
-      public CopyableLike<Dependency<Handle, Manager>> {
+      private ConditionallyConstructible<
+          false, std::is_move_constructible_v<Dependency<Handle, Manager>>>,
+      private ConditionallyAssignable<
+          false, std::is_move_assignable_v<Dependency<Handle, Manager>>> {
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
 
