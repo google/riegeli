@@ -145,16 +145,28 @@ class SerializedMessageBackwardWriter {
   absl::Status WriteEnum(int field_number, EnumType value);
 
   // Writes the field tag and the `string`, `bytes`, or submessage field value.
+  //
+  // Message objects are excluded here because they are stringified in the text
+  // format, which is rarely intended as a field value. A separate overload
+  // below serializes a message object in the binary format.
   template <typename... Values
 #if !__cpp_concepts
             ,
-            std::enable_if_t<IsStringifiable<Values...>::value, int> = 0
+            std::enable_if_t<
+                std::conjunction_v<
+                    IsStringifiable<Values...>,
+                    std::negation<std::is_convertible<
+                        Values&&, const google::protobuf::MessageLite&>>...>,
+                int> = 0
 #endif
             >
 #if __cpp_concepts
   // For conjunctions, `requires` gives better error messages than
   // `std::enable_if_t`, indicating the relevant argument.
-    requires(IsStringifiable<Values>::value && ...)
+    requires((IsStringifiable<Values>::value && ...) &&
+             (!std::is_convertible_v<Values &&,
+                                     const google::protobuf::MessageLite&> &&
+              ...))
 #endif
   absl::Status WriteString(int field_number, Values&&... values);
   absl::Status WriteString(int field_number, AnyRef<Reader*> src);
@@ -164,9 +176,9 @@ class SerializedMessageBackwardWriter {
 
   // Writes the field tag of a length-delimited field and serializes a message
   // as the field value.
-  absl::Status WriteSerializedMessage(
-      int field_number, const google::protobuf::MessageLite& message,
-      SerializeMessageOptions options = {});
+  absl::Status WriteString(int field_number,
+                           const google::protobuf::MessageLite& message,
+                           SerializeMessageOptions options = {});
 
   // Writes an element of a packed repeated field.
   //
@@ -463,11 +475,19 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedEnum(
 template <typename... Values
 #if !__cpp_concepts
           ,
-          std::enable_if_t<IsStringifiable<Values...>::value, int>
+          std::enable_if_t<
+              std::conjunction_v<
+                  IsStringifiable<Values...>,
+                  std::negation<std::is_convertible<
+                      Values&&, const google::protobuf::MessageLite&>>...>,
+              int> = 0
 #endif
           >
 #if __cpp_concepts
-  requires(IsStringifiable<Values>::value && ...)
+  requires((IsStringifiable<Values>::value && ...) &&
+           (!std::is_convertible_v<Values &&,
+                                   const google::protobuf::MessageLite&> &&
+            ...))
 #endif
 inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, Values&&... values) {
@@ -480,7 +500,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteString(
   return WriteLengthUnchecked(field_number, writer().pos() - pos_before);
 }
 
-inline absl::Status SerializedMessageBackwardWriter::WriteSerializedMessage(
+inline absl::Status SerializedMessageBackwardWriter::WriteString(
     int field_number, const google::protobuf::MessageLite& message,
     SerializeMessageOptions options) {
   const size_t length = options.GetByteSize(message);
