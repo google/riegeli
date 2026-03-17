@@ -52,9 +52,7 @@ void WriteBigEndian(type_identity_t<T> data, char* dest);
 // This is faster than writing them individually if the endianness matches the
 // native one.
 //
-// Return values:
-//  * `true`  - success (`dest.ok()`)
-//  * `false` - failure (`!dest.ok()`)
+// Writes `data.size() * sizeof(T)` bytes to `dest[]`.
 template <typename T>
 void WriteLittleEndians(absl::Span<const type_identity_t<T>> data, char* dest);
 template <typename T>
@@ -101,6 +99,24 @@ template <typename T>
 bool WriteLittleEndian(type_identity_t<T> data, BackwardWriter& dest);
 template <typename T>
 bool WriteBigEndian(type_identity_t<T> data, BackwardWriter& dest);
+
+// Writes an array of numbers in a fixed width Little/Big Endian encoding to a
+// `BackwardWriter`. The width of the encoding is determined by the template
+// argument, which must be one of: `{u,}int{8,16,32,64}_t`, `absl::{u,}int128`,
+// `float`, or `double`.
+//
+// This is faster than writing them individually if the endianness matches the
+// native one.
+//
+// Return values:
+//  * `true`  - success (`dest.ok()`)
+//  * `false` - failure (`!dest.ok()`)
+template <typename T>
+bool WriteLittleEndians(absl::Span<const type_identity_t<T>> data,
+                        BackwardWriter& dest);
+template <typename T>
+bool WriteBigEndians(absl::Span<const type_identity_t<T>> data,
+                     BackwardWriter& dest);
 
 // Implementation details follow.
 
@@ -460,6 +476,66 @@ inline bool WriteBigEndian<uint8_t>(uint8_t data, BackwardWriter& dest) {
 template <>
 inline bool WriteBigEndian<int8_t>(int8_t data, BackwardWriter& dest) {
   return dest.WriteByte(static_cast<uint8_t>(data));
+}
+
+template <typename T>
+inline bool WriteLittleEndians(absl::Span<const type_identity_t<T>> data,
+                               BackwardWriter& dest) {
+#if ABSL_IS_LITTLE_ENDIAN
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size() * sizeof(T)));
+#else
+  for (auto iter = data.crbegin(); iter != data.crend(); ++iter) {
+    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<T>(*iter, dest))) {
+      return false;
+    }
+  }
+  return true;
+#endif
+}
+
+template <>
+inline bool WriteLittleEndians<uint8_t>(absl::Span<const uint8_t> data,
+                                        BackwardWriter& dest) {
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
+}
+
+template <>
+inline bool WriteLittleEndians<int8_t>(absl::Span<const int8_t> data,
+                                       BackwardWriter& dest) {
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
+}
+
+template <typename T>
+inline bool WriteBigEndians(absl::Span<const type_identity_t<T>> data,
+                            BackwardWriter& dest) {
+#if ABSL_IS_BIG_ENDIAN
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size() * sizeof(T)));
+#else
+  for (auto iter = data.crbegin(); iter != data.crend(); ++iter) {
+    if (ABSL_PREDICT_FALSE(!WriteBigEndian<T>(*iter, dest))) {
+      return false;
+    }
+  }
+  return true;
+#endif
+}
+
+template <>
+inline bool WriteBigEndians<uint8_t>(absl::Span<const uint8_t> data,
+                                     BackwardWriter& dest) {
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
+}
+
+template <>
+inline bool WriteBigEndians<int8_t>(absl::Span<const int8_t> data,
+                                    BackwardWriter& dest) {
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size()));
 }
 
 // Deprecated aliases.
