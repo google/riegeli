@@ -281,63 +281,23 @@ inline void WriteBigEndian<double>(double data, char* dest) {
   WriteBigEndian<uint64_t>(absl::bit_cast<uint64_t>(data), dest);
 }
 
+template <typename T>
+inline void WriteLittleEndians(absl::Span<const type_identity_t<T>> data,
+                               char* dest) {
+#if ABSL_IS_LITTLE_ENDIAN
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(T));
+#else
+  for (const T value : data) {
+    WriteLittleEndian<T>(value, dest);
+    dest += sizeof(T);
+  }
+#endif
+}
+
 template <>
 inline void WriteLittleEndians<uint8_t>(absl::Span<const uint8_t> data,
                                         char* dest) {
   riegeli::null_safe_memcpy(dest, data.data(), data.size());
-}
-
-template <>
-inline void WriteLittleEndians<uint16_t>(absl::Span<const uint16_t> data,
-                                         char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
-#else
-  for (const uint16_t value : data) {
-    WriteLittleEndian<uint16_t>(value, dest);
-    dest += sizeof(uint16_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<uint32_t>(absl::Span<const uint32_t> data,
-                                         char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
-#else
-  for (const uint32_t value : data) {
-    WriteLittleEndian<uint32_t>(value, dest);
-    dest += sizeof(uint32_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<uint64_t>(absl::Span<const uint64_t> data,
-                                         char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
-#else
-  for (const uint64_t value : data) {
-    WriteLittleEndian<uint64_t>(value, dest);
-    dest += sizeof(uint64_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<absl::uint128>(
-    absl::Span<const absl::uint128> data, char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(),
-                            data.size() * sizeof(absl::uint128));
-#else
-  for (const absl::uint128 value : data) {
-    WriteLittleEndian<absl::uint128>(value, dest);
-    dest += sizeof(absl::uint128);
-  }
-#endif
 }
 
 template <>
@@ -346,81 +306,15 @@ inline void WriteLittleEndians<int8_t>(absl::Span<const int8_t> data,
   riegeli::null_safe_memcpy(dest, data.data(), data.size());
 }
 
-template <>
-inline void WriteLittleEndians<int16_t>(absl::Span<const int16_t> data,
-                                        char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int16_t));
+template <typename T>
+inline void WriteBigEndians(absl::Span<const type_identity_t<T>> data,
+                            char* dest) {
+#if ABSL_IS_BIG_ENDIAN
+  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(T));
 #else
-  for (const int16_t value : data) {
-    WriteLittleEndian<int16_t>(value, dest);
-    dest += sizeof(int16_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<int32_t>(absl::Span<const int32_t> data,
-                                        char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int32_t));
-#else
-  for (const int32_t value : data) {
-    WriteLittleEndian<int32_t>(value, dest);
-    dest += sizeof(int32_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<int64_t>(absl::Span<const int64_t> data,
-                                        char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int64_t));
-#else
-  for (const int64_t value : data) {
-    WriteLittleEndian<int64_t>(value, dest);
-    dest += sizeof(int64_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<absl::int128>(
-    absl::Span<const absl::int128> data, char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(),
-                            data.size() * sizeof(absl::int128));
-#else
-  for (const absl::int128 value : data) {
-    WriteLittleEndian<absl::int128>(value, dest);
-    dest += sizeof(absl::int128);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<float>(absl::Span<const float> data,
-                                      char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(float));
-#else
-  for (const float value : data) {
-    WriteLittleEndian<float>(value, dest);
-    dest += sizeof(float);
-  }
-#endif
-}
-
-template <>
-inline void WriteLittleEndians<double>(absl::Span<const double> data,
-                                       char* dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(double));
-#else
-  for (const double value : data) {
-    WriteLittleEndian<double>(value, dest);
-    dest += sizeof(double);
+  for (const T value : data) {
+    WriteBigEndian<T>(value, dest);
+    dest += sizeof(T);
   }
 #endif
 }
@@ -432,138 +326,16 @@ inline void WriteBigEndians<uint8_t>(absl::Span<const uint8_t> data,
 }
 
 template <>
-inline void WriteBigEndians<uint16_t>(absl::Span<const uint16_t> data,
-                                      char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint16_t));
-#else
-  for (const uint16_t value : data) {
-    WriteBigEndian<uint16_t>(value, dest);
-    dest += sizeof(uint16_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<uint32_t>(absl::Span<const uint32_t> data,
-                                      char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint32_t));
-#else
-  for (const uint32_t value : data) {
-    WriteBigEndian<uint32_t>(value, dest);
-    dest += sizeof(uint32_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<uint64_t>(absl::Span<const uint64_t> data,
-                                      char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(uint64_t));
-#else
-  for (const uint64_t value : data) {
-    WriteBigEndian<uint64_t>(value, dest);
-    dest += sizeof(uint64_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<absl::uint128>(absl::Span<const absl::uint128> data,
-                                           char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(),
-                            data.size() * sizeof(absl::uint128));
-#else
-  for (const absl::uint128 value : data) {
-    WriteBigEndian<absl::uint128>(value, dest);
-    dest += sizeof(absl::uint128);
-  }
-#endif
-}
-
-template <>
 inline void WriteBigEndians<int8_t>(absl::Span<const int8_t> data, char* dest) {
   riegeli::null_safe_memcpy(dest, data.data(), data.size());
 }
 
-template <>
-inline void WriteBigEndians<int16_t>(absl::Span<const int16_t> data,
-                                     char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int16_t));
-#else
-  for (const int16_t value : data) {
-    WriteBigEndian<int16_t>(value, dest);
-    dest += sizeof(int16_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<int32_t>(absl::Span<const int32_t> data,
-                                     char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int32_t));
-#else
-  for (const int32_t value : data) {
-    WriteBigEndian<int32_t>(value, dest);
-    dest += sizeof(int32_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<int64_t>(absl::Span<const int64_t> data,
-                                     char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(int64_t));
-#else
-  for (const int64_t value : data) {
-    WriteBigEndian<int64_t>(value, dest);
-    dest += sizeof(int64_t);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<absl::int128>(absl::Span<const absl::int128> data,
-                                          char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(),
-                            data.size() * sizeof(absl::int128));
-#else
-  for (const absl::int128 value : data) {
-    WriteBigEndian<absl::int128>(value, dest);
-    dest += sizeof(absl::int128);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<float>(absl::Span<const float> data, char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(float));
-#else
-  for (const float value : data) {
-    WriteBigEndian<float>(value, dest);
-    dest += sizeof(float);
-  }
-#endif
-}
-
-template <>
-inline void WriteBigEndians<double>(absl::Span<const double> data, char* dest) {
-#if ABSL_IS_BIG_ENDIAN
-  riegeli::null_safe_memcpy(dest, data.data(), data.size() * sizeof(double));
-#else
-  for (const double value : data) {
-    WriteBigEndian<double>(value, dest);
-    dest += sizeof(double);
-  }
-#endif
+template <typename T>
+inline bool WriteLittleEndian(type_identity_t<T> data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(T)))) return false;
+  WriteLittleEndian<T>(data, dest.cursor());
+  dest.move_cursor(sizeof(T));
+  return true;
 }
 
 template <>
@@ -572,71 +344,16 @@ inline bool WriteLittleEndian<uint8_t>(uint8_t data, Writer& dest) {
 }
 
 template <>
-inline bool WriteLittleEndian<uint16_t>(uint16_t data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
-  WriteLittleEndian<uint16_t>(data, dest.cursor());
-  dest.move_cursor(sizeof(uint16_t));
-  return true;
-}
-
-template <>
-inline bool WriteLittleEndian<uint32_t>(uint32_t data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
-  WriteLittleEndian<uint32_t>(data, dest.cursor());
-  dest.move_cursor(sizeof(uint32_t));
-  return true;
-}
-
-template <>
-inline bool WriteLittleEndian<uint64_t>(uint64_t data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
-  WriteLittleEndian<uint64_t>(data, dest.cursor());
-  dest.move_cursor(sizeof(uint64_t));
-  return true;
-}
-
-template <>
-inline bool WriteLittleEndian<absl::uint128>(absl::uint128 data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(absl::uint128)))) return false;
-  WriteLittleEndian<absl::uint128>(data, dest.cursor());
-  dest.move_cursor(sizeof(absl::uint128));
-  return true;
-}
-
-template <>
 inline bool WriteLittleEndian<int8_t>(int8_t data, Writer& dest) {
   return dest.WriteByte(static_cast<uint8_t>(data));
 }
 
-template <>
-inline bool WriteLittleEndian<int16_t>(int16_t data, Writer& dest) {
-  return WriteLittleEndian<uint16_t>(static_cast<uint16_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<int32_t>(int32_t data, Writer& dest) {
-  return WriteLittleEndian<uint32_t>(static_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<int64_t>(int64_t data, Writer& dest) {
-  return WriteLittleEndian<uint64_t>(static_cast<uint64_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<absl::int128>(absl::int128 data, Writer& dest) {
-  return WriteLittleEndian<absl::uint128>(static_cast<absl::uint128>(data),
-                                          dest);
-}
-
-template <>
-inline bool WriteLittleEndian<float>(float data, Writer& dest) {
-  return WriteLittleEndian<uint32_t>(absl::bit_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<double>(double data, Writer& dest) {
-  return WriteLittleEndian<uint64_t>(absl::bit_cast<uint64_t>(data), dest);
+template <typename T>
+inline bool WriteBigEndian(type_identity_t<T> data, Writer& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(T)))) return false;
+  WriteBigEndian<T>(data, dest.cursor());
+  dest.move_cursor(sizeof(T));
+  return true;
 }
 
 template <>
@@ -645,70 +362,24 @@ inline bool WriteBigEndian<uint8_t>(uint8_t data, Writer& dest) {
 }
 
 template <>
-inline bool WriteBigEndian<uint16_t>(uint16_t data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
-  WriteBigEndian<uint16_t>(data, dest.cursor());
-  dest.move_cursor(sizeof(uint16_t));
-  return true;
-}
-
-template <>
-inline bool WriteBigEndian<uint32_t>(uint32_t data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
-  WriteBigEndian<uint32_t>(data, dest.cursor());
-  dest.move_cursor(sizeof(uint32_t));
-  return true;
-}
-
-template <>
-inline bool WriteBigEndian<uint64_t>(uint64_t data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
-  WriteBigEndian<uint64_t>(data, dest.cursor());
-  dest.move_cursor(sizeof(uint64_t));
-  return true;
-}
-
-template <>
-inline bool WriteBigEndian<absl::uint128>(absl::uint128 data, Writer& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(absl::uint128)))) return false;
-  WriteBigEndian<absl::uint128>(data, dest.cursor());
-  dest.move_cursor(sizeof(absl::uint128));
-  return true;
-}
-
-template <>
 inline bool WriteBigEndian<int8_t>(int8_t data, Writer& dest) {
   return dest.WriteByte(static_cast<uint8_t>(data));
 }
 
-template <>
-inline bool WriteBigEndian<int16_t>(int16_t data, Writer& dest) {
-  return WriteBigEndian<uint16_t>(static_cast<uint16_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<int32_t>(int32_t data, Writer& dest) {
-  return WriteBigEndian<uint32_t>(static_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<int64_t>(int64_t data, Writer& dest) {
-  return WriteBigEndian<uint64_t>(static_cast<uint64_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<absl::int128>(absl::int128 data, Writer& dest) {
-  return WriteBigEndian<absl::uint128>(static_cast<absl::uint128>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<float>(float data, Writer& dest) {
-  return WriteBigEndian<uint32_t>(absl::bit_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<double>(double data, Writer& dest) {
-  return WriteBigEndian<uint64_t>(absl::bit_cast<uint64_t>(data), dest);
+template <typename T>
+inline bool WriteLittleEndians(absl::Span<const type_identity_t<T>> data,
+                               Writer& dest) {
+#if ABSL_IS_LITTLE_ENDIAN
+  return dest.Write(absl::string_view(
+      reinterpret_cast<const char*>(data.data()), data.size() * sizeof(T)));
+#else
+  for (const T value : data) {
+    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<T>(value, dest))) {
+      return false;
+    }
+  }
+  return true;
+#endif
 }
 
 template <>
@@ -719,174 +390,21 @@ inline bool WriteLittleEndians<uint8_t>(absl::Span<const uint8_t> data,
 }
 
 template <>
-inline bool WriteLittleEndians<uint16_t>(absl::Span<const uint16_t> data,
-                                         Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(uint16_t)));
-#else
-  for (const uint16_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<uint16_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<uint32_t>(absl::Span<const uint32_t> data,
-                                         Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(uint32_t)));
-#else
-  for (const uint32_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<uint32_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<uint64_t>(absl::Span<const uint64_t> data,
-                                         Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(uint64_t)));
-#else
-  for (const uint64_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<uint64_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<absl::uint128>(
-    absl::Span<const absl::uint128> data, Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(absl::uint128)));
-#else
-  for (const absl::uint128 value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<absl::uint128>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
 inline bool WriteLittleEndians<int8_t>(absl::Span<const int8_t> data,
                                        Writer& dest) {
   return dest.Write(absl::string_view(
       reinterpret_cast<const char*>(data.data()), data.size()));
 }
 
-template <>
-inline bool WriteLittleEndians<int16_t>(absl::Span<const int16_t> data,
-                                        Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(int16_t)));
-#else
-  for (const int16_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<int16_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<int32_t>(absl::Span<const int32_t> data,
-                                        Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(int32_t)));
-#else
-  for (const int32_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<int32_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<int64_t>(absl::Span<const int64_t> data,
-                                        Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(int64_t)));
-#else
-  for (const int64_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<int64_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<absl::int128>(
-    absl::Span<const absl::int128> data, Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(absl::int128)));
-#else
-  for (const absl::int128 value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<absl::int128>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<float>(absl::Span<const float> data,
-                                      Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
+template <typename T>
+inline bool WriteBigEndians(absl::Span<const type_identity_t<T>> data,
+                            Writer& dest) {
+#if ABSL_IS_BIG_ENDIAN
   return dest.Write(absl::string_view(
-      reinterpret_cast<const char*>(data.data()), data.size() * sizeof(float)));
+      reinterpret_cast<const char*>(data.data()), data.size() * sizeof(T)));
 #else
-  for (const float value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<float>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteLittleEndians<double>(absl::Span<const double> data,
-                                       Writer& dest) {
-#if ABSL_IS_LITTLE_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(double)));
-#else
-  for (const double value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteLittleEndian<double>(value, dest))) {
+  for (const T value : data) {
+    if (ABSL_PREDICT_FALSE(!WriteBigEndian<T>(value, dest))) {
       return false;
     }
   }
@@ -902,168 +420,18 @@ inline bool WriteBigEndians<uint8_t>(absl::Span<const uint8_t> data,
 }
 
 template <>
-inline bool WriteBigEndians<uint16_t>(absl::Span<const uint16_t> data,
-                                      Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(uint16_t)));
-#else
-  for (const uint16_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<uint16_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<uint32_t>(absl::Span<const uint32_t> data,
-                                      Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(uint32_t)));
-#else
-  for (const uint32_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<uint32_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<uint64_t>(absl::Span<const uint64_t> data,
-                                      Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(uint64_t)));
-#else
-  for (const uint64_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<uint64_t>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<absl::uint128>(absl::Span<const absl::uint128> data,
-                                           Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(absl::uint128)));
-#else
-  for (const absl::uint128 value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<absl::uint128>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
 inline bool WriteBigEndians<int8_t>(absl::Span<const int8_t> data,
                                     Writer& dest) {
   return dest.Write(absl::string_view(
       reinterpret_cast<const char*>(data.data()), data.size()));
 }
 
-template <>
-inline bool WriteBigEndians<int16_t>(absl::Span<const int16_t> data,
-                                     Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(int16_t)));
-#else
-  for (const int16_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<int16_t>(value, dest))) return false;
-  }
+template <typename T>
+inline bool WriteLittleEndian(type_identity_t<T> data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(T)))) return false;
+  dest.move_cursor(sizeof(T));
+  WriteLittleEndian<T>(data, dest.cursor());
   return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<int32_t>(absl::Span<const int32_t> data,
-                                     Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(int32_t)));
-#else
-  for (const int32_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<int32_t>(value, dest))) return false;
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<int64_t>(absl::Span<const int64_t> data,
-                                     Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(int64_t)));
-#else
-  for (const int64_t value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<int64_t>(value, dest))) return false;
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<absl::int128>(absl::Span<const absl::int128> data,
-                                          Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(absl::int128)));
-#else
-  for (const absl::int128 value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<absl::int128>(value, dest))) {
-      return false;
-    }
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<float>(absl::Span<const float> data, Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(absl::string_view(
-      reinterpret_cast<const char*>(data.data()), data.size() * sizeof(float)));
-#else
-  for (const float value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<float>(value, dest))) return false;
-  }
-  return true;
-#endif
-}
-
-template <>
-inline bool WriteBigEndians<double>(absl::Span<const double> data,
-                                    Writer& dest) {
-#if ABSL_IS_BIG_ENDIAN
-  return dest.Write(
-      absl::string_view(reinterpret_cast<const char*>(data.data()),
-                        data.size() * sizeof(double)));
-#else
-  for (const double value : data) {
-    if (ABSL_PREDICT_FALSE(!WriteBigEndian<double>(value, dest))) return false;
-  }
-  return true;
-#endif
 }
 
 template <>
@@ -1072,73 +440,16 @@ inline bool WriteLittleEndian<uint8_t>(uint8_t data, BackwardWriter& dest) {
 }
 
 template <>
-inline bool WriteLittleEndian<uint16_t>(uint16_t data, BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
-  dest.move_cursor(sizeof(uint16_t));
-  WriteLittleEndian<uint16_t>(data, dest.cursor());
-  return true;
-}
-
-template <>
-inline bool WriteLittleEndian<uint32_t>(uint32_t data, BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
-  dest.move_cursor(sizeof(uint32_t));
-  WriteLittleEndian<uint32_t>(data, dest.cursor());
-  return true;
-}
-
-template <>
-inline bool WriteLittleEndian<uint64_t>(uint64_t data, BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
-  dest.move_cursor(sizeof(uint64_t));
-  WriteLittleEndian<uint64_t>(data, dest.cursor());
-  return true;
-}
-
-template <>
-inline bool WriteLittleEndian<absl::uint128>(absl::uint128 data,
-                                             BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(absl::uint128)))) return false;
-  dest.move_cursor(sizeof(absl::uint128));
-  WriteLittleEndian<absl::uint128>(data, dest.cursor());
-  return true;
-}
-
-template <>
 inline bool WriteLittleEndian<int8_t>(int8_t data, BackwardWriter& dest) {
   return dest.WriteByte(static_cast<uint8_t>(data));
 }
 
-template <>
-inline bool WriteLittleEndian<int16_t>(int16_t data, BackwardWriter& dest) {
-  return WriteLittleEndian<uint16_t>(static_cast<uint16_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<int32_t>(int32_t data, BackwardWriter& dest) {
-  return WriteLittleEndian<uint32_t>(static_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<int64_t>(int64_t data, BackwardWriter& dest) {
-  return WriteLittleEndian<uint64_t>(static_cast<uint64_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<absl::int128>(absl::int128 data,
-                                            BackwardWriter& dest) {
-  return WriteLittleEndian<absl::uint128>(static_cast<absl::uint128>(data),
-                                          dest);
-}
-
-template <>
-inline bool WriteLittleEndian<float>(float data, BackwardWriter& dest) {
-  return WriteLittleEndian<uint32_t>(absl::bit_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteLittleEndian<double>(double data, BackwardWriter& dest) {
-  return WriteLittleEndian<uint64_t>(absl::bit_cast<uint64_t>(data), dest);
+template <typename T>
+inline bool WriteBigEndian(type_identity_t<T> data, BackwardWriter& dest) {
+  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(T)))) return false;
+  dest.move_cursor(sizeof(T));
+  WriteBigEndian<T>(data, dest.cursor());
+  return true;
 }
 
 template <>
@@ -1147,72 +458,8 @@ inline bool WriteBigEndian<uint8_t>(uint8_t data, BackwardWriter& dest) {
 }
 
 template <>
-inline bool WriteBigEndian<uint16_t>(uint16_t data, BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint16_t)))) return false;
-  dest.move_cursor(sizeof(uint16_t));
-  WriteBigEndian<uint16_t>(data, dest.cursor());
-  return true;
-}
-
-template <>
-inline bool WriteBigEndian<uint32_t>(uint32_t data, BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint32_t)))) return false;
-  dest.move_cursor(sizeof(uint32_t));
-  WriteBigEndian<uint32_t>(data, dest.cursor());
-  return true;
-}
-
-template <>
-inline bool WriteBigEndian<uint64_t>(uint64_t data, BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(uint64_t)))) return false;
-  dest.move_cursor(sizeof(uint64_t));
-  WriteBigEndian<uint64_t>(data, dest.cursor());
-  return true;
-}
-
-template <>
-inline bool WriteBigEndian<absl::uint128>(absl::uint128 data,
-                                          BackwardWriter& dest) {
-  if (ABSL_PREDICT_FALSE(!dest.Push(sizeof(absl::uint128)))) return false;
-  dest.move_cursor(sizeof(absl::uint128));
-  WriteBigEndian<absl::uint128>(data, dest.cursor());
-  return true;
-}
-
-template <>
 inline bool WriteBigEndian<int8_t>(int8_t data, BackwardWriter& dest) {
   return dest.WriteByte(static_cast<uint8_t>(data));
-}
-
-template <>
-inline bool WriteBigEndian<int16_t>(int16_t data, BackwardWriter& dest) {
-  return WriteBigEndian<uint16_t>(static_cast<uint16_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<int32_t>(int32_t data, BackwardWriter& dest) {
-  return WriteBigEndian<uint32_t>(static_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<int64_t>(int64_t data, BackwardWriter& dest) {
-  return WriteBigEndian<uint64_t>(static_cast<uint64_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<absl::int128>(absl::int128 data,
-                                         BackwardWriter& dest) {
-  return WriteBigEndian<absl::uint128>(static_cast<absl::uint128>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<float>(float data, BackwardWriter& dest) {
-  return WriteBigEndian<uint32_t>(absl::bit_cast<uint32_t>(data), dest);
-}
-
-template <>
-inline bool WriteBigEndian<double>(double data, BackwardWriter& dest) {
-  return WriteBigEndian<uint64_t>(absl::bit_cast<uint64_t>(data), dest);
 }
 
 // Deprecated aliases.
