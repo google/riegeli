@@ -12,6 +12,12 @@ cc_library(
     srcs = ["file_reader.cc"],
     hdrs = ["file_reader.h"],
     deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
@@ -30,13 +36,8 @@ cc_library(
         "//riegeli/bytes:path_ref",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/types:span",
-        "@local_config_tf//:tf_header_lib",
+        # TODO: Riegeli/TensorFlow build is currently broken
+        # in open source because TensorFlow does not support bzlmod yet.
     ],
 )
 
@@ -46,13 +47,18 @@ cc_library(
     hdrs = ["file_writer.h"],
     deps = [
         ":file_reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/strings:cord",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
-        "//riegeli/base:byte_fill",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
         "//riegeli/base:external_ref",
+        "//riegeli/base:byte_fill",
         "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/base:reset",
@@ -63,12 +69,8 @@ cc_library(
         "//riegeli/bytes:path_ref",
         "//riegeli/bytes:reader",
         "//riegeli/bytes:writer",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/strings:string_view",
-        "@local_config_tf//:tf_header_lib",
+        # TODO: Riegeli/TensorFlow build is currently broken
+        # in open source because TensorFlow does not support bzlmod yet.
     ],
 )
 
@@ -82,6 +84,7 @@ cc_library(
         "//riegeli/base:initializer",
         "//riegeli/base:object",
         "//riegeli/bytes:resizable_writer",
-        "@local_config_tf//:tf_header_lib",
+        # TODO: Riegeli/TensorFlow build is currently broken
+        # in open source because TensorFlow does not support bzlmod yet.
     ],
 )

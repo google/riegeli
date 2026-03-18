@@ -46,13 +46,13 @@
 #include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
-#include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/compiler/xla/tsl/platform/env.h"
+#include "tensorflow/compiler/xla/tsl/platform/file_system.h"
 #include "tensorflow/core/public/version.h"
 
 namespace riegeli::tensorflow {
 
-bool FileReaderBase::InitializeFilename(::tensorflow::RandomAccessFile* src) {
+bool FileReaderBase::InitializeFilename(tsl::RandomAccessFile* src) {
   absl::string_view filename;
   if (const absl::Status status = src->Name(&filename);
       ABSL_PREDICT_FALSE(!status.ok())) {
@@ -75,8 +75,8 @@ bool FileReaderBase::InitializeFilename(PathInitializer filename) {
   return true;
 }
 
-std::unique_ptr<::tensorflow::RandomAccessFile> FileReaderBase::OpenFile() {
-  std::unique_ptr<::tensorflow::RandomAccessFile> src;
+std::unique_ptr<tsl::RandomAccessFile> FileReaderBase::OpenFile() {
+  std::unique_ptr<tsl::RandomAccessFile> src;
   if (const absl::Status status =
           file_system_->NewRandomAccessFile(filename_, &src);
       ABSL_PREDICT_FALSE(!status.ok())) {
@@ -142,7 +142,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  ::tensorflow::RandomAccessFile* const src = SrcFile();
+  tsl::RandomAccessFile* const src = SrcFile();
   const size_t available_length = available();
   const size_t buffer_length = buffer_sizer_.BufferLength(
       limit_pos(), min_length - available_length,
@@ -175,8 +175,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 }
 
 inline bool FileReaderBase::ReadToDest(size_t length,
-                                       ::tensorflow::RandomAccessFile* src,
-                                       char* dest) {
+                                       tsl::RandomAccessFile* src, char* dest) {
   if (ABSL_PREDICT_FALSE(limit_pos() >= std::numeric_limits<uint64_t>::max())) {
     return FailOverflow();
   }
@@ -209,7 +208,7 @@ inline bool FileReaderBase::ReadToDest(size_t length,
 }
 
 inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
-                                         ::tensorflow::RandomAccessFile* src,
+                                         tsl::RandomAccessFile* src,
                                          absl::Span<char> flat_buffer) {
   RIEGELI_ASSERT(flat_buffer.data() + flat_buffer.size() ==
                  buffer_.data() + buffer_.size())
@@ -272,7 +271,7 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
     dest += available_length;
     length -= available_length;
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    ::tensorflow::RandomAccessFile* const src = SrcFile();
+    tsl::RandomAccessFile* const src = SrcFile();
     SyncBuffer();
     size_t length_to_read = length;
     if (exact_size() != std::nullopt) {
@@ -294,7 +293,7 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
-  ::tensorflow::RandomAccessFile* const src = SrcFile();
+  tsl::RandomAccessFile* const src = SrcFile();
   bool enough_read = true;
   while (length > available()) {
     const size_t available_length = available();
@@ -361,7 +360,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
-  ::tensorflow::RandomAccessFile* const src = SrcFile();
+  tsl::RandomAccessFile* const src = SrcFile();
   bool enough_read = true;
   while (length > available()) {
     const size_t available_length = available();
@@ -426,7 +425,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
   RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
-  ::tensorflow::RandomAccessFile* const src = SrcFile();
+  tsl::RandomAccessFile* const src = SrcFile();
   bool enough_read = true;
   while (length > available()) {
     const size_t available_length = available();
@@ -519,7 +518,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
 }
 
 inline bool FileReaderBase::CopyUsingPush(Position length,
-                                          ::tensorflow::RandomAccessFile* src,
+                                          tsl::RandomAccessFile* src,
                                           Writer& dest) {
   RIEGELI_ASSERT_GT(length, 0u)
       << "Failed precondition of FileReaderBase::CopyUsingPush(): "
@@ -577,7 +576,7 @@ bool FileReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
     // Read directly to `dest`.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    ::tensorflow::RandomAccessFile* const src = SrcFile();
+    tsl::RandomAccessFile* const src = SrcFile();
     SyncBuffer();
     if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
@@ -602,7 +601,7 @@ bool FileReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
     // Copy directly to `dest`.
     if (ABSL_PREDICT_FALSE(!ok())) return false;
-    ::tensorflow::RandomAccessFile* const src = SrcFile();
+    tsl::RandomAccessFile* const src = SrcFile();
     SyncBuffer();
     if (exact_size() != std::nullopt) {
       if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) return false;
@@ -697,9 +696,9 @@ std::unique_ptr<Reader> FileReaderBase::NewReaderImpl(Position initial_pos) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point.
-  ::tensorflow::RandomAccessFile* const src = SrcFile();
-  std::unique_ptr<FileReader<::tensorflow::RandomAccessFile*>> reader =
-      std::make_unique<FileReader<::tensorflow::RandomAccessFile*>>(
+  tsl::RandomAccessFile* const src = SrcFile();
+  std::unique_ptr<FileReader<tsl::RandomAccessFile*>> reader =
+      std::make_unique<FileReader<tsl::RandomAccessFile*>>(
           src, FileReaderBase::Options()
                    .set_env(env_)
                    .set_initial_pos(initial_pos)

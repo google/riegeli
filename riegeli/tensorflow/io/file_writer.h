@@ -41,8 +41,8 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/writer.h"
-#include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/compiler/xla/tsl/platform/env.h"
+#include "tensorflow/compiler/xla/tsl/platform/file_system.h"
 
 namespace riegeli {
 
@@ -66,17 +66,17 @@ class FileWriterBase : public Writer {
 
     // Overrides the TensorFlow environment.
     //
-    // `nullptr` is interpreted as `::tensorflow::Env::Default()`.
+    // `nullptr` is interpreted as `tsl::Env::Default()`.
     //
     // Default: `nullptr`.
-    Options& set_env(::tensorflow::Env* env) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    Options& set_env(tsl::Env* env) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       env_ = env;
       return *this;
     }
-    Options&& set_env(::tensorflow::Env* env) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    Options&& set_env(tsl::Env* env) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_env(env));
     }
-    ::tensorflow::Env* env() const { return env_; }
+    tsl::Env* env() const { return env_; }
 
     // If `false`, the file will be truncated to empty if it exists.
     //
@@ -97,16 +97,15 @@ class FileWriterBase : public Writer {
     bool append() const { return append_; }
 
    private:
-    ::tensorflow::Env* env_ = nullptr;
+    tsl::Env* env_ = nullptr;
     bool append_ = false;
   };
 
-  // Returns the `::tensorflow::WritableFile` being written to. Unchanged by
+  // Returns the `tsl::WritableFile` being written to. Unchanged by
   // `Close()`.
-  virtual ::tensorflow::WritableFile* DestFile() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
+  virtual tsl::WritableFile* DestFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
-  // Returns the name of the `::tensorflow::WritableFile` being written to.
+  // Returns the name of the `tsl::WritableFile` being written to.
   // Unchanged by `Close()`.
   absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return filename_;
@@ -117,18 +116,18 @@ class FileWriterBase : public Writer {
  protected:
   explicit FileWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  explicit FileWriterBase(BufferOptions buffer_options, ::tensorflow::Env* env);
+  explicit FileWriterBase(BufferOptions buffer_options, tsl::Env* env);
 
   FileWriterBase(FileWriterBase&& that) noexcept;
   FileWriterBase& operator=(FileWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(BufferOptions buffer_options, ::tensorflow::Env* env);
-  void Initialize(::tensorflow::WritableFile* dest);
-  bool InitializeFilename(::tensorflow::WritableFile* dest);
+  void Reset(BufferOptions buffer_options, tsl::Env* env);
+  void Initialize(tsl::WritableFile* dest);
+  bool InitializeFilename(tsl::WritableFile* dest);
   bool InitializeFilename(PathInitializer filename);
-  std::unique_ptr<::tensorflow::WritableFile> OpenFile(bool append);
-  void InitializePos(::tensorflow::WritableFile* dest);
+  std::unique_ptr<tsl::WritableFile> OpenFile(bool append);
+  void InitializePos(tsl::WritableFile* dest);
   ABSL_ATTRIBUTE_COLD bool FailOperation(const absl::Status& status,
                                          absl::string_view operation);
 
@@ -163,46 +162,46 @@ class FileWriterBase : public Writer {
 
   std::string filename_{kDefaultFilename};
   // Invariant: if `is_open()` then `env_ != nullptr`
-  ::tensorflow::Env* env_ = nullptr;
-  ::tensorflow::FileSystem* file_system_ = nullptr;
+  tsl::Env* env_ = nullptr;
+  tsl::FileSystem* file_system_ = nullptr;
   WriteBufferSizer buffer_sizer_;
   // Buffered data to be written.
   SharedBuffer buffer_;
 
-  AssociatedReader<FileReader<std::unique_ptr<::tensorflow::RandomAccessFile>>>
+  AssociatedReader<FileReader<std::unique_ptr<tsl::RandomAccessFile>>>
       associated_reader_;
 };
 
-// A `Writer` which writes to a `::tensorflow::WritableFile`.
+// A `Writer` which writes to a `tsl::WritableFile`.
 //
-// It supports `ReadMode()` if the `::tensorflow::WritableFile` supports
-// `::tensorflow::WritableFile::Name()` and the name is not empty.
+// It supports `ReadMode()` if the `tsl::WritableFile` supports
+// `tsl::WritableFile::Name()` and the name is not empty.
 //
 // The `Dest` template parameter specifies the type of the object providing and
-// possibly owning the `::tensorflow::WritableFile` being written to. `Dest`
-// must support `Dependency<::tensorflow::WritableFile*, Dest>`, e.g.
-// `std::unique_ptr<::tensorflow::WritableFile>` (owned, default),
-// `::tensorflow::WritableFile*` (not owned),
-// `Any<::tensorflow::WritableFile*>` (maybe owned).
+// possibly owning the `tsl::WritableFile` being written to. `Dest`
+// must support `Dependency<tsl::WritableFile*, Dest>`, e.g.
+// `std::unique_ptr<tsl::WritableFile>` (owned, default),
+// `tsl::WritableFile*` (not owned),
+// `Any<tsl::WritableFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
 // type of the first constructor argument.
 //
-// The `::tensorflow::WritableFile` must not be closed until the `FileWriter` is
-// closed or no longer used. Until then the `::tensorflow::WritableFile` may be
+// The `tsl::WritableFile` must not be closed until the `FileWriter` is
+// closed or no longer used. Until then the `tsl::WritableFile` may be
 // accessed, but not concurrently, `Flush()` is needed before switching to
-// another writer to the same `::tensorflow::WritableFile`, and `pos()` does not
+// another writer to the same `tsl::WritableFile`, and `pos()` does not
 // take other writers into account.
-template <typename Dest = std::unique_ptr<::tensorflow::WritableFile>>
+template <typename Dest = std::unique_ptr<tsl::WritableFile>>
 class FileWriter : public FileWriterBase {
  public:
   // Creates a closed `FileWriter`.
   explicit FileWriter(Closed) noexcept : FileWriterBase(kClosed) {}
 
-  // Will write to the `::tensorflow::WritableFile` provided by `dest`.
+  // Will write to the `tsl::WritableFile` provided by `dest`.
   explicit FileWriter(Initializer<Dest> dest, Options options = Options());
 
-  // Opens a `::tensorflow::WritableFile` for writing.
+  // Opens a `tsl::WritableFile` for writing.
   //
   // If opening the file fails, `FileWriter` will be failed and closed.
   explicit FileWriter(PathInitializer filename, Options options = Options());
@@ -219,13 +218,12 @@ class FileWriter : public FileWriterBase {
   void Reset(PathInitializer filename, Options options = Options());
 
   // Returns the object providing and possibly owning the
-  // `::tensorflow::WritableFile` being written to. Unchanged by `Close()`.
+  // `tsl::WritableFile` being written to. Unchanged by `Close()`.
   Dest& dest() ABSL_ATTRIBUTE_LIFETIME_BOUND { return dest_.manager(); }
   const Dest& dest() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return dest_.manager();
   }
-  ::tensorflow::WritableFile* DestFile() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND override {
+  tsl::WritableFile* DestFile() const ABSL_ATTRIBUTE_LIFETIME_BOUND override {
     return dest_.get();
   }
 
@@ -237,24 +235,24 @@ class FileWriter : public FileWriterBase {
   using FileWriterBase::Initialize;
   void Initialize(PathInitializer filename, Options&& options);
 
-  // The object providing and possibly owning the `::tensorflow::WritableFile`
+  // The object providing and possibly owning the `tsl::WritableFile`
   // being written to.
-  Dependency<::tensorflow::WritableFile*, Dest> dest_;
+  Dependency<tsl::WritableFile*, Dest> dest_;
 };
 
 explicit FileWriter(Closed) -> FileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
 explicit FileWriter(Dest&& dest,
                     FileWriterBase::Options options = FileWriterBase::Options())
-    -> FileWriter<std::conditional_t<
-        std::is_convertible_v<Dest&&, PathInitializer>,
-        std::unique_ptr<::tensorflow::WritableFile>, TargetT<Dest>>>;
+    -> FileWriter<
+        std::conditional_t<std::is_convertible_v<Dest&&, PathInitializer>,
+                           std::unique_ptr<tsl::WritableFile>, TargetT<Dest>>>;
 
 // Implementation details follow.
 
 inline FileWriterBase::FileWriterBase(BufferOptions buffer_options,
-                                      ::tensorflow::Env* env)
-    : env_(env != nullptr ? env : ::tensorflow::Env::Default()),
+                                      tsl::Env* env)
+    : env_(env != nullptr ? env : tsl::Env::Default()),
       buffer_sizer_(buffer_options) {}
 
 inline FileWriterBase::FileWriterBase(FileWriterBase&& that) noexcept
@@ -288,17 +286,16 @@ inline void FileWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void FileWriterBase::Reset(BufferOptions buffer_options,
-                                  ::tensorflow::Env* env) {
+inline void FileWriterBase::Reset(BufferOptions buffer_options, tsl::Env* env) {
   Writer::Reset();
   // `filename_` will be set by `InitializeFilename()`.
-  env_ = env != nullptr ? env : ::tensorflow::Env::Default();
+  env_ = env != nullptr ? env : tsl::Env::Default();
   file_system_ = nullptr;
   buffer_sizer_.Reset(buffer_options);
   associated_reader_.Reset();
 }
 
-inline void FileWriterBase::Initialize(::tensorflow::WritableFile* dest) {
+inline void FileWriterBase::Initialize(tsl::WritableFile* dest) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of FileWriter: null WritableFile pointer";
   if (ABSL_PREDICT_FALSE(!InitializeFilename(dest))) return;
@@ -341,7 +338,7 @@ template <typename Dest>
 inline void FileWriter<Dest>::Initialize(PathInitializer filename,
                                          Options&& options) {
   if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
-  std::unique_ptr<::tensorflow::WritableFile> dest = OpenFile(options.append());
+  std::unique_ptr<tsl::WritableFile> dest = OpenFile(options.append());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;
   dest_.Reset(riegeli::Maker(dest.release()));
   InitializePos(dest_.get());

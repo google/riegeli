@@ -44,13 +44,13 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/tensorflow/io/file_reader.h"
-#include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/compiler/xla/tsl/platform/env.h"
+#include "tensorflow/compiler/xla/tsl/platform/file_system.h"
 #include "tensorflow/core/public/version.h"
 
 namespace riegeli::tensorflow {
 
-bool FileWriterBase::InitializeFilename(::tensorflow::WritableFile* dest) {
+bool FileWriterBase::InitializeFilename(tsl::WritableFile* dest) {
   absl::string_view filename;
   if (const absl::Status status = dest->Name(&filename);
       ABSL_PREDICT_FALSE(!status.ok())) {
@@ -73,9 +73,8 @@ bool FileWriterBase::InitializeFilename(PathInitializer filename) {
   return true;
 }
 
-std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
-    bool append) {
-  std::unique_ptr<::tensorflow::WritableFile> dest;
+std::unique_ptr<tsl::WritableFile> FileWriterBase::OpenFile(bool append) {
+  std::unique_ptr<tsl::WritableFile> dest;
   if (const absl::Status status =
           append ? file_system_->NewAppendableFile(filename_, &dest)
                  : file_system_->NewWritableFile(filename_, &dest);
@@ -92,7 +91,7 @@ std::unique_ptr<::tensorflow::WritableFile> FileWriterBase::OpenFile(
   return dest;
 }
 
-void FileWriterBase::InitializePos(::tensorflow::WritableFile* dest) {
+void FileWriterBase::InitializePos(tsl::WritableFile* dest) {
   int64_t file_pos;
   if (const absl::Status status = dest->Tell(&file_pos);
       ABSL_PREDICT_FALSE(!status.ok())) {
@@ -174,7 +173,7 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of FileWriterBase::WriteInternal()";
-  ::tensorflow::WritableFile* const dest = DestFile();
+  tsl::WritableFile* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();
@@ -281,7 +280,7 @@ bool FileWriterBase::WriteInternal(const absl::Cord& src) {
          "nothing to write";
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of FileWriterBase::WriteInternal()";
-  ::tensorflow::WritableFile* const dest = DestFile();
+  tsl::WritableFile* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() >
                          std::numeric_limits<Position>::max() - start_pos())) {
     return FailOverflow();

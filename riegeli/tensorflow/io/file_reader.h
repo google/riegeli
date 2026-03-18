@@ -40,8 +40,8 @@
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/reader.h"
-#include "tensorflow/core/platform/env.h"
-#include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/compiler/xla/tsl/platform/env.h"
+#include "tensorflow/compiler/xla/tsl/platform/file_system.h"
 
 namespace riegeli {
 
@@ -63,17 +63,17 @@ class FileReaderBase : public Reader {
 
     // Overrides the TensorFlow environment.
     //
-    // `nullptr` is interpreted as `::tensorflow::Env::Default()`.
+    // `nullptr` is interpreted as `tsl::Env::Default()`.
     //
     // Default: `nullptr`.
-    Options& set_env(::tensorflow::Env* env) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    Options& set_env(tsl::Env* env) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
       env_ = env;
       return *this;
     }
-    Options&& set_env(::tensorflow::Env* env) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    Options&& set_env(tsl::Env* env) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_env(env));
     }
-    ::tensorflow::Env* env() const { return env_; }
+    tsl::Env* env() const { return env_; }
 
     // Reading will start from this position.
     //
@@ -105,18 +105,18 @@ class FileReaderBase : public Reader {
     bool growing_source() const { return growing_source_; }
 
    private:
-    ::tensorflow::Env* env_ = nullptr;
+    tsl::Env* env_ = nullptr;
     Position initial_pos_ = 0;
     bool growing_source_ = false;
   };
 
-  // Returns the `::tensorflow::RandomAccessFile` being read from. If the
-  // `::tensorflow::RandomAccessFile` is owned then changed to `nullptr` by
+  // Returns the `tsl::RandomAccessFile` being read from. If the
+  // `tsl::RandomAccessFile` is owned then changed to `nullptr` by
   // `Close()`, otherwise unchanged.
-  virtual ::tensorflow::RandomAccessFile* SrcFile() const
+  virtual tsl::RandomAccessFile* SrcFile() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
-  // Returns the name of the `::tensorflow::RandomAccessFile` being read from.
+  // Returns the name of the `tsl::RandomAccessFile` being read from.
   // Unchanged by `Close()`.
   absl::string_view filename() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return filename_;
@@ -134,19 +134,18 @@ class FileReaderBase : public Reader {
  protected:
   explicit FileReaderBase(Closed) noexcept : Reader(kClosed) {}
 
-  explicit FileReaderBase(BufferOptions buffer_options, ::tensorflow::Env* env,
+  explicit FileReaderBase(BufferOptions buffer_options, tsl::Env* env,
                           bool growing_source);
 
   FileReaderBase(FileReaderBase&& that) noexcept;
   FileReaderBase& operator=(FileReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(BufferOptions buffer_options, ::tensorflow::Env* env,
-             bool growing_source);
-  void Initialize(::tensorflow::RandomAccessFile* src, Position initial_pos);
-  bool InitializeFilename(::tensorflow::RandomAccessFile* src);
+  void Reset(BufferOptions buffer_options, tsl::Env* env, bool growing_source);
+  void Initialize(tsl::RandomAccessFile* src, Position initial_pos);
+  bool InitializeFilename(tsl::RandomAccessFile* src);
   bool InitializeFilename(PathInitializer filename);
-  std::unique_ptr<::tensorflow::RandomAccessFile> OpenFile();
+  std::unique_ptr<tsl::RandomAccessFile> OpenFile();
   void InitializePos(Position initial_pos);
 
   void Done() override;
@@ -189,8 +188,7 @@ class FileReaderBase : public Reader {
   // position which is `limit_pos()`, to `dest[]`.
   //
   // Increments `limit_pos()` by the length read. Returns `true` on success.
-  bool ReadToDest(size_t length, ::tensorflow::RandomAccessFile* src,
-                  char* dest);
+  bool ReadToDest(size_t length, tsl::RandomAccessFile* src, char* dest);
 
   // Reads `flat_buffer.size()` bytes from `*src`, from the physical file
   // position which is `limit_pos()`, preferably to `flat_buffer.data()`. Newly
@@ -202,25 +200,24 @@ class FileReaderBase : public Reader {
   // `true` on success.
   //
   // Precondition: `flat_buffer` is a suffix of `buffer_`
-  bool ReadToBuffer(size_t cursor_index, ::tensorflow::RandomAccessFile* src,
+  bool ReadToBuffer(size_t cursor_index, tsl::RandomAccessFile* src,
                     absl::Span<char> flat_buffer);
 
   // Implementation of `CopySlow(Writer&)` in terms of `Writer::Push()` and
   // `ReadToDest()`. Does not use buffer pointers.
   //
   // Precondition: `length > 0`
-  bool CopyUsingPush(Position length, ::tensorflow::RandomAccessFile* src,
-                     Writer& dest);
+  bool CopyUsingPush(Position length, tsl::RandomAccessFile* src, Writer& dest);
 
   std::string filename_{kDefaultFilename};
   // Invariant: if `is_open()` then `env_ != nullptr`
-  ::tensorflow::Env* env_ = nullptr;
-  ::tensorflow::FileSystem* file_system_ = nullptr;
+  tsl::Env* env_ = nullptr;
+  tsl::FileSystem* file_system_ = nullptr;
   bool growing_source_ = false;
   ReadBufferSizer buffer_sizer_;
   // If `buffer_` is not empty, it contains buffered data, read directly before
   // the physical source position which is `limit_pos()`. Otherwise buffered
-  // data are in memory managed by the `::tensorflow::RandomAccessFile`. In any
+  // data are in memory managed by the `tsl::RandomAccessFile`. In any
   // case `start()` points to them.
   SizedSharedBuffer buffer_;
 
@@ -229,34 +226,34 @@ class FileReaderBase : public Reader {
   //   `start_to_limit() == buffer_.size()`
 };
 
-// A `Reader` which reads from a `::tensorflow::RandomAccessFile`.
+// A `Reader` which reads from a `tsl::RandomAccessFile`.
 //
 // It supports random access and `NewReader()` if the
-// `::tensorflow::RandomAccessFile` supports
-// `::tensorflow::RandomAccessFile::Name()` and the name is not empty.
+// `tsl::RandomAccessFile` supports
+// `tsl::RandomAccessFile::Name()` and the name is not empty.
 //
 // The `Src` template parameter specifies the type of the object providing and
-// possibly owning the `::tensorflow::RandomAccessFile` being read from. `Src`
-// must support `Dependency<::tensorflow::RandomAccessFile*, Src>`, e.g.
-// `std::unique_ptr<::tensorflow::RandomAccessFile>` (owned, default),
-// `::tensorflow::RandomAccessFile*` (not owned),
-// `Any<::tensorflow::RandomAccessFile*>` (maybe owned).
+// possibly owning the `tsl::RandomAccessFile` being read from. `Src`
+// must support `Dependency<tsl::RandomAccessFile*, Src>`, e.g.
+// `std::unique_ptr<tsl::RandomAccessFile>` (owned, default),
+// `tsl::RandomAccessFile*` (not owned),
+// `Any<tsl::RandomAccessFile*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as `TargetT` of the
 // type of the first constructor argument.
 //
-// The `::tensorflow::RandomAccessFile` must not be closed until the
+// The `tsl::RandomAccessFile` must not be closed until the
 // `FileReader` is closed or no longer used.
-template <typename Src = std::unique_ptr<::tensorflow::RandomAccessFile>>
+template <typename Src = std::unique_ptr<tsl::RandomAccessFile>>
 class FileReader : public FileReaderBase {
  public:
   // Creates a closed `FileReader`.
   explicit FileReader(Closed) noexcept : FileReaderBase(kClosed) {}
 
-  // Will read from the `::tensorflow::RandomAccessFile` provided by `src`.
+  // Will read from the `tsl::RandomAccessFile` provided by `src`.
   explicit FileReader(Initializer<Src> src, Options options = Options());
 
-  // Opens a `::tensorflow::RandomAccessFile` for reading.
+  // Opens a `tsl::RandomAccessFile` for reading.
   //
   // If opening the file fails, `FileReader` will be failed and closed.
   explicit FileReader(PathInitializer filename, Options options = Options());
@@ -273,14 +270,14 @@ class FileReader : public FileReaderBase {
   void Reset(PathInitializer filename, Options options = Options());
 
   // Returns the object providing and possibly owning the
-  // `::tensorflow::RandomAccessFile` being read from. If the
-  // `::tensorflow::RandomAccessFile` is owned then changed to `nullptr` by
+  // `tsl::RandomAccessFile` being read from. If the
+  // `tsl::RandomAccessFile` is owned then changed to `nullptr` by
   // `Close()`, otherwise unchanged.
   Src& src() ABSL_ATTRIBUTE_LIFETIME_BOUND { return src_.manager(); }
   const Src& src() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return src_.manager();
   }
-  ::tensorflow::RandomAccessFile* SrcFile() const
+  tsl::RandomAccessFile* SrcFile() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND override {
     return src_.get();
   }
@@ -293,8 +290,8 @@ class FileReader : public FileReaderBase {
   void Initialize(PathInitializer filename, Options&& options);
 
   // The object providing and possibly owning the
-  // `::tensorflow::RandomAccessFile` being read from.
-  Dependency<::tensorflow::RandomAccessFile*, Src> src_;
+  // `tsl::RandomAccessFile` being read from.
+  Dependency<tsl::RandomAccessFile*, Src> src_;
 };
 
 explicit FileReader(Closed) -> FileReader<DeleteCtad<Closed>>;
@@ -303,14 +300,13 @@ explicit FileReader(Src&& src,
                     FileReaderBase::Options options = FileReaderBase::Options())
     -> FileReader<std::conditional_t<
         std::is_convertible_v<Src&&, PathInitializer>,
-        std::unique_ptr<::tensorflow::RandomAccessFile>, TargetT<Src>>>;
+        std::unique_ptr<tsl::RandomAccessFile>, TargetT<Src>>>;
 
 // Implementation details follow.
 
 inline FileReaderBase::FileReaderBase(BufferOptions buffer_options,
-                                      ::tensorflow::Env* env,
-                                      bool growing_source)
-    : env_(env != nullptr ? env : ::tensorflow::Env::Default()),
+                                      tsl::Env* env, bool growing_source)
+    : env_(env != nullptr ? env : tsl::Env::Default()),
       growing_source_(growing_source),
       buffer_sizer_(buffer_options) {}
 
@@ -345,18 +341,18 @@ inline void FileReaderBase::Reset(Closed) {
   buffer_ = SizedSharedBuffer();
 }
 
-inline void FileReaderBase::Reset(BufferOptions buffer_options,
-                                  ::tensorflow::Env* env, bool growing_source) {
+inline void FileReaderBase::Reset(BufferOptions buffer_options, tsl::Env* env,
+                                  bool growing_source) {
   Reader::Reset();
   // `filename_` will be set by `InitializeFilename()`.
-  env_ = env != nullptr ? env : ::tensorflow::Env::Default();
+  env_ = env != nullptr ? env : tsl::Env::Default();
   file_system_ = nullptr;
   growing_source_ = growing_source;
   buffer_sizer_.Reset(buffer_options);
   buffer_.Clear();
 }
 
-inline void FileReaderBase::Initialize(::tensorflow::RandomAccessFile* src,
+inline void FileReaderBase::Initialize(tsl::RandomAccessFile* src,
                                        Position initial_pos) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of FileReader: null RandomAccessFile pointer";
@@ -404,7 +400,7 @@ template <typename Src>
 inline void FileReader<Src>::Initialize(PathInitializer filename,
                                         Options&& options) {
   if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
-  std::unique_ptr<::tensorflow::RandomAccessFile> src = OpenFile();
+  std::unique_ptr<tsl::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;
   src_.Reset(riegeli::Maker(src.release()));
   InitializePos(options.initial_pos());
@@ -414,7 +410,7 @@ template <typename Src>
 void FileReader<Src>::Done() {
   FileReaderBase::Done();
   if (src_.IsOwning()) {
-    // The only way to close a `::tensorflow::RandomAccessFile` is to delete it.
+    // The only way to close a `tsl::RandomAccessFile` is to delete it.
     src_.Reset();
   }
 }

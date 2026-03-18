@@ -25,15 +25,15 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/resizable_writer.h"
-#include "tensorflow/core/platform/tstring.h"
+#include "tensorflow/tsl/platform/tstring.h"
 
 namespace riegeli::tensorflow {
 
 namespace tstring_internal {
 
-// `ResizableTraits` for `tensorflow::tstring`.
+// `ResizableTraits` for `tsl::tstring`.
 struct TStringResizableTraits {
-  using Resizable = ::tensorflow::tstring;
+  using Resizable = tsl::tstring;
   static char* Data(Resizable& dest) { return dest.mdata(); }
   static size_t Size(const Resizable& dest) { return dest.size(); }
   static constexpr bool kIsStable = false;
@@ -68,7 +68,7 @@ struct TStringResizableTraits {
     if (new_size > dest.capacity()) {
       dest.resize_uninitialized(used_size);
       dest.reserve(
-          dest.capacity() <= ::tensorflow::tstring().capacity()
+          dest.capacity() <= tsl::tstring().capacity()
               ? new_size
               : UnsignedMax(new_size, dest.capacity() + dest.capacity() / 2));
     }
@@ -80,30 +80,30 @@ struct TStringResizableTraits {
 // Template parameter independent part of `TStringWriter`.
 using TStringWriterBase = ResizableWriterBase;
 
-// A `Writer` which writes to a `tensorflow::tstring`. If `Options::append()`
+// A `Writer` which writes to a `tsl::tstring`. If `Options::append()`
 // is `false` (the default), replaces existing contents of the
-// `tensorflow::tstring`, clearing it first. If `Options::append()` is `true`,
-// appends to existing contents of the `tensorflow::tstring`.
+// `tsl::tstring`, clearing it first. If `Options::append()` is `true`,
+// appends to existing contents of the `tsl::tstring`.
 //
 // It supports `Seek()` and `ReadMode()`.
 //
 // The `Dest` template parameter specifies the type of the object providing and
-// possibly owning the `tensorflow::tstring` being written to. `Dest` must
-// support `Dependency<tensorflow::tstring*, Dest>`, e.g.
-// `tensorflow::tstring*` (not owned,  default), `tensorflow::tstring` (owned),
-// `Any<tensorflow::tstring*>` (maybe owned).
+// possibly owning the `tsl::tstring` being written to. `Dest` must
+// support `Dependency<tsl::tstring*, Dest>`, e.g.
+// `tsl::tstring*` (not owned,  default), `tsl::tstring` (owned),
+// `Any<tsl::tstring*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
-// `tensorflow::tstring` if there are no constructor arguments or the only
+// `tsl::tstring` if there are no constructor arguments or the only
 // argument is `Options`, otherwise as `TargetT` of the type of the first
 // constructor argument, except that CTAD is deleted if the first constructor
-// argument is a `tensorflow::tstring&` or `const tensorflow::tstring&` (to
-// avoid writing to an unintentionally separate copy of an existing object).
+// argument is a `tsl::tstring&` or `const tsl::tstring&` (to avoid writing to
+// an unintentionally separate copy of an existing object).
 //
-// The `tensorflow::tstring` must not be accessed until the `TStringWriter` is
+// The `tsl::tstring` must not be accessed until the `TStringWriter` is
 // closed or no longer used, except that it is allowed to read the
-// `tensorflow::tstring` immediately after `Flush()`.
-template <typename Dest = ::tensorflow::tstring*>
+// `tsl::tstring` immediately after `Flush()`.
+template <typename Dest = tsl::tstring*>
 class TStringWriter
     : public ResizableWriter<tstring_internal::TStringResizableTraits, Dest> {
  public:
@@ -120,11 +120,11 @@ explicit TStringWriter(Dest&& dest, TStringWriterBase::Options options =
     -> TStringWriter<std::conditional_t<
         std::conjunction_v<std::is_lvalue_reference<Dest>,
                            std::is_convertible<std::remove_reference_t<Dest>*,
-                                               const ::tensorflow::tstring*>>,
+                                               const tsl::tstring*>>,
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit TStringWriter(
     TStringWriterBase::Options options = TStringWriterBase::Options())
-    -> TStringWriter<::tensorflow::tstring>;
+    -> TStringWriter<tsl::tstring>;
 
 }  // namespace riegeli::tensorflow
 
