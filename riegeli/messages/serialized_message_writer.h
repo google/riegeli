@@ -18,9 +18,6 @@
 #include <stdint.h>
 
 #include <limits>
-#include <optional>
-#include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -31,7 +28,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
@@ -348,100 +344,6 @@ class SerializedMessageWriter {
 
   // Invariant:
   //   `writer_ == (submessages_.empty() ? dest_ : &submessages_.back())`
-};
-
-// A field handler for `SerializedMessageReader` which copies any field to a
-// `SerializedMessageWriter`.
-//
-// It is meant to be used as the last field handler, so that remaining fields
-// not handled by previous field handlers will be copied unchanged.
-//
-// `Context` types must contain exactly one occurrence of
-// `SerializedMessageWriter`.
-template <typename... Context>
-class CopyingFieldHandler {
- public:
-  // This is `kDynamicFieldNumber` from `serialized_message_reader.h`.
-  // Avoid adding a dependency just for that.
-  static constexpr int kFieldNumber = -1;
-
-  CopyingFieldHandler() = default;
-
-  CopyingFieldHandler(const CopyingFieldHandler&) = default;
-  CopyingFieldHandler& operator=(const CopyingFieldHandler&) = default;
-
-  std::optional<int> AcceptVarint(int field_number) const {
-    return field_number;
-  }
-
-  absl::Status DynamicHandleVarint(int field_number, uint64_t repr,
-                                   Context&... context) const {
-    return message_writer(context...).WriteUInt64(field_number, repr);
-  }
-
-  std::optional<int> AcceptFixed32(int field_number) const {
-    return field_number;
-  }
-
-  absl::Status DynamicHandleFixed32(int field_number, uint32_t repr,
-                                    Context&... context) const {
-    return message_writer(context...).WriteFixed32(field_number, repr);
-  }
-
-  std::optional<int> AcceptFixed64(int field_number) const {
-    return field_number;
-  }
-
-  absl::Status DynamicHandleFixed64(int field_number, uint64_t repr,
-                                    Context&... context) const {
-    return message_writer(context...).WriteFixed64(field_number, repr);
-  }
-
-  std::optional<int> AcceptLengthDelimited(int field_number) const {
-    return field_number;
-  }
-
-  absl::Status DynamicHandleLengthDelimitedFromReader(
-      int field_number, ReaderSpan<> repr, Context&... context) const {
-    return message_writer(context...)
-        .WriteString(field_number, std::move(repr));
-  }
-
-  absl::Status DynamicHandleLengthDelimitedFromCord(
-      int field_number, CordIteratorSpan repr,
-      ABSL_ATTRIBUTE_UNUSED std::string& scratch, Context&... context) const {
-    return message_writer(context...)
-        .WriteString(field_number, std::move(repr));
-  }
-
-  absl::Status DynamicHandleLengthDelimitedFromString(
-      int field_number, absl::string_view repr, Context&... context) const {
-    return message_writer(context...).WriteString(field_number, repr);
-  }
-
-  std::optional<int> AcceptStartGroup(int field_number) const {
-    return field_number;
-  }
-
-  absl::Status DynamicHandleStartGroup(int field_number,
-                                       Context&... context) const {
-    return message_writer(context...).OpenGroup(field_number);
-  }
-
-  std::optional<int> AcceptEndGroup(int field_number) const {
-    return field_number;
-  }
-
-  absl::Status DynamicHandleEndGroup(int field_number,
-                                     Context&... context) const {
-    return message_writer(context...).CloseGroup(field_number);
-  }
-
- private:
-  static SerializedMessageWriter& message_writer(Context&... context) {
-    return std::get<SerializedMessageWriter&>(
-        std::tuple<Context&...>(context...));
-  }
 };
 
 // Implementation details follow.

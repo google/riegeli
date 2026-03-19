@@ -43,6 +43,47 @@ constexpr uint32_t MakeTag(int field_number, WireType wire_type);
 constexpr WireType GetTagWireType(uint32_t tag);
 constexpr int GetTagFieldNumber(uint32_t tag);
 
+// Represents a set of wire types.
+
+enum class WireTypeSet : uint32_t {
+  kVarint = 1 << static_cast<uint32_t>(WireType::kVarint),
+  kFixed32 = 1 << static_cast<uint32_t>(WireType::kFixed32),
+  kFixed64 = 1 << static_cast<uint32_t>(WireType::kFixed64),
+  kLengthDelimited = 1 << static_cast<uint32_t>(WireType::kLengthDelimited),
+  kStartGroup = 1 << static_cast<uint32_t>(WireType::kStartGroup),
+  kEndGroup = 1 << static_cast<uint32_t>(WireType::kEndGroup),
+  kInvalid6 = 1 << static_cast<uint32_t>(WireType::kInvalid6),
+  kInvalid7 = 1 << static_cast<uint32_t>(WireType::kInvalid7),
+};
+
+constexpr WireTypeSet operator|(WireTypeSet a, WireTypeSet b) {
+  return WireTypeSet{static_cast<uint32_t>(a) | static_cast<uint32_t>(b)};
+}
+
+constexpr WireTypeSet operator^(WireTypeSet a, WireTypeSet b) {
+  return WireTypeSet{static_cast<uint32_t>(a) ^ static_cast<uint32_t>(b)};
+}
+
+constexpr WireTypeSet operator&(WireTypeSet a, WireTypeSet b) {
+  return WireTypeSet{static_cast<uint32_t>(a) & static_cast<uint32_t>(b)};
+}
+
+template <WireType... wire_types>
+constexpr WireTypeSet WireTypeSetOf() {
+  return (WireTypeSet{0} | ... |
+          WireTypeSet{uint32_t{1} << static_cast<uint32_t>(wire_types)});
+}
+
+constexpr WireTypeSet NoWireTypes = WireTypeSetOf<>();
+
+constexpr WireTypeSet AllWireTypes =
+    WireTypeSetOf<WireType::kVarint, WireType::kFixed32, WireType::kFixed64,
+                  WireType::kLengthDelimited, WireType::kStartGroup,
+                  WireType::kEndGroup, WireType::kInvalid6,
+                  WireType::kInvalid7>();
+
+constexpr WireTypeSet operator~(WireTypeSet a) { return AllWireTypes ^ a; }
+
 // Implementation details follow.
 
 constexpr uint32_t MakeTag(int field_number, WireType wire_type) {

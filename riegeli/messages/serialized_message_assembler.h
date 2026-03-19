@@ -43,6 +43,7 @@
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/bytes/writer.h"
+#include "riegeli/messages/field_copier.h"
 #include "riegeli/messages/field_handler_map.h"
 #include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_writer.h"
@@ -201,12 +202,6 @@ class SerializedMessageAssembler {
       const absl::Span<bool>,
       // The destination message writer.
       SerializedMessageWriter>;
-
-  // Copies unhandled fields.
-  using CopyingHandler =
-      CopyingFieldHandler<const absl::Span<FieldValues>,
-                          const absl::Span<const bool>, const absl::Span<bool>,
-                          SerializedMessageWriter>;
 
   // During registration, maintains information about a field or root.
   struct RegisteredFieldBuilder {
@@ -561,7 +556,7 @@ absl::Status SerializedMessageAssembler::RewriteFields(
           SerializedMessageReader<
               const absl::Span<FieldValues>, const absl::Span<const bool>,
               const absl::Span<bool>, SerializedMessageWriter>(
-              std::cref(message.handlers), CopyingHandler())
+              std::cref(message.handlers), AnyFieldCopier())
               .ReadMessage(
                   std::forward<Src>(src), fields_to_add, fields_to_remove,
                   absl::MakeSpan(submessages_rewritten), message_writer);

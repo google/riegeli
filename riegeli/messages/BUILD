@@ -223,6 +223,22 @@ cc_library(
 )
 
 cc_library(
+    name = "field_copier",
+    hdrs = ["field_copier.h"],
+    deps = [
+        ":message_wire_format",
+        ":serialized_message_reader",
+        ":serialized_message_writer",
+        "//riegeli/base:cord_iterator_span",
+        "//riegeli/bytes:limiting_reader",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_library(
     name = "serialized_message_writer",
     srcs = ["serialized_message_writer.cc"],
     hdrs = ["serialized_message_writer.h"],
@@ -289,6 +305,7 @@ cc_library(
     srcs = ["serialized_message_assembler.cc"],
     hdrs = ["serialized_message_assembler.h"],
     deps = [
+        ":field_copier",
         ":field_handler_map",
         ":serialized_message_reader",
         ":serialized_message_writer",

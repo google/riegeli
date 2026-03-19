@@ -110,7 +110,7 @@ namespace riegeli {
 // in namespace `riegeli::field_handlers`.
 //
 // The primary dynamic field handlers are `DynamicFieldHandler`,
-// `FieldHandlerMap`, and `CopyingFieldHandler`.
+// `FieldHandlerMap`, `DynamicFieldCopier`, and `AnyFieldCopier`.
 //
 // All field handlers stored in a single `SerializedMessageReader` are usually
 // conceptually associated with a single message type.

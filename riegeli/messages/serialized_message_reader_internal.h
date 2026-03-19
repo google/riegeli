@@ -578,14 +578,7 @@ struct IsUnboundFieldHandlerFromString
               IsStaticFieldHandlerForFixed64<T, Context...>,
               IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
               IsStaticFieldHandlerForStartGroup<T, Context...>,
-              IsStaticFieldHandlerForEndGroup<T, Context...>>,
-          std::disjunction<
-              IsStaticFieldHandlerForLengthDelimitedFromString<T, Context...>,
-              std::negation<std::disjunction<
-                  IsStaticFieldHandlerForLengthDelimitedFromReader<T,
-                                                                   Context...>,
-                  IsStaticFieldHandlerForLengthDelimitedFromCord<
-                      T, Context...>>>>> {};
+              IsStaticFieldHandlerForEndGroup<T, Context...>>> {};
 
 template <typename T, typename... Context>
 struct IsUnboundFieldHandler
