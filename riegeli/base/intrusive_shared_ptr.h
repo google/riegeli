@@ -80,13 +80,14 @@ struct HasGetCount<T,
 //   bool HasUniqueOwner() const;
 // ```
 //
-// `IntrusiveSharedPtr` has a smaller overhead than `std::shared_ptr` (the
-// pointer has 1 word instead of 2, the object typically has 1 word of overhead
-// instead of 3), but requires cooperation from `T`, and has fewer features
-// (e.g. no weak pointers).
+// Compared to `std::shared_ptr`, `IntrusiveSharedPtr` supports `IsUnique()`,
+// and has a smaller memory overhead (the pointer has 1 word instead of 2, the
+// object typically has 1 word of overhead instead of 3). OTOH it requires
+// cooperation from `T`, and has fewer features, e.g. no aliasing constructor,
+// no weak pointers.
 //
-// `SharedPtr` is easier to use than `IntrusiveSharedPtr` because `SharedPtr`
-// does not require the object to maintain its own reference count, but
+// Compared to `SharedPtr`, `IntrusiveSharedPtr` is harder to use, because
+// it requires the object to maintain its own reference count. OTOH
 // `IntrusiveSharedPtr` supports custom allocation and deallocation, and
 // conversion to an `IntrusiveSharedPtr` to a non-leftmost or virtual base
 // class. Prefer `SharedPtr` unless `IntrusiveSharedPtr` is needed.

@@ -51,7 +51,8 @@ class RefCount {
   // When `Unref()` returns `true`, the decrement can be skipped and the actual
   // value of the reference count is unspecified. This avoids an expensive
   // atomic read-modify-write operation, making the last `Unref()` much faster,
-  // at the cost of making a non-last `Unref()` a bit slower.
+  // at the cost of making a non-last `Unref()` a bit slower. This is in
+  // contrast to `std::shared_ptr` in libc++ and libstdc++.
   template <typename Ownership = PassOwnership,
             std::enable_if_t<IsOwnership<Ownership>::value, int> = 0>
   bool Unref() const {

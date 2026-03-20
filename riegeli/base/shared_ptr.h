@@ -42,15 +42,17 @@ namespace riegeli {
 // destructor and is a leftmost non-virtual base class. Otherwise the object
 // must have the same type as `T`, except for possibly different cv-qualifiers.
 //
-// `SharedPtr` has a smaller overhead than `std::shared_ptr` (the pointer has 1
-// word instead of 2, the allocated header before the object has 1 word if `T`
-// does not have a virtual destructor, and 2 words if `T` does have a virtual
-// destructor, instead of 3 words in either case), but has fewer features
-// (e.g. no custom allocation or deletion, the leftmost non-virtual base class
-// restriction, no weak pointers).
+// Compared to `std::shared_ptr`, `SharedPtr` supports `IsUnique()`, and has a
+// smaller memory overhead (the pointer has 1 word instead of 2, the allocated
+// header before the object has 1 word if `T` does not have a virtual destructor
+// and 2 words otherwise, instead of 3 words in either case). Also, the last
+// decrement of the reference count is faster than for `std::shared_ptr` in
+// libc++ and libstdc++. OTOH `SharedPtr` has fewer features, e.g. no custom
+// allocation or deletion, no aliasing constructor, no weak pointers, and it has
+// the leftmost non-virtual base class restriction.
 //
-// `SharedPtr` is easier to use than `IntrusiveSharedPtr` because `SharedPtr`
-// does not require the object to maintain its own reference count, but
+// Compared to `IntrusiveSharedPtr`, `SharedPtr` is easier to use, because
+// it does not require the object to maintain its own reference count. OTOH
 // `IntrusiveSharedPtr` supports custom allocation and deallocation, and
 // conversion to an `IntrusiveSharedPtr` to a non-leftmost or virtual base
 // class. Prefer `SharedPtr` unless `IntrusiveSharedPtr` is needed.
