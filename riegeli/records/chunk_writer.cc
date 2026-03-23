@@ -162,10 +162,6 @@ inline bool DefaultChunkWriterBase::WritePadding(Position chunk_begin,
   return true;
 }
 
-bool DefaultChunkWriterBase::PadToBlockBoundary() {
-  return WritePadding(records_internal::kBlockSize);
-}
-
 bool DefaultChunkWriterBase::WritePadding(Position padding) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const Position pos_after_pad =

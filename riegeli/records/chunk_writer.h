@@ -58,14 +58,6 @@ class ChunkWriter : public Object {
   //  * `false` - failure (`!ok()`)
   virtual bool WriteChunk(const Chunk& chunk) = 0;
 
-  // Writes padding to reach a 64KB block boundary.
-  //
-  // Return values:
-  //  * `true`  - success (`ok()`)
-  //  * `false` - failure (`!ok()`)
-  ABSL_DEPRECATED("Use `WritePadding()` instead.")
-  virtual bool PadToBlockBoundary() = 0;
-
   // Writes padding to reach a position which is a multiple of `padding`.
   //
   // Return values:
@@ -158,7 +150,6 @@ class DefaultChunkWriterBase : public ChunkWriter {
   virtual Writer* DestWriter() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
   bool WriteChunk(const Chunk& chunk) override;
-  bool PadToBlockBoundary() override;
   bool WritePadding(Position padding) override;
 
  protected:
