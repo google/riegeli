@@ -899,6 +899,7 @@ cc_library(
     hdrs = ["vector_writer.h"],
     deps = [
         ":resizable_writer",
+        "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:object",
