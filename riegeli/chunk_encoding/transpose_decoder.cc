@@ -555,8 +555,10 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         absl::InvalidArgumentError("Reading state machine size failed")));
   }
   // Additional `0xff` nodes to correctly handle invalid/malicious inputs.
-  // TODO: Handle overflow.
-  context.state_machine_nodes.resize(state_machine_size + 0xff);
+  // Cast to `size_t` before addition to prevent `uint32_t` wraparound when
+  // `state_machine_size` is near UINT32_MAX.
+  context.state_machine_nodes.resize(static_cast<size_t>(state_machine_size) +
+                                     0xff);
   if (projection_enabled) context.node_templates.resize(state_machine_size);
   std::vector<StateMachineNode>& state_machine_nodes =
       context.state_machine_nodes;
