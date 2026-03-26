@@ -51,6 +51,7 @@ class HybridDirectMapImpl {
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
 
+  Value* absl_nullable Find(Key key);
   const Value* absl_nullable Find(Key key) const;
 
  protected:
@@ -72,7 +73,7 @@ class HybridDirectMapImpl {
   static_assert(std::is_unsigned_v<RawKey>);
 
   using DirectValues = SizedArray<DelayedConstructor<Value>>;
-  using DirectMap = SizedArray<const Value* absl_nullable>;
+  using DirectMap = SizedArray<Value* absl_nullable>;
   using SlowMap = absl::flat_hash_map<RawKey, Value>;
 
   static constexpr int kInverseMinLoadFactor = 4;  // 25%.
@@ -85,8 +86,8 @@ class HybridDirectMapImpl {
                 size_t direct_capacity);
 
   absl_nullable DirectValues CopyDirectValues() const;
-  absl_nullable DirectMap CopyDirectMap(
-      const DelayedConstructor<Value>* absl_nullable dest_values) const;
+  absl_nullable DirectMap
+  CopyDirectMap(DelayedConstructor<Value>* absl_nullable dest_values) const;
   absl_nullable std::unique_ptr<SlowMap> CopySlowMap() const;
 
   // Stores values for `direct_map_`, in no particular order.
@@ -397,8 +398,8 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     RIEGELI_ASSUME_EQ(direct_values_, nullptr) << "Initialization";
     direct_values_ = MakeSizedArray<DelayedConstructor<Value>>(size);
     RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
-    direct_map_ = MakeSizedArray<const Value* absl_nullable>(
-        IntCast<size_t>(max_raw_key) + 1);
+    direct_map_ =
+        MakeSizedArray<Value* absl_nullable>(IntCast<size_t>(max_raw_key) + 1);
     direct_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
       const RawKey raw_key =
@@ -430,8 +431,7 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
           MakeSizedArray<DelayedConstructor<Value>>(num_direct_values);
     }
     RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
-    direct_map_ =
-        MakeSizedArray<const Value* absl_nullable>(max_num_direct_keys);
+    direct_map_ = MakeSizedArray<Value* absl_nullable>(max_num_direct_keys);
     RIEGELI_ASSUME_EQ(slow_map_, nullptr) << "Initialization";
     slow_map_ = std::make_unique<SlowMap>();
     slow_map_->reserve(size - num_direct_values);
@@ -498,23 +498,23 @@ auto HybridDirectMapImpl<Key, Value, Traits>::CopyDirectValues() const ->
 
 template <typename Key, typename Value, typename Traits>
 auto HybridDirectMapImpl<Key, Value, Traits>::CopyDirectMap(
-    const DelayedConstructor<Value>* absl_nullable dest_values) const ->
+    DelayedConstructor<Value>* absl_nullable dest_values) const ->
     absl_nullable DirectMap {
   if (direct_map_ == nullptr) return nullptr;
-  const DelayedConstructor<Value>* const absl_nullable src_values =
+  DelayedConstructor<Value>* const absl_nullable src_values =
       direct_values_.get();
-  DirectMap dest_ptr = MakeSizedArray<const Value* absl_nullable>(
-      direct_map_.get_deleter().size());
-  const Value* absl_nullable* src_iter = direct_map_.get();
-  const Value* absl_nullable* const end =
+  DirectMap dest_ptr =
+      MakeSizedArray<Value* absl_nullable>(direct_map_.get_deleter().size());
+  Value* absl_nullable* src_iter = direct_map_.get();
+  Value* absl_nullable* const end =
       dest_ptr.get() + dest_ptr.get_deleter().size();
-  for (const Value* absl_nullable* dest_iter = dest_ptr.get(); dest_iter != end;
+  for (Value* absl_nullable* dest_iter = dest_ptr.get(); dest_iter != end;
        ++dest_iter) {
     if (*src_iter != nullptr) {
-      *dest_iter = reinterpret_cast<const Value*>(
-          reinterpret_cast<const char*>(dest_values) +
-          ((reinterpret_cast<const char*>(*src_iter) -
-            reinterpret_cast<const char*>(src_values))));
+      *dest_iter =
+          reinterpret_cast<Value*>(reinterpret_cast<char*>(dest_values) +
+                                   ((reinterpret_cast<char*>(*src_iter) -
+                                     reinterpret_cast<char*>(src_values))));
     }
     ++src_iter;
   }
@@ -526,6 +526,12 @@ auto HybridDirectMapImpl<Key, Value, Traits>::CopySlowMap() const ->
     absl_nullable std::unique_ptr<SlowMap> {
   if (slow_map_ == nullptr) return nullptr;
   return std::make_unique<SlowMap>(*slow_map_);
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_ALWAYS_INLINE Value* absl_nullable
+HybridDirectMapImpl<Key, Value, Traits>::Find(Key key) {
+  return const_cast<Value*>(std::as_const(*this).Find(key));
 }
 
 template <typename Key, typename Value, typename Traits>
