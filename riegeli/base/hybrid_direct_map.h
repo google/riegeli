@@ -609,13 +609,13 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     //
     // There is no need for `direct_map_` to cover raw keys larger than
     // `max_raw_key` because their lookup is fast if `slow_map_` is `nullptr`.
-    RIEGELI_ASSUME_EQ(direct_values_, nullptr) << "Initialization";
-    direct_values_ =
+    hybrid_direct_internal::AssignToAssumedNull(
+        direct_values_,
         MakeSizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>(
-            size);
-    RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
-    direct_map_ =
-        MakeSizedArray<Value* absl_nullable>(IntCast<size_t>(max_raw_key) + 1);
+            size));
+    hybrid_direct_internal::AssignToAssumedNull(
+        direct_map_,
+        MakeSizedArray<Value* absl_nullable>(IntCast<size_t>(max_raw_key) + 1));
     direct_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
       const RawKey raw_key =
@@ -639,16 +639,16 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     }
     RIEGELI_ASSERT_LT(num_direct_values, size)
         << "Some keys should have been too large for direct_map_";
-    RIEGELI_ASSUME_EQ(direct_values_, nullptr) << "Initialization";
     if (num_direct_values > 0) {
-      direct_values_ =
+      hybrid_direct_internal::AssignToAssumedNull(
+          direct_values_,
           MakeSizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>(
-              num_direct_values);
+              num_direct_values));
     }
-    RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
-    direct_map_ = MakeSizedArray<Value* absl_nullable>(max_num_direct_keys);
-    RIEGELI_ASSUME_EQ(slow_map_, nullptr) << "Initialization";
-    slow_map_ = std::make_unique<SlowMap>();
+    hybrid_direct_internal::AssignToAssumedNull(
+        direct_map_, MakeSizedArray<Value* absl_nullable>(max_num_direct_keys));
+    hybrid_direct_internal::AssignToAssumedNull(slow_map_,
+                                                std::make_unique<SlowMap>());
     slow_map_->reserve(size - num_direct_values);
     direct_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {

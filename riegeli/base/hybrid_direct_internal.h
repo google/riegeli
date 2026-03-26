@@ -199,6 +199,21 @@ inline SizedArray<T, supports_abandon> MakeSizedArray(size_t size) {
       ptr, SizedDeleter<T, supports_abandon>(size));
 }
 
+// Performs an assignment, but the behavior is undefined if the old value of the
+// destination is not null. This allows the compiler skip generating the code
+// which deletes the old value.
+//
+// This is meant for initializing member variables of smart pointer types in
+// functions where the compiler cannot determine itself that the old value is
+// always null.
+template <typename Dest, typename Src>
+inline void AssignToAssumedNull(Dest& dest, Src&& src) {
+  RIEGELI_ASSUME_EQ(dest, nullptr)
+      << "Failed precondition of AssignToAssumedNull(): "
+         "old value of destination is not null";
+  dest = std::forward<Src>(src);
+}
+
 }  // namespace riegeli::hybrid_direct_internal
 
 #endif  // RIEGELI_BASE_HYBRID_DIRECT_INTERNAL_H_
