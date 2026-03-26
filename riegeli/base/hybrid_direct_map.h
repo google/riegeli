@@ -21,6 +21,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -30,6 +31,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
+#include "riegeli/base/debug.h"
 #include "riegeli/base/hybrid_direct_common.h"  // IWYU pragma: export
 #include "riegeli/base/hybrid_direct_internal.h"
 #include "riegeli/base/iterable.h"
@@ -46,13 +49,63 @@ namespace hybrid_direct_internal {
 // conditionally.
 template <typename Key, typename Value, typename Traits>
 class HybridDirectMapImpl {
+ private:
+  template <bool is_const>
+  class IteratorImpl;
+
  public:
+  using key_type = Key;
+  using mapped_type = Value;
+  using value_type = std::pair<const Key, Value>;
+  using reference = ReferencePair<const Key, Value&>;
+  using const_reference = ReferencePair<const Key, const Value&>;
+  using pointer = ArrowProxy<reference>;
+  using const_pointer = ArrowProxy<const_reference>;
+  using iterator = IteratorImpl<false>;
+  using const_iterator = IteratorImpl<true>;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+
   static size_t max_size();
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
 
-  Value* absl_nullable Find(Key key);
-  const Value* absl_nullable Find(Key key) const;
+  // Returns a pointer to the value associated with `key`, or `nullptr` if `key`
+  // is absent.
+  //
+  // This can be a bit faster than `find()`.
+  Value* absl_nullable FindOrNull(Key key) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const Value* absl_nullable FindOrNull(Key key) const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  // Returns a reference to the value associated with `key`, or a reference to
+  // `default_value` if `key` is absent.
+  const Value& FindOrDefault(
+      Key key, const Value& default_value ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  iterator find(Key key) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator find(Key key) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  bool contains(Key key) const;
+
+  Value& at(Key key) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const Value& at(Key key) const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  bool empty() const {
+    return direct_values_.get_deleter().size() == 0 &&
+           ABSL_PREDICT_TRUE(slow_map_ == nullptr);
+  }
+  size_t size() const;
+
+  iterator begin() ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator begin() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator cbegin() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return begin();
+  }
+  iterator end() ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  const_iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return end(); }
 
  protected:
   HybridDirectMapImpl() = default;
@@ -67,6 +120,8 @@ class HybridDirectMapImpl {
   void Initialize(Src&& src, const KeyProjection& key_projection,
                   const ValueProjection& value_projection,
                   size_t direct_capacity);
+
+  static bool Equal(const HybridDirectMapImpl& a, const HybridDirectMapImpl& b);
 
  private:
   using RawKey = std::decay_t<decltype(Traits::ToRawKey(std::declval<Key>()))>;
@@ -90,6 +145,15 @@ class HybridDirectMapImpl {
   CopyDirectMap(DelayedConstructor<Value>* absl_nullable dest_values) const;
   absl_nullable std::unique_ptr<SlowMap> CopySlowMap() const;
 
+  ABSL_ATTRIBUTE_NORETURN static void KeyNotFound(Key key);
+
+  size_t FirstRawKey() const;
+
+  size_t capacity() const {
+    return direct_map_.get_deleter().size() +
+           (slow_map_ == nullptr ? 0 : slow_map_->capacity());
+  }
+
   // Stores values for `direct_map_`, in no particular order.
   absl_nullable DirectValues direct_values_;
   // Indexed by raw key below `direct_map_.get_deleter().size()`. Elements
@@ -106,19 +170,25 @@ class HybridDirectMapImpl {
 
 }  // namespace hybrid_direct_internal
 
-// `HybridDirectMap` is a map optimized for keys being small integers.
-// It supports only lookups, but no incremental building nor iteration.
+// `HybridDirectMap` is a map optimized for keys being mostly small integers,
+// especially dense near zero. It supports only lookups and iteration, but no
+// incremental modification.
 //
 // It stores a part of the map covering some range of small keys in an array.
 // The remaining keys are stored in an `absl::flat_hash_map`.
 //
 // `Traits` specifies a mapping of keys to an unsigned integer type. It must
-// support at least the following static member:
+// support at least the following static members:
 //
 // ```
 //   // Translates the key to a raw key, which is an unsigned integer type.
 //   // Small raw keys are put in the array.
 //   static RawKey ToRawKey(Key key);
+//
+//   // Translates the raw key back to a key.
+//   //
+//   // This is optional. Needed only for iterators.
+//   static Key FromRawKey(RawKey raw_key);
 // ```
 //
 // `direct_capacity`, if specified during building, is the intended capacity
@@ -132,7 +202,8 @@ class HybridDirectMap
       private ConditionallyConstructible<std::is_copy_constructible_v<Value>,
                                          true>,
       private ConditionallyAssignable<std::is_copy_constructible_v<Value>,
-                                      true> {
+                                      true>,
+      public WithEqual<HybridDirectMap<Key, Value, Traits>> {
  private:
   template <typename Src, typename Enable = void>
   struct HasCompatibleKeys : std::false_type {};
@@ -313,7 +384,146 @@ class HybridDirectMap
     this->Initialize(std::forward<Src>(src), key_projection, value_projection,
                      direct_capacity);
   }
+
+  friend bool operator==(const HybridDirectMap& a, const HybridDirectMap& b) {
+    return HybridDirectMap::HybridDirectMapImpl::Equal(a, b);
+  }
 };
+
+namespace hybrid_direct_internal {
+
+template <typename Key, typename Value, typename Traits>
+template <bool is_const>
+class HybridDirectMapImpl<Key, Value, Traits>::IteratorImpl
+    : public WithEqual<IteratorImpl<is_const>> {
+ public:
+  using iterator_concept = std::forward_iterator_tag;
+  // `iterator_category` is only `std::input_iterator_tag` because the
+  // `LegacyForwardIterator` requirement and above require `reference` to be
+  // a true reference type.
+  using iterator_category = std::input_iterator_tag;
+  using value_type = std::pair<const Key, Value>;
+  using reference =
+      ReferencePair<const Key,
+                    std::conditional_t<is_const, const Value&, Value&>>;
+  using pointer = ArrowProxy<reference>;
+  using difference_type = ptrdiff_t;
+
+  IteratorImpl() = default;
+
+  // Conversion from `iterator` to `const_iterator`.
+  template <bool that_is_const,
+            std::enable_if_t<is_const && !that_is_const, int> = 0>
+  /*implicit*/ IteratorImpl(IteratorImpl<that_is_const> that) noexcept
+      : direct_map_end_(that.direct_map_end_),
+        direct_map_size_(that.direct_map_size_),
+        raw_key_complement_(that.raw_key_complement_),
+        slow_map_iter_(that.slow_map_iter_) {}
+
+  IteratorImpl(const IteratorImpl& that) = default;
+  IteratorImpl& operator=(const IteratorImpl& that) = default;
+
+  reference operator*() const {
+    if (ABSL_PREDICT_TRUE(raw_key_complement_ > 0)) {
+      return reference{Traits::FromRawKey(IntCast<RawKey>(direct_map_size_ -
+                                                          raw_key_complement_)),
+                       **(direct_map_end_ - raw_key_complement_)};
+    }
+    const auto iter = *slow_map_iter_;
+    return reference{Traits::FromRawKey(iter->first), iter->second};
+  }
+  pointer operator->() const { return pointer(**this); }
+  IteratorImpl& operator++() {
+    if (ABSL_PREDICT_TRUE(raw_key_complement_ > 0)) {
+      do {
+        --raw_key_complement_;
+        if (ABSL_PREDICT_FALSE(raw_key_complement_ == 0)) break;
+      } while (*(direct_map_end_ - raw_key_complement_) == nullptr);
+    } else {
+      ++*slow_map_iter_;
+    }
+    return *this;
+  }
+  IteratorImpl operator++(int) {
+    IteratorImpl result = *this;
+    ++*this;
+    return result;
+  }
+
+  template <bool that_is_const>
+  friend bool operator==(IteratorImpl a, IteratorImpl<that_is_const> b) {
+    RIEGELI_ASSERT_EQ(a.direct_map_end_, b.direct_map_end_)
+        << "Failed precondition of operator==(HybridDirectMap::iterator): "
+           "incomparable iterators";
+    RIEGELI_ASSERT_EQ(a.direct_map_size_, b.direct_map_size_)
+        << "Failed precondition of operator==(HybridDirectMap::iterator): "
+           "incomparable iterators";
+    RIEGELI_ASSERT_EQ(a.slow_map_iter_ != std::nullopt,
+                      b.slow_map_iter_ != std::nullopt)
+        << "Failed precondition of operator==(HybridDirectMap::iterator): "
+           "incomparable iterators";
+    if (a.raw_key_complement_ != b.raw_key_complement_) return false;
+    if (ABSL_PREDICT_TRUE(a.slow_map_iter_ == std::nullopt)) return true;
+    return *a.slow_map_iter_ == *b.slow_map_iter_;
+  }
+
+ private:
+  friend class HybridDirectMapImpl;
+
+  explicit IteratorImpl(std::conditional_t<is_const, const HybridDirectMapImpl*,
+                                           HybridDirectMapImpl*>
+                            map ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                        size_t raw_key_complement)
+      : direct_map_end_(map->direct_map_.get() +
+                        map->direct_map_.get_deleter().size()),
+        direct_map_size_(map->direct_map_.get_deleter().size()),
+        raw_key_complement_(raw_key_complement) {}
+
+  explicit IteratorImpl(
+      std::conditional_t<is_const, const HybridDirectMapImpl*,
+                         HybridDirectMapImpl*>
+          map ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      size_t raw_key_complement,
+      std::conditional_t<is_const, typename SlowMap::const_iterator,
+                         typename SlowMap::iterator>
+          slow_map_iter)
+      : direct_map_end_(map->direct_map_.get() +
+                        map->direct_map_.get_deleter().size()),
+        direct_map_size_(map->direct_map_.get_deleter().size()),
+        raw_key_complement_(raw_key_complement),
+        slow_map_iter_(slow_map_iter) {}
+
+  // The end of the `direct_map_` array.
+  //
+  // Counting backwards simplifies checking for iteration over `direct_map_`.
+  absl_nullable const std::conditional_t<
+      is_const, const Value*, Value*>* absl_nullable direct_map_end_ = nullptr;
+  // `direct_map_.get_deleter().size()`.
+  size_t direct_map_size_ = 0;
+  // `direct_map_size_ - raw_key` when iterating over `direct_map_`, otherwise
+  // 0.
+  //
+  // Invariant: if `raw_key_complement > 0` then
+  // `*(direct_map_end_ - raw_key_complement_) != nullptr`.
+  //
+  // Counting backwards simplifies checking for iteration over `direct_map_`.
+  size_t raw_key_complement_ = 0;
+  // Iterator over `*slow_map_` when `slow_map_ != nullptr`, otherwise
+  // `std::nullopt`.
+  //
+  // Invariant: if `raw_key_complement_ > 0` then
+  // `slow_map_iter_ == std::nullopt` or
+  // `slow_map_iter_ == slow_map_->begin()`.
+  //
+  // Distinguishing `std::nullopt` instead of using the default-constructed
+  // `SlowMap::iterator` makes the common case of `operator==` faster by
+  // reducing usage of `SlowMap` iterators.
+  std::optional<std::conditional_t<is_const, typename SlowMap::const_iterator,
+                                   typename SlowMap::iterator>>
+      slow_map_iter_;
+};
+
+}  // namespace hybrid_direct_internal
 
 // Implementation details follow.
 
@@ -529,14 +739,16 @@ auto HybridDirectMapImpl<Key, Value, Traits>::CopySlowMap() const ->
 }
 
 template <typename Key, typename Value, typename Traits>
-ABSL_ATTRIBUTE_ALWAYS_INLINE Value* absl_nullable
-HybridDirectMapImpl<Key, Value, Traits>::Find(Key key) {
-  return const_cast<Value*>(std::as_const(*this).Find(key));
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline Value* absl_nullable
+HybridDirectMapImpl<Key, Value, Traits>::FindOrNull(Key key)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  return const_cast<Value*>(std::as_const(*this).FindOrNull(key));
 }
 
 template <typename Key, typename Value, typename Traits>
-ABSL_ATTRIBUTE_ALWAYS_INLINE const Value* absl_nullable
-HybridDirectMapImpl<Key, Value, Traits>::Find(Key key) const {
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline const Value* absl_nullable
+HybridDirectMapImpl<Key, Value, Traits>::FindOrNull(Key key) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
                  direct_map_ != nullptr)
       << "Moved-from HybridDirectMap";
@@ -546,6 +758,193 @@ HybridDirectMapImpl<Key, Value, Traits>::Find(Key key) const {
   const auto iter = slow_map_->find(raw_key);
   if (iter == slow_map_->end()) return nullptr;
   return &iter->second;
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline const Value&
+HybridDirectMapImpl<Key, Value, Traits>::FindOrDefault(
+    Key key, const Value& default_value ABSL_ATTRIBUTE_LIFETIME_BOUND) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+                 direct_map_ != nullptr)
+      << "Moved-from HybridDirectMap";
+  const RawKey raw_key = Traits::ToRawKey(key);
+  if (raw_key < direct_map_.get_deleter().size()) {
+    const Value* const absl_nullable value = direct_map_[raw_key];
+    if (value == nullptr) return default_value;
+    return *value;
+  }
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) return default_value;
+  const auto iter = slow_map_->find(raw_key);
+  if (iter == slow_map_->end()) return default_value;
+  return iter->second;
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline auto
+HybridDirectMapImpl<Key, Value, Traits>::find(Key key)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND -> iterator {
+  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+                 direct_map_ != nullptr)
+      << "Moved-from HybridDirectMap";
+  const RawKey raw_key = Traits::ToRawKey(key);
+  if (raw_key < direct_map_.get_deleter().size()) {
+    if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) {
+      return iterator(this, direct_map_[raw_key] == nullptr
+                                ? 0
+                                : direct_map_.get_deleter().size() - raw_key);
+    }
+    if (direct_map_[raw_key] == nullptr) {
+      return iterator(this, 0, slow_map_->end());
+    }
+    return iterator(this, direct_map_.get_deleter().size() - raw_key,
+                    slow_map_->begin());
+  }
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) return iterator(this, 0);
+  return iterator(this, 0, slow_map_->find(raw_key));
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline auto
+HybridDirectMapImpl<Key, Value, Traits>::find(Key key) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND -> const_iterator {
+  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+                 direct_map_ != nullptr)
+      << "Moved-from HybridDirectMap";
+  const RawKey raw_key = Traits::ToRawKey(key);
+  if (raw_key < direct_map_.get_deleter().size()) {
+    if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) {
+      return const_iterator(this,
+                            direct_map_[raw_key] == nullptr
+                                ? 0
+                                : direct_map_.get_deleter().size() - raw_key);
+    }
+    if (direct_map_[raw_key] == nullptr) {
+      return const_iterator(this, 0, slow_map_->cend());
+    }
+    return const_iterator(this, direct_map_.get_deleter().size() - raw_key,
+                          slow_map_->cbegin());
+  }
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) return const_iterator(this, 0);
+  return const_iterator(this, 0, std::as_const(*slow_map_).find(raw_key));
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool
+HybridDirectMapImpl<Key, Value, Traits>::contains(Key key) const {
+  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+                 direct_map_ != nullptr)
+      << "Moved-from HybridDirectMap";
+  const RawKey raw_key = Traits::ToRawKey(key);
+  if (raw_key < direct_map_.get_deleter().size()) {
+    return direct_map_[raw_key] != nullptr;
+  }
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) return false;
+  return slow_map_->contains(raw_key);
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline Value&
+HybridDirectMapImpl<Key, Value, Traits>::at(Key key)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  return const_cast<Value&>(std::as_const(*this).at(key));
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline const Value&
+HybridDirectMapImpl<Key, Value, Traits>::at(Key key) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+                 direct_map_ != nullptr)
+      << "Moved-from HybridDirectMap";
+  const RawKey raw_key = Traits::ToRawKey(key);
+  if (raw_key < direct_map_.get_deleter().size()) {
+    const Value* const absl_nullable value = direct_map_[raw_key];
+    if (ABSL_PREDICT_FALSE(value == nullptr)) KeyNotFound(key);
+    return *value;
+  }
+  if (ABSL_PREDICT_FALSE(slow_map_ == nullptr)) KeyNotFound(key);
+  const auto iter = slow_map_->find(raw_key);
+  if (ABSL_PREDICT_FALSE(iter == slow_map_->end())) KeyNotFound(key);
+  return iter->second;
+}
+
+template <typename Key, typename Value, typename Traits>
+ABSL_ATTRIBUTE_NORETURN void
+HybridDirectMapImpl<Key, Value, Traits>::KeyNotFound(Key key) {
+  RIEGELI_CHECK_UNREACHABLE()
+      << "HybridDirectMap key not found: " << riegeli::Debug(key);
+}
+
+template <typename Key, typename Value, typename Traits>
+inline size_t HybridDirectMapImpl<Key, Value, Traits>::FirstRawKey() const {
+  const size_t direct_map_size = direct_map_.get_deleter().size();
+  for (size_t raw_key = 0; raw_key < direct_map_size; ++raw_key) {
+    if (direct_map_[raw_key] != nullptr) return raw_key;
+  }
+  return direct_map_size;
+}
+
+template <typename Key, typename Value, typename Traits>
+inline size_t HybridDirectMapImpl<Key, Value, Traits>::size() const {
+  return direct_values_.get_deleter().size() +
+         (ABSL_PREDICT_TRUE(slow_map_ == nullptr) ? 0 : slow_map_->size());
+}
+
+template <typename Key, typename Value, typename Traits>
+inline auto HybridDirectMapImpl<Key, Value, Traits>::begin()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND -> iterator {
+  const size_t raw_key_complement =
+      direct_map_.get_deleter().size() - FirstRawKey();
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) {
+    return iterator(this, raw_key_complement);
+  }
+  return iterator(this, raw_key_complement, slow_map_->begin());
+}
+
+template <typename Key, typename Value, typename Traits>
+inline auto HybridDirectMapImpl<Key, Value, Traits>::begin() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND -> const_iterator {
+  const size_t raw_key_complement =
+      direct_map_.get_deleter().size() - FirstRawKey();
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) {
+    return const_iterator(this, raw_key_complement);
+  }
+  return const_iterator(this, raw_key_complement, slow_map_->cbegin());
+}
+
+template <typename Key, typename Value, typename Traits>
+inline auto HybridDirectMapImpl<Key, Value, Traits>::end()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND -> iterator {
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) return iterator(this, 0);
+  return iterator(this, 0, slow_map_->end());
+}
+
+template <typename Key, typename Value, typename Traits>
+inline auto HybridDirectMapImpl<Key, Value, Traits>::end() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND -> const_iterator {
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) return const_iterator(this, 0);
+  return const_iterator(this, 0, slow_map_->cend());
+}
+
+template <typename Key, typename Value, typename Traits>
+bool HybridDirectMapImpl<Key, Value, Traits>::Equal(
+    const HybridDirectMapImpl& a, const HybridDirectMapImpl& b) {
+  if (a.size() != b.size()) return false;
+  const HybridDirectMapImpl* outer;
+  const HybridDirectMapImpl* inner;
+  if (a.capacity() <= b.capacity()) {
+    outer = &a;
+    inner = &b;
+  } else {
+    outer = &b;
+    inner = &a;
+  }
+  for (const_reference entry : *outer) {
+    const auto* const found = inner->FindOrNull(entry.first);
+    if (found == nullptr || *found != entry.second) return false;
+  }
+  return true;
 }
 
 }  // namespace hybrid_direct_internal

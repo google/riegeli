@@ -663,6 +663,8 @@ cc_library(
     deps = [
         ":arithmetic",
         ":assert",
+        ":compare",
+        ":debug",
         ":iterable",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",

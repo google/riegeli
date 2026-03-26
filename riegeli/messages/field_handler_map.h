@@ -94,7 +94,7 @@ class FieldHandlerMap {
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   const FieldAction<uint64_t>* absl_nullable AcceptVarint(
       int field_number) const {
-    return varint_handlers_.Find(field_number);
+    return varint_handlers_.FindOrNull(field_number);
   }
 
   absl::Status DynamicHandleVarint(const FieldAction<uint64_t>& handler,
@@ -105,7 +105,7 @@ class FieldHandlerMap {
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   const FieldAction<uint32_t>* absl_nullable AcceptFixed32(
       int field_number) const {
-    return fixed32_handlers_.Find(field_number);
+    return fixed32_handlers_.FindOrNull(field_number);
   }
 
   absl::Status DynamicHandleFixed32(const FieldAction<uint32_t>& handler,
@@ -116,7 +116,7 @@ class FieldHandlerMap {
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   const FieldAction<uint64_t>* absl_nullable AcceptFixed64(
       int field_number) const {
-    return fixed64_handlers_.Find(field_number);
+    return fixed64_handlers_.FindOrNull(field_number);
   }
 
   absl::Status DynamicHandleFixed64(const FieldAction<uint64_t>& handler,
@@ -127,7 +127,7 @@ class FieldHandlerMap {
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   const LengthDelimitedActions* absl_nullable AcceptLengthDelimited(
       int field_number) const {
-    return length_delimited_handlers_.Find(field_number);
+    return length_delimited_handlers_.FindOrNull(field_number);
   }
 
   absl::Status DynamicHandleLengthDelimitedFromReader(
@@ -150,7 +150,7 @@ class FieldHandlerMap {
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   const FieldAction<>* absl_nullable AcceptStartGroup(int field_number) const {
-    return start_group_handlers_.Find(field_number);
+    return start_group_handlers_.FindOrNull(field_number);
   }
 
   absl::Status DynamicHandleStartGroup(const FieldAction<>& handler,
@@ -160,7 +160,7 @@ class FieldHandlerMap {
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   const FieldAction<>* absl_nullable AcceptEndGroup(int field_number) const {
-    return end_group_handlers_.Find(field_number);
+    return end_group_handlers_.FindOrNull(field_number);
   }
 
   absl::Status DynamicHandleEndGroup(const FieldAction<>& handler,

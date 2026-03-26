@@ -44,6 +44,11 @@ struct HybridDirectTraits<Key, expected_min_key,
     return static_cast<RawKey>(static_cast<RawKey>(key) -
                                static_cast<RawKey>(expected_min_key));
   }
+
+  static Key FromRawKey(RawKey raw_key) {
+    // Wrap-around is not an error.
+    return static_cast<Key>(raw_key + static_cast<RawKey>(expected_min_key));
+  }
 };
 
 template <typename Key, Key expected_min_key>
@@ -55,6 +60,11 @@ struct HybridDirectTraits<Key, expected_min_key,
     // Wrap-around is not an error.
     return static_cast<RawKey>(static_cast<RawKey>(key) -
                                static_cast<RawKey>(expected_min_key));
+  }
+
+  static Key FromRawKey(RawKey raw_key) {
+    // Wrap-around is not an error.
+    return static_cast<Key>(raw_key + static_cast<RawKey>(expected_min_key));
   }
 };
 
