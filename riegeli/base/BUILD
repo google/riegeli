@@ -654,8 +654,8 @@ cc_library(
 )
 
 cc_library(
-    name = "small_int_map",
-    hdrs = ["small_int_map.h"],
+    name = "hybrid_direct_map",
+    hdrs = ["hybrid_direct_map.h"],
     deps = [
         ":arithmetic",
         ":assert",

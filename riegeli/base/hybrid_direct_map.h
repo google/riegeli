@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_SMALL_INT_MAP_H_
-#define RIEGELI_BASE_SMALL_INT_MAP_H_
+#ifndef RIEGELI_BASE_HYBRID_DIRECT_MAP_H_
+#define RIEGELI_BASE_HYBRID_DIRECT_MAP_H_
 
 #include <stddef.h>
 
@@ -36,7 +36,7 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-namespace small_int_map_internal {
+namespace hybrid_direct_internal {
 
 template <typename T>
 class DelayedConstructor;
@@ -49,7 +49,7 @@ SizedArray<T> MakeSizedArray(size_t size);
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-class SmallIntMapImpl {
+class HybridDirectMapImpl {
  public:
   static size_t max_size();
 
@@ -58,13 +58,13 @@ class SmallIntMapImpl {
   const Value* absl_nullable Find(Key key) const;
 
  protected:
-  SmallIntMapImpl() = default;
+  HybridDirectMapImpl() = default;
 
-  SmallIntMapImpl(const SmallIntMapImpl& that) noexcept;
-  SmallIntMapImpl& operator=(const SmallIntMapImpl& that) noexcept;
+  HybridDirectMapImpl(const HybridDirectMapImpl& that) noexcept;
+  HybridDirectMapImpl& operator=(const HybridDirectMapImpl& that) noexcept;
 
-  SmallIntMapImpl(SmallIntMapImpl&& that) = default;
-  SmallIntMapImpl& operator=(SmallIntMapImpl&& that) = default;
+  HybridDirectMapImpl(HybridDirectMapImpl&& that) = default;
+  HybridDirectMapImpl& operator=(HybridDirectMapImpl&& that) = default;
 
   template <typename Src>
   void Initialize(Src&& src);
@@ -74,9 +74,9 @@ class SmallIntMapImpl {
   // represented in an unsigned type with wrap-around.
   using RawKey = std::common_type_t<std::make_unsigned_t<Key>, size_t>;
 
-  using SmallValues = SizedArray<DelayedConstructor<Value>>;
-  using SmallMap = SizedArray<const Value* absl_nullable>;
-  using LargeMap = absl::flat_hash_map<Key, Value>;
+  using DirectValues = SizedArray<DelayedConstructor<Value>>;
+  using DirectMap = SizedArray<const Value* absl_nullable>;
+  using SlowMap = absl::flat_hash_map<Key, Value>;
 
   static constexpr int kInverseMinLoadFactor = 4;  // 25%.
 
@@ -88,29 +88,29 @@ class SmallIntMapImpl {
   template <typename Src, typename Iterator>
   void Optimize(Iterator first, Iterator last, size_t size);
 
-  absl_nullable SmallValues CopySmallValues() const;
-  absl_nullable SmallMap CopySmallMap(
+  absl_nullable DirectValues CopyDirectValues() const;
+  absl_nullable DirectMap CopyDirectMap(
       const DelayedConstructor<Value>* absl_nullable dest_values) const;
-  absl_nullable std::unique_ptr<LargeMap> CopyLargeMap() const;
+  absl_nullable std::unique_ptr<SlowMap> CopySlowMap() const;
 
   const Value* absl_nullable FindSlow(Key key) const;
 
-  // Stores values for `small_map_`, in no particular order.
-  absl_nullable SmallValues small_values_;
-  // Indexed by raw key below `small_map_.get_deleter().size()`. Elements
-  // corresponding to present values point to elements of `small_values_`.
+  // Stores values for `direct_map_`, in no particular order.
+  absl_nullable DirectValues direct_values_;
+  // Indexed by raw key below `direct_map_.get_deleter().size()`. Elements
+  // corresponding to present values point to elements of `direct_values_`.
   // The remaining elements are `nullptr`.
-  absl_nullable SmallMap small_map_;
-  // If not `nullptr`, stores the mapping for keys too large for `small_map_`.
+  absl_nullable DirectMap direct_map_;
+  // If not `nullptr`, stores the mapping for keys too large for `direct_map_`.
   // Uses `std::unique_ptr` rather than `std::optional` to reduce memory usage
-  // in the common case when `large_map_` is not used.
-  absl_nullable std::unique_ptr<LargeMap> large_map_;
+  // in the common case when `slow_map_` is not used.
+  absl_nullable std::unique_ptr<SlowMap> slow_map_;
 };
 
-}  // namespace small_int_map_internal
+}  // namespace hybrid_direct_internal
 
-// `SmallIntMap` is a map optimized for keys being small integers. It supports
-// only lookups, but no incremental building nor iteration.
+// `HybridDirectMap` is a map optimized for keys being small integers.
+// It supports only lookups, but no incremental building nor iteration.
 //
 // It stores a part of the map covering some range of keys starting from
 // `expected_min_key` in an array.
@@ -122,49 +122,50 @@ class SmallIntMapImpl {
 // as long as it is at least 25% full.
 template <typename Key, typename Value, Key expected_min_key = 0,
           size_t array_capacity = 128>
-class SmallIntMap
-    : public small_int_map_internal::SmallIntMapImpl<
+class HybridDirectMap
+    : public hybrid_direct_internal::HybridDirectMapImpl<
           Key, Value, expected_min_key, array_capacity>,
       private ConditionallyConstructible<std::is_copy_constructible_v<Value>,
                                          true>,
       private ConditionallyAssignable<std::is_copy_constructible_v<Value>,
                                       true> {
  public:
-  // Constructs an empty `SmallIntMap`.
-  SmallIntMap() = default;
+  // Constructs an empty `HybridDirectMap`.
+  HybridDirectMap() = default;
 
-  // Builds `SmallIntMap` from an iterable `src`. Moves values if `src` is an
-  // rvalue which owns its elements.
+  // Builds `HybridDirectMap` from an iterable `src`. Moves values if `src` is
+  // an rvalue which owns its elements.
   template <typename Src,
             std::enable_if_t<
                 std::conjunction_v<
-                    NotSameRef<SmallIntMap, Src>, IsForwardIterable<Src>,
+                    NotSameRef<HybridDirectMap, Src>, IsForwardIterable<Src>,
                     IsIterableOfPairs<Src, Key, Value>,
                     std::conditional_t<HasMovableElements<Src>::value,
                                        std::is_move_constructible<Value>,
                                        std::is_copy_constructible<Value>>>,
                 int> = 0>
-  explicit SmallIntMap(Src&& src) {
+  explicit HybridDirectMap(Src&& src) {
     this->Initialize(std::forward<Src>(src));
   }
 
-  // Builds `SmallIntMap` from an initializer list.
-  /*implicit*/ SmallIntMap(std::initializer_list<std::pair<Key, Value>> src) {
+  // Builds `HybridDirectMap` from an initializer list.
+  /*implicit*/ HybridDirectMap(
+      std::initializer_list<std::pair<Key, Value>> src) {
     this->Initialize(src);
   }
 
-  SmallIntMap(const SmallIntMap& that) = default;
-  SmallIntMap& operator=(const SmallIntMap& that) = default;
+  HybridDirectMap(const HybridDirectMap& that) = default;
+  HybridDirectMap& operator=(const HybridDirectMap& that) = default;
 
-  SmallIntMap(SmallIntMap&& that) = default;
-  SmallIntMap& operator=(SmallIntMap&& that) = default;
+  HybridDirectMap(HybridDirectMap&& that) = default;
+  HybridDirectMap& operator=(HybridDirectMap&& that) = default;
 
-  // Makes `*this` equivalent to a newly constructed `SmallIntMap`.
-  using SmallIntMap::SmallIntMapImpl::Reset;
+  // Makes `*this` equivalent to a newly constructed `HybridDirectMap`.
+  using HybridDirectMap::HybridDirectMapImpl::Reset;
   template <typename Src,
             std::enable_if_t<
                 std::conjunction_v<
-                    NotSameRef<SmallIntMap, Src>, IsForwardIterable<Src>,
+                    NotSameRef<HybridDirectMap, Src>, IsForwardIterable<Src>,
                     IsIterableOfPairs<Src, Key, Value>,
                     std::conditional_t<HasMovableElements<Src>::value,
                                        std::is_move_constructible<Value>,
@@ -183,7 +184,7 @@ class SmallIntMap
 
 // Implementation details follow.
 
-namespace small_int_map_internal {
+namespace hybrid_direct_internal {
 
 template <typename T>
 class DelayedConstructor {
@@ -270,7 +271,7 @@ inline SizedArray<T> MakeSizedArray(size_t size) {
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
 inline size_t
-SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::max_size() {
+HybridDirectMapImpl<Key, Value, expected_min_key, array_capacity>::max_size() {
   return UnsignedMin(SizedDeleter<const Value* absl_nullable>::max_size(),
                      SizedDeleter<DelayedConstructor<Value>>::max_size()) /
          kInverseMinLoadFactor;
@@ -278,17 +279,18 @@ SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::max_size() {
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-void SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::Reset() {
-  small_values_ = SmallValues();
-  small_map_ = SmallMap();
-  large_map_.reset();
+void HybridDirectMapImpl<Key, Value, expected_min_key,
+                         array_capacity>::Reset() {
+  direct_values_ = DirectValues();
+  direct_map_ = DirectMap();
+  slow_map_.reset();
 }
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
 template <typename Src>
-void SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::Initialize(
-    Src&& src) {
+void HybridDirectMapImpl<Key, Value, expected_min_key,
+                         array_capacity>::Initialize(Src&& src) {
   using std::begin;
   using std::end;
   if constexpr (IterableHasSize<Src>::value) {
@@ -296,7 +298,7 @@ void SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::Initialize(
     const size_t src_size = size(src);
     RIEGELI_ASSERT_EQ(src_size,
                       IntCast<size_t>(std::distance(begin(src), end(src))))
-        << "Failed precondition of SmallIntMap initialization: "
+        << "Failed precondition of HybridDirectMap initialization: "
            "size does not match the distance between iterators";
     if (src_size > 0) Optimize<Src>(begin(src), end(src), src_size);
   } else {
@@ -306,7 +308,7 @@ void SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::Initialize(
     if (src_size > 0) Optimize<Src>(first, last, src_size);
   }
 #if RIEGELI_DEBUG
-  // Detect building `SmallIntMap` from a moved-from `src` if possible.
+  // Detect building `HybridDirectMap` from a moved-from `src` if possible.
   if constexpr (std::conjunction_v<std::negation<std::is_reference<Src>>,
                                    std::is_move_constructible<Src>>) {
     ABSL_ATTRIBUTE_UNUSED Src moved = std::forward<Src>(src);
@@ -317,119 +319,121 @@ void SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::Initialize(
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
 template <typename Src, typename Iterator>
-void SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::Optimize(
-    Iterator first, Iterator last, size_t size) {
+void HybridDirectMapImpl<Key, Value, expected_min_key,
+                         array_capacity>::Optimize(Iterator first,
+                                                   Iterator last, size_t size) {
   RIEGELI_ASSERT_GE(size, 0u)
-      << "Failed precondition of SmallIntMapImpl::Optimize(): "
+      << "Failed precondition of HybridDirectMapImpl::Optimize(): "
          "an empty map must have been handled before";
   RIEGELI_CHECK_LE(size, max_size())
-      << "Failed precondition of SmallIntMap initialization: "
+      << "Failed precondition of HybridDirectMap initialization: "
          "size overflow";
   RawKey max_raw_key = 0;
   for (auto iter = first; iter != last; ++iter) {
     max_raw_key = UnsignedMax(max_raw_key, ToRawKey(iter->first));
   }
-  const size_t max_num_small_keys =
+  const size_t max_num_direct_keys =
       UnsignedMax(array_capacity, size * kInverseMinLoadFactor);
-  size_t small_values_index;
-  if (max_raw_key < max_num_small_keys) {
-    // All keys are suitable for `small_map_`. `large_map_` is not used.
+  size_t direct_values_index;
+  if (max_raw_key < max_num_direct_keys) {
+    // All keys are suitable for `direct_map_`. `slow_map_` is not used.
     //
-    // There is no need for `small_map_` to cover raw keys larger than
-    // `max_raw_key` because their lookup is fast if `large_map_` is `nullptr`.
-    RIEGELI_ASSUME_EQ(small_values_, nullptr) << "Initialization";
-    small_values_ = MakeSizedArray<DelayedConstructor<Value>>(size);
-    RIEGELI_ASSUME_EQ(small_map_, nullptr) << "Initialization";
-    small_map_ = MakeSizedArray<const Value* absl_nullable>(
+    // There is no need for `direct_map_` to cover raw keys larger than
+    // `max_raw_key` because their lookup is fast if `slow_map_` is `nullptr`.
+    RIEGELI_ASSUME_EQ(direct_values_, nullptr) << "Initialization";
+    direct_values_ = MakeSizedArray<DelayedConstructor<Value>>(size);
+    RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
+    direct_map_ = MakeSizedArray<const Value* absl_nullable>(
         IntCast<size_t>(max_raw_key) + 1);
-    small_values_index = 0;
+    direct_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
       // `(*iter).second` rather than `iter->second` allows moving from a move
       // iterator.
-      RIEGELI_ASSERT_EQ(small_map_[ToRawKey(iter->first)], nullptr)
-          << "Failed precondition of SmallIntMap initialization: "
+      RIEGELI_ASSERT_EQ(direct_map_[ToRawKey(iter->first)], nullptr)
+          << "Failed precondition of HybridDirectMap initialization: "
              "duplicate key: "
           << iter->first;
-      small_map_[ToRawKey(iter->first)] =
-          &small_values_[small_values_index++].emplace(
+      direct_map_[ToRawKey(iter->first)] =
+          &direct_values_[direct_values_index++].emplace(
               (*MaybeMakeMoveIterator<Src>(iter)).second);
     }
   } else {
-    // Some keys are too large for `small_map_`. `large_map_` is used.
+    // Some keys are too large for `direct_map_`. `slow_map_` is used.
     //
-    // `small_map_` covers all raw keys below `max_num_small_keys` rather than
-    // only up to `max_raw_key`, to reduce lookups in `large_map_`.
-    size_t num_small_values = 0;
+    // `direct_map_` covers all raw keys below `max_num_direct_keys` rather than
+    // only up to `max_raw_key`, to reduce lookups in `slow_map_`.
+    size_t num_direct_values = 0;
     for (auto iter = first; iter != last; ++iter) {
-      num_small_values += ToRawKey(iter->first) < max_num_small_keys ? 1 : 0;
+      num_direct_values += ToRawKey(iter->first) < max_num_direct_keys ? 1 : 0;
     }
-    RIEGELI_ASSERT_LT(num_small_values, size)
-        << "Some keys should have been too large for small_map_";
-    RIEGELI_ASSUME_EQ(small_values_, nullptr) << "Initialization";
-    if (num_small_values > 0) {
-      small_values_ =
-          MakeSizedArray<DelayedConstructor<Value>>(num_small_values);
+    RIEGELI_ASSERT_LT(num_direct_values, size)
+        << "Some keys should have been too large for direct_map_";
+    RIEGELI_ASSUME_EQ(direct_values_, nullptr) << "Initialization";
+    if (num_direct_values > 0) {
+      direct_values_ =
+          MakeSizedArray<DelayedConstructor<Value>>(num_direct_values);
     }
-    RIEGELI_ASSUME_EQ(small_map_, nullptr) << "Initialization";
-    small_map_ = MakeSizedArray<const Value* absl_nullable>(max_num_small_keys);
-    RIEGELI_ASSUME_EQ(large_map_, nullptr) << "Initialization";
-    large_map_ = std::make_unique<LargeMap>();
-    large_map_->reserve(size - num_small_values);
-    small_values_index = 0;
+    RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
+    direct_map_ =
+        MakeSizedArray<const Value* absl_nullable>(max_num_direct_keys);
+    RIEGELI_ASSUME_EQ(slow_map_, nullptr) << "Initialization";
+    slow_map_ = std::make_unique<SlowMap>();
+    slow_map_->reserve(size - num_direct_values);
+    direct_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
       // `(*iter).second` rather than `iter->second` allows moving from a move
       // iterator.
-      if (ToRawKey(iter->first) < max_num_small_keys) {
-        RIEGELI_ASSERT_EQ(small_map_[ToRawKey(iter->first)], nullptr)
-            << "Failed precondition of SmallIntMap initialization: "
+      if (ToRawKey(iter->first) < max_num_direct_keys) {
+        RIEGELI_ASSERT_EQ(direct_map_[ToRawKey(iter->first)], nullptr)
+            << "Failed precondition of HybridDirectMap initialization: "
                "duplicate key: "
             << iter->first;
-        small_map_[ToRawKey(iter->first)] =
-            &small_values_[small_values_index++].emplace(
+        direct_map_[ToRawKey(iter->first)] =
+            &direct_values_[direct_values_index++].emplace(
                 (*MaybeMakeMoveIterator<Src>(iter)).second);
       } else {
-        const auto inserted = large_map_->try_emplace(
+        const auto inserted = slow_map_->try_emplace(
             iter->first, (*MaybeMakeMoveIterator<Src>(iter)).second);
         RIEGELI_ASSERT(inserted.second)
-            << "Failed precondition of SmallIntMap initialization: "
+            << "Failed precondition of HybridDirectMap initialization: "
                "duplicate key: "
             << iter->first;
       }
     }
   }
-  RIEGELI_ASSERT_EQ(small_values_index, small_values_.get_deleter().size())
-      << "The whole small_values_ array should have been filled";
+  RIEGELI_ASSERT_EQ(direct_values_index, direct_values_.get_deleter().size())
+      << "The whole direct_values_ array should have been filled";
 }
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::SmallIntMapImpl(
-    const SmallIntMapImpl& that) noexcept
-    : small_values_(that.CopySmallValues()),
-      small_map_(that.CopySmallMap(small_values_.get())),
-      large_map_(that.CopyLargeMap()) {}
+HybridDirectMapImpl<Key, Value, expected_min_key, array_capacity>::
+    HybridDirectMapImpl(const HybridDirectMapImpl& that) noexcept
+    : direct_values_(that.CopyDirectValues()),
+      direct_map_(that.CopyDirectMap(direct_values_.get())),
+      slow_map_(that.CopySlowMap()) {}
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>&
-SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::operator=(
-    const SmallIntMapImpl& that) noexcept {
-  absl_nullable SmallValues new_small_values = that.CopySmallValues();
-  small_map_ = that.CopySmallMap(new_small_values.get());
-  small_values_ = std::move(new_small_values);
-  large_map_ = that.CopyLargeMap();
+HybridDirectMapImpl<Key, Value, expected_min_key, array_capacity>&
+HybridDirectMapImpl<Key, Value, expected_min_key, array_capacity>::operator=(
+    const HybridDirectMapImpl& that) noexcept {
+  absl_nullable DirectValues new_direct_values = that.CopyDirectValues();
+  direct_map_ = that.CopyDirectMap(new_direct_values.get());
+  direct_values_ = std::move(new_direct_values);
+  slow_map_ = that.CopySlowMap();
   return *this;
 }
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-auto SmallIntMapImpl<Key, Value, expected_min_key,
-                     array_capacity>::CopySmallValues() const ->
-    absl_nullable SmallValues {
-  if (small_values_ == nullptr) return nullptr;
-  SmallValues dest_ptr = MakeSizedArray<DelayedConstructor<Value>>(
-      small_values_.get_deleter().size());
-  DelayedConstructor<Value>* src_iter = small_values_.get();
+auto HybridDirectMapImpl<Key, Value, expected_min_key,
+                         array_capacity>::CopyDirectValues() const ->
+    absl_nullable DirectValues {
+  if (direct_values_ == nullptr) return nullptr;
+  DirectValues dest_ptr = MakeSizedArray<DelayedConstructor<Value>>(
+      direct_values_.get_deleter().size());
+  DelayedConstructor<Value>* src_iter = direct_values_.get();
   DelayedConstructor<Value>* const end =
       dest_ptr.get() + dest_ptr.get_deleter().size();
   for (DelayedConstructor<Value>* dest_iter = dest_ptr.get(); dest_iter != end;
@@ -442,15 +446,15 @@ auto SmallIntMapImpl<Key, Value, expected_min_key,
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-auto SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::
-    CopySmallMap(const DelayedConstructor<Value>* absl_nullable dest_values)
-        const -> absl_nullable SmallMap {
-  if (small_map_ == nullptr) return nullptr;
+auto HybridDirectMapImpl<Key, Value, expected_min_key, array_capacity>::
+    CopyDirectMap(const DelayedConstructor<Value>* absl_nullable dest_values)
+        const -> absl_nullable DirectMap {
+  if (direct_map_ == nullptr) return nullptr;
   const DelayedConstructor<Value>* const absl_nullable src_values =
-      small_values_.get();
-  SmallMap dest_ptr = MakeSizedArray<const Value* absl_nullable>(
-      small_map_.get_deleter().size());
-  const Value* absl_nullable* src_iter = small_map_.get();
+      direct_values_.get();
+  DirectMap dest_ptr = MakeSizedArray<const Value* absl_nullable>(
+      direct_map_.get_deleter().size());
+  const Value* absl_nullable* src_iter = direct_map_.get();
   const Value* absl_nullable* const end =
       dest_ptr.get() + dest_ptr.get_deleter().size();
   for (const Value* absl_nullable* dest_iter = dest_ptr.get(); dest_iter != end;
@@ -468,40 +472,40 @@ auto SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
-auto SmallIntMapImpl<Key, Value, expected_min_key,
-                     array_capacity>::CopyLargeMap() const ->
-    absl_nullable std::unique_ptr<LargeMap> {
-  if (large_map_ == nullptr) return nullptr;
-  return std::make_unique<LargeMap>(*large_map_);
+auto HybridDirectMapImpl<Key, Value, expected_min_key,
+                         array_capacity>::CopySlowMap() const ->
+    absl_nullable std::unique_ptr<SlowMap> {
+  if (slow_map_ == nullptr) return nullptr;
+  return std::make_unique<SlowMap>(*slow_map_);
 }
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
 ABSL_ATTRIBUTE_ALWAYS_INLINE const Value* absl_nullable
-SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::Find(
+HybridDirectMapImpl<Key, Value, expected_min_key, array_capacity>::Find(
     Key key) const {
-  RIEGELI_ASSERT(!small_map_.get_deleter().IsMovedFromIfNull() ||
-                 small_map_ != nullptr)
-      << "Moved-from SmallIntMap";
-  if (ToRawKey(key) < small_map_.get_deleter().size()) {
-    return small_map_[ToRawKey(key)];
+  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+                 direct_map_ != nullptr)
+      << "Moved-from HybridDirectMap";
+  if (ToRawKey(key) < direct_map_.get_deleter().size()) {
+    return direct_map_[ToRawKey(key)];
   }
-  if (ABSL_PREDICT_TRUE(large_map_ == nullptr)) return nullptr;
+  if (ABSL_PREDICT_TRUE(slow_map_ == nullptr)) return nullptr;
   return FindSlow(key);
 }
 
 template <typename Key, typename Value, Key expected_min_key,
           size_t array_capacity>
 const Value* absl_nullable
-SmallIntMapImpl<Key, Value, expected_min_key, array_capacity>::FindSlow(
+HybridDirectMapImpl<Key, Value, expected_min_key, array_capacity>::FindSlow(
     Key key) const {
-  const auto iter = large_map_->find(key);
-  if (iter == large_map_->end()) return nullptr;
+  const auto iter = slow_map_->find(key);
+  if (iter == slow_map_->end()) return nullptr;
   return &iter->second;
 }
 
-}  // namespace small_int_map_internal
+}  // namespace hybrid_direct_internal
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_SMALL_INT_MAP_H_
+#endif  // RIEGELI_BASE_HYBRID_DIRECT_MAP_H_

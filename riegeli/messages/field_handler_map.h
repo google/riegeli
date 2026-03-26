@@ -31,8 +31,8 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/cord_iterator_span.h"
+#include "riegeli/base/hybrid_direct_map.h"
 #include "riegeli/base/initializer.h"
-#include "riegeli/base/small_int_map.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/serialized_message_reader.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
@@ -172,12 +172,12 @@ class FieldHandlerMap {
   // For `FieldAction` and `LengthDelimitedActions`.
   friend class FieldHandlerMapBuilder<Context...>;
 
-  SmallIntMap<int, FieldAction<uint64_t>, 1> varint_handlers_;
-  SmallIntMap<int, FieldAction<uint32_t>, 1> fixed32_handlers_;
-  SmallIntMap<int, FieldAction<uint64_t>, 1> fixed64_handlers_;
-  SmallIntMap<int, LengthDelimitedActions, 1> length_delimited_handlers_;
-  SmallIntMap<int, FieldAction<>, 1> start_group_handlers_;
-  SmallIntMap<int, FieldAction<>, 1> end_group_handlers_;
+  HybridDirectMap<int, FieldAction<uint64_t>, 1> varint_handlers_;
+  HybridDirectMap<int, FieldAction<uint32_t>, 1> fixed32_handlers_;
+  HybridDirectMap<int, FieldAction<uint64_t>, 1> fixed64_handlers_;
+  HybridDirectMap<int, LengthDelimitedActions, 1> length_delimited_handlers_;
+  HybridDirectMap<int, FieldAction<>, 1> start_group_handlers_;
+  HybridDirectMap<int, FieldAction<>, 1> end_group_handlers_;
 };
 
 template <typename... Context>
