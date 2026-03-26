@@ -306,9 +306,9 @@ class MovingDependency<
     std::enable_if_t<!Dependency<Handle, Manager>::kIsStable>>
     : public moving_dependency_internal::MovingDependencyImpl<Handle, Manager,
                                                               Mover>,
-      private ConditionallyConstructible<
+      public ConditionallyConstructible<
           false, std::is_move_constructible_v<Dependency<Handle, Manager>>>,
-      private ConditionallyAssignable<
+      public ConditionallyAssignable<
           false, std::is_move_assignable_v<Dependency<Handle, Manager>>> {
  public:
   using MovingDependency::MovingDependencyImpl::MovingDependencyImpl;

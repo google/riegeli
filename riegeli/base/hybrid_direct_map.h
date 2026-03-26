@@ -203,10 +203,9 @@ template <typename Key, typename Value,
           typename Traits = HybridDirectTraits<Key>>
 class HybridDirectMap
     : public hybrid_direct_internal::HybridDirectMapImpl<Key, Value, Traits>,
-      private ConditionallyConstructible<std::is_copy_constructible_v<Value>,
-                                         true>,
-      private ConditionallyAssignable<std::is_copy_constructible_v<Value>,
-                                      true>,
+      public ConditionallyConstructible<std::is_copy_constructible_v<Value>,
+                                        true>,
+      public ConditionallyAssignable<std::is_copy_constructible_v<Value>, true>,
       public WithEqual<HybridDirectMap<Key, Value, Traits>> {
  private:
   template <typename Src, typename Enable = void>

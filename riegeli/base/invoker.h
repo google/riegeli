@@ -37,7 +37,7 @@ namespace invoker_internal {
 
 template <typename Function, typename... Args>
 class InvokerBase
-    : private ConditionallyAssignable<
+    : public ConditionallyAssignable<
           std::conjunction_v<std::negation<std::is_reference<Args>>...>> {
  protected:
   template <typename DependentFunction = Function>

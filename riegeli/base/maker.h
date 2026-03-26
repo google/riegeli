@@ -47,7 +47,7 @@ namespace riegeli {
 // functions.
 template <typename... Args>
 class MakerType
-    : private ConditionallyAssignable<
+    : public ConditionallyAssignable<
           std::conjunction_v<std::negation<std::is_reference<Args>>...>> {
  public:
   // Constructs `MakerType` from `args...` convertible to `Args...`.
@@ -212,7 +212,7 @@ class MakerType
 // caller to deduce `T`, e.g. using `TargetT`.
 template <typename T, typename... Args>
 class MakerTypeFor
-    : private ConditionallyAssignable<
+    : public ConditionallyAssignable<
           std::conjunction_v<std::negation<std::is_reference<Args>>...>> {
  public:
   // Constructs `MakerTypeFor` from `args...` convertible to `Args...`.

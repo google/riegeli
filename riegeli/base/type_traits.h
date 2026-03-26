@@ -409,7 +409,7 @@ struct IsComparableAgainstNullptr<
            std::is_convertible_v<decltype(std::declval<T>() == nullptr), bool>>>
     : std::true_type {};
 
-// Deriving a class (possibly privately) from
+// Deriving a class from
 // `ConditionallyConstructible<copy_constructible, move_constructible>`
 // disables copy constructor if `!copy_constructible`, and
 // disables move constructor if `!move_constructible`.
@@ -470,7 +470,7 @@ class ConditionallyConstructible<true, true> {
   ConditionallyConstructible& operator=(ConditionallyConstructible&&) = default;
 };
 
-// Deriving a class (possibly privately) from
+// Deriving a class from
 // `ConditionallyAssignable<copy_assignable, move_assignable>`
 // disables copy assignment if `!copy_assignable`, and
 // disables move assignment if `!move_assignable`.

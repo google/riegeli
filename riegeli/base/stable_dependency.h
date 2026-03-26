@@ -228,9 +228,9 @@ class StableDependency<
     : public dependency_internal::DependencyDerived<
           dependency_internal::StableDependencyNoDefault<Handle, Manager>,
           Handle, Manager>,
-      private ConditionallyConstructible<
+      public ConditionallyConstructible<
           false, std::is_move_constructible_v<Dependency<Handle, Manager>>>,
-      private ConditionallyAssignable<
+      public ConditionallyAssignable<
           false, std::is_move_assignable_v<Dependency<Handle, Manager>>> {
  public:
   using StableDependency::DependencyDerived::DependencyDerived;
