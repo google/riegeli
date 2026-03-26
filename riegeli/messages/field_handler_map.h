@@ -172,12 +172,15 @@ class FieldHandlerMap {
   // For `FieldAction` and `LengthDelimitedActions`.
   friend class FieldHandlerMapBuilder<Context...>;
 
-  HybridDirectMap<int, FieldAction<uint64_t>, 1> varint_handlers_;
-  HybridDirectMap<int, FieldAction<uint32_t>, 1> fixed32_handlers_;
-  HybridDirectMap<int, FieldAction<uint64_t>, 1> fixed64_handlers_;
-  HybridDirectMap<int, LengthDelimitedActions, 1> length_delimited_handlers_;
-  HybridDirectMap<int, FieldAction<>, 1> start_group_handlers_;
-  HybridDirectMap<int, FieldAction<>, 1> end_group_handlers_;
+  template <typename Value>
+  using FieldMap = HybridDirectMap<int, Value, HybridDirectTraits<int, 1>>;
+
+  FieldMap<FieldAction<uint64_t>> varint_handlers_;
+  FieldMap<FieldAction<uint32_t>> fixed32_handlers_;
+  FieldMap<FieldAction<uint64_t>> fixed64_handlers_;
+  FieldMap<LengthDelimitedActions> length_delimited_handlers_;
+  FieldMap<FieldAction<>> start_group_handlers_;
+  FieldMap<FieldAction<>> end_group_handlers_;
 };
 
 template <typename... Context>

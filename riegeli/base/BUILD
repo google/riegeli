@@ -655,6 +655,10 @@ cc_library(
 
 cc_library(
     name = "hybrid_direct_map",
+    srcs = [
+        "hybrid_direct_common.h",
+        "hybrid_direct_internal.h",
+    ],
     hdrs = ["hybrid_direct_map.h"],
     deps = [
         ":arithmetic",
