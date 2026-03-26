@@ -35,6 +35,7 @@
 #include "riegeli/base/debug.h"
 #include "riegeli/base/hybrid_direct_common.h"  // IWYU pragma: export
 #include "riegeli/base/hybrid_direct_internal.h"
+#include "riegeli/base/invoker.h"
 #include "riegeli/base/iterable.h"
 #include "riegeli/base/type_traits.h"
 
@@ -127,7 +128,8 @@ class HybridDirectMapImpl {
   using RawKey = std::decay_t<decltype(Traits::ToRawKey(std::declval<Key>()))>;
   static_assert(std::is_unsigned_v<RawKey>);
 
-  using DirectValues = SizedArray<DelayedConstructor<Value>>;
+  using DirectValues =
+      SizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>;
   using DirectMap = SizedArray<Value* absl_nullable>;
   using SlowMap = absl::flat_hash_map<RawKey, Value>;
 
@@ -195,6 +197,8 @@ class HybridDirectMapImpl {
 // of the array part. The actual capacity can be smaller if all keys fit
 // in the array, or larger if the array remains at least 25% full. Default:
 // `kHybridDirectDefaultDirectCapacity` (128).
+//
+// In the case of duplicate keys, the first value wins.
 template <typename Key, typename Value,
           typename Traits = HybridDirectTraits<Key>>
 class HybridDirectMap
@@ -532,7 +536,8 @@ namespace hybrid_direct_internal {
 template <typename Key, typename Value, typename Traits>
 inline size_t HybridDirectMapImpl<Key, Value, Traits>::max_size() {
   return UnsignedMin(SizedDeleter<Value* absl_nullable>::max_size(),
-                     SizedDeleter<DelayedConstructor<Value>>::max_size()) /
+                     SizedDeleter<DelayedConstructor<Value>,
+                                  /*supports_abandon=*/true>::max_size()) /
          kInverseMinLoadFactor;
 }
 
@@ -606,7 +611,9 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     // There is no need for `direct_map_` to cover raw keys larger than
     // `max_raw_key` because their lookup is fast if `slow_map_` is `nullptr`.
     RIEGELI_ASSUME_EQ(direct_values_, nullptr) << "Initialization";
-    direct_values_ = MakeSizedArray<DelayedConstructor<Value>>(size);
+    direct_values_ =
+        MakeSizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>(
+            size);
     RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
     direct_map_ =
         MakeSizedArray<Value* absl_nullable>(IntCast<size_t>(max_raw_key) + 1);
@@ -614,12 +621,10 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     for (auto iter = first; iter != last; ++iter) {
       const RawKey raw_key =
           Traits::ToRawKey(std::invoke(key_projection, *iter));
-      RIEGELI_ASSERT_EQ(direct_map_[raw_key], nullptr)
-          << "Failed precondition of HybridDirectMap initialization: "
-             "duplicate key: "
-          << riegeli::Debug(std::invoke(key_projection, *iter));
-      direct_map_[raw_key] = &direct_values_[direct_values_index++].emplace(
-          std::invoke(value_projection, *MaybeMakeMoveIterator<Src>(iter)));
+      if (ABSL_PREDICT_FALSE(direct_map_[raw_key] != nullptr)) continue;
+      direct_map_[raw_key] =
+          &direct_values_[direct_values_index++].emplace(riegeli::Invoker(
+              value_projection, *MaybeMakeMoveIterator<Src>(iter)));
     }
   } else {
     // Some keys are too large for `direct_map_`. `slow_map_` is used.
@@ -638,7 +643,8 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     RIEGELI_ASSUME_EQ(direct_values_, nullptr) << "Initialization";
     if (num_direct_values > 0) {
       direct_values_ =
-          MakeSizedArray<DelayedConstructor<Value>>(num_direct_values);
+          MakeSizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>(
+              num_direct_values);
     }
     RIEGELI_ASSUME_EQ(direct_map_, nullptr) << "Initialization";
     direct_map_ = MakeSizedArray<Value* absl_nullable>(max_num_direct_keys);
@@ -650,25 +656,19 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
       const RawKey raw_key =
           Traits::ToRawKey(std::invoke(key_projection, *iter));
       if (raw_key < max_num_direct_keys) {
-        RIEGELI_ASSERT_EQ(direct_map_[raw_key], nullptr)
-            << "Failed precondition of HybridDirectMap initialization: "
-               "duplicate key: "
-            << riegeli::Debug(std::invoke(key_projection, *iter));
-        direct_map_[raw_key] = &direct_values_[direct_values_index++].emplace(
-            std::invoke(value_projection, *MaybeMakeMoveIterator<Src>(iter)));
+        if (ABSL_PREDICT_FALSE(direct_map_[raw_key] != nullptr)) continue;
+        direct_map_[raw_key] =
+            &direct_values_[direct_values_index++].emplace(riegeli::Invoker(
+                value_projection, *MaybeMakeMoveIterator<Src>(iter)));
       } else {
-        const auto inserted = slow_map_->try_emplace(
-            raw_key,
-            std::invoke(value_projection, *MaybeMakeMoveIterator<Src>(iter)));
-        RIEGELI_ASSERT(inserted.second)
-            << "Failed precondition of HybridDirectMap initialization: "
-               "duplicate key: "
-            << riegeli::Debug(std::invoke(key_projection, *iter));
+        slow_map_->try_emplace(
+            raw_key, riegeli::Invoker(value_projection,
+                                      *MaybeMakeMoveIterator<Src>(iter)));
       }
     }
   }
-  RIEGELI_ASSERT_EQ(direct_values_index, direct_values_.get_deleter().size())
-      << "The whole direct_values_ array should have been filled";
+  direct_values_.get_deleter().AbandonAfter(direct_values_.get(),
+                                            direct_values_index);
 }
 
 template <typename Key, typename Value, typename Traits>
@@ -693,8 +693,9 @@ template <typename Key, typename Value, typename Traits>
 auto HybridDirectMapImpl<Key, Value, Traits>::CopyDirectValues() const ->
     absl_nullable DirectValues {
   if (direct_values_ == nullptr) return nullptr;
-  DirectValues dest_ptr = MakeSizedArray<DelayedConstructor<Value>>(
-      direct_values_.get_deleter().size());
+  DirectValues dest_ptr =
+      MakeSizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>(
+          direct_values_.get_deleter().size());
   DelayedConstructor<Value>* src_iter = direct_values_.get();
   DelayedConstructor<Value>* const end =
       dest_ptr.get() + dest_ptr.get_deleter().size();

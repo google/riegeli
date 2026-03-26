@@ -665,6 +665,7 @@ cc_library(
         ":assert",
         ":compare",
         ":debug",
+        ":initializer",
         ":iterable",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
