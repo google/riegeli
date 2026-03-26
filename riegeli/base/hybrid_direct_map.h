@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
@@ -61,8 +62,10 @@ class HybridDirectMapImpl {
   HybridDirectMapImpl(HybridDirectMapImpl&& that) = default;
   HybridDirectMapImpl& operator=(HybridDirectMapImpl&& that) = default;
 
-  template <typename Src>
-  void Initialize(Src&& src, size_t direct_capacity);
+  template <typename Src, typename KeyProjection, typename ValueProjection>
+  void Initialize(Src&& src, const KeyProjection& key_projection,
+                  const ValueProjection& value_projection,
+                  size_t direct_capacity);
 
  private:
   using RawKey = std::decay_t<decltype(Traits::ToRawKey(std::declval<Key>()))>;
@@ -74,8 +77,11 @@ class HybridDirectMapImpl {
 
   static constexpr int kInverseMinLoadFactor = 4;  // 25%.
 
-  template <typename Src, typename Iterator>
+  template <typename Src, typename Iterator, typename KeyProjection,
+            typename ValueProjection>
   void Optimize(Iterator first, Iterator last, size_t size,
+                const KeyProjection& key_projection,
+                const ValueProjection& value_projection,
                 size_t direct_capacity);
 
   absl_nullable DirectValues CopyDirectValues() const;
@@ -126,6 +132,53 @@ class HybridDirectMap
                                          true>,
       private ConditionallyAssignable<std::is_copy_constructible_v<Value>,
                                       true> {
+ private:
+  template <typename Src, typename Enable = void>
+  struct HasCompatibleKeys : std::false_type {};
+  template <typename Src>
+  struct HasCompatibleKeys<
+      Src, std::enable_if_t<std::is_convertible_v<
+               decltype(std::declval<ElementTypeT<const Src&>>().first), Key>>>
+      : std::true_type {};
+
+  template <typename Src, typename KeyProjection, typename Enable = void>
+  struct HasProjectibleKeys : std::false_type {};
+  template <typename Src, typename KeyProjection>
+  struct HasProjectibleKeys<
+      Src, KeyProjection,
+      std::enable_if_t<std::is_convertible_v<
+          std::invoke_result_t<const KeyProjection&, ElementTypeT<const Src&>>,
+          Key>>> : std::true_type {};
+
+  template <typename Src, typename Enable = void>
+  struct HasCompatibleValues : std::false_type {};
+  template <typename Src>
+  struct HasCompatibleValues<
+      Src, std::enable_if_t<std::is_convertible_v<
+               decltype(std::declval<ElementTypeT<Src>>().second), Value>>>
+      : std::true_type {};
+
+  template <typename Src, typename ValueProjection, typename Enable = void>
+  struct HasProjectibleValues : std::false_type {};
+  template <typename Src, typename ValueProjection>
+  struct HasProjectibleValues<
+      Src, ValueProjection,
+      std::enable_if_t<std::is_convertible_v<
+          std::invoke_result_t<const ValueProjection&, ElementTypeT<Src>>,
+          Value>>> : std::true_type {};
+
+  template <typename Src>
+  struct DefaultKeyProjection {
+    Key operator()(ElementTypeT<const Src&> entry) const { return entry.first; }
+  };
+
+  template <typename Src>
+  struct DefaultValueProjection {
+    auto&& operator()(ElementTypeT<Src>&& entry) const {
+      return std::forward<ElementTypeT<Src>>(entry).second;
+    }
+  };
+
  public:
   // Constructs an empty `HybridDirectMap`.
   HybridDirectMap() = default;
@@ -136,32 +189,68 @@ class HybridDirectMap
             std::enable_if_t<
                 std::conjunction_v<
                     NotSameRef<HybridDirectMap, Src>, IsForwardIterable<Src>,
-                    IsIterableOfPairs<Src, Key, Value>,
-                    std::conditional_t<HasMovableElements<Src>::value,
-                                       std::is_move_constructible<Value>,
-                                       std::is_copy_constructible<Value>>>,
+                    HasCompatibleKeys<Src>, HasCompatibleValues<Src>>,
                 int> = 0>
   explicit HybridDirectMap(Src&& src) {
-    this->Initialize(std::forward<Src>(src),
+    this->Initialize(std::forward<Src>(src), DefaultKeyProjection<Src>(),
+                     DefaultValueProjection<Src>(),
                      kHybridDirectDefaultDirectCapacity);
   }
   template <typename Src,
-            std::enable_if_t<
-                std::conjunction_v<
-                    IsForwardIterable<Src>, IsIterableOfPairs<Src, Key, Value>,
-                    std::conditional_t<HasMovableElements<Src>::value,
-                                       std::is_move_constructible<Value>,
-                                       std::is_copy_constructible<Value>>>,
-                int> = 0>
+            std::enable_if_t<std::conjunction_v<IsForwardIterable<Src>,
+                                                HasCompatibleKeys<Src>,
+                                                HasCompatibleValues<Src>>,
+                             int> = 0>
   explicit HybridDirectMap(Src&& src, size_t direct_capacity) {
-    this->Initialize(std::forward<Src>(src), direct_capacity);
+    this->Initialize(std::forward<Src>(src), DefaultKeyProjection<Src>(),
+                     DefaultValueProjection<Src>(), direct_capacity);
   }
 
   // Builds `HybridDirectMap` from an initializer list.
   /*implicit*/ HybridDirectMap(
       std::initializer_list<std::pair<Key, Value>> src,
       size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
-    this->Initialize(src, direct_capacity);
+    this->Initialize(src, DefaultKeyProjection<decltype(src)>(),
+                     DefaultValueProjection<decltype(src)>(), direct_capacity);
+  }
+
+  // Builds `HybridDirectMap` from an iterable `src`. Moves values if `src` is
+  // an rvalue which owns its elements.
+  //
+  // Keys and values are extracted using `key_projection()` and
+  // `value_projection()` rather than `.first` and `.second`. `key_projection()`
+  // may be called multiple times for each entry so it should be efficient.
+  // `value_projection()` is called once for each entry so it can be expensive.
+  template <
+      typename Src, typename KeyProjection = DefaultKeyProjection<Src>,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_convertible<KeyProjection, size_t>>,
+              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
+              HasCompatibleValues<Src>>,
+          int> = 0>
+  explicit HybridDirectMap(
+      Src&& src, const KeyProjection& key_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    this->Initialize(std::forward<Src>(src), key_projection,
+                     DefaultValueProjection<Src>(), direct_capacity);
+  }
+  template <
+      typename Src, typename KeyProjection = DefaultKeyProjection<Src>,
+      typename ValueProjection = DefaultValueProjection<Src>,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_convertible<KeyProjection, size_t>>,
+              std::negation<std::is_convertible<ValueProjection, size_t>>,
+              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
+              HasProjectibleValues<Src, ValueProjection>>,
+          int> = 0>
+  explicit HybridDirectMap(
+      Src&& src, const KeyProjection& key_projection,
+      const ValueProjection& value_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    this->Initialize(std::forward<Src>(src), key_projection, value_projection,
+                     direct_capacity);
   }
 
   HybridDirectMap(const HybridDirectMap& that) = default;
@@ -173,23 +262,55 @@ class HybridDirectMap
   // Makes `*this` equivalent to a newly constructed `HybridDirectMap`.
   using HybridDirectMap::HybridDirectMapImpl::Reset;
   template <typename Src,
-            std::enable_if_t<
-                std::conjunction_v<
-                    IsForwardIterable<Src>, IsIterableOfPairs<Src, Key, Value>,
-                    std::conditional_t<HasMovableElements<Src>::value,
-                                       std::is_move_constructible<Value>,
-                                       std::is_copy_constructible<Value>>>,
-                int> = 0>
+            std::enable_if_t<std::conjunction_v<IsForwardIterable<Src>,
+                                                HasCompatibleKeys<Src>,
+                                                HasCompatibleValues<Src>>,
+                             int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Src&& src, size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
     this->Reset();
-    this->Initialize(std::forward<Src>(src), direct_capacity);
+    this->Initialize(std::forward<Src>(src), DefaultKeyProjection<Src>(),
+                     DefaultValueProjection<Src>(), direct_capacity);
   }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       std::initializer_list<std::pair<Key, Value>> src,
       size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
     this->Reset();
-    this->Initialize(src, direct_capacity);
+    this->Initialize(src, DefaultKeyProjection<decltype(src)>(),
+                     DefaultValueProjection<decltype(src)>(), direct_capacity);
+  }
+  template <
+      typename Src, typename KeyProjection = DefaultKeyProjection<Src>,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_convertible<KeyProjection, size_t>>,
+              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
+              HasCompatibleValues<Src>>,
+          int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Src&& src, const KeyProjection& key_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    this->Reset();
+    this->Initialize(std::forward<Src>(src), key_projection,
+                     DefaultValueProjection<Src>(), direct_capacity);
+  }
+  template <
+      typename Src, typename KeyProjection = DefaultKeyProjection<Src>,
+      typename ValueProjection = DefaultValueProjection<Src>,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_convertible<KeyProjection, size_t>>,
+              std::negation<std::is_convertible<ValueProjection, size_t>>,
+              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
+              HasProjectibleValues<Src, ValueProjection>>,
+          int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Src&& src, const KeyProjection& key_projection,
+      const ValueProjection& value_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    this->Reset();
+    this->Initialize(std::forward<Src>(src), key_projection, value_projection,
+                     direct_capacity);
   }
 };
 
@@ -212,9 +333,10 @@ void HybridDirectMapImpl<Key, Value, Traits>::Reset() {
 }
 
 template <typename Key, typename Value, typename Traits>
-template <typename Src>
+template <typename Src, typename KeyProjection, typename ValueProjection>
 void HybridDirectMapImpl<Key, Value, Traits>::Initialize(
-    Src&& src, size_t direct_capacity) {
+    Src&& src, const KeyProjection& key_projection,
+    const ValueProjection& value_projection, size_t direct_capacity) {
   using std::begin;
   using std::end;
   if constexpr (IterableHasSize<Src>::value) {
@@ -225,14 +347,16 @@ void HybridDirectMapImpl<Key, Value, Traits>::Initialize(
         << "Failed precondition of HybridDirectMap initialization: "
            "size does not match the distance between iterators";
     if (src_size > 0) {
-      Optimize<Src>(begin(src), end(src), src_size, direct_capacity);
+      Optimize<Src>(begin(src), end(src), src_size, key_projection,
+                    value_projection, direct_capacity);
     }
   } else {
     auto first = begin(src);
     auto last = end(src);
     const size_t src_size = IntCast<size_t>(std::distance(first, last));
     if (src_size > 0) {
-      Optimize<Src>(first, last, src_size, direct_capacity);
+      Optimize<Src>(first, last, src_size, key_projection, value_projection,
+                    direct_capacity);
     }
   }
 #if RIEGELI_DEBUG
@@ -245,11 +369,12 @@ void HybridDirectMapImpl<Key, Value, Traits>::Initialize(
 }
 
 template <typename Key, typename Value, typename Traits>
-template <typename Src, typename Iterator>
-void HybridDirectMapImpl<Key, Value, Traits>::Optimize(Iterator first,
-                                                       Iterator last,
-                                                       size_t size,
-                                                       size_t direct_capacity) {
+template <typename Src, typename Iterator, typename KeyProjection,
+          typename ValueProjection>
+void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
+    Iterator first, Iterator last, size_t size,
+    const KeyProjection& key_projection,
+    const ValueProjection& value_projection, size_t direct_capacity) {
   RIEGELI_ASSERT_GE(size, 0u)
       << "Failed precondition of HybridDirectMapImpl::Optimize(): "
          "an empty map must have been handled before";
@@ -258,7 +383,8 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(Iterator first,
          "size overflow";
   RawKey max_raw_key = 0;
   for (auto iter = first; iter != last; ++iter) {
-    max_raw_key = UnsignedMax(max_raw_key, Traits::ToRawKey(iter->first));
+    max_raw_key = UnsignedMax(
+        max_raw_key, Traits::ToRawKey(std::invoke(key_projection, *iter)));
   }
   const size_t max_num_direct_keys =
       UnsignedMax(direct_capacity, size * kInverseMinLoadFactor);
@@ -275,15 +401,14 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(Iterator first,
         IntCast<size_t>(max_raw_key) + 1);
     direct_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
-      // `(*iter).second` rather than `iter->second` allows moving from a move
-      // iterator.
-      const RawKey raw_key = Traits::ToRawKey(iter->first);
+      const RawKey raw_key =
+          Traits::ToRawKey(std::invoke(key_projection, *iter));
       RIEGELI_ASSERT_EQ(direct_map_[raw_key], nullptr)
           << "Failed precondition of HybridDirectMap initialization: "
              "duplicate key: "
-          << riegeli::Debug(iter->first);
+          << riegeli::Debug(std::invoke(key_projection, *iter));
       direct_map_[raw_key] = &direct_values_[direct_values_index++].emplace(
-          (*MaybeMakeMoveIterator<Src>(iter)).second);
+          std::invoke(value_projection, *MaybeMakeMoveIterator<Src>(iter)));
     }
   } else {
     // Some keys are too large for `direct_map_`. `slow_map_` is used.
@@ -292,8 +417,10 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(Iterator first,
     // only up to `max_raw_key`, to reduce lookups in `slow_map_`.
     size_t num_direct_values = 0;
     for (auto iter = first; iter != last; ++iter) {
-      num_direct_values +=
-          Traits::ToRawKey(iter->first) < max_num_direct_keys ? 1 : 0;
+      num_direct_values += Traits::ToRawKey(std::invoke(
+                               key_projection, *iter)) < max_num_direct_keys
+                               ? 1
+                               : 0;
     }
     RIEGELI_ASSERT_LT(num_direct_values, size)
         << "Some keys should have been too large for direct_map_";
@@ -310,23 +437,23 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(Iterator first,
     slow_map_->reserve(size - num_direct_values);
     direct_values_index = 0;
     for (auto iter = first; iter != last; ++iter) {
-      // `(*iter).second` rather than `iter->second` allows moving from a move
-      // iterator.
-      const RawKey raw_key = Traits::ToRawKey(iter->first);
+      const RawKey raw_key =
+          Traits::ToRawKey(std::invoke(key_projection, *iter));
       if (raw_key < max_num_direct_keys) {
         RIEGELI_ASSERT_EQ(direct_map_[raw_key], nullptr)
             << "Failed precondition of HybridDirectMap initialization: "
                "duplicate key: "
-            << riegeli::Debug(iter->first);
+            << riegeli::Debug(std::invoke(key_projection, *iter));
         direct_map_[raw_key] = &direct_values_[direct_values_index++].emplace(
-            (*MaybeMakeMoveIterator<Src>(iter)).second);
+            std::invoke(value_projection, *MaybeMakeMoveIterator<Src>(iter)));
       } else {
         const auto inserted = slow_map_->try_emplace(
-            raw_key, (*MaybeMakeMoveIterator<Src>(iter)).second);
+            raw_key,
+            std::invoke(value_projection, *MaybeMakeMoveIterator<Src>(iter)));
         RIEGELI_ASSERT(inserted.second)
             << "Failed precondition of HybridDirectMap initialization: "
                "duplicate key: "
-            << riegeli::Debug(iter->first);
+            << riegeli::Debug(std::invoke(key_projection, *iter));
       }
     }
   }
