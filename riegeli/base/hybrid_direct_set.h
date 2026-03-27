@@ -21,6 +21,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -80,13 +81,22 @@ class HybridDirectSet : public WithEqual<HybridDirectSet<Key, Traits>> {
       : std::true_type {};
 
   template <typename Src, typename KeyProjection, typename Enable = void>
-  struct HasProjectibleKeys : std::false_type {};
+  struct HasProjectableKeys : std::false_type {};
   template <typename Src, typename KeyProjection>
-  struct HasProjectibleKeys<
+  struct HasProjectableKeys<
       Src, KeyProjection,
       std::enable_if_t<std::is_convertible_v<
           std::invoke_result_t<const KeyProjection&, ElementTypeT<const Src&>>,
           Key>>> : std::true_type {};
+
+  template <typename Index, typename KeyProjection, typename Enable = void>
+  struct HasGeneratableKeys : std::false_type {};
+  template <typename Index, typename KeyProjection>
+  struct HasGeneratableKeys<
+      Index, KeyProjection,
+      std::enable_if_t<std::is_convertible_v<
+          std::invoke_result_t<const KeyProjection&, Index>, Key>>>
+      : std::true_type {};
 
   template <typename Src>
   struct DefaultKeyProjection {
@@ -144,12 +154,30 @@ class HybridDirectSet : public WithEqual<HybridDirectSet<Key, Traits>> {
       std::enable_if_t<
           std::conjunction_v<
               std::negation<std::is_convertible<KeyProjection, size_t>>,
-              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>>,
+              IsForwardIterable<Src>, HasProjectableKeys<Src, KeyProjection>>,
           int> = 0>
   explicit HybridDirectSet(
       const Src& src, const KeyProjection& key_projection,
       size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
     Initialize(src, key_projection, direct_capacity);
+  }
+
+  // Builds `HybridDirectSet` from keys computed by invoking `key_projection()`
+  // with indices from [0..`size`).
+  //
+  // `key_projection()` may be called multiple times for each index so it should
+  // be efficient.
+  template <typename Index, typename KeyProjection,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_integral<Index>,
+                    std::negation<std::is_convertible<KeyProjection, size_t>>,
+                    HasGeneratableKeys<Index, KeyProjection>>,
+                int> = 0>
+  explicit HybridDirectSet(
+      Index size, const KeyProjection& key_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    InitializeByIndex(size, key_projection, direct_capacity);
   }
 
   HybridDirectSet(const HybridDirectSet& that) noexcept;
@@ -181,13 +209,26 @@ class HybridDirectSet : public WithEqual<HybridDirectSet<Key, Traits>> {
       std::enable_if_t<
           std::conjunction_v<
               std::negation<std::is_convertible<KeyProjection, size_t>>,
-              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>>,
+              IsForwardIterable<Src>, HasProjectableKeys<Src, KeyProjection>>,
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       const Src& src, const KeyProjection& key_projection,
       size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
     Reset();
     Initialize(src, key_projection, direct_capacity);
+  }
+  template <typename Index, typename KeyProjection,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_integral<Index>,
+                    std::negation<std::is_convertible<KeyProjection, size_t>>,
+                    HasGeneratableKeys<Index, KeyProjection>>,
+                int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Index size, const KeyProjection& key_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    Reset();
+    InitializeByIndex(size, key_projection, direct_capacity);
   }
 
   bool contains(Key key) const;
@@ -220,6 +261,10 @@ class HybridDirectSet : public WithEqual<HybridDirectSet<Key, Traits>> {
   template <typename Src, typename KeyProjection>
   void Initialize(const Src& src, const KeyProjection& key_projection,
                   size_t direct_capacity);
+
+  template <typename Index, typename KeyProjection>
+  void InitializeByIndex(Index size, const KeyProjection& key_projection,
+                         size_t direct_capacity);
 
   template <typename Iterator, typename KeyProjection>
   void Optimize(Iterator first, Iterator last, size_t size,
@@ -406,6 +451,20 @@ void HybridDirectSet<Key, Traits>::Initialize(
     const size_t src_size = IntCast<size_t>(std::distance(first, last));
     if (src_size > 0)
       Optimize(first, last, src_size, key_projection, direct_capacity);
+  }
+}
+
+template <typename Key, typename Traits>
+template <typename Index, typename KeyProjection>
+void HybridDirectSet<Key, Traits>::InitializeByIndex(
+    Index size, const KeyProjection& key_projection, size_t direct_capacity) {
+  if (size > 0) {
+    RIEGELI_CHECK_LE(UnsignedCast(size), std::numeric_limits<size_t>::max())
+        << "Failed precondition of HybridDirectSet initialization: "
+           "size overflow";
+    Optimize(hybrid_direct_internal::IndexIterator<Index>(0),
+             hybrid_direct_internal::IndexIterator<Index>(size),
+             IntCast<size_t>(size), key_projection, direct_capacity);
   }
 }
 

@@ -27,6 +27,7 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/compare.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 
@@ -234,6 +235,30 @@ inline void AssignToAssumedNull(Dest& dest, Src&& src) {
          "old value of destination is not null";
   dest = std::forward<Src>(src);
 }
+
+// An iterator over a sequence of consecutive indices. Does not support the full
+// iterator API, only what is needed by `HybridDirectMap` and `HybridDirectSet`.
+template <typename Index>
+class IndexIterator : public WithEqual<IndexIterator<Index>> {
+ public:
+  explicit IndexIterator(Index index) : index_(index) {}
+
+  IndexIterator(const IndexIterator&) = default;
+  IndexIterator& operator=(const IndexIterator&) = default;
+
+  Index operator*() const { return index_; }
+  IndexIterator& operator++() {
+    ++index_;
+    return *this;
+  }
+
+  friend bool operator==(const IndexIterator& a, const IndexIterator& b) {
+    return a.index_ == b.index_;
+  }
+
+ private:
+  Index index_;
+};
 
 }  // namespace riegeli::hybrid_direct_internal
 

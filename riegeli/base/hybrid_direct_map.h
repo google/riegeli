@@ -20,6 +20,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -122,6 +123,11 @@ class HybridDirectMapImpl {
                   const ValueProjection& value_projection,
                   size_t direct_capacity);
 
+  template <typename Index, typename KeyProjection, typename ValueProjection>
+  void InitializeByIndex(Index size, const KeyProjection& key_projection,
+                         const ValueProjection& value_projection,
+                         size_t direct_capacity);
+
   static bool Equal(const HybridDirectMapImpl& a, const HybridDirectMapImpl& b);
 
  private:
@@ -216,15 +222,6 @@ class HybridDirectMap
                decltype(std::declval<ElementTypeT<const Src&>>().first), Key>>>
       : std::true_type {};
 
-  template <typename Src, typename KeyProjection, typename Enable = void>
-  struct HasProjectibleKeys : std::false_type {};
-  template <typename Src, typename KeyProjection>
-  struct HasProjectibleKeys<
-      Src, KeyProjection,
-      std::enable_if_t<std::is_convertible_v<
-          std::invoke_result_t<const KeyProjection&, ElementTypeT<const Src&>>,
-          Key>>> : std::true_type {};
-
   template <typename Src, typename Enable = void>
   struct HasCompatibleValues : std::false_type {};
   template <typename Src>
@@ -233,14 +230,41 @@ class HybridDirectMap
                decltype(std::declval<ElementTypeT<Src>>().second), Value>>>
       : std::true_type {};
 
+  template <typename Src, typename KeyProjection, typename Enable = void>
+  struct HasProjectableKeys : std::false_type {};
+  template <typename Src, typename KeyProjection>
+  struct HasProjectableKeys<
+      Src, KeyProjection,
+      std::enable_if_t<std::is_convertible_v<
+          std::invoke_result_t<const KeyProjection&, ElementTypeT<const Src&>>,
+          Key>>> : std::true_type {};
+
   template <typename Src, typename ValueProjection, typename Enable = void>
-  struct HasProjectibleValues : std::false_type {};
+  struct HasProjectableValues : std::false_type {};
   template <typename Src, typename ValueProjection>
-  struct HasProjectibleValues<
+  struct HasProjectableValues<
       Src, ValueProjection,
       std::enable_if_t<std::is_convertible_v<
           std::invoke_result_t<const ValueProjection&, ElementTypeT<Src>>,
           Value>>> : std::true_type {};
+
+  template <typename Index, typename KeyProjection, typename Enable = void>
+  struct HasGeneratableKeys : std::false_type {};
+  template <typename Index, typename KeyProjection>
+  struct HasGeneratableKeys<
+      Index, KeyProjection,
+      std::enable_if_t<std::is_convertible_v<
+          std::invoke_result_t<const KeyProjection&, Index>, Key>>>
+      : std::true_type {};
+
+  template <typename Index, typename ValueProjection, typename Enable = void>
+  struct HasGeneratableValues : std::false_type {};
+  template <typename Index, typename ValueProjection>
+  struct HasGeneratableValues<
+      Index, ValueProjection,
+      std::enable_if_t<std::is_convertible_v<
+          std::invoke_result_t<const ValueProjection&, Index>, Value>>>
+      : std::true_type {};
 
   template <typename Src>
   struct DefaultKeyProjection {
@@ -301,7 +325,7 @@ class HybridDirectMap
       std::enable_if_t<
           std::conjunction_v<
               std::negation<std::is_convertible<KeyProjection, size_t>>,
-              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
+              IsForwardIterable<Src>, HasProjectableKeys<Src, KeyProjection>,
               HasCompatibleValues<Src>>,
           int> = 0>
   explicit HybridDirectMap(
@@ -317,8 +341,8 @@ class HybridDirectMap
           std::conjunction_v<
               std::negation<std::is_convertible<KeyProjection, size_t>>,
               std::negation<std::is_convertible<ValueProjection, size_t>>,
-              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
-              HasProjectibleValues<Src, ValueProjection>>,
+              IsForwardIterable<Src>, HasProjectableKeys<Src, KeyProjection>,
+              HasProjectableValues<Src, ValueProjection>>,
           int> = 0>
   explicit HybridDirectMap(
       Src&& src, const KeyProjection& key_projection,
@@ -326,6 +350,29 @@ class HybridDirectMap
       size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
     this->Initialize(std::forward<Src>(src), key_projection, value_projection,
                      direct_capacity);
+  }
+
+  // Builds `HybridDirectMap` from keys and values computed by invoking
+  // `key_projection()` and `value_projection()` with indices from [0..`size`).
+  //
+  // `key_projection()` may be called multiple times for each index so it should
+  // be efficient. `value_projection()` is called once for each index so it can
+  // be expensive.
+  template <typename Index, typename KeyProjection, typename ValueProjection,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_integral<Index>,
+                    std::negation<std::is_convertible<KeyProjection, size_t>>,
+                    std::negation<std::is_convertible<ValueProjection, size_t>>,
+                    HasGeneratableKeys<Index, KeyProjection>,
+                    HasGeneratableValues<Index, ValueProjection>>,
+                int> = 0>
+  explicit HybridDirectMap(
+      Index size, const KeyProjection& key_projection,
+      const ValueProjection& value_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    this->InitializeByIndex(size, key_projection, value_projection,
+                            direct_capacity);
   }
 
   HybridDirectMap(const HybridDirectMap& that) = default;
@@ -359,7 +406,7 @@ class HybridDirectMap
       std::enable_if_t<
           std::conjunction_v<
               std::negation<std::is_convertible<KeyProjection, size_t>>,
-              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
+              IsForwardIterable<Src>, HasProjectableKeys<Src, KeyProjection>,
               HasCompatibleValues<Src>>,
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
@@ -376,8 +423,8 @@ class HybridDirectMap
           std::conjunction_v<
               std::negation<std::is_convertible<KeyProjection, size_t>>,
               std::negation<std::is_convertible<ValueProjection, size_t>>,
-              IsForwardIterable<Src>, HasProjectibleKeys<Src, KeyProjection>,
-              HasProjectibleValues<Src, ValueProjection>>,
+              IsForwardIterable<Src>, HasProjectableKeys<Src, KeyProjection>,
+              HasProjectableValues<Src, ValueProjection>>,
           int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(
       Src&& src, const KeyProjection& key_projection,
@@ -386,6 +433,23 @@ class HybridDirectMap
     this->Reset();
     this->Initialize(std::forward<Src>(src), key_projection, value_projection,
                      direct_capacity);
+  }
+  template <typename Index, typename KeyProjection, typename ValueProjection,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::is_integral<Index>,
+                    std::negation<std::is_convertible<KeyProjection, size_t>>,
+                    std::negation<std::is_convertible<ValueProjection, size_t>>,
+                    HasGeneratableKeys<Index, KeyProjection>,
+                    HasGeneratableValues<Index, ValueProjection>>,
+                int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
+      Index size, const KeyProjection& key_projection,
+      const ValueProjection& value_projection,
+      size_t direct_capacity = kHybridDirectDefaultDirectCapacity) {
+    this->Reset();
+    this->InitializeByIndex(size, key_projection, value_projection,
+                            direct_capacity);
   }
 
   friend bool operator==(const HybridDirectMap& a, const HybridDirectMap& b) {
@@ -581,6 +645,24 @@ void HybridDirectMapImpl<Key, Value, Traits>::Initialize(
     ABSL_ATTRIBUTE_UNUSED Src moved = std::forward<Src>(src);
   }
 #endif
+}
+
+template <typename Key, typename Value, typename Traits>
+template <typename Index, typename KeyProjection, typename ValueProjection>
+void HybridDirectMapImpl<Key, Value, Traits>::InitializeByIndex(
+    Index size, const KeyProjection& key_projection,
+    const ValueProjection& value_projection, size_t direct_capacity) {
+  if (size > 0) {
+    RIEGELI_CHECK_LE(UnsignedCast(size), std::numeric_limits<size_t>::max())
+        << "Failed precondition of HybridDirectMap initialization: "
+           "size overflow";
+    // The template parameter of `Optimize()` serves only to determine whether
+    // to apply `std::move_iterator`.
+    Optimize<const Index[1]>(hybrid_direct_internal::IndexIterator<Index>(0),
+                             hybrid_direct_internal::IndexIterator<Index>(size),
+                             IntCast<size_t>(size), key_projection,
+                             value_projection, direct_capacity);
+  }
 }
 
 template <typename Key, typename Value, typename Traits>
