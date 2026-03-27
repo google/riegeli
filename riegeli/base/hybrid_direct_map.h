@@ -713,19 +713,19 @@ auto HybridDirectMapImpl<Key, Value, Traits>::CopyDirectMap(
   if (direct_map_ == nullptr) return nullptr;
   DelayedConstructor<Value>* const absl_nullable src_values =
       direct_values_.get();
-  DirectMap dest_ptr =
-      MakeSizedArray<Value* absl_nullable>(direct_map_.get_deleter().size());
+  DirectMap dest_ptr = MakeSizedArrayForOverwrite<Value* absl_nullable>(
+      direct_map_.get_deleter().size());
   Value* absl_nullable* src_iter = direct_map_.get();
   Value* absl_nullable* const end =
       dest_ptr.get() + dest_ptr.get_deleter().size();
   for (Value* absl_nullable* dest_iter = dest_ptr.get(); dest_iter != end;
        ++dest_iter) {
-    if (*src_iter != nullptr) {
-      *dest_iter =
-          reinterpret_cast<Value*>(reinterpret_cast<char*>(dest_values) +
-                                   ((reinterpret_cast<char*>(*src_iter) -
-                                     reinterpret_cast<char*>(src_values))));
-    }
+    *dest_iter =
+        *src_iter == nullptr
+            ? nullptr
+            : reinterpret_cast<Value*>(reinterpret_cast<char*>(dest_values) +
+                                       ((reinterpret_cast<char*>(*src_iter) -
+                                         reinterpret_cast<char*>(src_values))));
     ++src_iter;
   }
   return dest_ptr;

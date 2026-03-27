@@ -199,6 +199,27 @@ inline SizedArray<T, supports_abandon> MakeSizedArray(size_t size) {
       ptr, SizedDeleter<T, supports_abandon>(size));
 }
 
+// Like `std::make_unique_for_overwrite<T[]>(size)`.
+//
+// If `supports_abandon` is true, truncation with `get_deleter().AbandonAfter()`
+// is supported, at the cost of some overhead.
+template <typename T, bool supports_abandon = false>
+inline SizedArray<T, supports_abandon> MakeSizedArrayForOverwrite(size_t size) {
+  T* ptr;
+  if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
+    ptr = static_cast<T*>(operator new[](size * sizeof(T)));
+  } else {
+    ptr = static_cast<T*>(operator new[](size * sizeof(T),
+                                         std::align_val_t(alignof(T))));
+  }
+  T* const end = ptr + size;
+  for (T* iter = ptr; iter != end; ++iter) {
+    new (iter) T;
+  }
+  return SizedArray<T, supports_abandon>(
+      ptr, SizedDeleter<T, supports_abandon>(size));
+}
+
 // Performs an assignment, but the behavior is undefined if the old value of the
 // destination is not null. This allows the compiler skip generating the code
 // which deletes the old value.

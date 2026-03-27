@@ -675,6 +675,25 @@ cc_library(
 )
 
 cc_library(
+    name = "hybrid_direct_set",
+    srcs = [
+        "hybrid_direct_common.h",
+        "hybrid_direct_internal.h",
+    ],
+    hdrs = ["hybrid_direct_set.h"],
+    deps = [
+        ":arithmetic",
+        ":assert",
+        ":compare",
+        ":iterable",
+        ":type_traits",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:flat_hash_set",
+    ],
+)
+
+cc_library(
     name = "binary_search",
     hdrs = ["binary_search.h"],
     deps = [

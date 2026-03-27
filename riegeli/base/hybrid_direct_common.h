@@ -16,6 +16,7 @@
 #define RIEGELI_BASE_HYBRID_DIRECT_COMMON_H_
 
 // IWYU pragma: private, include "riegeli/base/hybrid_direct_map.h"
+// IWYU pragma: private, include "riegeli/base/hybrid_direct_set.h"
 
 #include <stddef.h>
 
@@ -27,7 +28,7 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-// The default `Traits` parameter for `HybridDirectMap`.
+// The default `Traits` parameter for `HybridDirectMap` and `HybridDirectSet`.
 //
 // `expected_min_key` is the expected lower bound of keys. Keys smaller than
 // that are never put in the array.
@@ -68,7 +69,8 @@ struct HybridDirectTraits<Key, expected_min_key,
   }
 };
 
-// The default `direct_capacity` parameter for `HybridDirectMap` building.
+// The default `direct_capacity` parameter for `HybridDirectMap` and
+// `HybridDirectSet` building.
 constexpr size_t kHybridDirectDefaultDirectCapacity = 128;
 
 }  // namespace riegeli
