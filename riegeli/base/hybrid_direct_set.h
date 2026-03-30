@@ -42,12 +42,13 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-// `HybridDirectSet` is a set optimized for keys being mostly small integers,
-// especially dense near zero. It supports only lookups and iteration, but no
-// incremental modification.
+// `HybridDirectSet` is a set optimized for keys being mostly small integers
+// or enums, especially if they are dense near zero. It supports only lookups
+// and iteration, but no incremental modification.
 //
-// It stores a part of the set covering some range of small keys in an array.
-// The remaining keys are stored in an `absl::flat_hash_set`.
+// It stores a part of the set covering some range of small keys in an array
+// of booleans, directly indexed by the key. The remaining keys are stored in
+// an `absl::flat_hash_set`.
 //
 // `Traits` specifies a mapping of keys to an unsigned integer type. It must
 // support at least the following static members:
@@ -376,19 +377,18 @@ class HybridDirectSet<Key, Traits>::iterator : public WithEqual<iterator> {
   const bool* absl_nullable direct_set_end_ = nullptr;
   // `direct_set_.get_deleter().size()`.
   size_t direct_set_size_ = 0;
-  // `direct_set_size_ - raw_key` when iterating over `direct_set_`, otherwise
-  // 0.
+  // `direct_set_size_ - raw_key` when iterating over `direct_set_`,
+  // otherwise 0.
   //
-  // Invariant: if `raw_key_complement > 0` then
+  // Invariant: if `raw_key_complement_ > 0` then
   // `*(direct_set_end_ - raw_key_complement_) != nullptr`.
   //
-  // Counting backwards simplifies checking for iteration over `direct_set_`.
+  // Counting backwards simplifies computing `end()` and advancing the iterator.
   size_t raw_key_complement_ = 0;
   // Iterator over `*slow_set_` when `slow_set_ != nullptr`, otherwise
   // `std::nullopt`.
   //
-  // Invariant: if `raw_key_complement_ > 0` then
-  // `slow_set_iter_ == std::nullopt` or
+  // Invariant: if `raw_key_complement_ > 0` and `slow_set_ != nullptr` then
   // `slow_set_iter_ == slow_set_->begin()`.
   //
   // Distinguishing `std::nullopt` instead of using the default-constructed
@@ -482,8 +482,8 @@ void HybridDirectSet<Key, Traits>::Optimize(Iterator first, Iterator last,
          "size overflow";
   RawKey max_raw_key = 0;
   for (auto iter = first; iter != last; ++iter) {
-    max_raw_key = UnsignedMax(
-        max_raw_key, Traits::ToRawKey(std::invoke(key_projection, *iter)));
+    const RawKey raw_key = Traits::ToRawKey(std::invoke(key_projection, *iter));
+    max_raw_key = UnsignedMax(max_raw_key, raw_key);
   }
   const size_t max_num_direct_keys =
       UnsignedMax(direct_capacity, size * kInverseMinLoadFactor);
@@ -491,8 +491,8 @@ void HybridDirectSet<Key, Traits>::Optimize(Iterator first, Iterator last,
   if (max_raw_key < max_num_direct_keys) {
     // All keys are suitable for `direct_set_`. `slow_set_` is not used.
     //
-    // There is no need for `direct_set_` to cover raw keys larger than
-    // `max_raw_key` because their lookup is fast if `slow_set_` is `nullptr`.
+    // There is no need for `direct_set_` to cover raw keys above `max_raw_key`
+    // because their lookup is fast if `slow_set_` is `nullptr`.
     hybrid_direct_internal::AssignToAssumedNull(
         direct_set_, hybrid_direct_internal::MakeSizedArray<bool>(
                          IntCast<size_t>(max_raw_key) + 1));
@@ -507,21 +507,27 @@ void HybridDirectSet<Key, Traits>::Optimize(Iterator first, Iterator last,
     //
     // `direct_set_` covers all raw keys below `max_num_direct_keys` rather than
     // only up to `max_raw_key`, to reduce lookups in `slow_set_`.
-    hybrid_direct_internal::AssignToAssumedNull(
-        direct_set_,
-        hybrid_direct_internal::MakeSizedArray<bool>(max_num_direct_keys));
-    size_t num_slow_elements = size;
+    size_t num_direct_elements = 0;
     for (auto iter = first; iter != last; ++iter) {
-      num_slow_elements -= Traits::ToRawKey(std::invoke(
-                               key_projection, *iter)) < max_num_direct_keys
-                               ? 1
-                               : 0;
+      const RawKey raw_key =
+          Traits::ToRawKey(std::invoke(key_projection, *iter));
+      num_direct_elements += raw_key < max_num_direct_keys ? 1 : 0;
     }
-    RIEGELI_ASSERT_GT(num_slow_elements, 0u)
+    RIEGELI_ASSERT_LT(num_direct_elements, size)
         << "Some keys should have been too large for direct_set_";
+    if (ABSL_PREDICT_FALSE(num_direct_elements == 0)) {
+      // The distribution is unfortunate: all keys are too large for
+      // `direct_set_`. No lookup hits can be optimized. Do not allocate
+      // `direct_set_` full of absent keys to save memory, at the cost of
+      // not optimizing any lookup misses.
+    } else {
+      hybrid_direct_internal::AssignToAssumedNull(
+          direct_set_,
+          hybrid_direct_internal::MakeSizedArray<bool>(max_num_direct_keys));
+    }
     hybrid_direct_internal::AssignToAssumedNull(slow_set_,
                                                 std::make_unique<SlowSet>());
-    slow_set_->reserve(num_slow_elements);
+    slow_set_->reserve(size - num_direct_elements);
     for (auto iter = first; iter != last; ++iter) {
       const RawKey raw_key =
           Traits::ToRawKey(std::invoke(key_projection, *iter));

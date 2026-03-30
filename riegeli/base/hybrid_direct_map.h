@@ -178,12 +178,13 @@ class HybridDirectMapImpl {
 
 }  // namespace hybrid_direct_internal
 
-// `HybridDirectMap` is a map optimized for keys being mostly small integers,
-// especially dense near zero. It supports only lookups and iteration, but no
-// incremental modification.
+// `HybridDirectMap` is a map optimized for keys being mostly small integers
+// or enums, especially if they are dense near zero. It supports only lookups
+// and iteration, but no incremental modification.
 //
-// It stores a part of the map covering some range of small keys in an array.
-// The remaining keys are stored in an `absl::flat_hash_map`.
+// It stores a part of the map covering some range of small keys in an array
+// of pointers to values, directly indexed by the key. The remaining keys are
+// stored in an `absl::flat_hash_map`.
 //
 // `Traits` specifies a mapping of keys to an unsigned integer type. It must
 // support at least the following static members:
@@ -562,24 +563,23 @@ class HybridDirectMapImpl<Key, Value, Traits>::IteratorImpl
 
   // The end of the `direct_map_` array.
   //
-  // Counting backwards simplifies checking for iteration over `direct_map_`.
+  // Counting backwards simplifies computing `end()` and advancing the iterator.
   absl_nullable const std::conditional_t<
       is_const, const Value*, Value*>* absl_nullable direct_map_end_ = nullptr;
   // `direct_map_.get_deleter().size()`.
   size_t direct_map_size_ = 0;
-  // `direct_map_size_ - raw_key` when iterating over `direct_map_`, otherwise
-  // 0.
+  // `direct_map_size_ - raw_key` when iterating over `direct_map_`,
+  // otherwise 0.
   //
-  // Invariant: if `raw_key_complement > 0` then
+  // Invariant: if `raw_key_complement_ > 0` then
   // `*(direct_map_end_ - raw_key_complement_) != nullptr`.
   //
-  // Counting backwards simplifies checking for iteration over `direct_map_`.
+  // Counting backwards simplifies computing `end()` and advancing the iterator.
   size_t raw_key_complement_ = 0;
   // Iterator over `*slow_map_` when `slow_map_ != nullptr`, otherwise
   // `std::nullopt`.
   //
-  // Invariant: if `raw_key_complement_ > 0` then
-  // `slow_map_iter_ == std::nullopt` or
+  // Invariant: if `raw_key_complement_ > 0` and `slow_map_ != nullptr` then
   // `slow_map_iter_ == slow_map_->begin()`.
   //
   // Distinguishing `std::nullopt` instead of using the default-constructed
@@ -680,8 +680,8 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
          "size overflow";
   RawKey max_raw_key = 0;
   for (auto iter = first; iter != last; ++iter) {
-    max_raw_key = UnsignedMax(
-        max_raw_key, Traits::ToRawKey(std::invoke(key_projection, *iter)));
+    const RawKey raw_key = Traits::ToRawKey(std::invoke(key_projection, *iter));
+    max_raw_key = UnsignedMax(max_raw_key, raw_key);
   }
   const size_t max_num_direct_keys =
       UnsignedMax(direct_capacity, size * kInverseMinLoadFactor);
@@ -689,8 +689,8 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
   if (max_raw_key < max_num_direct_keys) {
     // All keys are suitable for `direct_map_`. `slow_map_` is not used.
     //
-    // There is no need for `direct_map_` to cover raw keys larger than
-    // `max_raw_key` because their lookup is fast if `slow_map_` is `nullptr`.
+    // There is no need for `direct_map_` to cover raw keys above `max_raw_key`
+    // because their lookup is fast if `slow_map_` is `nullptr`.
     hybrid_direct_internal::AssignToAssumedNull(
         direct_values_,
         MakeSizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>(
@@ -714,21 +714,26 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     // only up to `max_raw_key`, to reduce lookups in `slow_map_`.
     size_t num_direct_values = 0;
     for (auto iter = first; iter != last; ++iter) {
-      num_direct_values += Traits::ToRawKey(std::invoke(
-                               key_projection, *iter)) < max_num_direct_keys
-                               ? 1
-                               : 0;
+      const RawKey raw_key =
+          Traits::ToRawKey(std::invoke(key_projection, *iter));
+      num_direct_values += raw_key < max_num_direct_keys ? 1 : 0;
     }
     RIEGELI_ASSERT_LT(num_direct_values, size)
         << "Some keys should have been too large for direct_map_";
-    if (num_direct_values > 0) {
+    if (ABSL_PREDICT_FALSE(num_direct_values == 0)) {
+      // The distribution is unfortunate: all keys are too large for
+      // `direct_map_`. No lookup hits can be optimized. Do not allocate
+      // `direct_map_` full of absent keys to save memory, at the cost of
+      // not optimizing any lookup misses.
+    } else {
       hybrid_direct_internal::AssignToAssumedNull(
           direct_values_,
           MakeSizedArray<DelayedConstructor<Value>, /*supports_abandon=*/true>(
               num_direct_values));
+      hybrid_direct_internal::AssignToAssumedNull(
+          direct_map_,
+          MakeSizedArray<Value* absl_nullable>(max_num_direct_keys));
     }
-    hybrid_direct_internal::AssignToAssumedNull(
-        direct_map_, MakeSizedArray<Value* absl_nullable>(max_num_direct_keys));
     hybrid_direct_internal::AssignToAssumedNull(slow_map_,
                                                 std::make_unique<SlowMap>());
     slow_map_->reserve(size - num_direct_values);
