@@ -555,14 +555,15 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         absl::InvalidArgumentError("Reading state machine size failed")));
   }
   // Additional `0xff` nodes to correctly handle invalid/malicious inputs.
-  // TODO: Handle overflow.
-  context.state_machine_nodes.resize(state_machine_size + 0xff);
-  if (projection_enabled) context.node_templates.resize(state_machine_size);
+  context.state_machine_nodes.resize(size_t{state_machine_size} + 0xff);
+  if (projection_enabled) {
+    context.node_templates.resize(size_t{state_machine_size});
+  }
   std::vector<StateMachineNode>& state_machine_nodes =
       context.state_machine_nodes;
   bool has_nonproto_op = false;
   size_t num_subtypes = 0;
-  absl::FixedArray<uint32_t> tags(state_machine_size);
+  absl::FixedArray<uint32_t> tags(size_t{state_machine_size});
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t tag;
     if (ABSL_PREDICT_FALSE(!ReadVarint32(header_decompressor.reader(), tag))) {
@@ -574,7 +575,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
       ++num_subtypes;
     }
   }
-  absl::FixedArray<uint32_t> next_node_indices(state_machine_size);
+  absl::FixedArray<uint32_t> next_node_indices(size_t{state_machine_size});
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t next_node;
     if (ABSL_PREDICT_FALSE(
@@ -759,7 +760,8 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   }
 
   // Add `0xff` failure nodes so we never overflow this array.
-  for (uint64_t i = state_machine_size; i < state_machine_size + 0xff; ++i) {
+  for (size_t i = size_t{state_machine_size};
+       i < size_t{state_machine_size} + 0xff; ++i) {
     state_machine_nodes[i].callback_type = CallbackType::kFailure;
   }
 
