@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_BYTE_FILL_
-#define RIEGELI_BASE_BYTE_FILL_
+#ifndef RIEGELI_BASE_BYTE_FILL_H_
+#define RIEGELI_BASE_BYTE_FILL_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -585,4 +585,4 @@ inline ByteFill::Blocks ByteFill::blocks() const {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_BYTE_FILL_
+#endif  // RIEGELI_BASE_BYTE_FILL_H_
