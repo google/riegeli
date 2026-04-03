@@ -308,7 +308,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return FailOverflow();
     }
     const size_t length_to_read = UnsignedMin(
-        UnsignedMax(min_length, AvailableLength(src)), max_length,
+        UnsignedClamp(AvailableLength(src), min_length, max_length),
         Position{std::numeric_limits<cfile_internal::Offset>::max()} -
             limit_pos());
     const size_t length_read = fread(dest, 1, length_to_read, src);

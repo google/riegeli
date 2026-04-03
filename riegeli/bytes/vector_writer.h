@@ -105,17 +105,13 @@ struct VectorResizableTraits {
     if (new_num_elements > dest.capacity()) {
       dest.erase(dest.begin() + SizeToNumElements(used_size), dest.end());
       if constexpr (std::is_default_constructible_v<Resizable>) {
-        dest.reserve(
-            dest.capacity() <= Resizable().capacity()
-                ? new_num_elements
-                : UnsignedMax(new_num_elements,
-                              UnsignedMin(dest.capacity() + dest.capacity() / 2,
-                                          dest.max_size())));
-      } else {
-        dest.reserve(UnsignedMax(
-            new_num_elements, UnsignedMin(dest.capacity() + dest.capacity() / 2,
-                                          dest.max_size())));
+        if (dest.capacity() <= Resizable().capacity()) {
+          dest.reserve(new_num_elements);
+          return;
+        }
       }
+      dest.reserve(UnsignedClamp(dest.capacity() + dest.capacity() / 2,
+                                 new_num_elements, dest.max_size()));
     }
   }
 };

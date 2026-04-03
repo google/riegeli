@@ -364,12 +364,10 @@ struct StringResizableTraits {
       // because `Resizable` is not necessarily default-constructible. They are
       // normally the same, and even if they are not, this is a matter of
       // performance tuning, not correctness.
-      dest.reserve(
-          dest.capacity() <= std::string().capacity()
-              ? new_size
-              : UnsignedMax(new_size,
-                            UnsignedMin(dest.capacity() + dest.capacity() / 2,
-                                        dest.max_size())));
+      dest.reserve(dest.capacity() <= std::string().capacity()
+                       ? new_size
+                       : UnsignedClamp(dest.capacity() + dest.capacity() / 2,
+                                       new_size, dest.max_size()));
     }
   }
 };

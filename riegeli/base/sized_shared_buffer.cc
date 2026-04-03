@@ -75,10 +75,9 @@ inline bool SizedSharedBuffer::CanAppendMovingData(size_t length,
       data_ = new_data;
       return true;
     }
-    min_length_if_not = UnsignedMin(
-        UnsignedMax(length, SaturatingAdd(empty() ? capacity() : space_after(),
-                                          capacity() / 2)),
-        std::numeric_limits<size_t>::max() - size_);
+    min_length_if_not = UnsignedClamp(
+        SaturatingAdd(empty() ? capacity() : space_after(), capacity() / 2),
+        length, std::numeric_limits<size_t>::max() - size_);
   } else {
     min_length_if_not = length;
   }
@@ -104,10 +103,9 @@ inline bool SizedSharedBuffer::CanPrependMovingData(size_t length,
       data_ = new_data;
       return true;
     }
-    min_length_if_not = UnsignedMin(
-        UnsignedMax(length, SaturatingAdd(empty() ? capacity() : space_before(),
-                                          capacity() / 2)),
-        std::numeric_limits<size_t>::max() - size_);
+    min_length_if_not = UnsignedClamp(
+        SaturatingAdd(empty() ? capacity() : space_before(), capacity() / 2),
+        length, std::numeric_limits<size_t>::max() - size_);
     space_after_if_not =
         UnsignedMin(space_after(), std::numeric_limits<size_t>::max() - size_ -
                                        min_length_if_not);

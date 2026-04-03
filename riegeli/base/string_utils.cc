@@ -28,9 +28,8 @@ namespace riegeli::string_utils_internal {
 void ReserveAmortized(std::string& dest, size_t new_size) {
   dest.reserve(dest.capacity() == std::string().capacity()
                    ? new_size
-                   : UnsignedMax(new_size, UnsignedMin(dest.capacity() +
-                                                           dest.capacity() / 2,
-                                                       dest.max_size())));
+                   : UnsignedClamp(dest.capacity() + dest.capacity() / 2,
+                                   new_size, dest.max_size()));
 }
 
 }  // namespace riegeli::string_utils_internal

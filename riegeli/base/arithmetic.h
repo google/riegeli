@@ -244,6 +244,9 @@ constexpr std::common_type_t<A, B, Rest...> UnsignedMax(A a, B b,
 
 // `UnsignedClamp(value, min_value, max_value)` is at least `min_value`,
 // at most `max(max_value, min_value)`, preferably `value`.
+//
+// If `min_value <= max_value`, then it is equivalent to `std::clamp()`,
+// otherwise `min_value` wins.
 template <
     typename Value, typename Min, typename Max,
     std::enable_if_t<std::conjunction_v<IsUnsignedInt<Value>,

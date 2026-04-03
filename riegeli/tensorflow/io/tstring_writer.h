@@ -70,7 +70,7 @@ struct TStringResizableTraits {
       dest.reserve(
           dest.capacity() <= tsl::tstring().capacity()
               ? new_size
-              : UnsignedMax(new_size, dest.capacity() + dest.capacity() / 2));
+              : UnsignedMax(dest.capacity() + dest.capacity() / 2, new_size));
     }
   }
 };
