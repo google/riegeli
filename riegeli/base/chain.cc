@@ -227,64 +227,6 @@ inline bool Chain::RawBlock::can_prepend(size_t length) const {
   return is_mutable() && (empty() ? capacity() : space_before()) >= length;
 }
 
-inline bool Chain::RawBlock::CanAppendMovingData(size_t length,
-                                                 size_t& min_length_if_not) {
-  RIEGELI_ASSERT_LE(length, RawBlock::kMaxCapacity - size())
-      << "Failed precondition of Chain::RawBlock::CanAppendMovingData(): "
-         "RawBlock size overflow";
-  if (is_mutable()) {
-    if (empty()) substr_ = absl::string_view(allocated_begin_, 0);
-    if (space_after() >= length) return true;
-    if (size() + length <= capacity() && 2 * size() <= capacity()) {
-      // Existing array has enough capacity and is at most half full: move
-      // contents to the beginning of the array. This is enough to make the
-      // amortized cost of adding one element constant as long as prepending
-      // leaves space at both ends.
-      char* const new_begin = allocated_begin_;
-      std::memmove(new_begin, data_begin(), size());
-      substr_ = absl::string_view(new_begin, size());
-      return true;
-    }
-    min_length_if_not = UnsignedMin(
-        UnsignedMax(length, SaturatingAdd(space_after(), capacity() / 2)),
-        RawBlock::kMaxCapacity - size());
-  } else {
-    min_length_if_not = length;
-  }
-  return false;
-}
-
-inline bool Chain::RawBlock::CanPrependMovingData(size_t length,
-                                                  size_t& space_after_if_not,
-                                                  size_t& min_length_if_not) {
-  RIEGELI_ASSERT_LE(length, RawBlock::kMaxCapacity - size())
-      << "Failed precondition of Chain::RawBlock::CanPrependMovingData(): "
-         "RawBlock size overflow";
-  if (is_mutable()) {
-    if (empty()) substr_ = absl::string_view(allocated_end_, 0);
-    if (space_before() >= length) return true;
-    if (size() + length <= capacity() && 2 * size() <= capacity()) {
-      // Existing array has enough capacity and is at most half full: move
-      // contents to the middle of the array. This makes the amortized cost of
-      // adding one element constant.
-      char* const new_begin =
-          allocated_begin_ + (capacity() - size() + length) / 2;
-      std::memmove(new_begin, data_begin(), size());
-      substr_ = absl::string_view(new_begin, size());
-      return true;
-    }
-    min_length_if_not = UnsignedMin(
-        UnsignedMax(length, SaturatingAdd(space_before(), capacity() / 2)),
-        RawBlock::kMaxCapacity - size());
-    space_after_if_not = UnsignedMin(
-        space_after(), RawBlock::kMaxCapacity - size() - min_length_if_not);
-  } else {
-    min_length_if_not = length;
-    space_after_if_not = 0;
-  }
-  return false;
-}
-
 inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length)
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(is_mutable())
