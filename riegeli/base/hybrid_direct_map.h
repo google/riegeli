@@ -191,7 +191,8 @@ class HybridDirectMapImpl {
 //
 // ```
 //   // Translates the key to a raw key, which is an unsigned integer type.
-//   // Small raw keys are put in the array.
+//   // Different `Key` values must yield different `RawKey` values. Small raw
+//   // keys are put in the array.
 //   static RawKey ToRawKey(Key key);
 //
 //   // Translates the raw key back to a key.
