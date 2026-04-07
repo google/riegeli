@@ -25,11 +25,11 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli::string_utils_internal {
 
-void ReserveAmortized(std::string& dest, size_t new_size) {
+void ReserveAmortized(std::string& dest, size_t new_capacity) {
   dest.reserve(dest.capacity() == std::string().capacity()
-                   ? new_size
+                   ? new_capacity
                    : UnsignedClamp(dest.capacity() + dest.capacity() / 2,
-                                   new_size, dest.max_size()));
+                                   new_capacity, dest.max_size()));
 }
 
 }  // namespace riegeli::string_utils_internal

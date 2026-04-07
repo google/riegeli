@@ -97,6 +97,7 @@ class StringWriterBase : public Writer {
   void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
+  bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(ExternalRef src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
@@ -114,22 +115,34 @@ class StringWriterBase : public Writer {
   // `secondary_buffer_`.
   size_t used_size() const;
 
-  // Discards uninitialized space from the end of `dest`, so that it contains
-  // only actual data written.
+  // Returns the amount of data written to `*DestString()`. Does not include
+  // data written to `secondary_buffer_`.
   //
-  // Precondition: `!uses_secondary_buffer()`
-  void SyncDestBuffer(std::string& dest);
+  // Precondition: if `uses_secondary_buffer()` then `available() == 0`
+  size_t used_dest_size() const;
 
   // Sets buffer pointers to `dest`.
   //
   // Precondition: `!uses_secondary_buffer()`
   void MakeDestBuffer(std::string& dest, size_t cursor_index);
 
-  // Appends some uninitialized space to `dest` if this can be done without
-  // reallocation. Sets buffer pointers to `dest`.
+  // Appends some uninitialized space to `dest` to guarantee at least `new_size`
+  // of size. Sets buffer pointers to `dest`.
+  //
+  // Precondition: if `uses_secondary_buffer()` then `available() == 0`
+  void GrowDestAndMakeBuffer(std::string& dest, size_t cursor_index,
+                             size_t new_size);
+
+  // Increases the size of `dest` at least to `cursor_index + min_length`
+  // if this can be done without reallocation. New contents are unspecified.
+  // Sets buffer pointers to `dest`.
+  //
+  // Returns `true` on success, or `false` if there was not enough space.
   //
   // Precondition: `!uses_secondary_buffer()`
-  void GrowDestToCapacityAndMakeBuffer(std::string& dest, size_t cursor_index);
+  bool GrowDestUnderCapacityAndMakeBuffer(std::string& dest,
+                                          size_t cursor_index,
+                                          size_t min_length = 0);
 
   // Discards uninitialized space from the end of `secondary_buffer_`, so that
   // it contains only actual data written.
@@ -160,14 +173,15 @@ class StringWriterBase : public Writer {
   // followed by free space of length
   // `DestString()->size() - UnsignedMax(pos(), written_size_)`.
   //
-  // If `uses_secondary_buffer()`, then `*DestString()` contains some prefix of
-  // the data, and `secondary_buffer_` contains the rest of the data followed by
-  // free space of length `available()`. In this case there is no data after the
-  // current position.
+  // If `uses_secondary_buffer()`, then `*DestString()` contains the prefix of
+  // the data of length `limit_pos() - secondary_buffer_.size()` followed by
+  // free space, and `secondary_buffer_` contains the rest of the data of length
+  // `secondary_buffer_.size() - available()` followed by free space of length
+  // `available()`. In this case there is no data after the current position.
   //
   // Invariants if `ok()`:
   //   `!uses_secondary_buffer() &&
-  //    start() == &(*DestString())[0] &&
+  //    start() == DestString()->data() &&
   //    start_to_limit() == DestString()->size() &&
   //    start_pos() == 0` or
   //       `uses_secondary_buffer() &&
@@ -175,8 +189,7 @@ class StringWriterBase : public Writer {
   //                   secondary_buffer_.blocks().back().size()` or
   //       `start() == nullptr`
   //   `limit_pos() >= secondary_buffer_.size()`
-  //   `UnsignedMax(limit_pos(), written_size_) ==
-  //        DestString()->size() + secondary_buffer_.size()`
+  //   `DestString()->size() >= limit_pos() - secondary_buffer_.size()`
 };
 
 // A `Writer` which writes to a `std::string`. If `Options::append()` is `false`

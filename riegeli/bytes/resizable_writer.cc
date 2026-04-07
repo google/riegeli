@@ -23,6 +23,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -86,25 +87,67 @@ bool ResizableWriterBase::PushSlow(size_t min_length,
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    if (pos() == 0 || ABSL_PREDICT_FALSE(written_size_ > pos())) {
+    const size_t cursor_index = IntCast<size_t>(pos());
+    if (cursor_index == 0 || ABSL_PREDICT_FALSE(written_size_ > cursor_index)) {
       // Allocate the first block directly in the destination. It is possible
       // that it will not need to be copied if it turns out to be the only
       // block, although this decision might cause it to remain wasteful if less
       // data are written than space requested.
       //
-      // Resize the destination also if data follow the current position.
+      // Resize the destination also if data follow the current position,
+      // to make the data available for partial overwriting.
       return GrowDestAndMakeBuffer(SaturatingAdd(
-          IntCast<size_t>(pos()), UnsignedMax(min_length, recommended_length)));
+          cursor_index, UnsignedMax(min_length, recommended_length)));
     }
-    GrowDestToCapacityAndMakeBuffer();
-    if (min_length <= available()) return true;
-    set_start_pos(pos());
+    if (GrowDestUnderCapacityAndMakeBuffer(min_length)) return true;
+    set_start_pos(cursor_index);
     set_buffer();
     written_size_ = 0;
   } else {
     SyncSecondaryBuffer();
   }
   MakeSecondaryBuffer(min_length, recommended_length);
+  return true;
+}
+
+bool ResizableWriterBase::WriteSlow(absl::string_view src) {
+  RIEGELI_ASSERT_LT(available(), src.size())
+      << "Failed precondition of Writer::WriteSlow(string_view): "
+         "enough space available, use Write(string_view) instead";
+  if (ABSL_PREDICT_FALSE(!ok())) return false;
+  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
+                                          IntCast<size_t>(pos()))) {
+    return FailOverflow();
+  }
+  if (!uses_secondary_buffer()) {
+    const size_t cursor_index = IntCast<size_t>(pos());
+    if (cursor_index == 0) {
+      // Allocate the first block directly in the destination. It is possible
+      // that it will not need to be copied if it turns out to be the only
+      // block, although this decision might cause it to remain wasteful if less
+      // data are written than space requested.
+      if (ABSL_PREDICT_FALSE(
+              !GrowDestAndMakeBuffer(cursor_index + src.size()))) {
+        return false;
+      }
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
+      return true;
+    }
+    if (GrowDestUnderCapacityAndMakeBuffer(src.size())) {
+      std::memcpy(cursor(), src.data(), src.size());
+      move_cursor(src.size());
+      return true;
+    }
+    set_start_pos(cursor_index);
+    set_buffer();
+    written_size_ = 0;
+  } else {
+    SyncSecondaryBuffer();
+  }
+  move_start_pos(src.size());
+  secondary_buffer_.Append(src, options_);
+  MakeSecondaryBuffer();
   return true;
 }
 
@@ -118,8 +161,7 @@ bool ResizableWriterBase::WriteSlow(ExternalRef src) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    GrowDestToCapacityAndMakeBuffer();
-    if (src.size() <= available()) {
+    if (GrowDestUnderCapacityAndMakeBuffer(src.size())) {
       std::memcpy(cursor(), src.data(), src.size());
       move_cursor(src.size());
       return true;
@@ -146,8 +188,7 @@ bool ResizableWriterBase::WriteSlow(const Chain& src) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    GrowDestToCapacityAndMakeBuffer();
-    if (src.size() <= available()) {
+    if (GrowDestUnderCapacityAndMakeBuffer(src.size())) {
       src.CopyTo(cursor());
       move_cursor(src.size());
       return true;
@@ -174,8 +215,7 @@ bool ResizableWriterBase::WriteSlow(Chain&& src) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    GrowDestToCapacityAndMakeBuffer();
-    if (src.size() <= available()) {
+    if (GrowDestUnderCapacityAndMakeBuffer(src.size())) {
       src.CopyTo(cursor());
       move_cursor(src.size());
       return true;
@@ -202,8 +242,7 @@ bool ResizableWriterBase::WriteSlow(const absl::Cord& src) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    GrowDestToCapacityAndMakeBuffer();
-    if (src.size() <= available()) {
+    if (GrowDestUnderCapacityAndMakeBuffer(src.size())) {
       cord_internal::CopyCordToArray(src, cursor());
       move_cursor(src.size());
       return true;
@@ -230,8 +269,7 @@ bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    GrowDestToCapacityAndMakeBuffer();
-    if (src.size() <= available()) {
+    if (GrowDestUnderCapacityAndMakeBuffer(src.size())) {
       cord_internal::CopyCordToArray(src, cursor());
       move_cursor(src.size());
       return true;
@@ -258,8 +296,7 @@ bool ResizableWriterBase::WriteSlow(ByteFill src) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
-    GrowDestToCapacityAndMakeBuffer();
-    if (src.size() <= available()) {
+    if (GrowDestUnderCapacityAndMakeBuffer(IntCast<size_t>(src.size()))) {
       std::memset(cursor(), src.fill(), IntCast<size_t>(src.size()));
       move_cursor(IntCast<size_t>(src.size()));
       return true;

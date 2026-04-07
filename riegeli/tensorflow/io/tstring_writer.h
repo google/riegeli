@@ -48,10 +48,10 @@ struct TStringResizableTraits {
     dest.resize_uninitialized(new_size);
     return true;
   }
-  static void GrowToCapacity(Resizable& dest) {
-    dest.resize_uninitialized(dest.capacity());
-  }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size())
+        << "Failed precondition of ResizableTraits::Grow(): "
+           "no need to grow";
     RIEGELI_ASSERT_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
@@ -59,19 +59,28 @@ struct TStringResizableTraits {
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
     Reserve(dest, new_size, used_size);
-    GrowToCapacity(dest);
+    dest.resize_uninitialized(dest.capacity());
+    return true;
+  }
+  static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size())
+        << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
+           "no need to grow";
+    if (new_size > dest.capacity()) return false;
+    dest.resize_uninitialized(dest.capacity());
     return true;
   }
 
  private:
-  static void Reserve(Resizable& dest, size_t new_size, size_t used_size) {
-    if (new_size > dest.capacity()) {
+  static void Reserve(Resizable& dest, size_t new_capacity, size_t used_size) {
+    if (new_capacity > dest.capacity()) {
       dest.resize_uninitialized(used_size);
-      dest.reserve(
-          dest.capacity() <= tsl::tstring().capacity()
-              ? new_size
-              : UnsignedMax(dest.capacity() + dest.capacity() / 2, new_size));
+      dest.reserve(dest.capacity() <= tsl::tstring().capacity()
+                       ? new_capacity
+                       : UnsignedMax(dest.capacity() + dest.capacity() / 2,
+                                     new_capacity));
     }
+    RIEGELI_ASSUME_GE(dest.capacity(), new_capacity);
   }
 };
 

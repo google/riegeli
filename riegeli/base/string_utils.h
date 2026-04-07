@@ -30,17 +30,26 @@ namespace riegeli {
 
 namespace string_utils_internal {
 
-void ReserveAmortized(std::string& dest, size_t new_size);
+void ReserveAmortized(std::string& dest, size_t new_capacity);
 
 }  // namespace string_utils_internal
+
+// Like `std::string::reserve()`, ensuring that repeated growth has the cost
+// proportional to the final size.
+//
+// If `new_capacity <= dest.capacity()`, does nothing like in C++20.
+// In earlier C++ versions this was a non-binding shrink request.
+inline void StringReserveAmortized(std::string& dest, size_t new_capacity) {
+  if (new_capacity > dest.capacity()) {
+    string_utils_internal::ReserveAmortized(dest, new_capacity);
+  }
+  RIEGELI_ASSUME_GE(dest.capacity(), new_capacity);
+}
 
 // Like `std::string::resize()`, ensuring that repeated growth has the cost
 // proportional to the final size.
 inline void StringResizeAmortized(std::string& dest, size_t new_size) {
-  if (new_size > dest.capacity()) {
-    string_utils_internal::ReserveAmortized(dest, new_size);
-  }
-  RIEGELI_ASSUME_GE(dest.capacity(), new_size);
+  StringReserveAmortized(dest, new_size);
   dest.resize(new_size);
 }
 
@@ -49,10 +58,7 @@ inline void StringResizeAmortized(std::string& dest, size_t new_size) {
 template <typename Op>
 inline void StringResizeAndOverwriteAmortized(std::string& dest,
                                               size_t new_size, Op op) {
-  if (new_size > dest.capacity()) {
-    string_utils_internal::ReserveAmortized(dest, new_size);
-  }
-  RIEGELI_ASSUME_GE(dest.capacity(), new_size);
+  StringReserveAmortized(dest, new_size);
   return absl::StringResizeAndOverwrite(dest, new_size, std::move(op));
 }
 

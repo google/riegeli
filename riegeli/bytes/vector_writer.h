@@ -20,6 +20,7 @@
 #include <type_traits>
 
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -29,6 +30,14 @@
 namespace riegeli {
 
 namespace vector_writer_internal {
+
+template <typename VectorType, typename Enable = void>
+struct HasAllocatorType : std::false_type {};
+
+template <typename VectorType>
+struct HasAllocatorType<VectorType,
+                        std::void_t<typename VectorType::allocator_type>>
+    : std::true_type {};
 
 // `ResizableTraits` for `std::vector<T, Alloc>` including
 // `UninitializedVector<T>`, `absl::InlinedVector<T, inlined_size, Alloc>`
@@ -83,16 +92,39 @@ struct VectorResizableTraits {
     dest.resize(new_num_elements);
     return true;
   }
-  static void GrowToCapacity(Resizable& dest) { dest.resize(dest.capacity()); }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size() * sizeof(T))
+        << "Failed precondition of ResizableTraits::Grow(): "
+           "no need to grow";
     RIEGELI_ASSERT_LE(used_size, dest.size() * sizeof(T))
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
     RIEGELI_ASSERT_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
-    Reserve(dest, SizeToNumElements(new_size), used_size);
-    GrowToCapacity(dest);
+    const size_t new_num_elements = SizeToNumElements(new_size);
+    Reserve(dest, new_num_elements, used_size);
+    if (!GrowUnderCapacity(dest, new_size)) RIEGELI_ASSUME_UNREACHABLE();
+    return true;
+  }
+  static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size() * sizeof(T))
+        << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
+           "no need to grow";
+    const size_t new_num_elements = SizeToNumElements(new_size);
+    if (new_num_elements > dest.capacity()) return false;
+    if constexpr (HasAllocatorType<Resizable>::value) {
+      if constexpr (std::is_same_v<typename Resizable::allocator_type,
+                                   UninitializedAllocator<T>>) {
+        dest.resize(dest.capacity());
+        return true;
+      }
+    }
+    dest.resize(UnsignedClamp(
+        dest.size() + UnsignedClamp(dest.size(),
+                                    SizeToNumElements(kDefaultMinBlockSize),
+                                    SizeToNumElements(kDefaultMaxBlockSize)),
+        new_num_elements, dest.capacity()));
     return true;
   }
 
@@ -113,6 +145,7 @@ struct VectorResizableTraits {
       dest.reserve(UnsignedClamp(dest.capacity() + dest.capacity() / 2,
                                  new_num_elements, dest.max_size()));
     }
+    RIEGELI_ASSUME_GE(dest.capacity(), new_num_elements);
   }
 };
 

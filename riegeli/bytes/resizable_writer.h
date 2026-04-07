@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,6 +30,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -97,22 +99,16 @@ class ResizableWriterBase : public Writer {
   // Precondition: if `uses_secondary_buffer()` then `available() == 0`
   size_t used_dest_size() const;
 
-  // Sets the size of the destination to `used_size()`. Sets buffer pointers to
-  // the destination.
-  //
-  // Precondition: if `uses_secondary_buffer()` then `available() == 0`
-  virtual bool ResizeDest() = 0;
-
   // Sets buffer pointers to the destination.
   //
   // Precondition: `!uses_secondary_buffer()`
   virtual void MakeDestBuffer(size_t cursor_index) = 0;
 
-  // Appends some uninitialized space to the destination if this can be done
-  // without reallocation. Sets buffer pointers to the destination.
+  // Sets the size of the destination to `used_size()`. Sets buffer pointers to
+  // the destination.
   //
-  // Precondition: `!uses_secondary_buffer()`
-  virtual void GrowDestToCapacityAndMakeBuffer() = 0;
+  // Precondition: if `uses_secondary_buffer()` then `available() == 0`
+  virtual bool ResizeDest() = 0;
 
   // Appends some uninitialized space to the destination to guarantee at least
   // `new_size` of size. Sets buffer pointers to the destination.
@@ -120,10 +116,20 @@ class ResizableWriterBase : public Writer {
   // Precondition: if `uses_secondary_buffer()` then `available() == 0`
   virtual bool GrowDestAndMakeBuffer(size_t new_size) = 0;
 
+  // Increases the size of the destination at least to `pos() + min_length`
+  // if this can be done without reallocation. New contents are unspecified.
+  // Sets buffer pointers to the destination.
+  //
+  // Returns `true` on success, or `false` if there was not enough space.
+  //
+  // Precondition: `!uses_secondary_buffer()`
+  virtual bool GrowDestUnderCapacityAndMakeBuffer(size_t min_length) = 0;
+
   void Done() override;
   void SetWriteSizeHintImpl(std::optional<Position> write_size_hint) override;
   bool PushSlow(size_t min_length, size_t recommended_length) override;
   using Writer::WriteSlow;
+  bool WriteSlow(absl::string_view src) override;
   bool WriteSlow(ExternalRef src) override;
   bool WriteSlow(const Chain& src) override;
   bool WriteSlow(Chain&& src) override;
@@ -213,7 +219,7 @@ class ResizableWriterBase : public Writer {
 //
 //   // Sets the size of `dest` to `new_size`.
 //   //
-//   // The prefix of data with `used_size` is preserved. Remaining space is
+//   // The prefix of data with `used_size` is preserved. Remaining contents are
 //   // unspecified. Returns `true` on success, or `false` on failure.
 //   //
 //   // The intent is to resize exactly to `new_size`, but the size reported by
@@ -225,22 +231,37 @@ class ResizableWriterBase : public Writer {
 //   //   `used_size <= new_size`
 //   static bool Resize(Resizable& dest, size_t new_size, size_t used_size);
 //
-//   // Increases the size of `dest` if this can be done without reallocation
-//   // and without invalidating existing data. New space is unspecified.
-//   static void GrowToCapacity(Resizable& dest);
-//
 //   // Increases the size of `dest` at least to `new_size`, or more to ensure
 //   // amortized constant time of reallocation, or more if this can be done
-//   // without allocating more. Does not decrease the size of `dest` even if
-//   // `new_size < Size(dest)`.
+//   // efficiently without reallocation.
 //   //
-//   // The prefix of data with `used_size` is preserved. Remaining space is
+//   // The prefix of data with `used_size` is preserved. Remaining contents are
 //   // unspecified. Returns `true` on success, or `false` on failure.
 //   //
+//   // This is usually equivalent to reserving `new_size`, and then calling
+//   // `GrowUnderCapacity()`, which can be assumed to always succeed after
+//   // reserving.
+//   //
 //   // Preconditions:
+//   //   `new_size > Size(dest)`
 //   //   `used_size <= Size(dest)`
 //   //   `used_size <= new_size`
 //   static bool Grow(Resizable& dest, size_t new_size, size_t used_size);
+//
+//   // Increases the size of `dest` at least to `new_size` if this can be done
+//   // without reallocation. New contents are unspecified.
+//   //
+//   // Returns `true` on success, or `false` if there was not enough space.
+//   //
+//   // If efficient resizing without filling new space is possible,
+//   // then it is recommended to resize to the capacity.
+//   // Otherwise, it is recommended to resize to approximately
+//   // `Size(dest) + UnsignedClamp(Size(dest), kDefaultMinBlockSize,
+//   //                             kDefaultMaxBlockSize)`,
+//   // but at least to `new_size` and at most to the capacity.
+//   //
+//   // Precondition: `new_size > Size(dest)`
+//   static bool GrowUnderCapacity(Resizable& dest, size_t new_size);
 // ```
 //
 // The `Dest` template parameter specifies the type of the object providing and
@@ -310,10 +331,10 @@ class ResizableWriter : public ResizableWriterBase {
  protected:
   void Initialize(Resizable* dest, bool append);
 
-  bool ResizeDest() override;
   void MakeDestBuffer(size_t cursor_index) override;
-  void GrowDestToCapacityAndMakeBuffer() override;
+  bool ResizeDest() override;
   bool GrowDestAndMakeBuffer(size_t new_size) override;
+  bool GrowDestUnderCapacityAndMakeBuffer(size_t min_length) override;
 
  private:
   class Mover;
@@ -343,8 +364,10 @@ struct StringResizableTraits {
     dest.resize(new_size);
     return true;
   }
-  static void GrowToCapacity(Resizable& dest) { dest.resize(dest.capacity()); }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size())
+        << "Failed precondition of ResizableTraits::Grow(): "
+           "no need to grow";
     RIEGELI_ASSERT_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
@@ -352,23 +375,36 @@ struct StringResizableTraits {
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
     Reserve(dest, new_size, used_size);
-    GrowToCapacity(dest);
+    if (!GrowUnderCapacity(dest, new_size)) RIEGELI_ASSUME_UNREACHABLE();
+    return true;
+  }
+  static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size())
+        << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
+           "no need to grow";
+    if (new_size > dest.capacity()) return false;
+    new_size = UnsignedClamp(
+        dest.size() + UnsignedClamp(dest.size(), kDefaultMinBlockSize,
+                                    kDefaultMaxBlockSize),
+        new_size, dest.capacity());
+    dest.resize(new_size);
     return true;
   }
 
  private:
-  static void Reserve(Resizable& dest, size_t new_size, size_t used_size) {
-    if (new_size > dest.capacity()) {
+  static void Reserve(Resizable& dest, size_t new_capacity, size_t used_size) {
+    if (new_capacity > dest.capacity()) {
       dest.erase(used_size);
       // Use `std::string().capacity()` instead of `Resizable().capacity()`
       // because `Resizable` is not necessarily default-constructible. They are
       // normally the same, and even if they are not, this is a matter of
       // performance tuning, not correctness.
       dest.reserve(dest.capacity() <= std::string().capacity()
-                       ? new_size
+                       ? new_capacity
                        : UnsignedClamp(dest.capacity() + dest.capacity() / 2,
-                                       new_size, dest.max_size()));
+                                       new_capacity, dest.max_size()));
     }
+    RIEGELI_ASSUME_GE(dest.capacity(), new_capacity);
   }
 };
 
@@ -536,7 +572,23 @@ inline void ResizableWriter<ResizableTraits, Dest>::Initialize(Resizable* dest,
                                                                bool append) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of ResizableWriter: null Resizable pointer";
-  if (append) set_start_pos(ResizableTraits::Size(*dest));
+  if (append) {
+    set_start_pos(ResizableTraits::Size(*dest));
+  } else {
+    set_buffer(ResizableTraits::Data(*dest), ResizableTraits::Size(*dest));
+  }
+}
+
+template <typename ResizableTraits, typename Dest>
+void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer(
+    size_t cursor_index) {
+  RIEGELI_ASSERT(!uses_secondary_buffer())
+      << "Failed precondition in ResizableWriter::MakeDestBuffer(): "
+         "secondary buffer is used";
+  Resizable& dest = *dest_;
+  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
+             cursor_index);
+  set_start_pos(0);
 }
 
 template <typename ResizableTraits, typename Dest>
@@ -563,32 +615,6 @@ bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
 }
 
 template <typename ResizableTraits, typename Dest>
-void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer(
-    size_t cursor_index) {
-  RIEGELI_ASSERT(!uses_secondary_buffer())
-      << "Failed precondition in ResizableWriter::MakeDestBuffer(): "
-         "secondary buffer is used";
-  Resizable& dest = *dest_;
-  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
-             cursor_index);
-  set_start_pos(0);
-}
-
-template <typename ResizableTraits, typename Dest>
-void ResizableWriter<ResizableTraits, Dest>::GrowDestToCapacityAndMakeBuffer() {
-  RIEGELI_ASSERT(!uses_secondary_buffer())
-      << "Failed precondition in "
-         "ResizableWriter::GrowDestToCapacityAndMakeBuffer(): "
-         "secondary buffer is used";
-  const size_t cursor_index = IntCast<size_t>(pos());
-  ResizableTraits::GrowToCapacity(*dest_);
-  Resizable& dest = *dest_;
-  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
-             cursor_index);
-  set_start_pos(0);
-}
-
-template <typename ResizableTraits, typename Dest>
 bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
     size_t new_size) {
   if (uses_secondary_buffer()) {
@@ -597,13 +623,42 @@ bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
         << "secondary buffer has free space";
   }
   const size_t cursor_index = IntCast<size_t>(pos());
-  if (ABSL_PREDICT_FALSE(
-          !ResizableTraits::Grow(*dest_, new_size, used_dest_size()))) {
-    return FailOverflow();
+  if (ABSL_PREDICT_TRUE(new_size > ResizableTraits::Size(*dest_))) {
+    if (ABSL_PREDICT_FALSE(
+            !ResizableTraits::Grow(*dest_, new_size, used_dest_size()))) {
+      return FailOverflow();
+    }
   }
   Resizable& dest = *dest_;
   RIEGELI_ASSERT_GE(ResizableTraits::Size(dest), new_size)
       << "Failed postcondition of ResizableTraits::Grow(): "
+         "not resized to at least requested size";
+  set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
+             cursor_index);
+  set_start_pos(0);
+  return true;
+}
+
+template <typename ResizableTraits, typename Dest>
+bool ResizableWriter<ResizableTraits, Dest>::GrowDestUnderCapacityAndMakeBuffer(
+    size_t min_length) {
+  RIEGELI_ASSERT(!uses_secondary_buffer())
+      << "Failed precondition in "
+         "ResizableWriter::GrowDestUnderCapacityAndMakeBuffer(): "
+         "secondary buffer is used";
+  RIEGELI_ASSERT_LE(min_length,
+                    std::numeric_limits<size_t>::max() - IntCast<size_t>(pos()))
+      << "Failed precondition of "
+         "ResizableWriter::GrowDestUnderCapacityAndMakeBuffer(): "
+         "Writer position overflow";
+  const size_t cursor_index = IntCast<size_t>(pos());
+  const size_t new_size = cursor_index + min_length;
+  if (ABSL_PREDICT_TRUE(new_size > ResizableTraits::Size(*dest_))) {
+    if (!ResizableTraits::GrowUnderCapacity(*dest_, new_size)) return false;
+  }
+  Resizable& dest = *dest_;
+  RIEGELI_ASSERT_GE(ResizableTraits::Size(dest), new_size)
+      << "Failed postcondition of ResizableTraits::GrowUnderCapacity(): "
          "not resized to at least requested size";
   set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
              cursor_index);

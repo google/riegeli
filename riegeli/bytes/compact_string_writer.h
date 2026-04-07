@@ -46,10 +46,10 @@ struct CompactStringResizableTraits {
     dest.resize(new_size, used_size);
     return true;
   }
-  static void GrowToCapacity(Resizable& dest) {
-    dest.set_size(dest.capacity());
-  }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size())
+        << "Failed precondition of ResizableTraits::Grow(): "
+           "no need to grow";
     RIEGELI_ASSERT_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
@@ -57,7 +57,15 @@ struct CompactStringResizableTraits {
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
     dest.resize(new_size, used_size);
-    GrowToCapacity(dest);
+    dest.set_size(dest.capacity());
+    return true;
+  }
+  static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
+    RIEGELI_ASSERT_GT(new_size, dest.size())
+        << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
+           "no need to grow";
+    if (new_size > dest.capacity()) return false;
+    dest.set_size(dest.capacity());
     return true;
   }
 };
