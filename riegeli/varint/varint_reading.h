@@ -352,6 +352,17 @@ size_t SkipCanonicalVarint64(const char* src, size_t available);
 constexpr int32_t DecodeVarintSigned32(uint32_t repr);
 constexpr int64_t DecodeVarintSigned64(uint64_t repr);
 
+// Counts the number of varints in `value`.
+//
+// If varints are valid only up to some point, then returns at least the number
+// of valid varints. Returns `value.size()` only if each varint is valid and
+// takes one byte.
+size_t CountVarints(absl::string_view value);
+
+// Checks if each byte of `value` is a valid representation for a `bool`,
+// i.e. 0 or 1. Optimized for the result being `true`.
+bool VerifyBools(absl::string_view value);
+
 // Implementation details follow.
 
 namespace varint_internal {

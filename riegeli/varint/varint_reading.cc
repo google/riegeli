@@ -20,14 +20,16 @@
 #include <cstring>
 
 #include "absl/base/attributes.h"
+#include "absl/base/config.h"
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/bytes/reader.h"
 
-namespace riegeli::varint_internal {
+namespace riegeli {
 
 namespace {
 
@@ -415,7 +417,15 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t SkipVarintFromArrayLoop(
   return index + 1;
 }
 
+inline uint64_t ReadNativeEndian(const char* src) {
+  uint64_t dest;
+  std::memcpy(&dest, src, sizeof(dest));
+  return dest;
+}
+
 }  // namespace
+
+namespace varint_internal {
 
 template <typename T, bool canonical, size_t initial_index>
 bool ReadVarintFromReaderBuffer(Reader& src, const char* cursor, T acc,
@@ -753,4 +763,67 @@ template size_t SkipVarintFromArray<uint32_t, true, 2>(const char* src,
 template size_t SkipVarintFromArray<uint64_t, true, 2>(const char* src,
                                                        size_t available);
 
-}  // namespace riegeli::varint_internal
+}  // namespace varint_internal
+
+size_t CountVarints(absl::string_view value) {
+  // The number of varints is the number of bytes with the highest bit clear.
+  // This is easier to compute as the total number of bytes, minus the number
+  // of bytes with the highest bit set.
+  size_t num_varints = value.size();
+  if (value.size() < sizeof(uint64_t)) {
+    // Count byte by byte.
+    for (const char byte : value) {
+      num_varints -= static_cast<uint8_t>(byte) >> 7;
+    }
+    return num_varints;
+  }
+
+  // Count in whole blocks, except for the last one.
+  const char* const limit = value.data() + value.size() - sizeof(uint64_t);
+  const char* cursor = value.data();
+  while (cursor < limit) {
+    const uint64_t block = ReadNativeEndian(cursor);
+    num_varints -=
+        IntCast<size_t>(absl::popcount(block & uint64_t{0x8080808080808080}));
+    cursor += 8;
+  }
+
+  // Count in the last, possibly incomplete block.
+  const uint64_t block = ReadNativeEndian(limit);
+  uint64_t mask = uint64_t{0x8080808080808080};
+#if ABSL_IS_LITTLE_ENDIAN
+  mask <<= PtrDistance(limit, cursor) * 8;
+#elif ABSL_IS_BIG_ENDIAN
+  mask >>= PtrDistance(limit, cursor) * 8;
+#else
+#error Unknown endianness
+#endif
+  num_varints -= IntCast<size_t>(absl::popcount(block & mask));
+
+  return num_varints;
+}
+
+bool VerifyBools(absl::string_view value) {
+  uint64_t bit_or = 0;
+  if (value.size() < sizeof(uint64_t)) {
+    // Verify byte by byte.
+    for (const char byte : value) {
+      bit_or |= static_cast<uint8_t>(byte);
+    }
+    return bit_or <= 1;
+  }
+
+  // Verify whole blocks, except for the last one.
+  const char* const limit = value.data() + value.size() - sizeof(uint64_t);
+  const char* cursor = value.data();
+  while (cursor < limit) {
+    bit_or |= ReadNativeEndian(cursor);
+    cursor += 8;
+  }
+  // Verify the last, possibly incomplete block.
+  bit_or |= ReadNativeEndian(limit);
+
+  return (bit_or & ~uint64_t{0x0101010101010101}) == 0;
+}
+
+}  // namespace riegeli

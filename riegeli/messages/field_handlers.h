@@ -64,6 +64,8 @@ template <typename Value, int field_number, typename Action>
 class OnOptionalFixedType;
 template <typename Value, int field_number, typename Action>
 class OnRepeatedFixedType;
+template <typename BaseFieldHandler, typename PackedFieldHandler>
+class OnPackedType;
 template <int field_number, typename Action>
 class OnLengthDelimitedType;
 template <int field_number, typename Action>
@@ -387,6 +389,25 @@ OnRepeatedEnum(Action&& action) {
       std::forward<Action>(action));
 }
 
+// Field handler with a dedicated implementation for a packed repeated field.
+//
+// Uses `BaseFieldHandler` for scalar wire types, and `PackedFieldHandler` for
+// length-delimited wire type.
+//
+// Regular `OnRepeated...()` field handlers already support packed repeated
+// fields, but they call the base action repeatedly for each element, which
+// can be less efficient than a dedicated implementation.
+template <typename BaseFieldHandler, typename PackedFieldHandler>
+constexpr OnPackedType<std::decay_t<BaseFieldHandler>,
+                       std::decay_t<PackedFieldHandler>>
+OnPacked(BaseFieldHandler&& base_field_handler,
+         PackedFieldHandler&& packed_action) {
+  return OnPackedType<std::decay_t<BaseFieldHandler>,
+                      std::decay_t<PackedFieldHandler>>(
+      std::forward<BaseFieldHandler>(base_field_handler),
+      std::forward<PackedFieldHandler>(packed_action));
+}
+
 // Field handler of a singular or an element of a repeated `string`, `bytes`,
 // or submessage field.
 //
@@ -673,6 +694,144 @@ class OnRepeatedFixedType
                        int> = 0>
   absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
                                                Context&... context) const;
+
+ private:
+  template <typename... Context>
+  absl::Status HandleLengthDelimitedFromStringInternal(
+      absl::string_view repr, Context&... context) const {
+    const char* cursor = repr.data();
+    const char* const limit = repr.data() + repr.size();
+    while (cursor < limit) {
+      const Value element = ReadLittleEndian<Value>(cursor);
+      if (absl::Status status = this->action()(element, context...);
+          ABSL_PREDICT_FALSE(!status.ok())) {
+        return status;
+      }
+      cursor += sizeof(Value);
+    }
+    return absl::OkStatus();
+  }
+};
+
+template <typename BaseFieldHandler, typename PackedFieldHandler>
+class OnPackedType {
+ private:
+  template <typename... Context>
+  struct ExpectedFieldHandlers
+      : std::conjunction<
+            std::disjunction<
+                serialized_message_reader_internal::
+                    IsStaticFieldHandlerForVarint<BaseFieldHandler, Context...>,
+                serialized_message_reader_internal::
+                    IsStaticFieldHandlerForFixed32<BaseFieldHandler,
+                                                   Context...>,
+                serialized_message_reader_internal::
+                    IsStaticFieldHandlerForFixed64<BaseFieldHandler,
+                                                   Context...>>,
+            serialized_message_reader_internal::
+                IsStaticFieldHandlerForLengthDelimited<PackedFieldHandler,
+                                                       Context...>> {};
+
+ public:
+  static constexpr int kFieldNumber = BaseFieldHandler::kFieldNumber;
+
+  template <
+      typename BaseFieldHandlerInitializer,
+      typename PackedFieldHandlerInitializer,
+      std::enable_if_t<std::conjunction_v<
+                           std::is_convertible<BaseFieldHandlerInitializer&&,
+                                               BaseFieldHandler>,
+                           std::is_convertible<PackedFieldHandlerInitializer&&,
+                                               PackedFieldHandler>>,
+                       int> = 0>
+  explicit constexpr OnPackedType(
+      BaseFieldHandlerInitializer&& base_field_handler,
+      PackedFieldHandlerInitializer&& packed_action)
+      : base_field_handler_(
+            std::forward<BaseFieldHandlerInitializer>(base_field_handler)),
+        packed_field_handler_(
+            std::forward<PackedFieldHandlerInitializer>(packed_action)) {}
+
+  template <
+      typename... Context,
+      std::enable_if_t<
+          std::conjunction_v<
+              ExpectedFieldHandlers<Context...>,
+              serialized_message_reader_internal::IsStaticFieldHandlerForVarint<
+                  BaseFieldHandler, Context...>>,
+          int> = 0>
+  absl::Status HandleVarint(uint64_t repr, Context&... context) const {
+    return base_field_handler_.HandleVarint(repr, context...);
+  }
+
+  template <typename... Context,
+            std::enable_if_t<
+                std::conjunction_v<ExpectedFieldHandlers<Context...>,
+                                   serialized_message_reader_internal::
+                                       IsStaticFieldHandlerForFixed32<
+                                           BaseFieldHandler, Context...>>,
+                int> = 0>
+  absl::Status HandleFixed32(uint32_t repr, Context&... context) const {
+    return base_field_handler_.HandleFixed32(repr, context...);
+  }
+
+  template <typename... Context,
+            std::enable_if_t<
+                std::conjunction_v<ExpectedFieldHandlers<Context...>,
+                                   serialized_message_reader_internal::
+                                       IsStaticFieldHandlerForFixed64<
+                                           BaseFieldHandler, Context...>>,
+                int> = 0>
+  absl::Status HandleFixed64(uint64_t repr, Context&... context) const {
+    return base_field_handler_.HandleFixed64(repr, context...);
+  }
+
+  template <
+      typename... Context,
+      std::enable_if_t<std::conjunction_v<
+                           ExpectedFieldHandlers<Context...>,
+                           serialized_message_reader_internal::
+                               IsStaticFieldHandlerForLengthDelimitedFromReader<
+                                   PackedFieldHandler, Context...>>,
+                       int> = 0>
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
+                                               Context&... context) const {
+    return packed_field_handler_.HandleLengthDelimitedFromReader(
+        std::move(repr), context...);
+  }
+
+  template <
+      typename... Context,
+      std::enable_if_t<
+          std::conjunction_v<ExpectedFieldHandlers<Context...>,
+                             serialized_message_reader_internal::
+                                 IsStaticFieldHandlerForLengthDelimitedFromCord<
+                                     PackedFieldHandler, Context...>>,
+          int> = 0>
+  absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
+                                             std::string& scratch,
+                                             Context&... context) const {
+    return packed_field_handler_.HandleLengthDelimitedFromCord(
+        std::move(repr), scratch, context...);
+  }
+
+  template <
+      typename... Context,
+      std::enable_if_t<std::conjunction_v<
+                           ExpectedFieldHandlers<Context...>,
+                           serialized_message_reader_internal::
+                               IsStaticFieldHandlerForLengthDelimitedFromString<
+                                   PackedFieldHandler, Context...>>,
+                       int> = 0>
+  absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
+                                               Context&... context) const {
+    return packed_field_handler_.HandleLengthDelimitedFromString(repr,
+                                                                 context...);
+  }
+
+ private:
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS BaseFieldHandler base_field_handler_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS PackedFieldHandler packed_field_handler_;
 };
 
 template <int field_number, typename Action>
@@ -855,6 +1014,20 @@ template <typename... Context,
 absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
     HandleLengthDelimitedFromReader(ReaderSpan<> repr,
                                     Context&... context) const {
+  if (repr.reader().Pull(1, IntCast<size_t>(repr.length())) &&
+      repr.reader().available() >= IntCast<size_t>(repr.length())) {
+    const absl::string_view value(repr.reader().cursor(),
+                                  IntCast<size_t>(repr.length()));
+    repr.reader().move_cursor(IntCast<size_t>(repr.length()));
+    absl::Status status = HandleLengthDelimitedFromString(value, context...);
+    // Comparison against `absl::CancelledError()` is a fast path of
+    // `absl::IsCancelled()`.
+    if (ABSL_PREDICT_FALSE(!status.ok() && status != absl::CancelledError())) {
+      status = field_handlers_internal::AnnotateByReader(std::move(status),
+                                                         repr.reader());
+    }
+    return status;
+  }
   ScopedLimiter scoped_limiter(repr);
   uint64_t element;
   while (ReadVarint64(repr.reader(), element)) {
@@ -890,6 +1063,15 @@ absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
     HandleLengthDelimitedFromCord(CordIteratorSpan repr,
                                   ABSL_ATTRIBUTE_UNUSED std::string& scratch,
                                   Context&... context) const {
+  if (const absl::string_view chunk =
+          absl::Cord::ChunkRemaining(repr.iterator());
+      chunk.size() >= IntCast<size_t>(repr.length())) {
+    const absl::string_view value =
+        chunk.substr(0, IntCast<size_t>(repr.length()));
+    absl::Cord::AdvanceAndRead(&repr.iterator(),
+                               IntCast<size_t>(repr.length()));
+    return HandleLengthDelimitedFromString(value, context...);
+  }
   const size_t limit =
       CordIteratorSpan::Remaining(repr.iterator()) - repr.length();
   uint64_t element;
@@ -955,6 +1137,21 @@ absl::Status OnRepeatedFixedType<Value, field_number, Action>::
     return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>(
         repr.reader());
   }
+  if (repr.reader().Pull(1, IntCast<size_t>(repr.length())) &&
+      repr.reader().available() >= IntCast<size_t>(repr.length())) {
+    const absl::string_view value(repr.reader().cursor(),
+                                  IntCast<size_t>(repr.length()));
+    repr.reader().move_cursor(IntCast<size_t>(repr.length()));
+    absl::Status status =
+        HandleLengthDelimitedFromStringInternal(value, context...);
+    // Comparison against `absl::CancelledError()` is a fast path of
+    // `absl::IsCancelled()`.
+    if (ABSL_PREDICT_FALSE(!status.ok() && status != absl::CancelledError())) {
+      status = field_handlers_internal::AnnotateByReader(std::move(status),
+                                                         repr.reader());
+    }
+    return status;
+  }
   Position length = repr.length();
   while (length > 0) {
     Value element;
@@ -988,6 +1185,15 @@ OnRepeatedFixedType<Value, field_number, Action>::HandleLengthDelimitedFromCord(
   if (ABSL_PREDICT_FALSE(repr.length() % sizeof(Value) > 0)) {
     return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>();
   }
+  if (const absl::string_view chunk =
+          absl::Cord::ChunkRemaining(repr.iterator());
+      chunk.size() >= IntCast<size_t>(repr.length())) {
+    const absl::string_view value =
+        chunk.substr(0, IntCast<size_t>(repr.length()));
+    absl::Cord::AdvanceAndRead(&repr.iterator(),
+                               IntCast<size_t>(repr.length()));
+    return HandleLengthDelimitedFromStringInternal(value, context...);
+  }
   Position length = repr.length();
   while (length > 0) {
     char buffer[sizeof(Value)];
@@ -1012,17 +1218,7 @@ absl::Status OnRepeatedFixedType<Value, field_number, Action>::
   if (ABSL_PREDICT_FALSE(repr.size() % sizeof(Value) > 0)) {
     return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>();
   }
-  const char* cursor = repr.data();
-  const char* const limit = repr.data() + repr.size();
-  while (cursor < limit) {
-    const Value element = ReadLittleEndian<Value>(cursor);
-    if (absl::Status status = this->action()(element, context...);
-        ABSL_PREDICT_FALSE(!status.ok())) {
-      return status;
-    }
-    cursor += sizeof(Value);
-  }
-  return absl::OkStatus();
+  return HandleLengthDelimitedFromStringInternal(repr, context...);
 }
 
 }  // namespace field_handlers
