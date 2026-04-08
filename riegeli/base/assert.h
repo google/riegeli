@@ -501,10 +501,6 @@ class UnreachableStream {
 
 #endif  // !RIEGELI_DEBUG
 
-// Deprecated aliases:
-#define RIEGELI_ASSERT_NOTNULL RIEGELI_EVAL_ASSERT_NOTNULL
-#define RIEGELI_ASSERT_UNREACHABLE RIEGELI_ASSUME_UNREACHABLE
-
 // Asserts that a region of memory is initialized, which is checked when running
 // under memory sanitizer.
 inline void AssertInitialized(ABSL_ATTRIBUTE_UNUSED const char* data,
