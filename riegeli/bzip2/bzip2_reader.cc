@@ -158,6 +158,10 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
             FailOperation("BZ2_bzDecompressEnd()", bzlib_code);
             break;
           }
+          // Not needed for `libbz2` but needed for `libbz2_rs_sys`.
+          decompressor_->bzalloc = nullptr;
+          decompressor_->bzfree = nullptr;
+          decompressor_->opaque = nullptr;
           bzlib_code = BZ2_bzDecompressInit(decompressor_.get(), 0, 0);
           if (ABSL_PREDICT_FALSE(bzlib_code != BZ_OK)) {
             delete decompressor_.release();  // Skip `BZ2_bzDecompressEnd()`.
