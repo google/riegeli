@@ -480,7 +480,7 @@ template <typename... Values
                   IsStringifiable<Values...>,
                   std::negation<std::is_convertible<
                       Values&&, const google::protobuf::MessageLite&>>...>,
-              int> = 0
+              int>
 #endif
           >
 #if __cpp_concepts
