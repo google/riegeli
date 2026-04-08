@@ -227,10 +227,11 @@ namespace riegeli {
 // `DynamicHandleLengthDelimitedFromString()`.
 //
 // `MaybeAccepted` is some type explicitly convertible to `bool`, with
-// `operator*` returning some `Accepted` type, such as `std::optional<Accepted>`
-// or `Accepted*`. If `AcceptX()` returns a value explicitly convertible to
-// `true`, then the field is accepted, and the corresponding `HandleX()`
-// function is called with the result of `operator*` as the first argument.
+// `operator*` returning some `Accepted` type. `MaybeAccepted` can be e.g.
+// `std::optional<Accepted>` or `Accepted*`. If `AcceptX()` returns a value
+// explicitly convertible to `true`, then the field is accepted, and the
+// corresponding `HandleX()` function is called with the result of `operator*`
+// as the first argument.
 
 // In `FieldHandler::kFieldNumber`, marks a dynamic field handler.
 inline constexpr int kDynamicFieldNumber =
