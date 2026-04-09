@@ -22,7 +22,7 @@ import (
 
 const (
 	maxDecodedDataSize = 1 << 30  // 1 GiB
-	maxNumRecords      = 100 << 20 // ~100 million
+	maxNumRecords      = 10 << 20 // ~10 million; limits [][]byte overhead to ~240 MiB
 )
 
 // Decode decodes a simple chunk into individual records.

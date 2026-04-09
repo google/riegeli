@@ -22,7 +22,7 @@ type stateMachineNode struct {
 
 const (
 	maxDecodedDataSize = 1 << 30  // 1 GiB
-	maxNumRecords      = 100 << 20 // ~100 million
+	maxNumRecords      = 10 << 20 // ~10 million; limits [][]byte overhead to ~240 MiB
 )
 
 // Decode decodes a transposed chunk into individual records.
@@ -55,6 +55,10 @@ func Decode(data []byte, numRecords, decodedDataSize uint64) ([][]byte, error) {
 	headerSize, err := varint.ReadUvarint64(r)
 	if err != nil {
 		return nil, fmt.Errorf("transpose: reading header size: %w", err)
+	}
+	remaining := r.Remaining()
+	if headerSize > uint64(len(remaining)) {
+		return nil, fmt.Errorf("transpose: header_size %d exceeds remaining data %d", headerSize, len(remaining))
 	}
 	headerCompressed := make([]byte, headerSize)
 	if _, err := r.Read(headerCompressed); err != nil {
@@ -95,8 +99,13 @@ func Decode(data []byte, numRecords, decodedDataSize uint64) ([][]byte, error) {
 	}
 
 	// Read compressed bucket data from the remaining data in r (after the header).
+	// Validate each bucket length against remaining input before allocating.
 	bucketData := make([][]byte, numBuckets)
 	for i := uint32(0); i < numBuckets; i++ {
+		remaining := r.Remaining()
+		if bucketLengths[i] > uint64(len(remaining)) {
+			return nil, fmt.Errorf("transpose: bucket %d length %d exceeds remaining data %d", i, bucketLengths[i], len(remaining))
+		}
 		bd := make([]byte, bucketLengths[i])
 		if _, err := r.Read(bd); err != nil {
 			return nil, fmt.Errorf("transpose: reading bucket %d data: %w", i, err)
