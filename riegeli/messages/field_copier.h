@@ -51,6 +51,10 @@ struct AcceptAnyField;
 // The type returned by `AnyFieldCopier()`.
 using AnyFieldCopierType = DynamicFieldCopierType<AcceptAnyField>;
 
+// The type returned by `UnboundFieldCopier()`.
+template <WireTypeSet wire_types = AllWireTypes>
+class UnboundFieldCopierType;
+
 // A field handler for `SerializedMessageReader` which copies the given field to
 // a `SerializedMessageWriter`.
 //
@@ -93,6 +97,22 @@ DynamicFieldCopier(Accept&& accept) {
 // `SerializedMessageWriter`. Use `ContextProjection()` to select the
 // `SerializedMessageWriter` if this is not the case.
 constexpr AnyFieldCopierType AnyFieldCopier();
+
+// An unbound field handler for a `DynamicFieldHandler` or `FieldHandlerMap`
+// which copies the current field to a `SerializedMessageWriter`, with the
+// source and destination field numbers specified at runtime.
+//
+// As an optimization, `wire_types` constrains the set of wire types to handle.
+// This yields smaller and faster code.
+//
+// `Context...` types must contain exactly one occurrence of
+// `SerializedMessageWriter`. Use `ContextProjection()` to select the
+// `SerializedMessageWriter` if this is not the case.
+template <WireTypeSet wire_types = AllWireTypes>
+constexpr UnboundFieldCopierType<wire_types> UnboundFieldCopier(
+    int field_number) {
+  return UnboundFieldCopierType<wire_types>(field_number);
+}
 
 // Implementation details follow.
 
@@ -347,6 +367,102 @@ struct AcceptAnyField {
 constexpr AnyFieldCopierType AnyFieldCopier() {
   return AnyFieldCopierType(AcceptAnyField());
 }
+
+template <WireTypeSet wire_types>
+class UnboundFieldCopierType {
+ public:
+  static constexpr int kFieldNumber = kUnboundFieldNumber;
+
+  constexpr UnboundFieldCopierType(int field_number)
+      : field_number_(field_number) {}
+
+  UnboundFieldCopierType(const UnboundFieldCopierType& that) = default;
+  UnboundFieldCopierType& operator=(const UnboundFieldCopierType& that) =
+      default;
+
+  template <typename... Context, WireTypeSet dependent_wire_types = wire_types,
+            std::enable_if_t<(dependent_wire_types & WireTypeSet::kVarint) ==
+                                 WireTypeSet::kVarint,
+                             int> = 0>
+  absl::Status HandleVarint(uint64_t repr, Context&... context) const {
+    return message_writer(context...).WriteUInt64(field_number_, repr);
+  }
+
+  template <typename... Context, WireTypeSet dependent_wire_types = wire_types,
+            std::enable_if_t<(dependent_wire_types & WireTypeSet::kFixed32) ==
+                                 WireTypeSet::kFixed32,
+                             int> = 0>
+  absl::Status HandleFixed32(uint32_t repr, Context&... context) const {
+    return message_writer(context...).WriteFixed32(field_number_, repr);
+  }
+
+  template <typename... Context, WireTypeSet dependent_wire_types = wire_types,
+            std::enable_if_t<(dependent_wire_types & WireTypeSet::kFixed64) ==
+                                 WireTypeSet::kFixed64,
+                             int> = 0>
+  absl::Status HandleFixed64(uint64_t repr, Context&... context) const {
+    return message_writer(context...).WriteFixed64(field_number_, repr);
+  }
+
+  template <
+      typename... Context, WireTypeSet dependent_wire_types = wire_types,
+      std::enable_if_t<(dependent_wire_types & WireTypeSet::kLengthDelimited) ==
+                           WireTypeSet::kLengthDelimited,
+                       int> = 0>
+  absl::Status HandleLengthDelimitedFromReader(ReaderSpan<> repr,
+                                               Context&... context) const {
+    return message_writer(context...)
+        .WriteString(field_number_, std::move(repr));
+  }
+
+  template <
+      typename... Context, WireTypeSet dependent_wire_types = wire_types,
+      std::enable_if_t<(dependent_wire_types & WireTypeSet::kLengthDelimited) ==
+                           WireTypeSet::kLengthDelimited,
+                       int> = 0>
+  absl::Status HandleLengthDelimitedFromCord(
+      CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
+      Context&... context) const {
+    return message_writer(context...)
+        .WriteString(field_number_, std::move(repr));
+  }
+
+  template <
+      typename... Context, WireTypeSet dependent_wire_types = wire_types,
+      std::enable_if_t<(dependent_wire_types & WireTypeSet::kLengthDelimited) ==
+                           WireTypeSet::kLengthDelimited,
+                       int> = 0>
+  absl::Status HandleLengthDelimitedFromString(absl::string_view repr,
+                                               Context&... context) const {
+    return message_writer(context...).WriteString(field_number_, repr);
+  }
+
+  template <
+      typename... Context, WireTypeSet dependent_wire_types = wire_types,
+      std::enable_if_t<(dependent_wire_types & WireTypeSet::kStartGroup) ==
+                           WireTypeSet::kStartGroup,
+                       int> = 0>
+  absl::Status HandleStartGroup(Context&... context) const {
+    return message_writer(context...).OpenGroup(field_number_);
+  }
+
+  template <typename... Context, WireTypeSet dependent_wire_types = wire_types,
+            std::enable_if_t<(dependent_wire_types & WireTypeSet::kEndGroup) ==
+                                 WireTypeSet::kEndGroup,
+                             int> = 0>
+  absl::Status HandleEndGroup(Context&... context) const {
+    return message_writer(context...).CloseGroup(field_number_);
+  }
+
+ private:
+  template <typename... Context>
+  static SerializedMessageWriter& message_writer(Context&... context) {
+    return std::get<SerializedMessageWriter&>(
+        std::tuple<Context&...>(context...));
+  }
+
+  int field_number_;
+};
 
 }  // namespace riegeli
 
