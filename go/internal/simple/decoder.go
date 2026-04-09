@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	maxDecodedDataSize = 1 << 30 // 1 GiB
-	maxNumRecords      = 1 << 30
+	maxDecodedDataSize = 1 << 30  // 1 GiB
+	maxNumRecords      = 100 << 20 // ~100 million
 )
 
 // Decode decodes a simple chunk into individual records.

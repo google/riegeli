@@ -109,5 +109,10 @@ func (w *RecordWriter) Close() error {
 		return err
 	}
 
+	// Flush the underlying writer (e.g., bufio.Writer) if it supports flushing.
+	if err := w.cw.Flush(); err != nil {
+		return err
+	}
+
 	return w.cw.Close()
 }

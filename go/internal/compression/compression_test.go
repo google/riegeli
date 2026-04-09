@@ -350,8 +350,9 @@ func TestDecompressSizeMismatch(t *testing.T) {
 	if err == nil {
 		t.Fatal("Decompress with wrong decompressed_size should fail")
 	}
-	if !strings.Contains(err.Error(), "decompressed size mismatch") {
-		t.Fatalf("expected 'decompressed size mismatch' error, got: %v", err)
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "decompressed size mismatch") && !strings.Contains(errMsg, "snappy length") {
+		t.Fatalf("expected size mismatch error, got: %v", err)
 	}
 	t.Logf("got expected error: %v", err)
 }

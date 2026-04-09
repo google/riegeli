@@ -21,8 +21,8 @@ type stateMachineNode struct {
 }
 
 const (
-	maxDecodedDataSize = 1 << 30 // 1 GiB
-	maxNumRecords      = 1 << 30
+	maxDecodedDataSize = 1 << 30  // 1 GiB
+	maxNumRecords      = 100 << 20 // ~100 million
 )
 
 // Decode decodes a transposed chunk into individual records.
@@ -68,13 +68,20 @@ func Decode(data []byte, numRecords, decodedDataSize uint64) ([][]byte, error) {
 	hr := newByteReader(headerData)
 
 	// Parse buckets and buffers.
+	const maxCountPerChunk = 1 << 20 // 1 million — caps slice allocations from untrusted header fields
 	numBuckets, err := varint.ReadUvarint32(hr)
 	if err != nil {
 		return nil, fmt.Errorf("transpose: reading num_buckets: %w", err)
 	}
+	if numBuckets > maxCountPerChunk {
+		return nil, fmt.Errorf("transpose: num_buckets %d exceeds maximum %d", numBuckets, maxCountPerChunk)
+	}
 	numBuffers, err := varint.ReadUvarint32(hr)
 	if err != nil {
 		return nil, fmt.Errorf("transpose: reading num_buffers: %w", err)
+	}
+	if numBuffers > maxCountPerChunk {
+		return nil, fmt.Errorf("transpose: num_buffers %d exceeds maximum %d", numBuffers, maxCountPerChunk)
 	}
 
 	// Read bucket lengths from header.
@@ -164,6 +171,9 @@ func Decode(data []byte, numRecords, decodedDataSize uint64) ([][]byte, error) {
 	stateMachineSize, err := varint.ReadUvarint32(hr)
 	if err != nil {
 		return nil, fmt.Errorf("transpose: reading state_machine_size: %w", err)
+	}
+	if stateMachineSize > maxCountPerChunk {
+		return nil, fmt.Errorf("transpose: state_machine_size %d exceeds maximum %d", stateMachineSize, maxCountPerChunk)
 	}
 
 	// Read tags array.

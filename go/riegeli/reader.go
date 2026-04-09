@@ -52,14 +52,8 @@ func (r *RecordReader) readFileSignature() error {
 		return fmt.Errorf("%w: %v", ErrInvalidSignature, err)
 	}
 
-	if c.Header.Type() != chunk.FileSignature {
-		return fmt.Errorf("%w: first chunk type is '%c', expected 's'", ErrInvalidSignature, c.Header.Type())
-	}
-
-	if r.opts.verifyHashes {
-		if !c.Header.ValidHeader() {
-			return fmt.Errorf("%w: file signature header hash mismatch", ErrCorrupted)
-		}
+	if !chunk.IsFileSignature(c) {
+		return fmt.Errorf("%w: first chunk is not the canonical file signature", ErrInvalidSignature)
 	}
 
 	r.signatureVerified = true

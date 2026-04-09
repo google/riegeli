@@ -102,6 +102,9 @@ func DecompressedSize(ct chunk.CompressionType, data []byte) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("compression: reading decompressed size: %w", err)
 	}
+	if size > MaxDecompressedSize {
+		return 0, fmt.Errorf("compression: decompressed size %d exceeds maximum %d", size, MaxDecompressedSize)
+	}
 	return size, nil
 }
 

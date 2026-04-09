@@ -125,6 +125,12 @@ func FileSignatureChunk() Chunk {
 	}
 }
 
+// IsFileSignature returns true if the chunk matches the canonical file signature.
+func IsFileSignature(c *Chunk) bool {
+	expected := FileSignatureChunk()
+	return c.Header == expected.Header && len(c.Data) == 0
+}
+
 // PaddingChunk creates a padding chunk. The data size should be set to
 // fill the desired space.
 func PaddingChunk(dataSize int) Chunk {
