@@ -2,7 +2,6 @@ package transpose
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/google/riegeli-go/internal/chunk"
@@ -21,10 +20,21 @@ type stateMachineNode struct {
 	messageID  uint32  // one of MessageID* constants, or a tag value
 }
 
+const (
+	maxDecodedDataSize = 1 << 30 // 1 GiB
+	maxNumRecords      = 1 << 30
+)
+
 // Decode decodes a transposed chunk into individual records.
 // data is the chunk data (after the 40-byte chunk header).
 // numRecords and decodedDataSize come from the chunk header.
 func Decode(data []byte, numRecords, decodedDataSize uint64) ([][]byte, error) {
+	if numRecords > maxNumRecords {
+		return nil, fmt.Errorf("transpose: num_records %d exceeds maximum %d", numRecords, maxNumRecords)
+	}
+	if decodedDataSize > maxDecodedDataSize {
+		return nil, fmt.Errorf("transpose: decoded_data_size %d exceeds maximum %d", decodedDataSize, maxDecodedDataSize)
+	}
 	if len(data) == 0 {
 		if numRecords == 0 {
 			return nil, nil
@@ -396,7 +406,7 @@ func runStateMachine(
 				return nil, fmt.Errorf("transpose: non-proto record but no lengths buffer")
 			}
 			// Read length from nonproto_lengths buffer.
-			length, err := readUvarint32FromReader(nonProtoLengths)
+			length, err := varint.ReadUvarint32(nonProtoLengths)
 			if err != nil {
 				return nil, fmt.Errorf("transpose: reading non-proto length: %w", err)
 			}
@@ -445,7 +455,7 @@ func runStateMachine(
 				}
 				buf := buffers[node.bufferIdx]
 				// Read length varint from buffer.
-				strLen, err := readUvarint32FromReader(buf)
+				strLen, err := varint.ReadUvarint32(buf)
 				if err != nil {
 					return nil, fmt.Errorf("transpose: reading string length: %w", err)
 				}
@@ -622,18 +632,6 @@ func runStateMachine(
 	}
 
 	return records, nil
-}
-
-// readUvarint32FromReader reads a varint32 from a bytes.Reader.
-func readUvarint32FromReader(r *bytes.Reader) (uint32, error) {
-	val, err := binary.ReadUvarint(r)
-	if err != nil {
-		return 0, err
-	}
-	if val > 0xFFFFFFFF {
-		return 0, fmt.Errorf("varint32 overflow: %d", val)
-	}
-	return uint32(val), nil
 }
 
 // byteReader wraps a byte slice for sequential reading with ReadByte support.

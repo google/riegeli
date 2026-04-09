@@ -774,18 +774,6 @@ func TestDecodeByteReaderEdgeCases(t *testing.T) {
 	}
 }
 
-// TestDecodeReadUvarint32Overflow tests varint32 overflow in readUvarint32FromReader.
-func TestDecodeReadUvarint32Overflow(t *testing.T) {
-	// Encode a value > 0xFFFFFFFF as a varint.
-	var buf [10]byte
-	n := binary.PutUvarint(buf[:], 0x1_0000_0000) // 2^32
-	r := bytes.NewReader(buf[:n])
-	_, err := readUvarint32FromReader(r)
-	if err == nil {
-		t.Error("readUvarint32FromReader with overflow should fail")
-	}
-}
-
 // TestDecodeGoldenNonProtoZstd tests decoding from zstd-compressed transposed file.
 func TestDecodeGoldenNonProtoZstd(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/golden/transposed_nonproto_zstd.riegeli")

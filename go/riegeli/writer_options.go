@@ -5,10 +5,11 @@ import "github.com/google/riegeli-go/internal/chunk"
 // WriterOption configures a RecordWriter.
 type WriterOption func(*writerOptions)
 
+const defaultChunkSize = 1 << 20 // 1 MiB
+
 type writerOptions struct {
 	compressionType  chunk.CompressionType
 	compressionLevel int
-	transpose        bool
 	chunkSize        int
 }
 
@@ -16,8 +17,7 @@ func defaultWriterOptions() writerOptions {
 	return writerOptions{
 		compressionType:  chunk.NoCompression,
 		compressionLevel: -1, // use default
-		transpose:        false,
-		chunkSize:        1 << 20, // 1 MiB
+		chunkSize:        defaultChunkSize,
 	}
 }
 
@@ -33,13 +33,6 @@ func WithCompression(ct CompressionType) WriterOption {
 func WithCompressionLevel(level int) WriterOption {
 	return func(o *writerOptions) {
 		o.compressionLevel = level
-	}
-}
-
-// WithTranspose enables Protocol Buffer transposition for better compression.
-func WithTranspose(enable bool) WriterOption {
-	return func(o *writerOptions) {
-		o.transpose = enable
 	}
 }
 

@@ -20,10 +20,21 @@ import (
 	"github.com/google/riegeli-go/internal/varint"
 )
 
+const (
+	maxDecodedDataSize = 1 << 30 // 1 GiB
+	maxNumRecords      = 1 << 30
+)
+
 // Decode decodes a simple chunk into individual records.
 // data is the chunk data (after the 40-byte chunk header).
 // numRecords and decodedDataSize come from the chunk header.
 func Decode(data []byte, numRecords, decodedDataSize uint64) ([][]byte, error) {
+	if numRecords > maxNumRecords {
+		return nil, fmt.Errorf("simple: num_records %d exceeds maximum %d", numRecords, maxNumRecords)
+	}
+	if decodedDataSize > maxDecodedDataSize {
+		return nil, fmt.Errorf("simple: decoded_data_size %d exceeds maximum %d", decodedDataSize, maxDecodedDataSize)
+	}
 	if len(data) == 0 {
 		if numRecords == 0 && decodedDataSize == 0 {
 			return nil, nil

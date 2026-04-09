@@ -593,7 +593,6 @@ func TestWriterOptions(t *testing.T) {
 	w, err := riegeli.NewRecordWriter(&buf,
 		riegeli.WithCompression(riegeli.BrotliCompression),
 		riegeli.WithCompressionLevel(6),
-		riegeli.WithTranspose(false),
 		riegeli.WithChunkSize(4096),
 	)
 	if err != nil {

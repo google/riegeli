@@ -3,6 +3,7 @@ package compression
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/klauspost/compress/zstd"
 )
@@ -14,12 +15,8 @@ func decompressZstd(data []byte, decompressedSize uint64) ([]byte, error) {
 	}
 	defer dec.Close()
 	out := make([]byte, decompressedSize)
-	n, err := readFull(dec, out)
-	if err != nil {
+	if _, err := io.ReadFull(dec, out); err != nil {
 		return nil, fmt.Errorf("zstd: decompress: %w", err)
-	}
-	if uint64(n) != decompressedSize {
-		return nil, fmt.Errorf("zstd: short read: got %d, want %d", n, decompressedSize)
 	}
 	return out, nil
 }

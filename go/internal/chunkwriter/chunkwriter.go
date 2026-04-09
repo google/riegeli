@@ -10,6 +10,9 @@ import (
 	"github.com/google/riegeli-go/internal/chunk"
 )
 
+// zeroPad is a reusable zero buffer for writing padding bytes.
+var zeroPad [block.BlockSize]byte
+
 // Writer writes chunks to a Riegeli file stream.
 type Writer struct {
 	dest io.Writer
@@ -63,8 +66,7 @@ func (w *Writer) WriteChunk(c *chunk.Chunk) error {
 		if toWrite > nextBound {
 			toWrite = nextBound
 		}
-		zeros := make([]byte, toWrite)
-		if err := w.writeRaw(zeros); err != nil {
+		if err := w.writeRaw(zeroPad[:toWrite]); err != nil {
 			return fmt.Errorf("chunkwriter: writing padding: %w", err)
 		}
 	}

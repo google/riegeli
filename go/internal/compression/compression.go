@@ -12,6 +12,10 @@ import (
 	"github.com/google/riegeli-go/internal/varint"
 )
 
+// MaxDecompressedSize is the maximum allowed decompressed size (1 GiB).
+// This prevents allocation bombs from malicious size fields.
+const MaxDecompressedSize = 1 << 30
+
 // Decompress decompresses data according to the given compression type.
 // For non-None types, the data starts with a varint64 decompressed_size
 // followed by the compressed bytes.
@@ -27,6 +31,9 @@ func Decompress(ct chunk.CompressionType, data []byte) ([]byte, error) {
 	decompressedSize, n, err := varint.Uvarint64(data)
 	if err != nil {
 		return nil, fmt.Errorf("compression: reading decompressed size: %w", err)
+	}
+	if decompressedSize > MaxDecompressedSize {
+		return nil, fmt.Errorf("compression: decompressed size %d exceeds maximum %d", decompressedSize, MaxDecompressedSize)
 	}
 	compressed := data[n:]
 

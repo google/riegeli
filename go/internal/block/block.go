@@ -125,30 +125,16 @@ func AddWithOverhead(chunkBegin, length uint64) uint64 {
 func DistanceWithoutOverhead(chunkBegin, pos uint64) uint64 {
 	numOverheadBlocks := pos/BlockSize - chunkBegin/BlockSize
 
-	adjustedPos := pos - min64(pos%BlockSize, HeaderSize)
-	adjustedBegin := chunkBegin - min64(chunkBegin%BlockSize, HeaderSize)
+	adjustedPos := pos - min(pos%BlockSize, HeaderSize)
+	adjustedBegin := chunkBegin - min(chunkBegin%BlockSize, HeaderSize)
 	return adjustedPos - adjustedBegin - numOverheadBlocks*HeaderSize
-}
-
-func min64(a, b uint64) uint64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max64(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // ChunkEnd returns the position after a chunk which begins at chunkBegin.
 // The chunk header data_size and num_records are given separately to avoid
 // a dependency on the chunk package.
 func ChunkEnd(chunkHeaderSize, dataSize, numRecords, chunkBegin uint64) uint64 {
-	return max64(
+	return max(
 		AddWithOverhead(chunkBegin, chunkHeaderSize+dataSize),
 		RoundUpToPossibleChunkBoundary(chunkBegin+numRecords),
 	)

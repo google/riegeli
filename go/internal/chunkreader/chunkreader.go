@@ -12,8 +12,9 @@ import (
 
 // Reader reads chunks from a Riegeli file stream.
 type Reader struct {
-	src io.Reader
-	pos uint64 // current file position (physical)
+	src     io.Reader
+	pos     uint64 // current file position (physical)
+	skipBuf []byte // reusable buffer for skipBytes on non-seekable readers
 }
 
 // New creates a new chunk reader wrapping src.
@@ -117,13 +118,15 @@ func (r *Reader) skipBytes(n uint64) error {
 		return nil
 	}
 	// Fall back to reading and discarding.
-	buf := make([]byte, 4096)
+	if r.skipBuf == nil {
+		r.skipBuf = make([]byte, 4096)
+	}
 	for n > 0 {
 		toRead := n
-		if toRead > uint64(len(buf)) {
-			toRead = uint64(len(buf))
+		if toRead > uint64(len(r.skipBuf)) {
+			toRead = uint64(len(r.skipBuf))
 		}
-		nn, err := r.src.Read(buf[:toRead])
+		nn, err := r.src.Read(r.skipBuf[:toRead])
 		r.pos += uint64(nn)
 		n -= uint64(nn)
 		if err != nil {
@@ -171,33 +174,22 @@ func (r *Reader) SeekToChunkContaining(pos uint64) error {
 	prevChunk := bh.PreviousChunk()
 	nextChunk := bh.NextChunk()
 
-	if prevChunk == 0 && pos >= blockBound+nextChunk {
-		// pos is at or past the next chunk.
-		nextChunkPos := blockBound + nextChunk
-		if _, err := seeker.Seek(int64(nextChunkPos), io.SeekStart); err != nil {
+	seekTo := func(target uint64) error {
+		if _, err := seeker.Seek(int64(target), io.SeekStart); err != nil {
 			return err
 		}
-		r.pos = nextChunkPos
-	} else if prevChunk == 0 {
-		// pos is within the chunk starting at this block boundary.
-		if _, err := seeker.Seek(int64(blockBound), io.SeekStart); err != nil {
-			return err
-		}
-		r.pos = blockBound
-	} else if pos < blockBound+nextChunk {
-		// pos is within the chunk that spans this block boundary.
-		chunkStart := blockBound - prevChunk
-		if _, err := seeker.Seek(int64(chunkStart), io.SeekStart); err != nil {
-			return err
-		}
-		r.pos = chunkStart
-	} else {
-		// pos is past the current chunk; seek to start of next chunk.
-		nextChunkPos := blockBound + nextChunk
-		if _, err := seeker.Seek(int64(nextChunkPos), io.SeekStart); err != nil {
-			return err
-		}
-		r.pos = nextChunkPos
+		r.pos = target
+		return nil
 	}
-	return nil
+
+	switch {
+	case prevChunk == 0 && pos >= blockBound+nextChunk:
+		return seekTo(blockBound + nextChunk)
+	case prevChunk == 0:
+		return seekTo(blockBound)
+	case pos < blockBound+nextChunk:
+		return seekTo(blockBound - prevChunk)
+	default:
+		return seekTo(blockBound + nextChunk)
+	}
 }

@@ -2,7 +2,8 @@
 //
 // Riegeli is a high-performance binary record file format designed for
 // sequential and random-access reading of Protocol Buffer records, with
-// support for compression and columnar encoding (transposition).
+// support for compression. The reader supports both simple and transposed
+// chunks; the writer currently produces simple chunks only.
 //
 // # Basic Usage
 //

@@ -3,6 +3,7 @@ package compression
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/andybalholm/brotli"
 )
@@ -10,12 +11,8 @@ import (
 func decompressBrotli(data []byte, decompressedSize uint64) ([]byte, error) {
 	r := brotli.NewReader(bytes.NewReader(data))
 	out := make([]byte, decompressedSize)
-	n, err := readFull(r, out)
-	if err != nil {
+	if _, err := io.ReadFull(r, out); err != nil {
 		return nil, fmt.Errorf("brotli: decompress: %w", err)
-	}
-	if uint64(n) != decompressedSize {
-		return nil, fmt.Errorf("brotli: short read: got %d, want %d", n, decompressedSize)
 	}
 	return out, nil
 }
