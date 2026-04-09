@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/strings/string_view.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/initializer.h"
@@ -50,7 +49,6 @@ constexpr absl::string_view kDefaultFilename = kDefaultFilenameCStr;
 //
 // It is convertible from:
 //  * types convertible to `absl::string_view`
-//  * types convertible to `std::string_view`
 //  * types convertible to `std::string`, e.g. `PathInitializer`
 //  * `std::filesystem::path`
 //
@@ -75,18 +73,11 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<PathRef, T>,
-                    std::disjunction<std::is_convertible<T&&, absl::string_view>
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                                     ,
-                                     std::is_convertible<T&&, std::string_view>
-#endif
-                                     >>,
+                std::conjunction_v<NotSameRef<PathRef, T>,
+                                   std::is_convertible<T&&, absl::string_view>>,
                 int> = 0>
   /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(std::forward<T>(str)) {
-  }
+      : StringRef(std::forward<T>(str)) {}
 
   // Stores `str` materialized, then converted to `StringRef` and then to
   // `absl::string_view`.
@@ -95,16 +86,12 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
                 std::conjunction_v<
                     NotSameRef<PathRef, T>,
                     std::negation<std::is_convertible<T&&, absl::string_view>>,
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                    std::negation<std::is_convertible<T&&, std::string_view>>,
-#endif
                     std::is_convertible<T&&, std::string>>,
                 int> = 0>
   /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                        TemporaryStorage<std::string>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : StringRef(std::forward<T>(str), std::move(storage)) {
-  }
+      : StringRef(std::forward<T>(str), std::move(storage)) {}
 
 #if __cpp_lib_filesystem >= 201703
 

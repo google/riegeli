@@ -19,7 +19,6 @@
 
 #include <ostream>
 #include <string>
-#include <string_view>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 
@@ -39,7 +38,8 @@ ABSL_POINTERS_DEFAULT_NONNULL
 namespace riegeli {
 
 // `StringRef` stores an `absl::string_view`, usually representing text data
-// (see `BytesRef` for binary data), possibly converted from `std::string_view`.
+// (see `BytesRef` for binary data), possibly converted through temporary
+// `std::string`.
 //
 // It is intended for function parameters when the implementation needs
 // an `absl::string_view`, and the caller might have another representation
@@ -47,13 +47,9 @@ namespace riegeli {
 //
 // It is convertible from:
 //  * types convertible to `absl::string_view`
-//  * types convertible to `std::string_view`
 //  * types convertible to `std::string`, e.g. `StringInitializer`
 //
 // `StringRef` does not own string contents and is efficiently copyable.
-//
-// If `absl::string_view` was always `std::string_view`, `StringRef` could be
-// replaced by simply `absl::string_view`.
 class StringRef : public WithCompare<StringRef> {
  public:
   // Stores an empty `absl::string_view`.
@@ -68,40 +64,15 @@ class StringRef : public WithCompare<StringRef> {
   /*implicit*/ StringRef(absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : str_(str) {}
 
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-  // Stores `str` converted to `absl::string_view`.
-  /*implicit*/ StringRef(std::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : str_(str.data(), str.size()) {}
-#endif
-
   // Stores `str` converted to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<StringRef, T>,
                                    NotSameRef<absl::string_view, T>,
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                                   NotSameRef<std::string_view, T>,
-#endif
                                    std::is_convertible<T&&, absl::string_view>>,
                 int> = 0>
   /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : str_(std::forward<T>(str)) {
-  }
-
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-  // Stores `str` converted to `std::string_view` and then to
-  // `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<StringRef, T>,
-                    std::negation<std::is_convertible<T&&, absl::string_view>>,
-                    NotSameRef<std::string_view, T>,
-                    std::is_convertible<T&&, std::string_view>>,
-                int> = 0>
-  /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(std::string_view(std::forward<T>(str))) {}
-#endif
+      : str_(std::forward<T>(str)) {}
 
   // Stores `str` materialized and then converted to `absl::string_view`.
   template <typename T,
@@ -109,16 +80,12 @@ class StringRef : public WithCompare<StringRef> {
                 std::conjunction_v<
                     NotSameRef<StringRef, T>,
                     std::negation<std::is_convertible<T&&, absl::string_view>>,
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                    std::negation<std::is_convertible<T&&, std::string_view>>,
-#endif
                     std::is_convertible<T&&, std::string>>,
                 int> = 0>
   /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                          TemporaryStorage<std::string>&& storage
                              ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : str_(std::move(storage).emplace(std::forward<T>(str))) {
-  }
+      : str_(std::move(storage).emplace(std::forward<T>(str))) {}
 
   StringRef(const StringRef& that) = default;
   StringRef& operator=(const StringRef&) = delete;
@@ -149,28 +116,16 @@ class StringRef : public WithCompare<StringRef> {
 
   template <typename T,
             std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<StringRef, T>,
-                    std::disjunction<std::is_convertible<T&&, absl::string_view>
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                                     ,
-                                     std::is_convertible<T&&, std::string_view>
-#endif
-                                     >>,
+                std::conjunction_v<NotSameRef<StringRef, T>,
+                                   std::is_convertible<T&&, absl::string_view>>,
                 int> = 0>
   friend bool operator==(StringRef a, T&& b) {
     return a == StringRef(std::forward<T>(b));
   }
   template <typename T,
             std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<StringRef, T>,
-                    std::disjunction<std::is_convertible<T&&, absl::string_view>
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                                     ,
-                                     std::is_convertible<T&&, std::string_view>
-#endif
-                                     >>,
+                std::conjunction_v<NotSameRef<StringRef, T>,
+                                   std::is_convertible<T&&, absl::string_view>>,
                 int> = 0>
   friend riegeli::StrongOrdering RIEGELI_COMPARE(StringRef a, T&& b) {
     return riegeli::Compare(a, StringRef(std::forward<T>(b)));

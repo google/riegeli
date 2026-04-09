@@ -1109,7 +1109,6 @@ cc_library(
         "//riegeli/base:initializer",
         "//riegeli/base:string_ref",
         "//riegeli/base:type_traits",
-        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings:string_view",
     ],

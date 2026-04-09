@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -38,8 +37,8 @@ ABSL_POINTERS_DEFAULT_NONNULL
 namespace riegeli {
 
 // `BytesRef` stores an `absl::string_view` representing text or binary data
-// (see `StringRef` for text data), possibly converted from `std::string_view`
-// or `absl::Span<const char>`.
+// (see `StringRef` for text data), possibly converted from
+// `absl::Span<const char>` or temporary `std::string`.
 //
 // It is intended for function parameters when the implementation needs
 // an `absl::string_view`, and the caller might have another representation
@@ -47,7 +46,6 @@ namespace riegeli {
 //
 // It is convertible from:
 //  * types convertible to `absl::string_view`
-//  * types convertible to `std::string_view`
 //  * types convertible to `std::string`, e.g. `BytesInitializer`
 //  * types convertible to `absl::Span<const char>`,
 //    e.g. `std::vector<char>` or `std::array<char, length>`.
@@ -66,18 +64,11 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   // Stores `str` converted to `StringRef` and then to `absl::string_view`.
   template <typename T,
             std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<BytesRef, T>,
-                    std::disjunction<std::is_convertible<T&&, absl::string_view>
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                                     ,
-                                     std::is_convertible<T&&, std::string_view>
-#endif
-                                     >>,
+                std::conjunction_v<NotSameRef<BytesRef, T>,
+                                   std::is_convertible<T&&, absl::string_view>>,
                 int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(std::forward<T>(str)) {
-  }
+      : StringRef(std::forward<T>(str)) {}
 
   // Stores `str` converted to `absl::string_view`.
   /*implicit*/ BytesRef(
@@ -91,16 +82,12 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
                 std::conjunction_v<
                     NotSameRef<BytesRef, T>,
                     std::negation<std::is_convertible<T&&, absl::string_view>>,
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-                    std::negation<std::is_convertible<T&&, std::string_view>>,
-#endif
                     std::is_convertible<T&&, std::string>>,
                 int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                         TemporaryStorage<std::string>&& storage
                             ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : StringRef(std::forward<T>(str), std::move(storage)) {
-  }
+      : StringRef(std::forward<T>(str), std::move(storage)) {}
 
   // Stores `str` converted to `absl::Span<const char>` and then to
   // `absl::string_view`.

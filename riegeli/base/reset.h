@@ -58,9 +58,7 @@ inline void RiegeliReset(std::string& dest, size_t size, char fill) {
 }
 
 inline void RiegeliReset(std::string& dest, absl::string_view src) {
-  // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-  // `dest.assign(src)`
-  dest.assign(src.data(), src.size());
+  dest.assign(src);
 }
 
 inline void RiegeliReset(std::string& dest, const char* src) {

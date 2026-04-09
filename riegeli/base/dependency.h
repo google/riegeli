@@ -16,12 +16,10 @@
 #define RIEGELI_BASE_DEPENDENCY_H_
 
 #include <cstddef>
-#include <string_view>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -334,9 +332,6 @@ class DependencyImpl<
   static constexpr bool kIsStable =
       DependencyImpl::DependencyManager::kIsStable ||
       std::is_same_v<Manager, absl::string_view> ||
-#if !defined(ABSL_USES_STD_STRING_VIEW)
-      std::is_same_v<Manager, std::string_view> ||
-#endif
       std::is_same_v<Manager, absl::Span<const char>> ||
       std::is_same_v<Manager, absl::Span<char>>;
 

@@ -44,13 +44,11 @@ namespace riegeli {
 //  * types convertible to `const char*`
 //  * types supporting `c_str()`, e.g. `std::string` or mutable `CompactString`
 //  * types convertible to `absl::string_view`
-//  * types convertible to `std::string_view`
 //
 // It copies string contents when this is needed for NUL-termination,
-// e.g. for types convertible to `absl::string_view` or `std::string_view`
-// (excluding `std::string` and mutable `CompactString`). In that case
-// the string is stored in a storage object passed as a default argument
-// to the constructor.
+// e.g. for types convertible to `absl::string_view` excluding `std::string`
+// and mutable `CompactString`. In that case the string is stored in a storage
+// object passed as a default argument to the constructor.
 //
 // `CStringRef` does not own string contents and is efficiently copyable.
 class ABSL_NULLABILITY_COMPATIBLE CStringRef : WithEqual<CStringRef> {

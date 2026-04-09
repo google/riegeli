@@ -709,9 +709,7 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
         last_.erase(shared_length);
         const absl::string_view unshared(element.data() + shared_length,
                                          element.size() - shared_length);
-        // TODO: When `absl::string_view` becomes C++17
-        // `std::string_view`: `last_.append(unshared);`
-        last_.append(unshared.data(), unshared.size());
+        last_.append(unshared);
         RIEGELI_ASSERT_EQ(last_, element) << "last_ incorrectly reconstructed";
         return unshared;
       });

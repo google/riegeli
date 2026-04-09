@@ -79,11 +79,7 @@ class StringStringifySink {
   std::string* dest() const { return dest_; }
 
   void Append(size_t length, char fill) { dest_->append(length, fill); }
-  void Append(absl::string_view src) {
-    // TODO: When `absl::string_view` becomes C++17 `std::string_view`:
-    // `dest_->append(src)`
-    dest_->append(src.data(), src.size());
-  }
+  void Append(absl::string_view src) { dest_->append(src); }
   friend void AbslFormatFlush(StringStringifySink* dest,
                               absl::string_view src) {
     dest->Append(src);

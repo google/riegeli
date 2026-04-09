@@ -218,9 +218,7 @@ bool StringWriterBase::WriteSlow(absl::string_view src) {
         std::memcpy(dest.data() + cursor_index, src.data(), src.size());
       } else {
         dest.erase(cursor_index);
-        // TODO: When `absl::string_view` becomes C++17
-        // `std::string_view`: `dest.append(src)`
-        dest.append(src.data(), src.size());
+        dest.append(src);
       }
       GrowDestUnderCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;
@@ -261,9 +259,7 @@ bool StringWriterBase::WriteSlow(ExternalRef src) {
         std::memcpy(dest.data() + cursor_index, src.data(), src.size());
       } else {
         dest.erase(cursor_index);
-        // TODO: When `absl::string_view` becomes C++17
-        // `std::string_view`: `dest.append(absl::string_view(src))`
-        dest.append(src.data(), src.size());
+        dest.append(absl::string_view(src));
       }
       GrowDestUnderCapacityAndMakeBuffer(dest, new_cursor_index);
       return true;
