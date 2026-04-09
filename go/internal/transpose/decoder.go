@@ -162,6 +162,9 @@ func Decode(data []byte, numRecords, decodedDataSize uint64) ([][]byte, error) {
 	for i := uint32(0); i < numBuffers; i++ {
 		bi := bufInfos[i]
 		bkt := bi.bucketIdx
+		if bkt >= numBuckets {
+			return nil, fmt.Errorf("transpose: buffer %d references bucket %d but only %d buckets exist", i, bkt, numBuckets)
+		}
 		start := bucketOffset
 		end := start + bi.length
 		if end > uint64(len(decompressedBuckets[bkt])) {
