@@ -21,6 +21,7 @@
 #include "absl/container/inlined_vector.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/initializer.h"
+#include "riegeli/base/maker.h"
 
 namespace riegeli {
 
@@ -168,12 +169,12 @@ inline FieldProjection&& FieldProjection::AddField(
 
 inline FieldProjection& FieldProjection::AddField(
     std::initializer_list<int> path) & {
-  return AddField(Initializer<Field>(path));
+  return AddField(riegeli::Maker<Field>(path));
 }
 
 inline FieldProjection&& FieldProjection::AddField(
     std::initializer_list<int> path) && {
-  return std::move(AddField(std::move(path)));
+  return std::move(AddField(path));
 }
 
 inline bool FieldProjection::includes_all() const {
