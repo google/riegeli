@@ -519,8 +519,7 @@ class HybridDirectMapImpl<Key, Value, Traits>::IteratorImpl
     return result;
   }
 
-  template <bool that_is_const>
-  friend bool operator==(IteratorImpl a, IteratorImpl<that_is_const> b) {
+  friend bool operator==(IteratorImpl a, IteratorImpl b) {
     RIEGELI_ASSERT_EQ(a.direct_map_end_, b.direct_map_end_)
         << "Failed precondition of operator==(HybridDirectMap::iterator): "
            "incomparable iterators";

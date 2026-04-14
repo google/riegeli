@@ -187,7 +187,7 @@ class TransposeEncoder : public ChunkEncoder {
 
   // We build a tree structure of protocol buffer tags. `NodeId` uniquely
   // identifies a node in this tree.
-  struct NodeId : public WithEqual<NodeId> {
+  struct NodeId : WithEqual<NodeId> {
     explicit NodeId(chunk_encoding_internal::MessageId parent_message_id,
                     uint32_t tag);
 
