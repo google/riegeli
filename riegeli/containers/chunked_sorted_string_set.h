@@ -323,7 +323,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   static StrongOrdering Compare(const ChunkedSortedStringSet& a,
                                 const ChunkedSortedStringSet& b);
   template <typename HashState>
-  HashState HashValue(HashState hash_state);
+  HashState HashValue(HashState hash_state) const;
 
   absl::Status EncodeImpl(Writer& dest) const;
   absl::Status DecodeImpl(Reader& src, DecodeOptions options);
@@ -705,7 +705,7 @@ inline LinearSortedStringSet::SplitElementIterator ChunkedSortedStringSet::
 }
 
 template <typename HashState>
-HashState ChunkedSortedStringSet::HashValue(HashState hash_state) {
+HashState ChunkedSortedStringSet::HashValue(HashState hash_state) const {
   for (const absl::string_view element : *this) {
     hash_state = HashState::combine(std::move(hash_state), element);
   }

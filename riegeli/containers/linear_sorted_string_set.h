@@ -268,7 +268,7 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   static StrongOrdering Compare(const LinearSortedStringSet& a,
                                 const LinearSortedStringSet& b);
   template <typename HashState>
-  HashState HashValue(HashState hash_state);
+  HashState HashValue(HashState hash_state) const;
 
   absl::Status EncodeImpl(Writer& dest) const;
   absl::Status DecodeImpl(Reader& src, DecodeOptions options);
@@ -828,7 +828,7 @@ LinearSortedStringSet::split_elements() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
 }
 
 template <typename HashState>
-HashState LinearSortedStringSet::HashValue(HashState hash_state) {
+HashState LinearSortedStringSet::HashValue(HashState hash_state) const {
   size_t size = 0;
   for (const absl::string_view element : *this) {
     hash_state = HashState::combine(std::move(hash_state), element);
