@@ -37,7 +37,7 @@ namespace riegeli {
 // `CompactString`. It allows examining the contents as `absl::string_view` or
 // `const char*`, but not as `CompactString`, except by copying or moving from.
 class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
-    : public WithCompare<OptionalCompactString, std::nullptr_t,
+    : public WithCompare<OptionalCompactString, std::nullptr_t, CompactString,
                          absl::string_view> {
  public:
   // Creates a null `OptionalCompactString`.
@@ -165,6 +165,19 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
                                         std::nullptr_t) {
     if (a.repr_ == kNullRepr) return StrongOrdering::equal;
     return StrongOrdering::greater;
+  }
+
+  friend bool operator==(const OptionalCompactString& a,
+                         const CompactString& b) {
+    if (a.repr_ == kNullRepr) return false;
+    if (a.repr_ == *b.RawView()) return true;
+    return *a == absl::string_view(b);
+  }
+  friend StrongOrdering RIEGELI_COMPARE(const OptionalCompactString& a,
+                                        const CompactString& b) {
+    if (a.repr_ == kNullRepr) return StrongOrdering::less;
+    if (a.repr_ == *b.RawView()) return StrongOrdering::equal;
+    return riegeli::Compare(*a, absl::string_view(b));
   }
 
   friend bool operator==(const OptionalCompactString& a, absl::string_view b) {
