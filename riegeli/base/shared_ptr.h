@@ -58,7 +58,7 @@ namespace riegeli {
 // class. Prefer `SharedPtr` unless `IntrusiveSharedPtr` is needed.
 template <typename T>
 class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
-    : public WithEqual<SharedPtr<T>> {
+    : public WithEqual<SharedPtr<T>, std::nullptr_t> {
  private:
   template <typename SubT>
   struct IsCompatibleProperSubtype

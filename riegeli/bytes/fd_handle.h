@@ -145,7 +145,7 @@ struct FdSupportsOpenAt<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class FdHandle : public WithEqual<FdHandle> {
+class FdHandle : public WithEqual<FdHandle, int, std::nullptr_t> {
  public:
   // Creates an `FdHandle` which does not refer to a target.
   FdHandle() = default;
@@ -543,7 +543,7 @@ extern template class FdBase<OwnedFdDeleter>;
 //
 // The fd can be negative which means absent.
 class UnownedFd : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
-                  public WithEqual<UnownedFd> {
+                  public WithEqual<UnownedFd, int, std::nullptr_t> {
  public:
   using FdBase::FdBase;
 
@@ -578,7 +578,7 @@ class UnownedFd : public fd_internal::FdBase<fd_internal::UnownedFdDeleter>,
 //
 // The fd can be negative which means absent.
 class OwnedFd : public fd_internal::FdBase<fd_internal::OwnedFdDeleter>,
-                public WithEqual<OwnedFd> {
+                public WithEqual<OwnedFd, int, std::nullptr_t> {
  public:
   using Permissions = fd_internal::Permissions;
 #ifndef _WIN32

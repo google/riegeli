@@ -124,7 +124,8 @@ struct SupportsDigesterBaseHandle<
 //
 // For digesting many small values it is better to use `DigestingWriter` which
 // adds a buffering layer.
-class DigesterBaseHandle : public WithEqual<DigesterBaseHandle> {
+class DigesterBaseHandle
+    : public WithEqual<DigesterBaseHandle, std::nullptr_t> {
  public:
   // Creates a `DigesterBaseHandle` which does not refer to a target.
   DigesterBaseHandle() = default;

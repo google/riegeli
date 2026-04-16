@@ -109,7 +109,7 @@ struct CFileSupportsOpen<
 //   // Optional. If absent, `absl::OkStatus()` is assumed.
 //   absl::Status Close();
 // ```
-class CFileHandle : public WithEqual<CFileHandle> {
+class CFileHandle : public WithEqual<CFileHandle, FILE*, std::nullptr_t> {
  public:
   // Creates a `CFileHandle` which does not refer to a target.
   CFileHandle() = default;
@@ -507,7 +507,7 @@ extern template class CFileBase<OwnedCFileDeleter>;
 // The `FILE*` can be `nullptr` which means absent.
 class UnownedCFile
     : public cfile_internal::CFileBase<cfile_internal::UnownedCFileDeleter>,
-      public WithEqual<UnownedCFile> {
+      public WithEqual<UnownedCFile, FILE*> {
  public:
   using CFileBase::CFileBase;
 
@@ -544,7 +544,7 @@ class UnownedCFile
 // The `FILE*` can be `nullptr` which means absent.
 class OwnedCFile
     : public cfile_internal::CFileBase<cfile_internal::OwnedCFileDeleter>,
-      public WithEqual<OwnedCFile> {
+      public WithEqual<OwnedCFile, FILE*> {
  public:
   using CFileBase::CFileBase;
 

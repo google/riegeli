@@ -52,7 +52,8 @@ namespace riegeli {
 // object passed as a default argument to the constructor.
 //
 // `CStringRef` does not own string contents and is efficiently copyable.
-class ABSL_NULLABILITY_COMPATIBLE CStringRef : public WithEqual<CStringRef> {
+class ABSL_NULLABILITY_COMPATIBLE CStringRef
+    : public WithEqual<CStringRef, std::nullptr_t> {
  private:
   template <typename T, typename Enable = void>
   struct HasCStr : std::false_type {};

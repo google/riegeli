@@ -62,7 +62,7 @@ class ExternalRef;
 //
 // A `Chain` is implemented with a sequence of blocks holding flat data
 // fragments.
-class Chain : public WithCompare<Chain> {
+class Chain : public WithCompare<Chain, absl::string_view> {
  private:
   class RawBlock;
 

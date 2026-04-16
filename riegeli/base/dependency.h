@@ -670,7 +670,8 @@ struct HasDynamicIsOwning<
 template <typename Base, typename Handle, typename Manager>
 class DependencyDerived
     : public Base,
-      public WithEqual<DependencyDerived<Base, Handle, Manager>> {
+      public WithEqual<DependencyDerived<Base, Handle, Manager>,
+                       std::nullptr_t> {
  public:
   using Base::Base;
 

@@ -51,7 +51,8 @@ namespace any_internal {
 
 // Common base class of `Any` and `AnyRef`.
 template <typename Handle, size_t inline_size, size_t inline_align>
-class AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>> {
+class AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>,
+                                 std::nullptr_t> {
  public:
   // Returns a `Handle` to the `Manager`, or a default `Handle` for an empty
   // `AnyBase`.

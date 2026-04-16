@@ -93,7 +93,7 @@ struct HasGetCount<T,
 // class. Prefer `SharedPtr` unless `IntrusiveSharedPtr` is needed.
 template <typename T>
 class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
-    : public WithEqual<IntrusiveSharedPtr<T>> {
+    : public WithEqual<IntrusiveSharedPtr<T>, std::nullptr_t> {
  public:
   // Creates an empty `IntrusiveSharedPtr`.
   constexpr IntrusiveSharedPtr() = default;

@@ -309,122 +309,223 @@ inline Ordering NegateOrdering(Ordering ordering) {
   return ordering;
 }
 
-// For types which support equality, derive `T` from `WithEqual<T>`, and define
-// `friend bool operator==` with the first parameter of type `const T&` or `T`,
-// and the second parameter of the same type, or possibly also of other types.
-//
-// `WithEqual` provides `!=`. For heterogeneous equality it provides `==` and
-// `!=` with swapped parameters.
-//
-// In C++20 this is automatic.
+#if !__cpp_impl_three_way_comparison
+
+namespace compare_internal {
+
 template <typename T>
-class WithEqual {
+class WithEqualMarker {};
+
+template <typename T>
+class WithCompareMarker {};
+
+template <typename T, typename Other>
+class WithSwappedEqual {
+  friend bool operator==(const Other& a, const T& b) { return b == a; }
+};
+
+template <typename T, typename Other>
+class WithSwappedCompare {
+  friend auto RIEGELI_COMPARE(const Other& a, const T& b) {
+    return NegateOrdering(RIEGELI_COMPARE(b, a));
+  }
+  friend bool operator<(const Other& a, const T& b) {
+    return RIEGELI_COMPARE(b, a) > 0;
+  }
+  friend bool operator>(const Other& a, const T& b) {
+    return RIEGELI_COMPARE(b, a) < 0;
+  }
+  friend bool operator<=(const Other& a, const T& b) {
+    return RIEGELI_COMPARE(b, a) >= 0;
+  }
+  friend bool operator>=(const Other& a, const T& b) {
+    return RIEGELI_COMPARE(b, a) <= 0;
+  }
+};
+
+}  // namespace compare_internal
+
+#endif
+
+// In C++17, `WithEqual` emulates C++20 rules of rewriting `!=` from `==`,
+// and swapping parameters in heterogeneous `==` and `!=`. Since C++20 it has
+// no effect.
+//
+// Derive `T` from `WithEqual<T>`. If `T` supports homogeneous comparison,
+// define `friend bool operator==` with the first parameter of type `const T&`
+// or `T` and the second parameter of the same type.
+//
+// If `T` supports heterogeneous comparisons against other types, use
+// `WithEqual<T, Other...>` instead, specifying the types of these parameters.
+// For each of these types, define the appropriate `==` with the first parameter
+// of type `const T&` or `T`.
+//
+// If the other parameter does not have a concrete type because the `==` is a
+// template, do not add a template parameter of `WithEqual`. Instead, define
+// also `==` with swapped parameters, wrapped in
+// `#if !__cpp_impl_three_way_comparison`.
+template <typename T, typename... Others>
+class WithEqual
+#if !__cpp_impl_three_way_comparison
+    : public compare_internal::WithEqualMarker<T>,
+      public compare_internal::WithSwappedEqual<T, Others>...
+#endif
+{
  public:
 #if !__cpp_impl_three_way_comparison
   template <
-      typename Other,
-      std::enable_if_t<compare_internal::HasEqual<T, Other>::value, int> = 0>
-  friend bool operator!=(const T& a, const Other& b) {
+      typename DependentT = T,
+      std::enable_if_t<
+          compare_internal::HasEqual<DependentT, DependentT>::value, int> = 0>
+  friend bool operator!=(const T& a, const T& b) {
     return !(a == b);
   }
 
   template <
       typename Other,
-      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<T, Other>>,
                                           compare_internal::HasEqual<T, Other>>,
                        int> = 0>
-  friend bool operator==(const Other& a, const T& b) {
-    return b == a;
+  friend bool operator!=(const T& a, const Other& b) {
+    return !(a == b);
   }
-  template <
-      typename Other,
-      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
-                                          compare_internal::HasEqual<T, Other>>,
-                       int> = 0>
+
+  template <typename Other,
+            std::enable_if_t<
+                std::conjunction_v<
+                    std::negation<std::is_same<Other, T>>,
+                    std::negation<std::is_base_of<
+                        compare_internal::WithEqualMarker<Other>, Other>>,
+                    compare_internal::HasEqual<Other, T>>,
+                int> = 0>
   friend bool operator!=(const Other& a, const T& b) {
-    return !(b == a);
+    return !(a == b);
   }
 #endif
 };
 
-// For types which support comparison, derive `T` from `WithCompare<T>`. and
-// define `friend bool operator==` and `friend auto RIEGELI_COMPARE` with the
-// first parameter of type `const T&` or `T`, and the second parameter of the
-// same type, or possibly also of other types.
+// In C++17, `WithCompare` emulates C++20 rules of rewriting `<`, `>`, `<=`,
+// and `>=` from `RIEGELI_COMPARE`, and swapping parameters in heterogeneous
+// `==`, `!=`, `RIEGELI_COMPARE`, `<`, `>`, `<=`, and `>=`. Since C++20 it has
+// no effect.
 //
-// `WithCompare` provides `!=`, `<`, `>`, `<=`, and `>=`. For heterogeneous
-// comparison it provides `==`, `!=`, `RIEGELI_COMPARE, `<`, `>`, `<=`, and `>=`
-// with swapped parameters.
-//
-// In C++20 this is automatic.
-template <typename T>
-class WithCompare : public WithEqual<T> {
+// `WithCompare` extends `WithEqual` and is used analogously to `WithEqual`.
+// Define `friend bool operator==` and `friend auto RIEGELI_COMPARE`.
+template <typename T, typename... Others>
+class WithCompare : public WithEqual<T, Others...>
+#if !__cpp_impl_three_way_comparison
+    ,
+                    public compare_internal::WithCompareMarker<T>,
+                    public compare_internal::WithSwappedCompare<T, Others>...
+#endif
+{
  public:
 #if !__cpp_impl_three_way_comparison
   template <
-      typename Other,
-      std::enable_if_t<compare_internal::HasCompare<T, Other>::value, int> = 0>
-  friend bool operator<(const T& a, const Other& b) {
+      typename DependentT = T,
+      std::enable_if_t<
+          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+  friend bool operator<(const T& a, const T& b) {
     return RIEGELI_COMPARE(a, b) < 0;
   }
   template <
-      typename Other,
-      std::enable_if_t<compare_internal::HasCompare<T, Other>::value, int> = 0>
-  friend bool operator>(const T& a, const Other& b) {
+      typename DependentT = T,
+      std::enable_if_t<
+          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+  friend bool operator>(const T& a, const T& b) {
     return RIEGELI_COMPARE(a, b) > 0;
   }
   template <
-      typename Other,
-      std::enable_if_t<compare_internal::HasCompare<T, Other>::value, int> = 0>
-  friend bool operator<=(const T& a, const Other& b) {
+      typename DependentT = T,
+      std::enable_if_t<
+          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+  friend bool operator<=(const T& a, const T& b) {
     return RIEGELI_COMPARE(a, b) <= 0;
   }
   template <
-      typename Other,
-      std::enable_if_t<compare_internal::HasCompare<T, Other>::value, int> = 0>
+      typename DependentT = T,
+      std::enable_if_t<
+          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+  friend bool operator>=(const T& a, const T& b) {
+    return RIEGELI_COMPARE(a, b) >= 0;
+  }
+
+  template <typename Other,
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
+  friend bool operator<(const T& a, const Other& b) {
+    return RIEGELI_COMPARE(a, b) < 0;
+  }
+  template <typename Other,
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
+  friend bool operator>(const T& a, const Other& b) {
+    return RIEGELI_COMPARE(a, b) > 0;
+  }
+  template <typename Other,
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
+  friend bool operator<=(const T& a, const Other& b) {
+    return RIEGELI_COMPARE(a, b) <= 0;
+  }
+  template <typename Other,
+            std::enable_if_t<
+                std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                   compare_internal::HasCompare<T, Other>>,
+                int> = 0>
   friend bool operator>=(const T& a, const Other& b) {
     return RIEGELI_COMPARE(a, b) >= 0;
   }
 
   template <typename Other,
             std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<Other, T>>,
-                                   compare_internal::HasCompare<T, Other>>,
-                int> = 0>
-  friend auto RIEGELI_COMPARE(const Other& a, const T& b) {
-    return NegateOrdering(RIEGELI_COMPARE(b, a));
-  }
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<Other, T>>,
-                                   compare_internal::HasCompare<T, Other>>,
+                std::conjunction_v<
+                    std::negation<std::is_same<Other, T>>,
+                    std::negation<std::is_base_of<
+                        compare_internal::WithCompareMarker<Other>, Other>>,
+                    compare_internal::HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator<(const Other& a, const T& b) {
-    return 0 < RIEGELI_COMPARE(b, a);
+    return RIEGELI_COMPARE(a, b) < 0;
   }
   template <typename Other,
             std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<Other, T>>,
-                                   compare_internal::HasCompare<T, Other>>,
+                std::conjunction_v<
+                    std::negation<std::is_same<Other, T>>,
+                    std::negation<std::is_base_of<
+                        compare_internal::WithCompareMarker<Other>, Other>>,
+                    compare_internal::HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator>(const Other& a, const T& b) {
-    return 0 > RIEGELI_COMPARE(b, a);
+    return RIEGELI_COMPARE(a, b) > 0;
   }
   template <typename Other,
             std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<Other, T>>,
-                                   compare_internal::HasCompare<T, Other>>,
+                std::conjunction_v<
+                    std::negation<std::is_same<Other, T>>,
+                    std::negation<std::is_base_of<
+                        compare_internal::WithCompareMarker<Other>, Other>>,
+                    compare_internal::HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator<=(const Other& a, const T& b) {
-    return 0 <= RIEGELI_COMPARE(b, a);
+    return RIEGELI_COMPARE(a, b) <= 0;
   }
   template <typename Other,
             std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<Other, T>>,
-                                   compare_internal::HasCompare<T, Other>>,
+                std::conjunction_v<
+                    std::negation<std::is_same<Other, T>>,
+                    std::negation<std::is_base_of<
+                        compare_internal::WithCompareMarker<Other>, Other>>,
+                    compare_internal::HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator>=(const Other& a, const T& b) {
-    return 0 >= RIEGELI_COMPARE(b, a);
+    return RIEGELI_COMPARE(a, b) >= 0;
   }
 #endif
 };

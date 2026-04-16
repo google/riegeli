@@ -37,7 +37,8 @@ namespace riegeli {
 // `CompactString`. It allows examining the contents as `absl::string_view` or
 // `const char*`, but not as `CompactString`, except by copying or moving from.
 class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
-    : public WithCompare<OptionalCompactString> {
+    : public WithCompare<OptionalCompactString, std::nullptr_t,
+                         absl::string_view> {
  public:
   // Creates a null `OptionalCompactString`.
   OptionalCompactString() = default;

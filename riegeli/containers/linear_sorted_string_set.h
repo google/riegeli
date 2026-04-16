@@ -383,7 +383,8 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
 //
 // The prefix is known to be shared with the previous element. It is not
 // guaranteed to be the longest shared prefix though.
-class LinearSortedStringSet::SplitElement : public WithCompare<SplitElement> {
+class LinearSortedStringSet::SplitElement
+    : public WithCompare<SplitElement, absl::string_view> {
  public:
   explicit SplitElement(absl::string_view prefix, absl::string_view suffix)
       : prefix_(prefix), suffix_(suffix) {}

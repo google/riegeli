@@ -252,7 +252,7 @@ class IndexIterator : public WithEqual<IndexIterator<Index>> {
     return *this;
   }
 
-  friend bool operator==(const IndexIterator& a, const IndexIterator& b) {
+  friend bool operator==(IndexIterator a, IndexIterator b) {
     return a.index_ == b.index_;
   }
 
