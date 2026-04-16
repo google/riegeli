@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include <cstddef>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -28,7 +27,6 @@
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/iterable.h"
-#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -168,25 +166,14 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
     return StrongOrdering::greater;
   }
 
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<OptionalCompactString, T>,
-                                          NotSameRef<std::nullptr_t, T>,
-                                          std::is_convertible<T&&, BytesRef>>,
-                       int> = 0>
-  friend bool operator==(const OptionalCompactString& a, T&& b) {
+  friend bool operator==(const OptionalCompactString& a, absl::string_view b) {
     if (a.repr_ == kNullRepr) return false;
-    return *a == absl::string_view(b);
+    return *a == b;
   }
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<OptionalCompactString, T>,
-                                          NotSameRef<std::nullptr_t, T>,
-                                          std::is_convertible<T&&, BytesRef>>,
-                       int> = 0>
-  friend StrongOrdering RIEGELI_COMPARE(const OptionalCompactString& a, T&& b) {
+  friend StrongOrdering RIEGELI_COMPARE(const OptionalCompactString& a,
+                                        absl::string_view b) {
     if (a.repr_ == kNullRepr) return StrongOrdering::less;
-    return riegeli::Compare(*a, absl::string_view(b));
+    return riegeli::Compare(*a, b);
   }
 
  private:

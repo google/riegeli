@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
@@ -37,62 +36,13 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
-// `StringRef` stores an `absl::string_view`, usually representing text data
-// (see `BytesRef` for binary data), possibly converted through temporary
-// `std::string`.
-//
-// It is intended for function parameters when the implementation needs
-// an `absl::string_view`, and the caller might have another representation
-// of the string.
-//
-// It is convertible from:
-//  * types convertible to `absl::string_view`
-//  * types convertible to `std::string`, e.g. `StringInitializer`
-//
-// `StringRef` does not own string contents and is efficiently copyable.
-class StringRef : public WithCompare<StringRef> {
+// Common parts of `StringRef`, `BytesRef`, and `PathRef`.
+class StringRefBase {
  public:
-  // Stores an empty `absl::string_view`.
-  StringRef() = default;
+  explicit operator absl::string_view() const { return str_; }
+  explicit operator std::string() const { return std::string(str_); }
 
-  // Stores `str` converted to `absl::string_view`.
-  ABSL_ATTRIBUTE_ALWAYS_INLINE
-  /*implicit*/ StringRef(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : str_(str) {}
-
-  // Stores `str`.
-  /*implicit*/ StringRef(absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : str_(str) {}
-
-  // Stores `str` converted to `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<NotSameRef<StringRef, T>,
-                                   NotSameRef<absl::string_view, T>,
-                                   std::is_convertible<T&&, absl::string_view>>,
-                int> = 0>
-  /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : str_(std::forward<T>(str)) {}
-
-  // Stores `str` materialized and then converted to `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<StringRef, T>,
-                    std::negation<std::is_convertible<T&&, absl::string_view>>,
-                    std::is_convertible<T&&, std::string>>,
-                int> = 0>
-  /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                         TemporaryStorage<std::string>&& storage
-                             ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : str_(std::move(storage).emplace(std::forward<T>(str))) {}
-
-  StringRef(const StringRef& that) = default;
-  StringRef& operator=(const StringRef&) = delete;
-
-  /*implicit*/ operator absl::string_view() const { return str_; }
-
-  bool empty() const { return size() == 0; }
+  bool empty() const { return str_.empty(); }
   const char* absl_nullable data() const { return str_.data(); };
   size_t size() const {
     RIEGELI_ASSUME_LE(str_.size(), str_.max_size());
@@ -107,42 +57,88 @@ class StringRef : public WithCompare<StringRef> {
   void remove_prefix(size_t length);
   void remove_suffix(size_t length);
 
+  // Default stringification by `absl::StrCat()` etc.
+  template <typename Sink>
+  friend void AbslStringify(Sink& dest, const StringRefBase& src) {
+    dest.Append(absl::string_view(src));
+  }
+
+  friend std::ostream& operator<<(std::ostream& dest,
+                                  const StringRefBase& src) {
+    return dest << absl::string_view(src);
+  }
+
+ protected:
+  StringRefBase() = default;
+
+  explicit StringRefBase(absl::string_view str) : str_(str) {}
+
+  StringRefBase(const StringRefBase& that) = default;
+  StringRefBase& operator=(const StringRefBase&) = delete;
+
+  ~StringRefBase() = default;
+
+ private:
+  absl::string_view str_;
+};
+
+// `StringRef` stores an `absl::string_view`, usually representing text data
+// (see `BytesRef` for binary data), possibly converted through temporary
+// `std::string`.
+//
+// It is intended for function parameters when the implementation needs
+// an `absl::string_view`, and the caller might have another representation
+// of the string.
+//
+// It is implicitly convertible from:
+//  * types convertible to `absl::string_view`
+//  * types convertible to `std::string`, e.g. `StringInitializer`
+//
+// It is explicitly convertible to `absl::string_view` or `std::string`.
+//
+// `StringRef` does not own string contents and is efficiently copyable.
+class StringRef : public StringRefBase, public WithCompare<StringRef> {
+ public:
+  // Stores an empty `absl::string_view`.
+  StringRef() = default;
+
+  // Stores `str` converted to `absl::string_view`.
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE
+  /*implicit*/ StringRef(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(str) {}
+
+  /*implicit*/ StringRef(absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(str) {}
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<StringRef, T>,
+                                   std::is_convertible<T&&, absl::string_view>>,
+                int> = 0>
+  /*implicit*/ StringRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(std::forward<T>(str)) {}
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<StringRef, T>,
+                    std::negation<std::is_convertible<T&&, absl::string_view>>,
+                    std::is_convertible<T&&, std::string>>,
+                int> = 0>
+  /*implicit*/ StringRef(T&& str, TemporaryStorage<std::string>&& storage
+                                      ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : StringRefBase(std::move(storage).emplace(std::forward<T>(str))) {}
+
+  StringRef(const StringRef& that) = default;
+  StringRef& operator=(const StringRef&) = delete;
+
   friend bool operator==(StringRef a, StringRef b) {
     return absl::string_view(a) == absl::string_view(b);
   }
   friend riegeli::StrongOrdering RIEGELI_COMPARE(StringRef a, StringRef b) {
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
-
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<NotSameRef<StringRef, T>,
-                                   std::is_convertible<T&&, absl::string_view>>,
-                int> = 0>
-  friend bool operator==(StringRef a, T&& b) {
-    return a == StringRef(std::forward<T>(b));
-  }
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<NotSameRef<StringRef, T>,
-                                   std::is_convertible<T&&, absl::string_view>>,
-                int> = 0>
-  friend riegeli::StrongOrdering RIEGELI_COMPARE(StringRef a, T&& b) {
-    return riegeli::Compare(a, StringRef(std::forward<T>(b)));
-  }
-
-  // Default stringification by `absl::StrCat()` etc.
-  template <typename Sink>
-  friend void AbslStringify(Sink& dest, const StringRef& src) {
-    dest.Append(absl::string_view(src));
-  }
-
-  friend std::ostream& operator<<(std::ostream& dest, const StringRef& src) {
-    return dest << absl::string_view(src);
-  }
-
- private:
-  absl::string_view str_;
 };
 
 // `StringInitializer` is convertible from the same types as `StringRef`,
@@ -153,15 +149,25 @@ class StringInitializer : public Initializer<std::string> {
  public:
   StringInitializer() = default;
 
-  // Stores `str` converted to `absl::string_view` and then to `std::string`.
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   /*implicit*/ StringInitializer(
       const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND,
       TemporaryStorage<MakerType<absl::string_view>>&& storage
           ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : Initializer(std::move(storage).emplace(absl::string_view(str))) {}
+      : StringInitializer(absl::string_view(str), std::move(storage)) {}
 
-  // Stores `str` converted to `std::string`.
+  /*implicit*/ StringInitializer(
+      absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      TemporaryStorage<MakerType<absl::string_view>>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(std::move(storage).emplace(str)) {}
+
+  /*implicit*/ StringInitializer(
+      StringRef str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      TemporaryStorage<MakerType<absl::string_view>>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : StringInitializer(absl::string_view(str), std::move(storage)) {}
+
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<StringInitializer, T>,
@@ -170,21 +176,19 @@ class StringInitializer : public Initializer<std::string> {
   /*implicit*/ StringInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer(std::forward<T>(str)) {}
 
-  // Stores `str` converted to `StringRef`, then to `absl::string_view`, and
-  // then to `std::string`.
   template <
       typename T,
       std::enable_if_t<std::conjunction_v<
                            NotSameRef<StringInitializer, T>,
                            std::negation<std::is_convertible<T&&, std::string>>,
-                           std::is_convertible<T&&, StringRef>>,
+                           std::is_convertible<T&&, absl::string_view>>,
                        int> = 0>
   /*implicit*/ StringInitializer(
       T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
       TemporaryStorage<MakerType<absl::string_view>>&& storage
           ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : Initializer(
-            std::move(storage).emplace(StringRef(std::forward<T>(str)))) {}
+      : StringInitializer(absl::string_view(std::forward<T>(str)),
+                          std::move(storage)) {}
 
   StringInitializer(StringInitializer&& that) = default;
   StringInitializer& operator=(StringInitializer&&) = delete;
@@ -192,40 +196,40 @@ class StringInitializer : public Initializer<std::string> {
 
 // Implementation details follow.
 
-inline const char& StringRef::operator[](size_t index) const {
+inline const char& StringRefBase::operator[](size_t index) const {
   RIEGELI_ASSERT_LT(index, size())
-      << "Failed precondition of StringRef::operator[]: index out of range";
+      << "Failed precondition of StringRefBase::operator[]: index out of range";
   return str_[index];
 }
 
-inline const char& StringRef::at(size_t index) const {
+inline const char& StringRefBase::at(size_t index) const {
   RIEGELI_ASSERT_LT(index, size())
-      << "Failed precondition of StringRef::at(): index out of range";
+      << "Failed precondition of StringRefBase::at(): index out of range";
   return str_[index];
 }
 
-inline const char& StringRef::front() const {
+inline const char& StringRefBase::front() const {
   RIEGELI_ASSERT(!empty())
-      << "Failed precondition of StringRef::front(): empty string";
+      << "Failed precondition of StringRefBase::front(): empty string";
   return str_.front();
 }
 
-inline const char& StringRef::back() const {
+inline const char& StringRefBase::back() const {
   RIEGELI_ASSERT(!empty())
-      << "Failed precondition of StringRef::back(): empty string";
+      << "Failed precondition of StringRefBase::back(): empty string";
   return str_.back();
 }
 
-inline void StringRef::remove_prefix(size_t length) {
+inline void StringRefBase::remove_prefix(size_t length) {
   RIEGELI_ASSERT_LE(length, size())
-      << "Failed precondition of StringRef::remove_prefix(): "
+      << "Failed precondition of StringRefBase::remove_prefix(): "
          "length out of range";
   str_.remove_prefix(length);
 }
 
-inline void StringRef::remove_suffix(size_t length) {
+inline void StringRefBase::remove_suffix(size_t length) {
   RIEGELI_ASSERT_LE(length, size())
-      << "Failed precondition of StringRef::remove_suffix(): "
+      << "Failed precondition of StringRefBase::remove_suffix(): "
          "length out of range";
   str_.remove_suffix(length);
 }

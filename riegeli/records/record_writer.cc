@@ -936,7 +936,7 @@ bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
 
 bool RecordWriterBase::WriteRecord(BytesRef record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  return WriteRecordImpl(record.size(), record);
+  return WriteRecordImpl(record.size(), absl::string_view(record));
 }
 
 bool RecordWriterBase::WriteRecord(ExternalRef record) {

@@ -518,7 +518,7 @@ template <typename T>
 inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
   new (&unchecked_external_object<T>()) T(std::move(object));
-  substr_ = BytesRef(unchecked_external_object<T>());
+  substr_ = absl::string_view(BytesRef(unchecked_external_object<T>()));
   RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
                                    "should be considered external";
 }
@@ -934,7 +934,7 @@ constexpr size_t Chain::kExternalAllocatedSize() {
   return RawBlock::kExternalAllocatedSize<T>();
 }
 
-inline Chain::Chain(BytesRef src) { Initialize(src); }
+inline Chain::Chain(BytesRef src) { Initialize(absl::string_view(src)); }
 
 inline Chain::Chain(ExternalRef src) { std::move(src).InitializeTo(*this); }
 

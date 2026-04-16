@@ -787,8 +787,9 @@ template <typename DependentDest,
           std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int>>
 void FdWriter<Dest>::OpenAtImpl(UnownedFd dir_fd, PathRef filename,
                                 Options&& options) {
-  absl::Status status = dest_.manager().OpenAt(
-      std::move(dir_fd), filename, options.mode(), options.permissions());
+  absl::Status status =
+      dest_.manager().OpenAt(std::move(dir_fd), absl::string_view(filename),
+                             options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     FdWriterBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));

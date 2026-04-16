@@ -85,7 +85,9 @@ bool SimpleEncoder::AddRecord(const google::protobuf::MessageLite& record,
   return true;
 }
 
-bool SimpleEncoder::AddRecord(BytesRef record) { return AddRecordImpl(record); }
+bool SimpleEncoder::AddRecord(BytesRef record) {
+  return AddRecordImpl(absl::string_view(record));
+}
 
 bool SimpleEncoder::AddRecord(ExternalRef record) {
   return AddRecordImpl(std::move(record));

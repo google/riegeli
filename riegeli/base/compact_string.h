@@ -21,7 +21,6 @@
 #include <cstring>
 #include <iosfwd>
 #include <limits>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -36,7 +35,6 @@
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/null_safe_memcpy.h"
-#include "riegeli/base/type_traits.h"
 
 namespace riegeli {
 
@@ -89,13 +87,15 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
   explicit CompactString(size_t size) : repr_(MakeRepr(size)) {}
 
   // Creates a `CompactString` which holds a copy of `src`.
-  explicit CompactString(BytesRef src) : repr_(MakeRepr(src)) {}
+  explicit CompactString(BytesRef src)
+      : repr_(MakeRepr(absl::string_view(src))) {}
   CompactString& operator=(BytesRef src);
 
   // Creates a `CompactString` which holds a copy of `src`. Reserves one extra
   // char so that `c_str()` does not need reallocation.
   static CompactString ForCStr(BytesRef src) {
-    return CompactString(FromReprTag(), MakeRepr(src, src.size() + 1));
+    return CompactString(FromReprTag(),
+                         MakeRepr(absl::string_view(src), src.size() + 1));
   }
 
   CompactString(const CompactString& that);
@@ -286,21 +286,12 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
 
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<CompactString, T>,
-                                          std::is_convertible<T&&, BytesRef>>,
-                       int> = 0>
-  friend bool operator==(const CompactString& a, T&& b) {
-    return absl::string_view(a) == BytesRef(std::forward<T>(b));
+  friend bool operator==(const CompactString& a, absl::string_view b) {
+    return absl::string_view(a) == b;
   }
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<CompactString, T>,
-                                          std::is_convertible<T&&, BytesRef>>,
-                       int> = 0>
-  friend StrongOrdering RIEGELI_COMPARE(const CompactString& a, T&& b) {
-    return riegeli::Compare(absl::string_view(a), BytesRef(std::forward<T>(b)));
+  friend StrongOrdering RIEGELI_COMPARE(const CompactString& a,
+                                        absl::string_view b) {
+    return riegeli::Compare(absl::string_view(a), b);
   }
 
   template <typename HashState>
@@ -620,7 +611,7 @@ inline CompactString& CompactString::operator=(BytesRef src) {
     // Use `memmove()` to support assigning from a substring of `*this`.
     riegeli::null_safe_memmove(data(), src.data(), src.size());
   } else {
-    AssignSlow(src);
+    AssignSlow(absl::string_view(src));
   }
   return *this;
 }

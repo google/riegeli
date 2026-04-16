@@ -537,7 +537,7 @@ inline bool BackwardWriter::Write(BytesRef src) {
     return true;
   }
   AssertInitialized(cursor(), start_to_cursor());
-  return WriteSlow(src);
+  return WriteSlow(absl::string_view(src));
 }
 
 inline bool BackwardWriter::Write(ExternalRef src) {

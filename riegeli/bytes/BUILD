@@ -829,13 +829,17 @@ cc_library(
     deps = [
         ":reader",
         "//riegeli/base:assert",
+        "//riegeli/base:bytes_ref",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:moving_dependency",
         "//riegeli/base:object",
+        "//riegeli/base:string_ref",
+        "//riegeli/base:type_traits",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

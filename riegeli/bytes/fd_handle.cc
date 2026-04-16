@@ -113,7 +113,7 @@ absl::Status OwnedFd::OpenAt(UnownedFd dir_fd, PathRef filename, int mode,
     dir_filename = dir_fd.filename();
     if (!dir_filename.empty() && dir_filename.back() != '/') separator = "/";
   }
-  Reset(-1, absl::StrCat(dir_filename, separator, filename));
+  Reset(-1, absl::StrCat(dir_filename, separator, absl::string_view(filename)));
 
 again:
   const int fd = openat(dir_fd.get(),

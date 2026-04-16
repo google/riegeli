@@ -71,7 +71,7 @@ bool DeferredEncoder::AddRecord(const google::protobuf::MessageLite& record,
 }
 
 bool DeferredEncoder::AddRecord(BytesRef record) {
-  return AddRecordImpl(record);
+  return AddRecordImpl(absl::string_view(record));
 }
 
 bool DeferredEncoder::AddRecord(ExternalRef record) {

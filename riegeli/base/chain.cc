@@ -377,7 +377,7 @@ void Chain::Reset(BytesRef src) {
     Append(src, Options().set_size_hint(src.size()));
     return;
   }
-  Initialize(src);
+  Initialize(absl::string_view(src));
 }
 
 void Chain::Reset(Block src) {

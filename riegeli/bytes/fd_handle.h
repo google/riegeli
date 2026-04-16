@@ -88,7 +88,8 @@ struct FdSupportsOpen<
            absl::Status>>> : std::true_type {};
 
 // `FdSupportsOpenAt<T>::value` is `true` if `T` supports `OpenAt()` with the
-// signature like in `OwnedFd` (with `permissions` present).
+// signature like in `OwnedFd` (with `permissions` present), but taking
+// `absl::string_view filename` instead of `PathRef filename` is sufficient.
 
 template <typename T, typename Enable = void>
 struct FdSupportsOpenAt : std::false_type {};
@@ -97,7 +98,7 @@ template <typename T>
 struct FdSupportsOpenAt<
     T, std::enable_if_t<std::is_convertible_v<
            decltype(std::declval<T&>().OpenAt(
-               std::declval<UnownedFd>(), std::declval<PathRef>(),
+               std::declval<UnownedFd>(), std::declval<absl::string_view>(),
                std::declval<int>(), std::declval<fd_internal::Permissions>())),
            absl::Status>>> : std::true_type {};
 

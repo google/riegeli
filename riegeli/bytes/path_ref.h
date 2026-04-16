@@ -47,10 +47,11 @@ constexpr absl::string_view kDefaultFilename = kDefaultFilenameCStr;
 // an `absl::string_view`, and the caller might have another representation
 // of the string.
 //
-// It is convertible from:
+// It is implicitly convertible from:
 //  * types convertible to `absl::string_view`
 //  * types convertible to `std::string`, e.g. `PathInitializer`
 //  * `std::filesystem::path`
+//  * `StringRef`
 //
 // For `std::filesystem::path` with `value_type = char`, it refers to
 // `path.native()`.
@@ -59,39 +60,26 @@ constexpr absl::string_view kDefaultFilename = kDefaultFilenameCStr;
 // `path.string()` stored in a storage object passed as a default argument to
 // the constructor.
 //
+// It is explicitly convertible to `absl::string_view`, `std::string`, or
+// `StringRef`.
+//
 // `PathRef` does not own path contents and is efficiently copyable.
-class PathRef : public StringRef, public WithCompare<PathRef> {
+class PathRef : public StringRefBase, public WithCompare<PathRef> {
  public:
   // Stores an empty `absl::string_view`.
   PathRef() = default;
 
   // Stores `str` converted to `absl::string_view`.
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   /*implicit*/ PathRef(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(absl::string_view(str)) {}
+      : StringRefBase(str) {}
 
-  // Stores `str` converted to `StringRef` and then to `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<NotSameRef<PathRef, T>,
-                                   std::is_convertible<T&&, absl::string_view>>,
-                int> = 0>
-  /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(std::forward<T>(str)) {}
+  /*implicit*/ PathRef(absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(str) {}
 
-  // Stores `str` materialized, then converted to `StringRef` and then to
-  // `absl::string_view`.
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<
-                    NotSameRef<PathRef, T>,
-                    std::negation<std::is_convertible<T&&, absl::string_view>>,
-                    std::is_convertible<T&&, std::string>>,
-                int> = 0>
-  /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                       TemporaryStorage<std::string>&& storage
-                           ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : StringRef(std::forward<T>(str), std::move(storage)) {}
+  /*implicit*/ PathRef(StringRef str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(absl::string_view(str)) {}
 
 #if __cpp_lib_filesystem >= 201703
 
@@ -103,7 +91,8 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
                        int> = 0>
   /*implicit*/ PathRef(
       const std::filesystem::path& path ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(static_cast<const DependentPath&>(path).native()) {}
+      : StringRefBase(static_cast<const DependentPath&>(path).native()) {}
+
   template <
       typename DependentPath = std::filesystem::path,
       std::enable_if_t<std::is_same_v<typename DependentPath::value_type, char>,
@@ -123,13 +112,34 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   /*implicit*/ PathRef(const std::filesystem::path& path,
                        TemporaryStorage<std::string>&& storage
                            ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : StringRef(std::move(storage).emplace(
-            riegeli::Invoker([&path] { return path.string(); }))) {}
+      : StringRefBase(std::move(storage).emplace(
+            riegeli::Invoker([&] { return path.string(); }))) {}
 
 #endif
 
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<PathRef, T>,
+                                   std::is_convertible<T&&, absl::string_view>>,
+                int> = 0>
+  /*implicit*/ PathRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(std::forward<T>(str)) {}
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<PathRef, T>,
+                    std::negation<std::is_convertible<T&&, absl::string_view>>,
+                    std::is_convertible<T&&, std::string>>,
+                int> = 0>
+  /*implicit*/ PathRef(T&& str, TemporaryStorage<std::string>&& storage
+                                    ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : StringRefBase(std::move(storage).emplace(std::forward<T>(str))) {}
+
   PathRef(const PathRef& that) = default;
   PathRef& operator=(const PathRef&) = delete;
+
+  explicit operator StringRef() const { return absl::string_view(*this); }
 
   friend bool operator==(PathRef a, PathRef b) {
     return absl::string_view(a) == absl::string_view(b);
@@ -137,35 +147,6 @@ class PathRef : public StringRef, public WithCompare<PathRef> {
   friend riegeli::StrongOrdering RIEGELI_COMPARE(PathRef a, PathRef b) {
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
-
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<PathRef, T>,
-                                          std::is_convertible<T&&, StringRef>>,
-                       int> = 0>
-  friend bool operator==(PathRef a, T&& b) {
-    return a == PathRef(std::forward<T>(b));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<PathRef, T>,
-                                          std::is_convertible<T&&, StringRef>>,
-                       int> = 0>
-  friend riegeli::StrongOrdering RIEGELI_COMPARE(PathRef a, T&& b) {
-    return riegeli::Compare(a, PathRef(std::forward<T>(b)));
-  }
-
-#if __cpp_lib_filesystem >= 201703
-
-  friend bool operator==(PathRef a, const std::filesystem::path& b) {
-    return a == PathRef(b);
-  }
-  friend riegeli::StrongOrdering RIEGELI_COMPARE(
-      PathRef a, const std::filesystem::path& b) {
-    return riegeli::Compare(a, PathRef(b));
-  }
-
-#endif
 };
 
 // `PathInitializer` is convertible from the same types as `PathRef`,
@@ -190,21 +171,29 @@ class PathInitializer : public Initializer<std::string> {
 
   PathInitializer() = default;
 
-  // Stores `str` converted to `absl::string_view` and then to `std::string`.
+  // Stores `str` converted to `std::string`.
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   /*implicit*/ PathInitializer(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                TemporaryStorage<MakerType<absl::string_view>>&&
                                    storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : Initializer(std::move(storage).emplace(absl::string_view(str))) {}
+      : PathInitializer(absl::string_view(str), std::move(storage)) {}
 
-  // Stores `str` converted to `std::string`.
-  template <typename T,
-            std::enable_if_t<
-                std::conjunction_v<NotSameRef<PathInitializer, T>,
-                                   std::is_convertible<T&&, std::string>>,
-                int> = 0>
-  /*implicit*/ PathInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : Initializer(std::forward<T>(str)) {}
+  /*implicit*/ PathInitializer(
+      absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      TemporaryStorage<MakerType<absl::string_view>>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(std::move(storage).emplace(str)) {}
+
+  /*implicit*/ PathInitializer(StringRef str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               TemporaryStorage<MakerType<absl::string_view>>&&
+                                   storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : PathInitializer(absl::string_view(str), std::move(storage)) {}
+
+  /*implicit*/ PathInitializer(PathRef str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                               TemporaryStorage<MakerType<absl::string_view>>&&
+                                   storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : PathInitializer(absl::string_view(str), std::move(storage)) {}
 
 #if __cpp_lib_filesystem >= 201703
   // Stores `path.string()`.
@@ -215,24 +204,26 @@ class PathInitializer : public Initializer<std::string> {
       : Initializer(std::move(storage).emplace(path)) {}
 #endif
 
-  // Stores `str` converted to `PathRef`, then to `absl::string_view`, and then
-  // to `std::string`.
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<NotSameRef<PathInitializer, T>,
+                                   std::is_convertible<T&&, std::string>>,
+                int> = 0>
+  /*implicit*/ PathInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : Initializer(std::forward<T>(str)) {}
+
   template <
       typename T,
       std::enable_if_t<std::conjunction_v<
                            NotSameRef<PathInitializer, T>,
                            std::negation<std::is_convertible<T&&, std::string>>,
-#if __cpp_lib_filesystem >= 201703
-                           NotSameRef<std::filesystem::path, T>,
-#endif
-                           std::is_convertible<T&&, StringRef>>,
+                           std::is_convertible<T&&, absl::string_view>>,
                        int> = 0>
   /*implicit*/ PathInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                TemporaryStorage<MakerType<absl::string_view>>&&
                                    storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : Initializer(
-            std::move(storage).emplace(StringRef(std::forward<T>(str)))) {
-  }
+      : PathInitializer(absl::string_view(std::forward<T>(str)),
+                        std::move(storage)) {}
 
   PathInitializer(PathInitializer&& that) = default;
   PathInitializer& operator=(PathInitializer&&) = delete;

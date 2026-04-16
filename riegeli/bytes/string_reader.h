@@ -24,11 +24,15 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "riegeli/base/assert.h"
+#include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
+#include "riegeli/base/string_ref.h"
+#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 
@@ -103,6 +107,19 @@ class StringReader : public StringReaderBase {
                              int> = 0>
   StringReader();
 
+  // Will read from `absl::string_view(BytesRef(src))`. This constructor is
+  // present only if `Src` is `absl::string_view`.
+  template <
+      typename Arg, typename DependentSrc = Src,
+      std::enable_if_t<
+          std::conjunction_v<
+              NotSameRef<StringReader, Arg>,
+              std::is_same<DependentSrc, absl::string_view>,
+              std::negation<std::is_convertible<const Arg&, Initializer<Src>>>,
+              std::is_convertible<const Arg&, BytesRef>>,
+          int> = 0>
+  explicit StringReader(const Arg& src);
+
   // Will read from `absl::string_view(src, size)`. This constructor is present
   // only if `Src` is `absl::string_view`.
   template <typename DependentSrc = Src,
@@ -122,6 +139,16 @@ class StringReader : public StringReaderBase {
             std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset();
+  template <
+      typename Arg, typename DependentSrc = Src,
+      std::enable_if_t<
+          std::conjunction_v<
+              NotSameRef<StringReader, Arg>,
+              std::is_same<DependentSrc, absl::string_view>,
+              std::negation<std::is_convertible<const Arg&, Initializer<Src>>>,
+              std::is_convertible<const Arg&, BytesRef>>,
+          int> = 0>
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Arg& src);
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>,
                              int> = 0>
@@ -149,10 +176,13 @@ class StringReader : public StringReaderBase {
 explicit StringReader(Closed) -> StringReader<DeleteCtad<Closed>>;
 template <typename Src>
 explicit StringReader(Src&& src) -> StringReader<std::conditional_t<
-    std::disjunction_v<
-        std::conjunction<std::is_lvalue_reference<Src>,
-                         std::is_convertible<Src, absl::string_view>>,
-        std::is_convertible<Src&&, const char*>>,
+    std::disjunction_v<std::is_convertible<const Src&, const char*>,
+                       std::conjunction<std::is_lvalue_reference<Src>,
+                                        std::is_convertible<Src, BytesRef>>,
+                       std::is_same<std::decay_t<Src>, StringRef>,
+                       std::is_same<std::decay_t<Src>, BytesRef>,
+                       std::is_same<std::decay_t<Src>, absl::Span<char>>,
+                       std::is_same<std::decay_t<Src>, absl::Span<const char>>>,
     absl::string_view, TargetT<Src>>>;
 StringReader() -> StringReader<>;
 explicit StringReader(const char* src, size_t size) -> StringReader<>;
@@ -215,6 +245,19 @@ inline StringReader<Src>::StringReader() : StringReader(absl::string_view()) {}
 
 template <typename Src>
 template <
+    typename Arg, typename DependentSrc,
+    std::enable_if_t<
+        std::conjunction_v<
+            NotSameRef<StringReader<Src>, Arg>,
+            std::is_same<DependentSrc, absl::string_view>,
+            std::negation<std::is_convertible<const Arg&, Initializer<Src>>>,
+            std::is_convertible<const Arg&, BytesRef>>,
+        int>>
+inline StringReader<Src>::StringReader(const Arg& src)
+    : StringReader(absl::string_view(BytesRef(src))) {}
+
+template <typename Src>
+template <
     typename DependentSrc,
     std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>, int>>
 inline StringReader<Src>::StringReader(
@@ -240,6 +283,20 @@ template <
     std::enable_if_t<std::is_same_v<DependentSrc, absl::string_view>, int>>
 inline void StringReader<Src>::Reset() {
   Reset(absl::string_view());
+}
+
+template <typename Src>
+template <
+    typename Arg, typename DependentSrc,
+    std::enable_if_t<
+        std::conjunction_v<
+            NotSameRef<StringReader<Src>, Arg>,
+            std::is_same<DependentSrc, absl::string_view>,
+            std::negation<std::is_convertible<const Arg&, Initializer<Src>>>,
+            std::is_convertible<const Arg&, BytesRef>>,
+        int>>
+inline void StringReader<Src>::Reset(const Arg& src) {
+  Reset(absl::string_view(BytesRef(src)));
 }
 
 template <typename Src>

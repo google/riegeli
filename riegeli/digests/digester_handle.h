@@ -163,7 +163,9 @@ class DigesterBaseHandle : public WithEqual<DigesterBaseHandle> {
 #if __cpp_char8_t
   bool Write(char8_t src) { return Write(static_cast<char>(src)); }
 #endif
-  bool Write(BytesRef src) { return methods()->write(target(), src); }
+  bool Write(BytesRef src) {
+    return methods()->write(target(), absl::string_view(src));
+  }
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   bool Write(const char* src) { return Write(absl::string_view(src)); }
   bool Write(const Chain& src) { return methods()->write_chain(target(), src); }

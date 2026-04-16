@@ -44,66 +44,76 @@ namespace riegeli {
 // an `absl::string_view`, and the caller might have another representation
 // of the string.
 //
-// It is convertible from:
+// It is implicitly convertible from:
 //  * types convertible to `absl::string_view`
 //  * types convertible to `std::string`, e.g. `BytesInitializer`
 //  * types convertible to `absl::Span<const char>`,
 //    e.g. `std::vector<char>` or `std::array<char, length>`.
+//  * `StringRef`
+//
+// It is explicitly convertible to `absl::string_view`, `std::string`, or
+// `StringRef`.
 //
 // `BytesRef` does not own string contents and is efficiently copyable.
-class BytesRef : public StringRef, public WithCompare<BytesRef> {
+class BytesRef : public StringRefBase, public WithCompare<BytesRef> {
  public:
   // Stores an empty `absl::string_view`.
   BytesRef() = default;
 
   // Stores `str` converted to `absl::string_view`.
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   /*implicit*/ BytesRef(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(absl::string_view(str)) {}
+      : StringRefBase(str) {}
 
-  // Stores `str` converted to `StringRef` and then to `absl::string_view`.
+  /*implicit*/ BytesRef(absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(str) {}
+
+  /*implicit*/ BytesRef(StringRef str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(absl::string_view(str)) {}
+
+  /*implicit*/ BytesRef(absl::Span<char> str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(absl::string_view(str.data(), str.size())) {}
+
+  /*implicit*/ BytesRef(
+      absl::Span<const char> str ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : StringRefBase(absl::string_view(str.data(), str.size())) {}
+
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<BytesRef, T>,
                                    std::is_convertible<T&&, absl::string_view>>,
                 int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(std::forward<T>(str)) {}
+      : StringRefBase(std::forward<T>(str)) {}
 
-  // Stores `str` converted to `absl::string_view`.
-  /*implicit*/ BytesRef(
-      absl::Span<const char> str ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : StringRef(absl::string_view(str.data(), str.size())) {}
-
-  // Stores `str` materialized, then converted to `StringRef` and then to
-  // `absl::string_view`.
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<
                     NotSameRef<BytesRef, T>,
                     std::negation<std::is_convertible<T&&, absl::string_view>>,
-                    std::is_convertible<T&&, std::string>>,
+                    std::is_convertible<T&&, absl::Span<const char>>>,
                 int> = 0>
-  /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                        TemporaryStorage<std::string>&& storage
-                            ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : StringRef(std::forward<T>(str), std::move(storage)) {}
-
-  // Stores `str` converted to `absl::Span<const char>` and then to
-  // `absl::string_view`.
-  template <
-      typename T,
-      std::enable_if_t<
-          std::conjunction_v<NotSameRef<BytesRef, T>,
-                             std::negation<std::is_convertible<T&&, StringRef>>,
-                             NotSameRef<absl::Span<const char>, T>,
-                             std::is_convertible<T&&, absl::Span<const char>>>,
-          int> = 0>
   /*implicit*/ BytesRef(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : BytesRef(absl::Span<const char>(std::forward<T>(str))) {}
 
+  template <
+      typename T,
+      std::enable_if_t<
+          std::conjunction_v<
+              NotSameRef<BytesRef, T>,
+              std::negation<std::is_convertible<T&&, absl::string_view>>,
+              std::negation<std::is_convertible<T&&, absl::Span<const char>>>,
+              std::is_convertible<T&&, std::string>>,
+          int> = 0>
+  /*implicit*/ BytesRef(T&& str, TemporaryStorage<std::string>&& storage
+                                     ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : StringRefBase(std::move(storage).emplace(std::forward<T>(str))) {}
+
   BytesRef(const BytesRef& that) = default;
   BytesRef& operator=(const BytesRef&) = delete;
+
+  explicit operator StringRef() const { return absl::string_view(*this); }
 
   friend bool operator==(BytesRef a, BytesRef b) {
     return absl::string_view(a) == absl::string_view(b);
@@ -111,26 +121,6 @@ class BytesRef : public StringRef, public WithCompare<BytesRef> {
   friend riegeli::StrongOrdering RIEGELI_COMPARE(BytesRef a, BytesRef b) {
     return riegeli::Compare(absl::string_view(a), absl::string_view(b));
   }
-
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<BytesRef, T>,
-                                          std::is_convertible<T&&, StringRef>>,
-                       int> = 0>
-  friend bool operator==(BytesRef a, T&& b) {
-    return a == BytesRef(std::forward<T>(b));
-  }
-  template <
-      typename T,
-      std::enable_if_t<std::conjunction_v<NotSameRef<BytesRef, T>,
-                                          std::is_convertible<T&&, StringRef>>,
-                       int> = 0>
-  friend riegeli::StrongOrdering RIEGELI_COMPARE(BytesRef a, T&& b) {
-    return riegeli::Compare(a, BytesRef(std::forward<T>(b)));
-  }
-
-  // `absl::Span<const char>` is already comparable against types convertible to
-  // `absl::Span<const char>`, which includes `BytesRef`.
 };
 
 // `BytesInitializer` is convertible from the same types as `BytesRef`,
@@ -141,14 +131,39 @@ class BytesInitializer : public Initializer<std::string> {
  public:
   BytesInitializer() = default;
 
-  // Stores `str` converted to `absl::string_view` and then to `std::string`.
+  // Stores `str` converted to `std::string`.
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE
   /*implicit*/ BytesInitializer(const char* str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                 TemporaryStorage<MakerType<absl::string_view>>&&
                                     storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : Initializer(std::move(storage).emplace(absl::string_view(str))) {}
+      : BytesInitializer(absl::string_view(str), std::move(storage)) {}
 
-  // Stores `str` converted to `std::string`.
+  /*implicit*/ BytesInitializer(
+      absl::string_view str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      TemporaryStorage<MakerType<absl::string_view>>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : Initializer(std::move(storage).emplace(str)) {}
+
+  /*implicit*/ BytesInitializer(StringRef str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                TemporaryStorage<MakerType<absl::string_view>>&&
+                                    storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : BytesInitializer(absl::string_view(str), std::move(storage)) {}
+
+  /*implicit*/ BytesInitializer(
+      absl::Span<char> str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      TemporaryStorage<MakerType<absl::string_view>>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : BytesInitializer(absl::string_view(str.data(), str.size()),
+                         std::move(storage)) {}
+
+  /*implicit*/ BytesInitializer(
+      absl::Span<const char> str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+      TemporaryStorage<MakerType<absl::string_view>>&& storage
+          ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : BytesInitializer(absl::string_view(str.data(), str.size()),
+                         std::move(storage)) {}
+
   template <typename T,
             std::enable_if_t<
                 std::conjunction_v<NotSameRef<BytesInitializer, T>,
@@ -157,20 +172,32 @@ class BytesInitializer : public Initializer<std::string> {
   /*implicit*/ BytesInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : Initializer(std::forward<T>(str)) {}
 
-  // Stores `str` converted to `BytesRef`, then to `absl::string_view`, and then
-  // to `std::string`.
   template <
       typename T,
       std::enable_if_t<std::conjunction_v<
                            NotSameRef<BytesInitializer, T>,
                            std::negation<std::is_convertible<T&&, std::string>>,
-                           std::is_convertible<T&&, BytesRef>>,
+                           std::is_convertible<T&&, absl::string_view>>,
                        int> = 0>
   /*implicit*/ BytesInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
                                 TemporaryStorage<MakerType<absl::string_view>>&&
                                     storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
-      : Initializer(
-            std::move(storage).emplace(BytesRef(std::forward<T>(str)))) {}
+      : BytesInitializer(absl::string_view(std::forward<T>(str)),
+                         std::move(storage)) {}
+
+  template <typename T,
+            std::enable_if_t<
+                std::conjunction_v<
+                    NotSameRef<BytesInitializer, T>,
+                    std::negation<std::is_convertible<T&&, std::string>>,
+                    std::negation<std::is_convertible<T&&, absl::string_view>>,
+                    std::is_convertible<T&&, absl::Span<const char>>>,
+                int> = 0>
+  /*implicit*/ BytesInitializer(T&& str ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                                TemporaryStorage<MakerType<absl::string_view>>&&
+                                    storage ABSL_ATTRIBUTE_LIFETIME_BOUND = {})
+      : BytesInitializer(absl::Span<const char>(std::forward<T>(str)),
+                         std::move(storage)) {}
 
   BytesInitializer(BytesInitializer&& that) = default;
   BytesInitializer& operator=(BytesInitializer&&) = delete;

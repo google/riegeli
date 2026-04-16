@@ -609,8 +609,8 @@ template <typename DependentSrc,
 void FdReader<Src>::OpenAtImpl(UnownedFd dir_fd, PathRef filename,
                                Options&& options) {
   absl::Status status =
-      src_.manager().OpenAt(std::move(dir_fd), filename, options.mode(),
-                            OwnedFd::kDefaultPermissions);
+      src_.manager().OpenAt(std::move(dir_fd), absl::string_view(filename),
+                            options.mode(), OwnedFd::kDefaultPermissions);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
     FdReaderBase::Reset(kClosed);
     FailWithoutAnnotation(std::move(status));

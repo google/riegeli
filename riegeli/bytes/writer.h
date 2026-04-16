@@ -664,8 +664,7 @@ inline bool Writer::Write(BytesRef src) {
     move_cursor(src.size());
     return true;
   }
-  AssertInitialized(start(), start_to_cursor());
-  return WriteSlow(src);
+  return WriteSlow(absl::string_view(src));
 }
 
 inline bool Writer::Write(ExternalRef src) {

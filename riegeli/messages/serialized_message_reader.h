@@ -1121,7 +1121,7 @@ absl::Status SerializedMessageReaderType<
   if constexpr (std::conjunction_v<serialized_message_reader_internal::
                                        IsFieldHandlerFromString<
                                            FieldHandlers, Context...>...>) {
-    return ReadMessageFromString(src, context...);
+    return ReadMessageFromString(absl::string_view(src), context...);
   } else {
     return ReadMessage(StringReader(src), context...);
   }

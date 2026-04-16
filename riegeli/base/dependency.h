@@ -233,6 +233,38 @@ class DependencyImpl<
   ~DependencyImpl() = default;
 };
 
+// Specialization of `DependencyImpl<absl::string_view, Manager>` when
+// `DependencyManagerRef<Manager>` is convertible to `BytesRef`.
+template <typename Manager>
+class DependencyImpl<
+    absl::string_view, Manager,
+    std::enable_if_t<std::conjunction_v<
+        std::is_pointer<DependencyManagerPtr<Manager>>,
+        std::is_convertible<DependencyManagerRef<Manager>, BytesRef>>>>
+    : public DependencyManager<Manager> {
+ public:
+  using DependencyImpl::DependencyManager::DependencyManager;
+
+  absl::string_view get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return absl::string_view(BytesRef(*this->ptr()));
+  }
+
+  static constexpr bool kIsStable =
+      DependencyImpl::DependencyManager::kIsStable ||
+      std::is_same_v<Manager, absl::string_view> ||
+      std::is_same_v<Manager, absl::Span<char>> ||
+      std::is_same_v<Manager, absl::Span<const char>>;
+
+ protected:
+  DependencyImpl(const DependencyImpl& that) = default;
+  DependencyImpl& operator=(const DependencyImpl& that) = default;
+
+  DependencyImpl(DependencyImpl&& that) = default;
+  DependencyImpl& operator=(DependencyImpl&& that) = default;
+
+  ~DependencyImpl() = default;
+};
+
 // Specialization of `DependencyImpl<absl::Span<T>, Manager>` when
 // `DependencyManagerRef<Manager>` is explicitly convertible to `absl::Span<T>`.
 //
@@ -303,68 +335,7 @@ class DependencyImpl<
     return this->ptr();
   }
 
- protected:
-  DependencyImpl(const DependencyImpl& that) = default;
-  DependencyImpl& operator=(const DependencyImpl& that) = default;
-
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
-
-  ~DependencyImpl() = default;
-};
-
-// Specialization of `DependencyImpl<absl::string_view, Manager>` when
-// `DependencyManagerRef<Manager>` is convertible to `BytesRef`.
-template <typename Manager>
-class DependencyImpl<
-    absl::string_view, Manager,
-    std::enable_if_t<std::conjunction_v<
-        std::is_pointer<DependencyManagerPtr<Manager>>,
-        std::is_convertible<DependencyManagerRef<Manager>, BytesRef>>>>
-    : public DependencyManager<Manager> {
- public:
-  using DependencyImpl::DependencyManager::DependencyManager;
-
-  absl::string_view get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return BytesRef(*this->ptr());
-  }
-
-  static constexpr bool kIsStable =
-      DependencyImpl::DependencyManager::kIsStable ||
-      std::is_same_v<Manager, absl::string_view> ||
-      std::is_same_v<Manager, absl::Span<const char>> ||
-      std::is_same_v<Manager, absl::Span<char>>;
-
- protected:
-  DependencyImpl(const DependencyImpl& that) = default;
-  DependencyImpl& operator=(const DependencyImpl& that) = default;
-
-  DependencyImpl(DependencyImpl&& that) = default;
-  DependencyImpl& operator=(DependencyImpl&& that) = default;
-
-  ~DependencyImpl() = default;
-};
-
-// Specialization of `DependencyImpl<absl::string_view, Manager>` when
-// `DependencyManagerPtr<Manager>` is `absl::Span<const char>` or
-// `absl::Span<char>`.
-//
-// Specialized separately because `absl::Span<const char>` is not convertible
-// to `absl::string_view` in the regular way.
-template <typename Manager>
-class DependencyImpl<
-    absl::string_view, Manager,
-    std::enable_if_t<std::disjunction_v<
-        std::is_same<DependencyManagerPtr<Manager>, absl::Span<const char>>,
-        std::is_same<DependencyManagerPtr<Manager>, absl::Span<char>>>>>
-    : public DependencyManager<Manager> {
- public:
-  using DependencyImpl::DependencyManager::DependencyManager;
-
-  absl::string_view get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    const absl::Span<const char> span = this->ptr();
-    return absl::string_view(span.data(), span.size());
-  }
+  static constexpr bool kIsStable = true;
 
  protected:
   DependencyImpl(const DependencyImpl& that) = default;
