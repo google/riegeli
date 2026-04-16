@@ -214,10 +214,8 @@ cc_library(
     name = "reset",
     hdrs = ["reset.h"],
     deps = [
-        ":assert",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
