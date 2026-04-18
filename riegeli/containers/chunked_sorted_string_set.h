@@ -248,6 +248,13 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     return chunks_.empty() ? 0 : chunks_.back().cumulative_end_index;
   }
 
+  // Returns the first element. The set must not be empty.
+  absl::string_view first() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    RIEGELI_ASSERT(!empty())
+        << "Failed precondition of ChunkedSortedStringSet::first(): empty set";
+    return chunks_.front().set.first();
+  }
+
   // Returns `true` if `element` is present in the set.
   //
   // If `index != nullptr`, sets `*index` to the index of `element` in the set,

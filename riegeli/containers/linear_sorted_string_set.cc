@@ -141,8 +141,7 @@ size_t LinearSortedStringSet::size() const {
 absl::string_view LinearSortedStringSet::first() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RIEGELI_ASSERT(!empty())
-      << "Failed precondition of LinearSortedStringSet::first(): "
-         "empty set";
+      << "Failed precondition of LinearSortedStringSet::first(): empty set";
   const absl::string_view encoded_view = encoded_;
   uint64_t tagged_length;
   const size_t tagged_length_length =
