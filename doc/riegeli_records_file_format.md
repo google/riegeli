@@ -25,6 +25,10 @@ Hashes are 64-bit [HighwayHash](https://github.com/google/highwayhash) values
 with the key {0x2f696c6567656952, 0x0a7364726f636572, 0x2f696c6567656952,
 0x0a7364726f636572} ('Riegeli/', 'records\n', 'Riegeli/', 'records\n').
 
+For detailed specifications of data encoding primitives (varints, fixed-width
+integers, compressed blocks, and hashing), see
+[data_encoding_primitives.md](data_encoding_primitives.md).
+
 ## Block header
 
 A block header allows to locate the chunk that the block header interrupts.
@@ -138,6 +142,57 @@ The chunk is encoded like a transposed chunk with a single record containing a
 serialized `RecordsMetadata` proto message, except that `chunk_type` is
 different and `num_records` is 0.
 
+#### RecordsMetadata Proto Definition
+
+```protobuf
+message RecordsMetadata {
+  // Human-readable explanation of what the file contains.
+  optional string file_comment = 1;
+
+  // If records are proto messages of a fixed type, the full name of their type.
+  optional string record_type_name = 2;
+
+  // If `record_type_name` is set, proto file descriptors which should contain
+  // the definition of that type and their dependencies (each file comes after
+  // all its dependencies).
+  //
+  // If `file_descriptor` is empty but `record_type_name` is set (not
+  // recommended), `record_type_name` can be interpreted in the context of an
+  // unspecified proto descriptor database.
+  repeated google.protobuf.FileDescriptorProto file_descriptor = 3;
+
+  // Options originally used to encode the file:
+  // https://github.com/google/riegeli/blob/master/doc/record_writer_options.md
+  //
+  // They are informative here, they are never necessary to decode the file.
+  optional string record_writer_options = 4;
+
+  // Number of records in the file, so that the reader can tune for it.
+  //
+  // This is informative, the actual number of records may differ.
+  optional int64 num_records = 5;
+
+  // Clients can define custom metadata in extensions of this message.
+  extensions 1000 to max;
+}
+```
+
+#### Field Descriptions
+
+*   **file_comment**: Human-readable description of file contents (e.g., "User
+    activity logs for 2024-01-15")
+*   **record_type_name**: Fully qualified Protocol Buffer message type name
+    (e.g., "myapp.UserEvent") if all records are of this type
+*   **file_descriptor**: Self-contained Protocol Buffer schema definitions,
+    ordered such that each file appears after all its dependencies. This allows
+    readers to deserialize records without external schema files.
+*   **record_writer_options**: The options string used to create the file (see
+    [record_writer_options.md](record_writer_options.md)). Useful for debugging
+    or understanding compression settings.
+*   **num_records**: Estimated total record count. May be approximate or differ
+    from actual count if file was appended to.
+*   **extensions**: Custom metadata extensions starting at field number 1000
+
 ### Padding chunk
 
 `chunk_type` is 0x70 ('p').
@@ -157,28 +212,84 @@ particular file offset granularity in order for the sync to be effective.
 `chunk_type` is 0x72 ('r').
 
 Simple chunks store record sizes and concatenated record contents in two
-buffers, possibly compressed.
+separate buffers, possibly compressed. This format is simpler than transposed
+chunks and works well for any record type, not just Protocol Buffers.
 
-The format:
+#### Format
 
-*   `compression_type` (byte) — compression type for sizes and values
-*   `compressed_sizes_size` (varint64) — size of `compressed_sizes`
-*   `compressed_sizes` (`compressed_sizes_size` bytes) - compressed buffer with
-    record sizes
-*   `compressed_values` (the rest of `data`) — compressed buffer with record
-    values
+*   `compression_type` (1 byte) — compression type for sizes and values:
+    *   `0x00` — none (uncompressed)
+    *   `0x62` ('b') — [Brotli](https://github.com/google/brotli)
+    *   `0x7a` ('z') — [Zstd](https://facebook.github.io/zstd/)
+    *   `0x73` ('s') — [Snappy](https://google.github.io/snappy/)
+*   `compressed_sizes_size` (varint64) — size of `compressed_sizes` in bytes
+*   `compressed_sizes` (`compressed_sizes_size` bytes) — sizes buffer (possibly
+    compressed)
+*   `compressed_values` (remainder of `data`) — values buffer (possibly
+    compressed)
 
-`compressed_sizes`, after decompression, contains `num_records` varint64s: the
-size of each record.
+#### Sizes Buffer
 
-`compressed_values`, after decompression, contains `decoded_data_size` bytes:
-concatenation of record values.
+If `compression_type` is not 0:
+```
+<decompressed_size: varint64><compressed_data: bytes>
+```
+
+After decompression (or directly if uncompressed), the sizes buffer contains
+`num_records` varint64 values representing the size of each record:
+```
+<size_0: varint64><size_1: varint64>...<size_{num_records-1}: varint64>
+```
+
+The sum of all sizes must equal `decoded_data_size` from the chunk header.
+
+#### Values Buffer
+
+If `compression_type` is not 0:
+```
+<decompressed_size: varint64><compressed_data: bytes>
+```
+
+After decompression (or directly if uncompressed), the values buffer contains
+`decoded_data_size` bytes of concatenated record data:
+```
+<record_0><record_1>...<record_{num_records-1}>
+```
+
+Where each record is a byte sequence of length specified in the sizes buffer.
+
+#### Example
+
+For 3 records: "foo" (3 bytes), "hello" (5 bytes), "" (0 bytes)
+
+**Uncompressed (`compression_type` = 0):**
+```
+compression_type: 0x00
+compressed_sizes_size: 0x03  (varint64 = 3 bytes)
+compressed_sizes: 0x03 0x05 0x00  (sizes: 3, 5, 0)
+compressed_values: 0x66 0x6F 0x6F 0x68 0x65 0x6C 0x6C 0x6F  ("foo" "hello")
+```
+
+**With Brotli compression:**
+```
+compression_type: 0x62  ('b')
+compressed_sizes_size: <varint64>  (size of compressed sizes)
+compressed_sizes: <decompressed_size: varint64><brotli compressed data>
+compressed_values: <decompressed_size: varint64><brotli compressed data>
+```
 
 ### Transposed chunk with records
 
 `chunk_type` is 0x74 ('t').
 
-TODO: Document this.
+Transposed chunks decompose Protocol Buffer messages into a columnar format
+for improved compression. All values of the same field across multiple messages
+are stored together, typically achieving 20%+ better compression than simple
+chunks.
+
+For the complete specification of the transposed chunk format, including the
+state machine encoding, buffer organization, and decoding algorithm, see
+[transposed_chunk_format.md](transposed_chunk_format.md).
 
 ## Properties of the file format
 
