@@ -307,6 +307,12 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   struct Chunk {
     LinearSortedStringSet set;
     size_t cumulative_end_index;
+
+    template <typename MemoryEstimator>
+    friend void RiegeliRegisterSubobjects(const Chunk* self,
+                                          MemoryEstimator& memory_estimator) {
+      memory_estimator.RegisterSubobjects(&self->set);
+    }
   };
 
   using Chunks = absl::InlinedVector<Chunk, 1>;
