@@ -204,6 +204,11 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   // Returns the first element. The set must not be empty.
   absl::string_view first() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
+  // Returns the last element. The set must not be empty.
+  //
+  // Time complexity: `O(size)`.
+  std::string last() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
   // Returns `true` if `element` is present in the set.
   //
   // If `index != nullptr`, sets `*index` to the index of `element` in the set,
@@ -312,7 +317,8 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
   //
   // The `absl::string_view` is valid until the next non-const operation on this
   // `Iterator` because data behind the `absl::string_view` are conditionally
-  // owned by the `Iterator`.
+  // owned by the `Iterator`, except that the last `absl::string_view` remains
+  // valid while the iterator moves to `end()`.
   reference operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_NE(cursor_, nullptr)
         << "Failed precondition of "
@@ -386,6 +392,8 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
 class LinearSortedStringSet::SplitElement
     : public WithCompare<SplitElement, absl::string_view> {
  public:
+  SplitElement() = default;
+
   explicit SplitElement(absl::string_view prefix, absl::string_view suffix)
       : prefix_(prefix), suffix_(suffix) {}
 
@@ -490,7 +498,8 @@ class LinearSortedStringSet::SplitElementIterator
   //
   // The `SplitElement` is valid until the next non-const operation on this
   // `SplitElementIterator` because data behind the `SplitElement` are
-  // conditionally owned by the `SplitElementIterator`.
+  // conditionally owned by the `SplitElementIterator`, except that the last
+  // `SplitElement` remains valid while the iterator moves to `end()`.
   reference operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT_NE(cursor_, nullptr)
         << "Failed precondition of "
@@ -650,7 +659,7 @@ class LinearSortedStringSet::Builder {
   size_t size() const { return size_; }
 
   // Returns the last inserted element. The set must not be empty.
-  absl::string_view last() const {
+  absl::string_view last() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(!empty())
         << "Failed precondition of LinearSortedStringSet::Builder::last(): "
            "empty set";

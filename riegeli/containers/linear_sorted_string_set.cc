@@ -158,6 +158,18 @@ absl::string_view LinearSortedStringSet::first() const
                            IntCast<size_t>(length));
 }
 
+std::string LinearSortedStringSet::last() const {
+  RIEGELI_ASSERT(!empty())
+      << "Failed precondition of LinearSortedStringSet::last(): empty set";
+  SplitElementIterator iterator = split_elements().begin();
+  SplitElement last;
+  do {
+    last = *iterator;
+    ++iterator;
+  } while (iterator != SplitElementIterator());
+  return std::string(last);
+}
+
 bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
                                          SplitElementIterator iterator,
                                          size_t& cumulative_index) {
@@ -411,7 +423,7 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
     // `end()` was reached.
     cursor_ = nullptr;  // Mark `end()`.
     length_if_unshared_ = 0;
-    current_if_shared_ = CompactString();  // Free memory.
+    // `current_if_shared_` is kept for the last `reference` to remain valid.
     return *this;
   }
   const char* ptr = cursor_;
@@ -486,10 +498,10 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
          "iterator is end()";
   if (cursor_ == limit_) {
     // `end()` was reached.
-    cursor_ = nullptr;                    // Mark `end()`.
-    prefix_if_stored_ = CompactString();  // Free memory.
+    cursor_ = nullptr;  // Mark `end()`.
     prefix_ = absl::string_view();
     suffix_length_ = 0;
+    // `prefix_if_stored_` is kept for the last `reference` to remain valid.
     return *this;
   }
   const char* ptr = cursor_;

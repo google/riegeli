@@ -255,6 +255,15 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
     return chunks_.front().set.first();
   }
 
+  // Returns the last element. The set must not be empty.
+  //
+  // Time complexity: `O(chunk_size)`.
+  std::string last() const {
+    RIEGELI_ASSERT(!empty())
+        << "Failed precondition of ChunkedSortedStringSet::last(): empty set";
+    return chunks_.back().set.last();
+  }
+
   // Returns `true` if `element` is present in the set.
   //
   // If `index != nullptr`, sets `*index` to the index of `element` in the set,
@@ -376,7 +385,8 @@ class ChunkedSortedStringSet::IteratorImpl
   //
   // The `value_type` is valid until the next non-const operation on this
   // `IteratorImpl` because data behind the `value_type` are conditionally owned
-  // by the `IteratorImpl`.
+  // by the `IteratorImpl`, except that the last `value_type` remains valid
+  // while the iterator is moved to `end()`.
   reference operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(current_iterator_ != LinearIterator())
         << "Failed precondition of "
@@ -531,7 +541,7 @@ class ChunkedSortedStringSet::Builder {
   }
 
   // Returns the last inserted element. The set must not be empty.
-  absl::string_view last() const {
+  absl::string_view last() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(!empty())
         << "Failed precondition of ChunkedSortedStringSet::Builder::last(): "
            "empty set";
