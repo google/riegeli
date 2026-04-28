@@ -278,12 +278,13 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
   absl::Status EncodeImpl(Writer& dest) const;
   absl::Status DecodeImpl(Reader& src, DecodeOptions options);
 
-  // Representation of each other element, which consists of the prefix of the
-  // previous element with length shared_length, concatenated with unshared,
-  // where tagged_length = (unshared_length << 1) | (shared_length > 0 ? 1 : 0):
+  // Concatenated representations of elements. Each element consists of the
+  // prefix of the previous element with length shared_length, concatenated
+  // with the unshared part. Representation of the element, where
+  // tagged_length = (unshared_length << 1) | (shared_length > 0 ? 1 : 0):
   //
   //  * tagged_length     : varint64
-  //  * shared_length - 1 : varint64, if shared_length > 0
+  //  * shared_length - 1 : varint64, present if shared_length > 0
   //  * unshared          : char[unshared_length]
   CompactString encoded_;
 };
