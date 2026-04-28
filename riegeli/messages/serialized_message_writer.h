@@ -333,6 +333,29 @@ class SerializedMessageWriter {
   // This is useful for `WriteLengthUnchecked()`.
   static Position LengthOfOpenPlusCloseGroup(int field_number);
 
+  // Writes an element of a packed repeated field to an array.
+  //
+  // The field must have been opened with `WriteLengthUnchecked()` and
+  // `writer().Push()`.
+  static char* WritePackedInt32(int32_t value, char* dest);
+  static char* WritePackedInt64(int64_t value, char* dest);
+  static char* WritePackedUInt32(uint32_t value, char* dest);
+  static char* WritePackedUInt64(uint64_t value, char* dest);
+  static char* WritePackedSInt32(int32_t value, char* dest);
+  static char* WritePackedSInt64(int64_t value, char* dest);
+  static char* WritePackedBool(bool value, char* dest);
+  static char* WritePackedFixed32(uint32_t value, char* dest);
+  static char* WritePackedFixed64(uint64_t value, char* dest);
+  static char* WritePackedSFixed32(int32_t value, char* dest);
+  static char* WritePackedSFixed64(int64_t value, char* dest);
+  static char* WritePackedFloat(float value, char* dest);
+  static char* WritePackedDouble(double value, char* dest);
+  template <typename EnumType,
+            std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                                std::is_integral<EnumType>>,
+                             int> = 0>
+  static char* WritePackedEnum(EnumType value, char* dest);
+
  private:
   ABSL_ATTRIBUTE_COLD static absl::Status LengthOverflowError(Position length);
   ABSL_ATTRIBUTE_COLD static absl::Status WriteStringFailed(Reader& src,
@@ -431,7 +454,19 @@ inline absl::Status SerializedMessageWriter::WriteSInt64(int field_number,
 
 inline absl::Status SerializedMessageWriter::WriteBool(int field_number,
                                                        bool value) {
-  return WriteUInt32(field_number, value ? 1 : 0);
+  const uint32_t tag = MakeTag(field_number, WireType::kVarint);
+  if (ABSL_PREDICT_FALSE(!writer().Push(
+          (RIEGELI_IS_CONSTANT(tag) ||
+                   (RIEGELI_IS_CONSTANT(tag < 0x80) && tag < 0x80)
+               ? LengthVarint32(tag)
+               : kMaxLengthVarint32) +
+          1))) {
+    return writer().status();
+  }
+  char* ptr = WriteVarint32(tag, writer().cursor());
+  *ptr++ = value ? '\1' : '\0';
+  writer().set_cursor(ptr);
+  return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageWriter::WriteFixed32(int field_number,
@@ -530,7 +565,10 @@ inline absl::Status SerializedMessageWriter::WritePackedSInt64(int64_t value) {
 }
 
 inline absl::Status SerializedMessageWriter::WritePackedBool(bool value) {
-  return WritePackedUInt32(value ? 1 : 0);
+  if (ABSL_PREDICT_FALSE(!writer().Write(value ? '\1' : '\0'))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageWriter::WritePackedFixed32(
@@ -859,6 +897,82 @@ inline Position SerializedMessageWriter::LengthOfOptionalLengthDelimited(
 inline Position SerializedMessageWriter::LengthOfOpenPlusCloseGroup(
     int field_number) {
   return 2 * LengthVarint32(MakeTag(field_number, WireType::kStartGroup));
+}
+
+inline char* SerializedMessageWriter::WritePackedInt32(int32_t value,
+                                                       char* dest) {
+  return WritePackedUInt64(static_cast<uint64_t>(value), dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedInt64(int64_t value,
+                                                       char* dest) {
+  return WritePackedUInt64(static_cast<uint64_t>(value), dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedUInt32(uint32_t value,
+                                                        char* dest) {
+  return WriteVarint32(value, dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedUInt64(uint64_t value,
+                                                        char* dest) {
+  return WriteVarint64(value, dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedSInt32(int32_t value,
+                                                        char* dest) {
+  return WriteVarint32(EncodeVarintSigned32(value), dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedSInt64(int64_t value,
+                                                        char* dest) {
+  return WriteVarint64(EncodeVarintSigned64(value), dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedBool(bool value, char* dest) {
+  *dest = value ? '\1' : '\0';
+  return dest + 1;
+}
+
+inline char* SerializedMessageWriter::WritePackedFixed32(uint32_t value,
+                                                         char* dest) {
+  WriteLittleEndian<uint32_t>(value, dest);
+  return dest + sizeof(uint32_t);
+}
+
+inline char* SerializedMessageWriter::WritePackedFixed64(uint64_t value,
+                                                         char* dest) {
+  WriteLittleEndian<uint64_t>(value, dest);
+  return dest + sizeof(uint64_t);
+}
+
+inline char* SerializedMessageWriter::WritePackedSFixed32(int32_t value,
+                                                          char* dest) {
+  return WritePackedFixed32(static_cast<uint32_t>(value), dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedSFixed64(int64_t value,
+                                                          char* dest) {
+  return WritePackedFixed64(static_cast<uint64_t>(value), dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedFloat(float value,
+                                                       char* dest) {
+  return WritePackedFixed32(absl::bit_cast<uint32_t>(value), dest);
+}
+
+inline char* SerializedMessageWriter::WritePackedDouble(double value,
+                                                        char* dest) {
+  return WritePackedFixed64(absl::bit_cast<uint64_t>(value), dest);
+}
+
+template <typename EnumType,
+          std::enable_if_t<std::disjunction_v<std::is_enum<EnumType>,
+                                              std::is_integral<EnumType>>,
+                           int>>
+inline char* SerializedMessageWriter::WritePackedEnum(EnumType value,
+                                                      char* dest) {
+  return WritePackedUInt64(static_cast<uint64_t>(value), dest);
 }
 
 }  // namespace riegeli

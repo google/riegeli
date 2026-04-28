@@ -332,7 +332,13 @@ inline absl::Status SerializedMessageBackwardWriter::WriteSInt64(
 
 inline absl::Status SerializedMessageBackwardWriter::WriteBool(int field_number,
                                                                bool value) {
-  return WriteUInt32(field_number, value ? 1 : 0);
+  const uint32_t tag = MakeTag(field_number, WireType::kVarint);
+  const size_t length = LengthVarint32(tag) + 1;
+  if (ABSL_PREDICT_FALSE(!writer().Push(length))) return writer().status();
+  writer().move_cursor(length);
+  char* const ptr = WriteVarint32(tag, writer().cursor());
+  *ptr = value ? '\1' : '\0';
+  return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WriteFixed32(
@@ -424,7 +430,10 @@ inline absl::Status SerializedMessageBackwardWriter::WritePackedSInt64(
 
 inline absl::Status SerializedMessageBackwardWriter::WritePackedBool(
     bool value) {
-  return WritePackedUInt32(value ? 1 : 0);
+  if (ABSL_PREDICT_FALSE(!writer().Write(value ? '\1' : '\0'))) {
+    return writer().status();
+  }
+  return absl::OkStatus();
 }
 
 inline absl::Status SerializedMessageBackwardWriter::WritePackedFixed32(
