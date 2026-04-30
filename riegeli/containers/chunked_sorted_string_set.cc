@@ -54,6 +54,44 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
 inline ChunkedSortedStringSet::ChunkedSortedStringSet(Chunks&& chunks)
     : chunks_(std::move(chunks)) {}
 
+ChunkedSortedStringSet::ChunkedSortedStringSet(
+    const LinearSortedStringSet& src) {
+  if (src.empty()) return;
+#if __cpp_aggregate_paren_init
+  chunks_.emplace_back(src, src.size());
+#else
+  chunks_.push_back(Chunk{src, src.size()});
+#endif
+}
+
+ChunkedSortedStringSet::ChunkedSortedStringSet(LinearSortedStringSet&& src) {
+  if (src.empty()) return;
+  const size_t size = src.size();
+#if __cpp_aggregate_paren_init
+  chunks_.emplace_back(std::move(src), size);
+#else
+  chunks_.push_back(Chunk{std::move(src), size});
+#endif
+}
+
+LinearSortedStringSet ChunkedSortedStringSet::TheChunk() const& {
+  RIEGELI_ASSERT(has_single_chunk())
+      << "Failed precondition of ChunkedSortedStringSet::TheChunk(): "
+         "set has more than one chunk";
+  if (chunks_.empty()) return LinearSortedStringSet();
+  return chunks_.front().set;
+}
+
+LinearSortedStringSet ChunkedSortedStringSet::TheChunk() && {
+  RIEGELI_ASSERT(has_single_chunk())
+      << "Failed precondition of ChunkedSortedStringSet::TheChunk(): "
+         "set has more than one chunk";
+  if (chunks_.empty()) return LinearSortedStringSet();
+  LinearSortedStringSet chunk = std::move(chunks_.front().set);
+  chunks_.clear();
+  return chunk;
+}
+
 bool ChunkedSortedStringSet::ContainsImpl(absl::string_view element) const {
   if (chunks_.empty()) return false;
   SearchResult<Chunks::const_iterator> chunk =

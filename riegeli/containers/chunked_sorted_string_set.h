@@ -218,6 +218,10 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   // An empty set.
   ChunkedSortedStringSet() = default;
 
+  // Converts `LinearSortedStringSet` to `ChunkedSortedStringSet`.
+  explicit ChunkedSortedStringSet(const LinearSortedStringSet& src);
+  explicit ChunkedSortedStringSet(LinearSortedStringSet&& src);
+
   ChunkedSortedStringSet(const ChunkedSortedStringSet& that) = default;
   ChunkedSortedStringSet& operator=(const ChunkedSortedStringSet& that) =
       default;
@@ -232,13 +236,24 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   iterator end() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
   iterator cend() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
-  // Returns a proxy for `LinearSortedStringSet` where each element is
+  // Returns a proxy for `ChunkedSortedStringSet` where each element is
   // represented as `SplitElement` rather than `absl::string_view`. This is
   // more efficient but less convenient.
   //
-  // The `SplitElements` object is valid while the `LinearSortedStringSet` is
+  // The `SplitElements` object is valid while the `ChunkedSortedStringSet` is
   // valid.
   SplitElements split_elements() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  // Returns `true` if the set consists of a single chunk or is empty.
+  // This enables `TheChunk()`.
+  bool has_single_chunk() const { return chunks_.size() <= 1; }
+
+  // Converts `ChunkedSortedStringSet` to `LinearSortedStringSet` if this is
+  // efficient, i.e. if it consists of a single chunk or is empty.
+  //
+  // Precondition: `has_single_chunk()`.
+  LinearSortedStringSet TheChunk() const&;
+  LinearSortedStringSet TheChunk() &&;
 
   // Returns `true` if the set is empty.
   bool empty() const { return chunks_.empty(); }
@@ -323,7 +338,6 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
       memory_estimator.RegisterSubobjects(&self->set);
     }
   };
-
   using Chunks = absl::InlinedVector<Chunk, 1>;
 
   struct CompareFirst {
