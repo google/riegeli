@@ -30,7 +30,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
@@ -85,10 +84,6 @@ class AfterGroupType;
 // the same wire representation). A `Repeated` variant is intended for repeated
 // fields (packed or not), and it will be called also for singular fields
 // (which have the same wire representation as a non-packed repeated field).
-//
-// For varint fields, in contrast to native proto parsing, 64-bit values which
-// overflow the provided 32-bit type are reported as errors instead of being
-// silently truncated.
 //
 // Two kinds of field handlers are provided by these functions:
 //
@@ -467,54 +462,6 @@ namespace field_handlers_internal {
 ABSL_ATTRIBUTE_COLD absl::Status AnnotateByReader(absl::Status status,
                                                   Reader& reader);
 
-ABSL_ATTRIBUTE_COLD absl::Status EnumOverflowError(uint64_t repr);
-
-template <typename Value, field_handlers::VarintKind kind>
-absl::Status VarintOverflowError(uint64_t repr) {
-  RIEGELI_ASSERT(kind == field_handlers::VarintKind::kEnum)
-      << "Remaining VarintOverflowError() instantiations should be for enums";
-  return EnumOverflowError(repr);
-}
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(uint64_t repr);
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
-    uint64_t repr);
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
-    uint64_t repr);
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(uint64_t repr);
-
-ABSL_ATTRIBUTE_COLD absl::Status EnumOverflowError(Reader& src, uint64_t repr);
-
-template <typename Value, field_handlers::VarintKind kind>
-absl::Status VarintOverflowError(Reader& src, uint64_t repr) {
-  RIEGELI_ASSERT(kind == field_handlers::VarintKind::kEnum)
-      << "Remaining VarintOverflowError() instantiations should be for enums";
-  return EnumOverflowError(src, repr);
-}
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(Reader& src,
-                                                                 uint64_t repr);
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
-    Reader& src, uint64_t repr);
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
-    Reader& src, uint64_t repr);
-template <>
-ABSL_ATTRIBUTE_COLD absl::Status
-VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(Reader& src,
-                                                              uint64_t repr);
-
 ABSL_ATTRIBUTE_COLD absl::Status ReadPackedVarintError();
 
 ABSL_ATTRIBUTE_COLD absl::Status ReadPackedVarintError(Reader& src);
@@ -534,22 +481,6 @@ ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixedError<sizeof(uint32_t)>(
 template <>
 ABSL_ATTRIBUTE_COLD absl::Status ReadPackedFixedError<sizeof(uint64_t)>(
     Reader& src);
-
-template <typename Value, field_handlers::VarintKind kind>
-inline bool VarintIsValid(uint64_t repr) {
-  if constexpr (std::disjunction_v<std::is_same<Value, uint64_t>,
-                                   std::is_same<Value, int64_t>>) {
-    return true;
-  } else if constexpr (kind == field_handlers::VarintKind::kSigned) {
-    return uint64_t{static_cast<std::make_unsigned_t<Value>>(repr)} == repr;
-  } else if constexpr (std::is_enum_v<Value>) {
-    static_assert(kind == field_handlers::VarintKind::kEnum);
-    return static_cast<uint64_t>(
-               static_cast<std::underlying_type_t<Value>>(repr)) == repr;
-  } else {
-    return static_cast<uint64_t>(static_cast<Value>(repr)) == repr;
-  }
-}
 
 template <typename Value, field_handlers::VarintKind kind>
 inline Value DecodeVarint(uint64_t repr) {
@@ -585,10 +516,6 @@ class OnOptionalVarintType {
       std::enable_if_t<std::is_invocable_v<const Action&, Value, Context&...>,
                        int> = 0>
   absl::Status HandleVarint(uint64_t repr, Context&... context) const {
-    if (ABSL_PREDICT_FALSE(
-            (!field_handlers_internal::VarintIsValid<Value, kind>(repr)))) {
-      return field_handlers_internal::VarintOverflowError<Value, kind>(repr);
-    }
     return action_(field_handlers_internal::DecodeVarint<Value, kind>(repr),
                    context...);
   }
@@ -1031,11 +958,6 @@ absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
   ScopedLimiter scoped_limiter(repr);
   uint64_t element;
   while (ReadVarint64(repr.reader(), element)) {
-    if (ABSL_PREDICT_FALSE(
-            (!field_handlers_internal::VarintIsValid<Value, kind>(element)))) {
-      return field_handlers_internal::VarintOverflowError<Value, kind>(
-          repr.reader(), element);
-    }
     if (absl::Status status = this->action()(
             field_handlers_internal::DecodeVarint<Value, kind>(element),
             context...);
@@ -1078,10 +1000,6 @@ absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
   while (ReadVarint64(repr.iterator(),
                       CordIteratorSpan::Remaining(repr.iterator()) - limit,
                       element)) {
-    if (ABSL_PREDICT_FALSE(
-            (!field_handlers_internal::VarintIsValid<Value, kind>(element)))) {
-      return field_handlers_internal::VarintOverflowError<Value, kind>(element);
-    }
     if (absl::Status status = this->action()(
             field_handlers_internal::DecodeVarint<Value, kind>(element),
             context...);
@@ -1109,10 +1027,6 @@ absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
   while (const size_t length =
              ReadVarint64(cursor, PtrDistance(cursor, limit), element)) {
     cursor += length;
-    if (ABSL_PREDICT_FALSE(
-            (!field_handlers_internal::VarintIsValid<Value, kind>(element)))) {
-      return field_handlers_internal::VarintOverflowError<Value, kind>(element);
-    }
     if (absl::Status status = this->action()(
             field_handlers_internal::DecodeVarint<Value, kind>(element),
             context...);

@@ -21,7 +21,6 @@
 
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/bytes/reader.h"
 
@@ -35,71 +34,6 @@ absl::Status AnnotateByReader(absl::Status status, Reader& reader) {
   } else {
     return reader.StatusOrAnnotate(std::move(status));
   }
-}
-
-template <>
-absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(
-    uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("int32 field overflow: ", repr));
-}
-
-template <>
-absl::Status VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
-    uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("uint32 field overflow: ", repr));
-}
-
-template <>
-absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
-    uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("sint32 field overflow: ", repr));
-}
-
-template <>
-absl::Status VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(
-    uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("bool field overflow: ", repr));
-}
-
-absl::Status EnumOverflowError(uint64_t repr) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("enum field overflow: ", repr));
-}
-
-template <>
-absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(
-    Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(
-      VarintOverflowError<int32_t, field_handlers::VarintKind::kPlain>(repr));
-}
-
-template <>
-absl::Status VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(
-    Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(
-      VarintOverflowError<uint32_t, field_handlers::VarintKind::kPlain>(repr));
-}
-
-template <>
-absl::Status VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(
-    Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(
-      VarintOverflowError<int32_t, field_handlers::VarintKind::kSigned>(repr));
-}
-
-absl::Status EnumOverflowError(Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(EnumOverflowError(repr));
-}
-
-template <>
-absl::Status VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(
-    Reader& src, uint64_t repr) {
-  return src.StatusOrAnnotate(
-      VarintOverflowError<bool, field_handlers::VarintKind::kPlain>(repr));
 }
 
 absl::Status ReadPackedVarintError() {
