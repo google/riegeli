@@ -1,4 +1,3 @@
-#include "absl/base/attributes.h"
 // Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,18 +19,20 @@
 //  * `ZSTD_dictContentType_e`
 #define ZSTD_STATIC_LINKING_ONLY
 
+#include "riegeli/zstd/zstd_dictionary.h"
+
 #include <stdint.h>
 
 #include <memory>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
-#include "riegeli/zstd/zstd_dictionary.h"
 #include "zstd.h"
 
 namespace riegeli {
@@ -45,8 +46,7 @@ static_assert(
             ZSTD_dct_rawContent &&
         static_cast<ZSTD_dictContentType_e>(
             ZstdDictionary::Type::kSerialized) == ZSTD_dct_fullDict,
-    "Enum values of ZstdDictionary::Type disagree with ZSTD_dct "
-    "constants");
+    "Enum values of ZstdDictionary::Type disagree with ZSTD_dct constants");
 
 inline ZstdDictionary::ZSTD_CDictHandle
 ZstdDictionary::Repr::PrepareCompressionDictionary(

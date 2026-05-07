@@ -161,8 +161,10 @@ void ZstdWriterBase::DoneBehindBuffer(absl::string_view src) {
 
 void ZstdWriterBase::Done() {
   BufferedWriter::Done();
-  compressor_.reset();
   dictionary_ = ZstdDictionary();
+  compressor_.reset();
+  // Must be destroyed after `compressor_`.
+  compression_dictionary_.reset();
   associated_reader_.Reset();
 }
 
