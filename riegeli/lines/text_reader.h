@@ -271,8 +271,8 @@ void TextReader<newline, Src>::VerifyEndImpl() {
 }
 
 template <typename Src>
-inline TextReader<ReadNewline::kLf, Src>::TextReader(
-    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options)
+inline TextReader<ReadNewline::kLf, Src>::TextReader(Initializer<Src> src,
+                                                     Options /*options*/)
     : TextReader::PrefixLimitingReader(std::move(src)) {}
 
 template <typename Src>
@@ -281,8 +281,8 @@ inline void TextReader<ReadNewline::kLf, Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void TextReader<ReadNewline::kLf, Src>::Reset(
-    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options) {
+inline void TextReader<ReadNewline::kLf, Src>::Reset(Initializer<Src> src,
+                                                     Options /*options*/) {
   TextReader::PrefixLimitingReader::Reset(std::move(src));
 }
 

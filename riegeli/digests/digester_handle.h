@@ -222,7 +222,7 @@ class DigesterBaseHandle
   absl::Status status() const { return methods()->status(target()); }
 
  protected:
-  ABSL_ATTRIBUTE_NORETURN static void FailedDigestMethodDefault();
+  [[noreturn]] static void FailedDigestMethodDefault();
 
  private:
   template <typename Function,
@@ -521,8 +521,7 @@ class DigesterHandle : public DigesterBaseHandle {
       T, std::void_t<decltype(std::declval<T&>().Digest())>> : std::true_type {
   };
 
-  static DigestType DigestMethodDefault(
-      ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+  static DigestType DigestMethodDefault(TypeErasedRef /*target*/) {
     if constexpr (!std::is_void_v<DigestType>) FailedDigestMethodDefault();
   }
 

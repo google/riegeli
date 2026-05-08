@@ -339,7 +339,7 @@ class InitializerReference {
     // `T` is a reference type here, so `T&&` is the same as `T`.
     return std::move(*this).Construct();
   }
-  T&& Reference(ABSL_ATTRIBUTE_UNUSED TemporaryStorage<T>&& storage) &&
+  T&& Reference(TemporaryStorage<T>&& /*storage*/) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(*this).Reference();
   }
@@ -703,8 +703,7 @@ inline InitializerBase<T>::InitializerBase(const Methods* methods, Arg&& arg)
     : methods_(methods), context_(std::forward<Arg>(arg)) {}
 
 template <typename T>
-T InitializerBase<T>::ConstructMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context) {
+T InitializerBase<T>::ConstructMethodDefault(TypeErasedRef /*context*/) {
   return T();
 }
 
@@ -734,9 +733,8 @@ T InitializerBase<T>::ConstructMethodFromConvertedReference(
 }
 
 template <typename T>
-T&& InitializerBase<T>::ReferenceMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
-    TemporaryStorage<T>&& storage) {
+T&& InitializerBase<T>::ReferenceMethodDefault(TypeErasedRef /*context*/,
+                                               TemporaryStorage<T>&& storage) {
   return std::move(storage).emplace();
 }
 
@@ -775,8 +773,8 @@ T&& InitializerBase<T>::ReferenceMethodFromConvertedReference(
 }
 
 template <typename T>
-void InitializerAssignableBase<T>::ResetMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context, T& dest) {
+void InitializerAssignableBase<T>::ResetMethodDefault(TypeErasedRef /*context*/,
+                                                      T& dest) {
   riegeli::Reset(dest);
 }
 

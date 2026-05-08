@@ -23,7 +23,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/strings/string_view.h"
 #include "absl/utility/utility.h"  // IWYU pragma: keep
@@ -144,7 +143,7 @@ struct SelectTypesFromTuple<Tuple, std::index_sequence<indices...>> {
 // `std::index_sequence`.
 template <typename Tuple, size_t... indices>
 std::tuple<std::tuple_element_t<indices, Tuple>...> SelectFromTuple(
-    ABSL_ATTRIBUTE_UNUSED Tuple&& tuple, std::index_sequence<indices...>) {
+    [[maybe_unused]] Tuple&& tuple, std::index_sequence<indices...>) {
   return {std::forward<std::tuple_element_t<indices, Tuple>>(
       std::get<indices>(tuple))...};
 }

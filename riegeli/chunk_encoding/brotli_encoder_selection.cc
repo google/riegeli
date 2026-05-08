@@ -32,7 +32,7 @@ namespace riegeli::chunk_encoding_internal {
 
 ABSL_ATTRIBUTE_WEAK std::unique_ptr<Writer> NewBrotliWriter(
     Chain* compressed, const CompressorOptions& compressor_options,
-    ABSL_ATTRIBUTE_UNUSED const RecyclingPoolOptions& recycling_pool_options) {
+    const RecyclingPoolOptions& /*recycling_pool_options*/) {
   switch (compressor_options.brotli_encoder()) {
     case BrotliEncoder::kRBrotliOrCBrotli:
     case BrotliEncoder::kCBrotli:

@@ -345,7 +345,7 @@ class BackwardWriter : public Object {
 
   // Implementation of `SetWriteSizeHint()`.
   virtual void SetWriteSizeHintImpl(
-      ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
+      std::optional<Position> /*write_size_hint*/) {}
 
   // Implementation of the slow part of `Push()`.
   //

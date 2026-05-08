@@ -28,7 +28,6 @@
 #include <limits>
 #include <optional>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
@@ -211,7 +210,7 @@ bool PythonWriter::FlushImpl(FlushType flush_type) {
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!owns_dest_) return true;
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:
       PythonLock lock;

@@ -25,7 +25,6 @@
 #include <utility>
 #include <variant>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -145,25 +144,24 @@ class ByteFill::ZeroBlock {
   ZeroBlock& operator=(const ZeroBlock& that) = default;
 
   // Supports `ExternalRef`.
-  friend Chain::Block RiegeliToChainBlock(
-      ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self, absl::string_view substr) {
+  friend Chain::Block RiegeliToChainBlock(const ZeroBlock* /*self*/,
+                                          absl::string_view substr) {
     return ToChainBlock(substr);
   }
 
   // Supports `ExternalRef`.
-  friend absl::Cord RiegeliToCord(ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self,
+  friend absl::Cord RiegeliToCord(const ZeroBlock* /*self*/,
                                   absl::string_view substr) {
     return ToCord(substr);
   }
 
   // Supports `ExternalRef`.
-  friend ExternalStorage RiegeliToExternalStorage(
-      ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self) {
-    return ExternalStorage(nullptr, [](ABSL_ATTRIBUTE_UNUSED void* ptr) {});
+  friend ExternalStorage RiegeliToExternalStorage(const ZeroBlock* /*self*/) {
+    return ExternalStorage(nullptr, [](void* /*ptr*/) {});
   }
 
   // Supports `ExternalRef` and `Chain::Block`.
-  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const ZeroBlock* self,
+  friend void RiegeliDumpStructure(const ZeroBlock* /*self*/,
                                    std::ostream& dest) {
     DumpStructure(dest);
   }
@@ -186,10 +184,7 @@ class ByteFill::SmallBlock {
   const char* data() const { return data_; }
 
   // Supports `ExternalRef`.
-  friend bool RiegeliExternalCopy(
-      ABSL_ATTRIBUTE_UNUSED const SmallBlock* self) {
-    return true;
-  }
+  friend bool RiegeliExternalCopy(const SmallBlock* /*self*/) { return true; }
 
  private:
   char data_[kSize];

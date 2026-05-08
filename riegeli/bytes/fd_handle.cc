@@ -34,7 +34,6 @@
 #include <utility>
 #endif
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -55,22 +54,15 @@ template class FdBase<OwnedFdDeleter>;
 
 }  // namespace fd_internal
 
-int FdHandle::GetMethodDefault(ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-  return -1;
-}
+int FdHandle::GetMethodDefault(TypeErasedRef /*target*/) { return -1; }
 
-bool FdHandle::IsOwningMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
-  return false;
-}
+bool FdHandle::IsOwningMethodDefault(TypeErasedRef /*target*/) { return false; }
 
-absl::string_view FdHandle::FilenameMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+absl::string_view FdHandle::FilenameMethodDefault(TypeErasedRef /*target*/) {
   return kDefaultFilename;
 }
 
-absl::Status FdHandle::CloseMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+absl::Status FdHandle::CloseMethodDefault(TypeErasedRef /*target*/) {
   return absl::OkStatus();
 }
 

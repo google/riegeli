@@ -739,8 +739,8 @@ class DependencyDerived
       typename DependentSubhandle = Subhandle,
       std::enable_if_t<!IsComparableAgainstNullptr<DependentSubhandle>::value,
                        int> = 0>
-  static void AssertNotNull(ABSL_ATTRIBUTE_UNUSED Subhandle handle,
-                            ABSL_ATTRIBUTE_UNUSED absl::string_view message) {}
+  static void AssertNotNull(Subhandle /*handle*/,
+                            absl::string_view /*message*/) {}
 };
 
 }  // namespace dependency_internal

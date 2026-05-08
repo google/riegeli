@@ -261,8 +261,7 @@ StableDependencyDefault<Handle, Manager>::EnsureAllocatedSlow(
 template <typename Handle, typename Manager>
 Dependency<Handle, Manager>&
 StableDependencyDefault<Handle, Manager>::AssumeAllocatedSlow(
-    ABSL_ATTRIBUTE_UNUSED const StableDependencyDefault<Handle, Manager>&
-        self) {
+    const StableDependencyDefault<Handle, Manager>& /*self*/) {
   RIEGELI_ASSUME_UNREACHABLE()
       << "Failed invariant of StableDependency: "
          "dep_ == nullptr but ensure_allocated_ == AssumeAllocatedSlow";

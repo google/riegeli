@@ -246,8 +246,8 @@ bool TextWriter<newline, Dest>::FlushImpl(FlushType flush_type) {
 }
 
 template <typename Dest>
-inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(
-    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options)
+inline TextWriter<WriteNewline::kLf, Dest>::TextWriter(Initializer<Dest> dest,
+                                                       Options /*options*/)
     : TextWriter::PrefixLimitingWriter(std::move(dest)) {}
 
 template <typename Dest>
@@ -256,8 +256,8 @@ inline void TextWriter<WriteNewline::kLf, Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void TextWriter<WriteNewline::kLf, Dest>::Reset(
-    Initializer<Dest> dest, ABSL_ATTRIBUTE_UNUSED Options options) {
+inline void TextWriter<WriteNewline::kLf, Dest>::Reset(Initializer<Dest> dest,
+                                                       Options /*options*/) {
   TextWriter::PrefixLimitingWriter::Reset(std::move(dest));
 }
 

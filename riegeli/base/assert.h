@@ -98,7 +98,7 @@ class CheckFailed {
   std::ostream& details() { return *details_; }
 
   // Prints the check failure message and terminates the program.
-  ABSL_ATTRIBUTE_NORETURN ~CheckFailed();
+  [[noreturn]] ~CheckFailed();
 
  private:
   const char* file_;
@@ -150,9 +150,9 @@ ABSL_ATTRIBUTE_COLD CheckResult CheckOkResult(const char* function,
 
 // Writes "Check failed in function: expression != nullptr" and terminates
 // the program.
-ABSL_ATTRIBUTE_NORETURN void CheckNotNullFailed(const char* file, int line,
-                                                const char* function,
-                                                const char* expression);
+[[noreturn]] void CheckNotNullFailed(const char* file, int line,
+                                     const char* function,
+                                     const char* expression);
 
 // Indicates that a check failed with the message header
 // "Check failed in function: Impossible".
@@ -221,7 +221,7 @@ RIEGELI_INTERNAL_DEFINE_EVAL_ASSERT_OP(Ge, >=);
 
 template <typename T>
 inline T&& EvalAssertNotNull(T&& value) {
-  ABSL_ATTRIBUTE_UNUSED const bool condition =
+  [[maybe_unused]] const bool condition =
       true || value == nullptr;  // Check that this compiles.
   return std::forward<T>(value);
 }
@@ -247,12 +247,10 @@ class UnreachableStream {
  public:
   UnreachableStream() { RIEGELI_INTERNAL_UNREACHABLE(); }
 
-  ABSL_ATTRIBUTE_NORETURN ~UnreachableStream() {
-    RIEGELI_INTERNAL_UNREACHABLE();
-  }
+  [[noreturn]] ~UnreachableStream() { RIEGELI_INTERNAL_UNREACHABLE(); }
 
   template <typename T>
-  UnreachableStream& operator<<(ABSL_ATTRIBUTE_UNUSED T&& src) {
+  UnreachableStream& operator<<(T&& /*src*/) {
     return *this;
   }
 };
@@ -503,8 +501,8 @@ class UnreachableStream {
 
 // Asserts that a region of memory is initialized, which is checked when running
 // under memory sanitizer.
-inline void AssertInitialized(ABSL_ATTRIBUTE_UNUSED const char* data,
-                              ABSL_ATTRIBUTE_UNUSED size_t size) {
+inline void AssertInitialized([[maybe_unused]] const char* data,
+                              [[maybe_unused]] size_t size) {
 #ifdef MEMORY_SANITIZER
   __msan_check_mem_is_initialized(data, size);
 #endif
@@ -512,8 +510,8 @@ inline void AssertInitialized(ABSL_ATTRIBUTE_UNUSED const char* data,
 
 // Marks that a region of memory should be treated as uninitialized, which is
 // checked when running under memory sanitizer.
-inline void MarkPoisoned(ABSL_ATTRIBUTE_UNUSED const char* data,
-                         ABSL_ATTRIBUTE_UNUSED size_t size) {
+inline void MarkPoisoned([[maybe_unused]] const char* data,
+                         [[maybe_unused]] size_t size) {
 #ifdef MEMORY_SANITIZER
   __msan_poison(data, size);
 #endif

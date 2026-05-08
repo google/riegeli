@@ -732,8 +732,7 @@ class Chain::RawBlock {
 #else
   template <typename T>
 #endif
-  static void AssertSubstr(ABSL_ATTRIBUTE_UNUSED const T& object,
-                           ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
+  static void AssertSubstr(const T& /*object*/, absl::string_view /*substr*/) {
   }
 
   bool is_mutable() const { return is_internal() && has_unique_owner(); }

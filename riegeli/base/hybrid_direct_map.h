@@ -153,7 +153,7 @@ class HybridDirectMapImpl {
   CopyDirectMap(DelayedConstructor<Value>* absl_nullable dest_values) const;
   absl_nullable std::unique_ptr<SlowMap> CopySlowMap() const;
 
-  ABSL_ATTRIBUTE_NORETURN static void KeyNotFound(Key key);
+  [[noreturn]] static void KeyNotFound(Key key);
 
   size_t FirstRawKey() const;
 
@@ -642,7 +642,7 @@ void HybridDirectMapImpl<Key, Value, Traits>::Initialize(
   // Detect building `HybridDirectMap` from a moved-from `src` if possible.
   if constexpr (std::conjunction_v<std::negation<std::is_reference<Src>>,
                                    std::is_move_constructible<Src>>) {
-    ABSL_ATTRIBUTE_UNUSED Src moved = std::forward<Src>(src);
+    [[maybe_unused]] Src moved = std::forward<Src>(src);
   }
 #endif
 }
@@ -957,8 +957,8 @@ HybridDirectMapImpl<Key, Value, Traits>::at(Key key) const
 }
 
 template <typename Key, typename Value, typename Traits>
-ABSL_ATTRIBUTE_NORETURN void
-HybridDirectMapImpl<Key, Value, Traits>::KeyNotFound(Key key) {
+[[noreturn]] void HybridDirectMapImpl<Key, Value, Traits>::KeyNotFound(
+    Key key) {
   RIEGELI_CHECK_UNREACHABLE()
       << "HybridDirectMap key not found: " << riegeli::Debug(key);
 }

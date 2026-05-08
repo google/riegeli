@@ -69,7 +69,7 @@ namespace write_internal {
 
 template <typename... Srcs, typename Dest>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest) {
+    [[maybe_unused]] std::tuple<Srcs...> srcs, Dest&& dest) {
   DependencyRef<Writer*, Dest> dest_dep(std::forward<Dest>(dest));
   if constexpr (HasStringifiedSize<Srcs...>::value) {
     if (dest_dep.IsOwning()) {
@@ -96,7 +96,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status WriteInternal(
 
 template <typename... Srcs, typename Dest>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline absl::Status BackwardWriteInternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Dest&& dest) {
+    [[maybe_unused]] std::tuple<Srcs...> srcs, Dest&& dest) {
   DependencyRef<BackwardWriter*, Dest> dest_dep(std::forward<Dest>(dest));
   if constexpr (HasStringifiedSize<Srcs...>::value) {
     if (dest_dep.IsOwning()) {

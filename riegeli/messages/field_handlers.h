@@ -983,7 +983,7 @@ template <typename... Context,
               std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status OnRepeatedVarintType<Value, kind, field_number, Action>::
     HandleLengthDelimitedFromCord(CordIteratorSpan repr,
-                                  ABSL_ATTRIBUTE_UNUSED std::string& scratch,
+                                  std::string& /*scratch*/,
                                   Context&... context) const {
   if (const absl::string_view chunk =
           absl::Cord::ChunkRemaining(repr.iterator());
@@ -1094,7 +1094,7 @@ template <typename... Context,
               std::is_invocable_v<const Action&, Value, Context&...>, int>>
 absl::Status
 OnRepeatedFixedType<Value, field_number, Action>::HandleLengthDelimitedFromCord(
-    CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
+    CordIteratorSpan repr, std::string& /*scratch*/,
     Context&... context) const {
   if (ABSL_PREDICT_FALSE(repr.length() % sizeof(Value) > 0)) {
     return field_handlers_internal::ReadPackedFixedError<sizeof(Value)>();

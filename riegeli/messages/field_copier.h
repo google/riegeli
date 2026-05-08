@@ -166,9 +166,9 @@ class FieldCopierType {
       std::enable_if_t<(dependent_wire_types & WireTypeSet::kLengthDelimited) ==
                            WireTypeSet::kLengthDelimited,
                        int> = 0>
-  absl::Status HandleLengthDelimitedFromCord(
-      CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
-      Context&... context) const {
+  absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
+                                             std::string& /*scratch*/,
+                                             Context&... context) const {
     return message_writer(context...)
         .WriteString(field_number, std::move(repr));
   }
@@ -297,9 +297,10 @@ class DynamicFieldCopierType {
       std::enable_if_t<(dependent_wire_types & WireTypeSet::kLengthDelimited) ==
                            WireTypeSet::kLengthDelimited,
                        int> = 0>
-  absl::Status DynamicHandleLengthDelimitedFromCord(
-      int field_number, CordIteratorSpan repr,
-      ABSL_ATTRIBUTE_UNUSED std::string& scratch, Context&... context) const {
+  absl::Status DynamicHandleLengthDelimitedFromCord(int field_number,
+                                                    CordIteratorSpan repr,
+                                                    std::string& /*scratch*/,
+                                                    Context&... context) const {
     return message_writer(context...)
         .WriteString(field_number, std::move(repr));
   }
@@ -420,9 +421,9 @@ class UnboundFieldCopierType {
       std::enable_if_t<(dependent_wire_types & WireTypeSet::kLengthDelimited) ==
                            WireTypeSet::kLengthDelimited,
                        int> = 0>
-  absl::Status HandleLengthDelimitedFromCord(
-      CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
-      Context&... context) const {
+  absl::Status HandleLengthDelimitedFromCord(CordIteratorSpan repr,
+                                             std::string& /*scratch*/,
+                                             Context&... context) const {
     return message_writer(context...)
         .WriteString(field_number_, std::move(repr));
   }

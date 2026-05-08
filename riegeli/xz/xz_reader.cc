@@ -21,7 +21,6 @@
 #include <memory>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -183,7 +182,7 @@ bool XzReaderBase::ReadInternal(size_t min_length, size_t max_length,
     switch (liblzma_code) {
       case LZMA_OK:
         if (length_read >= min_length) break;
-        ABSL_FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       case LZMA_BUF_ERROR:
         if (ABSL_PREDICT_FALSE(decompressor_->avail_in > 0)) {
           RIEGELI_ASSERT_EQ(decompressor_->avail_out, 0u)

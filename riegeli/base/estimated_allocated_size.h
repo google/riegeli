@@ -36,7 +36,7 @@ inline size_t EstimatedAllocatedSize(size_t requested_size) {
 
 // Returns the estimated size which was allocated at `ptr` when requested to
 // allocate `requested_size`.
-inline size_t EstimatedAllocatedSize(ABSL_ATTRIBUTE_UNUSED const void* ptr,
+inline size_t EstimatedAllocatedSize(const void* /*ptr*/,
                                      size_t requested_size) {
   // Placeholder for using `ptr`, which might be possible on some platforms.
   return EstimatedAllocatedSize(requested_size);

@@ -15,7 +15,6 @@
 #ifndef RIEGELI_GCS_GCS_INTERNAL_H_
 #define RIEGELI_GCS_GCS_INTERNAL_H_
 
-#include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "google/cloud/status.h"
 
@@ -35,19 +34,17 @@ const T& GetOption(const T& option) {
   return option;
 }
 template <typename T, typename... Options>
-const T& GetOption(ABSL_ATTRIBUTE_UNUSED const T& previous_option,
-                   const T& option, const Options&... options) {
-  return GetOption<T>(option, options...);
-}
-template <typename T, typename Other, typename... Options>
-const T& GetOption(const T& option,
-                   ABSL_ATTRIBUTE_UNUSED const Other& other_option,
+const T& GetOption(const T& /*previous_option*/, const T& option,
                    const Options&... options) {
   return GetOption<T>(option, options...);
 }
 template <typename T, typename Other, typename... Options>
-auto GetOption(ABSL_ATTRIBUTE_UNUSED const Other& other_option,
-               const Options&... options) {
+const T& GetOption(const T& option, const Other& /*other_option*/,
+                   const Options&... options) {
+  return GetOption<T>(option, options...);
+}
+template <typename T, typename Other, typename... Options>
+auto GetOption(const Other& /*other_option*/, const Options&... options) {
   return GetOption<T>(options...);
 }
 

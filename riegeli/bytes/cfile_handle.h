@@ -324,7 +324,7 @@ class UnownedCFileDeleter : public CFileDeleterBase {
     CFileDeleterBase::operator=(that);
   }
 
-  static void Destroy(ABSL_ATTRIBUTE_UNUSED FILE* file) {}
+  static void Destroy(FILE* /*file*/) {}
 };
 
 class OwnedCFileDeleter : public CFileDeleterBase {

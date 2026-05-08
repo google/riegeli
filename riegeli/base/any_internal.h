@@ -23,7 +23,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/closing_ptr.h"
@@ -236,19 +235,15 @@ inline Handle SentinelHandle() {
 template <typename Handle>
 struct NullMethods {
  private:
-  static void Destroy(ABSL_ATTRIBUTE_UNUSED Storage self) {}
-  static void Move(ABSL_ATTRIBUTE_UNUSED Storage src,
-                   ABSL_ATTRIBUTE_UNUSED Storage dest,
+  static void Destroy(Storage /*self*/) {}
+  static void Move(Storage /*src*/, Storage /*dest*/,
                    MethodsAndHandle<Handle>* dest_methods_and_handle) {
     dest_methods_and_handle->methods = &kMethods;
     new (&dest_methods_and_handle->handle) Handle(SentinelHandle<Handle>());
   }
-  static bool IsOwning(ABSL_ATTRIBUTE_UNUSED const Storage self) {
-    return false;
-  }
-  static void RegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const Storage self,
-      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
+  static bool IsOwning(const Storage /*self*/) { return false; }
+  static void RegisterSubobjects(const Storage /*self*/,
+                                 MemoryEstimator& /*memory_estimator*/) {}
 
  public:
   static constexpr Methods<Handle> kMethods = {
@@ -264,7 +259,7 @@ struct MethodsForReference {
         reinterpret_cast<Dependency<Handle, Manager>* const*>(self));
   }
 
-  static void Destroy(ABSL_ATTRIBUTE_UNUSED Storage self) {}
+  static void Destroy(Storage /*self*/) {}
   static void Move(Storage src, Storage dest,
                    MethodsAndHandle<Handle>* dest_methods_and_handle) {
     new (dest) Dependency<Handle, Manager>*(dep_ptr(src));
@@ -275,9 +270,8 @@ struct MethodsForReference {
   static TypeErasedRef GetRawManager(const Storage self) {
     return TypeErasedRef(dep_ptr(self)->manager());
   }
-  static void RegisterSubobjects(
-      ABSL_ATTRIBUTE_UNUSED const Storage self,
-      ABSL_ATTRIBUTE_UNUSED MemoryEstimator& memory_estimator) {}
+  static void RegisterSubobjects(const Storage /*self*/,
+                                 MemoryEstimator& /*memory_estimator*/) {}
 
  public:
   static constexpr Methods<Handle> kMethods = {

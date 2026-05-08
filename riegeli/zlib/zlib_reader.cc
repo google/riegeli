@@ -22,7 +22,6 @@
 #include <optional>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -162,7 +161,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
     switch (zlib_code) {
       case Z_OK:
         if (length_read >= min_length) break;
-        ABSL_FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       case Z_BUF_ERROR:
         if (ABSL_PREDICT_FALSE(z_stream_ptr->avail_in > 0)) {
           RIEGELI_ASSERT_EQ(z_stream_ptr->avail_out, 0u)
@@ -217,7 +216,7 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
           }
           continue;
         }
-        ABSL_FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       default:
         FailOperation("inflate()", zlib_code);
         break;
@@ -353,7 +352,7 @@ bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
             decompressor->avail_out < 1) {
           return true;
         }
-        ABSL_FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       case Z_BUF_ERROR:
         RIEGELI_ASSERT_EQ(decompressor->avail_in, 0u)
             << "inflate() returned but there are still input data";

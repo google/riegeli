@@ -355,7 +355,7 @@ class UnownedFdDeleter : public FdDeleterBase {
   // Supports creating an `UnownedFd` converted from any `FdBase`.
   void Reset(const FdDeleterBase& that) { FdDeleterBase::operator=(that); }
 
-  static void Destroy(ABSL_ATTRIBUTE_UNUSED int fd) {}
+  static void Destroy(int /*fd*/) {}
 };
 
 class OwnedFdDeleter : public FdDeleterBase {

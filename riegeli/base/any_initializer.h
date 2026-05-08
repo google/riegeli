@@ -156,11 +156,9 @@ class ABSL_NULLABILITY_COMPATIBLE AnyInitializer {
 
 template <typename Handle>
 void AnyInitializer<Handle>::ConstructMethodEmpty(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef context,
-    ABSL_ATTRIBUTE_UNUSED Storage dest,
-    MethodsAndHandle* dest_methods_and_handle,
-    ABSL_ATTRIBUTE_UNUSED size_t available_size,
-    ABSL_ATTRIBUTE_UNUSED size_t available_align) {
+    TypeErasedRef /*context*/, Storage /*dest*/,
+    MethodsAndHandle* dest_methods_and_handle, size_t /*available_size*/,
+    size_t /*available_align*/) {
   dest_methods_and_handle->methods = &NullMethods::kMethods;
   new (&dest_methods_and_handle->handle)
       Handle(any_internal::SentinelHandle<Handle>());
@@ -248,9 +246,8 @@ template <
         any_internal::IsAnyClosingPtr<Handle, TargetT<Manager>>::value, int>>
 void AnyInitializer<Handle>::ConstructMethod(
     TypeErasedRef context, Storage dest,
-    MethodsAndHandle* dest_methods_and_handle,
-    ABSL_ATTRIBUTE_UNUSED size_t available_size,
-    ABSL_ATTRIBUTE_UNUSED size_t available_align) {
+    MethodsAndHandle* dest_methods_and_handle, size_t /*available_size*/,
+    size_t /*available_align*/) {
   using Target = TargetT<Manager>;
   // Materialize `Target` to adopt its storage.
   const Target target =

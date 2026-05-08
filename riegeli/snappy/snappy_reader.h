@@ -188,7 +188,7 @@ inline void SnappyReaderBase::Reset() {
 
 template <typename Src>
 inline SnappyReader<Src>::SnappyReader(Initializer<Src> src,
-                                       ABSL_ATTRIBUTE_UNUSED Options options)
+                                       Options /*options*/)
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -201,7 +201,7 @@ inline void SnappyReader<Src>::Reset(Closed) {
 
 template <typename Src>
 inline void SnappyReader<Src>::Reset(Initializer<Src> src,
-                                     ABSL_ATTRIBUTE_UNUSED Options options) {
+                                     Options /*options*/) {
   SnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());

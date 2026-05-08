@@ -215,8 +215,8 @@ class FramedSnappyReader<Src>::Mover {
 };
 
 template <typename Src>
-inline FramedSnappyReader<Src>::FramedSnappyReader(
-    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options)
+inline FramedSnappyReader<Src>::FramedSnappyReader(Initializer<Src> src,
+                                                   Options /*options*/)
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -228,8 +228,8 @@ inline void FramedSnappyReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void FramedSnappyReader<Src>::Reset(
-    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options) {
+inline void FramedSnappyReader<Src>::Reset(Initializer<Src> src,
+                                           Options /*options*/) {
   FramedSnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());

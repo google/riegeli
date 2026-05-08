@@ -354,8 +354,7 @@ template <
     std::enable_if_t<std::conjunction_v<std::negation<HasCallOperatorSubstr<T>>,
                                         HasCallOperatorWhole<T>>,
                      int> = 0>
-inline void CallOperator(T&& object,
-                         ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {
+inline void CallOperator(T&& object, absl::string_view /*substr*/) {
   std::forward<T>(object)();
 }
 
@@ -364,14 +363,12 @@ template <
     std::enable_if_t<std::conjunction_v<std::negation<HasCallOperatorSubstr<T>>,
                                         std::negation<HasCallOperatorWhole<T>>>,
                      int> = 0>
-inline void CallOperator(ABSL_ATTRIBUTE_UNUSED T&& object,
-                         ABSL_ATTRIBUTE_UNUSED absl::string_view substr) {}
+inline void CallOperator(T&& /*object*/, absl::string_view /*substr*/) {}
 
 template <typename T,
           std::enable_if_t<MemoryEstimator::RegisterSubobjectsIsGood<T>::value,
                            int> = 0>
-inline void RegisterSubobjects(const T* object,
-                               ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
+inline void RegisterSubobjects(const T* object, absl::string_view /*substr*/,
                                MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterSubobjects(object);
 }
@@ -379,8 +376,7 @@ inline void RegisterSubobjects(const T* object,
 template <typename T,
           std::enable_if_t<!MemoryEstimator::RegisterSubobjectsIsGood<T>::value,
                            int> = 0>
-inline void RegisterSubobjects(ABSL_ATTRIBUTE_UNUSED const T* object,
-                               absl::string_view substr,
+inline void RegisterSubobjects(const T* /*object*/, absl::string_view substr,
                                MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterUnknownType<T>();
   // As an approximation of memory usage of an unknown type, register just the
@@ -423,8 +419,7 @@ template <
         std::conjunction_v<std::negation<HasRiegeliDumpStructureWithSubstr<T>>,
                            HasRiegeliDumpStructureWithoutData<T>>,
         int> = 0>
-inline void DumpStructure(const T* object,
-                          ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
+inline void DumpStructure(const T* object, absl::string_view /*substr*/,
                           std::ostream& dest) {
   RiegeliDumpStructure(object, dest);
 }
@@ -435,8 +430,7 @@ template <
                          std::negation<HasRiegeliDumpStructureWithSubstr<T>>,
                          std::negation<HasRiegeliDumpStructureWithoutData<T>>>,
                      int> = 0>
-inline void DumpStructure(ABSL_ATTRIBUTE_UNUSED const T* object,
-                          ABSL_ATTRIBUTE_UNUSED absl::string_view substr,
+inline void DumpStructure(const T* /*object*/, absl::string_view /*substr*/,
                           std::ostream& dest) {
   chain_internal::DumpStructureDefault(dest);
 }

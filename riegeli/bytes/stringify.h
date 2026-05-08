@@ -59,9 +59,9 @@ struct HasRiegeliStringifiedSize<
 //
 // There is no need to define `RiegeliStringifiedSize()` for types convertible
 // to `BytesRef`, even if they support `AbslStringify()`.
-inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char src) { return 1; }
+inline Position StringifiedSize(char /*src*/) { return 1; }
 #if __cpp_char8_t
-inline Position StringifiedSize(ABSL_ATTRIBUTE_UNUSED char8_t src) { return 1; }
+inline Position StringifiedSize(char8_t /*src*/) { return 1; }
 #endif
 inline Position StringifiedSize(BytesRef src) { return src.size(); }
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline Position StringifiedSize(const char* src) {

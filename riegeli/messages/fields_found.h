@@ -750,7 +750,7 @@ class FieldHandlerWrapperImpl {
 template <int field_number>
 struct FieldTrackerActionWrapper {
   template <typename Action, typename Skip, typename... Context>
-  absl::Status operator()(Action&& action, ABSL_ATTRIBUTE_UNUSED Skip&& skip,
+  absl::Status operator()(Action&& action, Skip&& /*skip*/,
                           Context&... context) const {
     if (absl::Status status = std::forward<Action>(action)();
         ABSL_PREDICT_FALSE(!status.ok())) {

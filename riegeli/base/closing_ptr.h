@@ -17,7 +17,6 @@
 
 #include <memory>
 
-#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -27,7 +26,7 @@ namespace riegeli {
 // A deleter for `std::unique_ptr` which does nothing.
 struct NullDeleter {
   template <typename T>
-  void operator()(ABSL_ATTRIBUTE_UNUSED T* ptr) const {}
+  void operator()(T* /*ptr*/) const {}
 };
 
 // Marks the pointer with the intent to transfer the responsibility to close the

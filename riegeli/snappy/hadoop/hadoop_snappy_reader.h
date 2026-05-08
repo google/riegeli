@@ -179,8 +179,8 @@ inline void HadoopSnappyReaderBase::Reset() {
 }
 
 template <typename Src>
-inline HadoopSnappyReader<Src>::HadoopSnappyReader(
-    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options)
+inline HadoopSnappyReader<Src>::HadoopSnappyReader(Initializer<Src> src,
+                                                   Options /*options*/)
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -192,8 +192,8 @@ inline void HadoopSnappyReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void HadoopSnappyReader<Src>::Reset(
-    Initializer<Src> src, ABSL_ATTRIBUTE_UNUSED Options options) {
+inline void HadoopSnappyReader<Src>::Reset(Initializer<Src> src,
+                                           Options /*options*/) {
   HadoopSnappyReaderBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());

@@ -11,7 +11,6 @@ cc_library(
     name = "type_traits",
     hdrs = ["type_traits.h"],
     deps = [
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/utility",
@@ -144,7 +143,6 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":estimated_allocated_size",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/numeric:bits",
     ],
@@ -306,7 +304,6 @@ cc_library(
     deps = [
         ":arithmetic",
         ":estimated_allocated_size",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -321,10 +318,7 @@ cc_library(
 cc_library(
     name = "closing_ptr",
     hdrs = ["closing_ptr.h"],
-    deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
-    ],
+    deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 cc_library(

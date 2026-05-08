@@ -23,16 +23,13 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/external_data.h"
 
 namespace riegeli {
 
 // Default implementation for `ExternalRef` support.
-inline bool RiegeliExternalCopy(ABSL_ATTRIBUTE_UNUSED const void* self) {
-  return false;
-}
+inline bool RiegeliExternalCopy(const void* /*self*/) { return false; }
 
 // Indicates support for `ExternalRef(std::string&&)`.
 void RiegeliSupportsExternalRefWhole(std::string*);

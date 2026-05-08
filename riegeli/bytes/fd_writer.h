@@ -253,7 +253,7 @@ class FdWriterBase : public BufferedWriter {
     // `set_text()` affects `mode()`.
     //
     // Default: `false`.
-    Options& set_text(ABSL_ATTRIBUTE_UNUSED bool text) &
+    Options& set_text([[maybe_unused]] bool text) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
 #ifdef _WIN32
       mode_ =

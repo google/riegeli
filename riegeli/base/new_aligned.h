@@ -21,7 +21,6 @@
 #include <new>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
@@ -42,8 +41,7 @@ inline void EnsureSpaceForObject(size_t& num_bytes) {
 }
 
 template <>
-inline void EnsureSpaceForObject<void>(
-    ABSL_ATTRIBUTE_UNUSED size_t& num_bytes) {}
+inline void EnsureSpaceForObject<void>(size_t& /*num_bytes*/) {}
 
 template <typename T, typename... Args>
 inline void ConstructObject(T* ptr, Args&&... args) {
@@ -51,7 +49,7 @@ inline void ConstructObject(T* ptr, Args&&... args) {
 }
 
 template <>
-inline void ConstructObject(ABSL_ATTRIBUTE_UNUSED void* ptr) {}
+inline void ConstructObject(void* /*ptr*/) {}
 
 template <typename T>
 inline void DestroyObject(T* ptr) {
@@ -59,7 +57,7 @@ inline void DestroyObject(T* ptr) {
 }
 
 template <>
-inline void DestroyObject(ABSL_ATTRIBUTE_UNUSED void* ptr) {}
+inline void DestroyObject(void* /*ptr*/) {}
 
 }  // namespace new_aligned_internal
 

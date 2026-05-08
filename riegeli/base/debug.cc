@@ -20,7 +20,6 @@
 #include <optional>
 #include <type_traits>
 
-#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -178,11 +177,11 @@ void RiegeliDebug(const void* absl_nullable src, DebugStream& dest) {
   }
 }
 
-void RiegeliDebug(ABSL_ATTRIBUTE_UNUSED std::nullptr_t src, DebugStream& dest) {
+void RiegeliDebug(std::nullptr_t /*src*/, DebugStream& dest) {
   dest.Write("nullptr");
 }
 
-void RiegeliDebug(ABSL_ATTRIBUTE_UNUSED std::nullopt_t src, DebugStream& dest) {
+void RiegeliDebug(std::nullopt_t /*src*/, DebugStream& dest) {
   dest.Write("nullopt");
 }
 

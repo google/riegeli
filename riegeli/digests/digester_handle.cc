@@ -18,7 +18,6 @@
 
 #include <optional>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
@@ -38,40 +37,33 @@ void DigesterBaseHandle::FailedDigestMethodDefault() {
 }
 
 void DigesterBaseHandle::SetWriteSizeHintMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-    ABSL_ATTRIBUTE_UNUSED std::optional<Position> write_size_hint) {}
+    TypeErasedRef /*target*/, std::optional<Position> /*write_size_hint*/) {}
 
-bool DigesterBaseHandle::WriteMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-    ABSL_ATTRIBUTE_UNUSED absl::string_view src) {
+bool DigesterBaseHandle::WriteMethodDefault(TypeErasedRef /*target*/,
+                                            absl::string_view /*src*/) {
   return true;
 }
 
-bool DigesterBaseHandle::WriteChainMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-    ABSL_ATTRIBUTE_UNUSED const Chain& src) {
+bool DigesterBaseHandle::WriteChainMethodDefault(TypeErasedRef /*target*/,
+                                                 const Chain& /*src*/) {
   return true;
 }
 
-bool DigesterBaseHandle::WriteCordMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-    ABSL_ATTRIBUTE_UNUSED const absl::Cord& src) {
+bool DigesterBaseHandle::WriteCordMethodDefault(TypeErasedRef /*target*/,
+                                                const absl::Cord& /*src*/) {
   return true;
 }
 
-bool DigesterBaseHandle::WriteByteFillMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target,
-    ABSL_ATTRIBUTE_UNUSED ByteFill src) {
+bool DigesterBaseHandle::WriteByteFillMethodDefault(TypeErasedRef /*target*/,
+                                                    ByteFill /*src*/) {
   return true;
 }
 
-bool DigesterBaseHandle::CloseMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+bool DigesterBaseHandle::CloseMethodDefault(TypeErasedRef /*target*/) {
   return true;
 }
 
-absl::Status DigesterBaseHandle::StatusMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+absl::Status DigesterBaseHandle::StatusMethodDefault(TypeErasedRef /*target*/) {
   return absl::OkStatus();
 }
 

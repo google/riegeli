@@ -319,7 +319,7 @@ bool OStreamWriter<Dest>::FlushImpl(FlushType flush_type) {
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!dest_.IsOwning()) return true;
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:
       errno = 0;

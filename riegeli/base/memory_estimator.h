@@ -30,7 +30,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -247,8 +246,7 @@ class MemoryEstimatorDefault : public MemoryEstimator {
   }
   bool RegisterNodeImpl(const void* absl_nullable ptr) override;
   void RegisterUnknownTypeImpl() override {}
-  void RegisterUnknownTypeImpl(
-      ABSL_ATTRIBUTE_UNUSED std::type_index index) override {}
+  void RegisterUnknownTypeImpl(std::type_index /*index*/) override {}
 
  private:
   absl::flat_hash_set<const void*> objects_seen_;
@@ -269,8 +267,7 @@ class MemoryEstimatorSimplified : public MemoryEstimator {
       delete;
 
  protected:
-  void RegisterDynamicMemoryImpl(ABSL_ATTRIBUTE_UNUSED const void* ptr,
-                                 size_t memory) override {
+  void RegisterDynamicMemoryImpl(const void* /*ptr*/, size_t memory) override {
     RegisterMemory(memory);
   }
   void RegisterDynamicMemoryImpl(size_t memory) override {
@@ -280,8 +277,7 @@ class MemoryEstimatorSimplified : public MemoryEstimator {
     return ptr != nullptr;
   }
   void RegisterUnknownTypeImpl() override {}
-  void RegisterUnknownTypeImpl(
-      ABSL_ATTRIBUTE_UNUSED std::type_index index) override {}
+  void RegisterUnknownTypeImpl(std::type_index /*index*/) override {}
 };
 
 // A `MemoryEstimator` which can report encountered types for which
@@ -412,7 +408,7 @@ inline void MemoryEstimator::RegisterSubobjects(const T* object) {
 
 template <typename T, std::enable_if_t<std::is_reference_v<T>, int>>
 inline void MemoryEstimator::RegisterSubobjects(
-    ABSL_ATTRIBUTE_UNUSED const std::remove_reference_t<T>* object) {}
+    const std::remove_reference_t<T>* /*object*/) {}
 
 template <typename Iterator>
 inline void MemoryEstimator::RegisterSubobjects(Iterator begin, Iterator end) {

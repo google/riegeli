@@ -361,7 +361,7 @@ bool FileWriter<Dest>::FlushImpl(FlushType flush_type) {
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!dest_.IsOwning()) return true;
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case FlushType::kFromProcess:
       if (const absl::Status status = dest_->Flush();
           ABSL_PREDICT_FALSE(!status.ok())) {

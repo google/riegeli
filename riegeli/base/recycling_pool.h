@@ -132,7 +132,7 @@ class RecyclingPool : public BackgroundCleanee {
 
   // A refurbisher which does nothing; see `Get()`.
   struct DefaultRefurbisher {
-    void operator()(ABSL_ATTRIBUTE_UNUSED T* ptr) const {}
+    void operator()(T* /*ptr*/) const {}
   };
 
   explicit RecyclingPool(RecyclingPoolOptions options = RecyclingPoolOptions())
@@ -240,7 +240,7 @@ class KeyedRecyclingPool : public BackgroundCleanee {
 
   // A refurbisher which does nothing; see `Get()`.
   struct DefaultRefurbisher {
-    void operator()(ABSL_ATTRIBUTE_UNUSED T* ptr) const {}
+    void operator()(T* /*ptr*/) const {}
   };
 
   explicit KeyedRecyclingPool(

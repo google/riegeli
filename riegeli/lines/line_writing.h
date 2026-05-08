@@ -93,7 +93,7 @@ namespace write_line_internal {
 
 template <typename... Srcs>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
-    ABSL_ATTRIBUTE_UNUSED std::tuple<Srcs...> srcs, Writer& dest,
+    [[maybe_unused]] std::tuple<Srcs...> srcs, Writer& dest,
     WriteLineOptions options) {
   if (ABSL_PREDICT_FALSE(!std::apply(
           [&](Srcs&&... srcs) {

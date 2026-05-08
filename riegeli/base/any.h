@@ -214,7 +214,7 @@ class AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>,
   template <typename DependentHandle = Handle,
             std::enable_if_t<
                 !IsComparableAgainstNullptr<DependentHandle>::value, int> = 0>
-  void AssertNotNull(ABSL_ATTRIBUTE_UNUSED absl::string_view message) const {}
+  void AssertNotNull(absl::string_view /*message*/) const {}
 
   template <typename DependentHandle = Handle,
             std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,

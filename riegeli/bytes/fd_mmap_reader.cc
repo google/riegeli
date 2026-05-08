@@ -61,7 +61,6 @@
 #endif
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #ifndef _WIN32
@@ -143,8 +142,8 @@ struct HavePosixFadvise<
     : std::true_type {};
 
 template <typename DependentInt>
-inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED DependentInt src,
-                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {
+inline void FdSetReadAllHint([[maybe_unused]] DependentInt src,
+                             [[maybe_unused]] bool read_all_hint) {
   if constexpr (HavePosixFadvise<DependentInt>::value) {
 #ifdef POSIX_FADV_SEQUENTIAL
     posix_fadvise(src, 0, 0,
@@ -169,7 +168,7 @@ class MMapBlock {
   void operator()(absl::string_view data) const;
 
   // Supports `ExternalRef` and `Chain::Block`.
-  friend void RiegeliDumpStructure(ABSL_ATTRIBUTE_UNUSED const MMapBlock* self,
+  friend void RiegeliDumpStructure(const MMapBlock* /*self*/,
                                    std::ostream& dest) {
     dest << "[mmap] { }";
   }

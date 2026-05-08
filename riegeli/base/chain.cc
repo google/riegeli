@@ -71,8 +71,8 @@ class FlatCordBlock {
   /*implicit*/ operator absl::string_view() const;
 
   // Supports `ExternalRef` and `Chain::Block`.
-  friend void RiegeliDumpStructure(
-      ABSL_ATTRIBUTE_UNUSED const FlatCordBlock* self, std::ostream& dest) {
+  friend void RiegeliDumpStructure(const FlatCordBlock* /*self*/,
+                                   std::ostream& dest) {
     dest << "[cord] { }";
   }
 

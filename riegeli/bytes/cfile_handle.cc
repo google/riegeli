@@ -31,7 +31,6 @@
 #endif
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -53,23 +52,19 @@ template class CFileBase<OwnedCFileDeleter>;
 
 }  // namespace cfile_internal
 
-FILE* CFileHandle::GetMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+FILE* CFileHandle::GetMethodDefault(TypeErasedRef /*target*/) {
   return nullptr;
 }
 
-bool CFileHandle::IsOwningMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+bool CFileHandle::IsOwningMethodDefault(TypeErasedRef /*target*/) {
   return false;
 }
 
-absl::string_view CFileHandle::FilenameMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+absl::string_view CFileHandle::FilenameMethodDefault(TypeErasedRef /*target*/) {
   return kDefaultFilename;
 }
 
-absl::Status CFileHandle::CloseMethodDefault(
-    ABSL_ATTRIBUTE_UNUSED TypeErasedRef target) {
+absl::Status CFileHandle::CloseMethodDefault(TypeErasedRef /*target*/) {
   return absl::OkStatus();
 }
 

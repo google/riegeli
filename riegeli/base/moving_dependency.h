@@ -104,7 +104,7 @@ template <typename Mover, typename Host,
                   std::negation<std::is_constructible<Mover, Host&, Host&>>,
                   std::is_constructible<Mover, Host&>>,
               int> = 0>
-Mover MakeMover(Host& self, ABSL_ATTRIBUTE_UNUSED Host& that) {
+Mover MakeMover(Host& self, Host& /*that*/) {
   return Mover(self);
 }
 
@@ -115,8 +115,7 @@ template <typename Mover, typename Host,
                   std::negation<std::is_constructible<Mover, Host&>>,
                   std::is_default_constructible<Mover>>,
               int> = 0>
-Mover MakeMover(ABSL_ATTRIBUTE_UNUSED Host& self,
-                ABSL_ATTRIBUTE_UNUSED Host& that) {
+Mover MakeMover(Host& /*self*/, Host& /*that*/) {
   return Mover();
 }
 
@@ -148,7 +147,7 @@ template <typename Mover, typename Host,
               std::conjunction_v<std::negation<HasDoneWithSelf<Mover, Host>>,
                                  HasDoneWithoutSelf<Mover>>,
               int> = 0>
-inline void Done(Mover& mover, ABSL_ATTRIBUTE_UNUSED Host& self) {
+inline void Done(Mover& mover, Host& /*self*/) {
   mover.Done();
 }
 
@@ -157,8 +156,7 @@ template <typename Mover, typename Host,
               std::conjunction_v<std::negation<HasDoneWithSelf<Mover, Host>>,
                                  std::negation<HasDoneWithoutSelf<Mover>>>,
               int> = 0>
-inline void Done(ABSL_ATTRIBUTE_UNUSED Mover& mover,
-                 ABSL_ATTRIBUTE_UNUSED Host& self) {}
+inline void Done(Mover& /*mover*/, Host& /*self*/) {}
 
 template <typename Enable, typename T, typename... Args>
 struct HasResetImpl : std::false_type {};
@@ -272,17 +270,16 @@ class MovingDependency<Handle, Manager, Mover,
 
   // Required when `Host` uses virtual inheritance.
   template <typename Host>
-  MovingDependency(MovingDependency&& that,
-                   ABSL_ATTRIBUTE_UNUSED Host& this_host,
-                   ABSL_ATTRIBUTE_UNUSED Host& that_host) noexcept
+  MovingDependency(MovingDependency&& that, Host& /*this_host*/,
+                   Host& /*that_host*/) noexcept
       : MovingDependency::Dependency(
             static_cast<typename MovingDependency::Dependency&&>(that)) {}
 
   // Required when `Host` uses virtual inheritance.
   template <typename Host>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(
-      MovingDependency&& that, ABSL_ATTRIBUTE_UNUSED Host& this_host,
-      ABSL_ATTRIBUTE_UNUSED Host& that_host) noexcept {
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(MovingDependency&& that,
+                                          Host& /*this_host*/,
+                                          Host& /*that_host*/) noexcept {
     MovingDependency::Dependency::operator=(
         static_cast<typename MovingDependency::Dependency&&>(that));
   }

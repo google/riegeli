@@ -59,7 +59,6 @@
 #endif
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
@@ -147,8 +146,8 @@ struct HavePosixFadvise<
     : std::true_type {};
 
 template <typename DependentInt>
-inline void FdSetReadAllHint(ABSL_ATTRIBUTE_UNUSED DependentInt src,
-                             ABSL_ATTRIBUTE_UNUSED bool read_all_hint) {
+inline void FdSetReadAllHint([[maybe_unused]] DependentInt src,
+                             [[maybe_unused]] bool read_all_hint) {
   if constexpr (HavePosixFadvise<DependentInt>::value) {
 #ifdef POSIX_FADV_SEQUENTIAL
     posix_fadvise(src, 0, 0,

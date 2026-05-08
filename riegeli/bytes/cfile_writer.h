@@ -597,7 +597,7 @@ bool CFileWriter<Dest>::FlushImpl(FlushType flush_type) {
   switch (flush_type) {
     case FlushType::kFromObject:
       if (!dest_.IsOwning() || !dest_.get().IsOwning()) return true;
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case FlushType::kFromProcess:
     case FlushType::kFromMachine:
       if (ABSL_PREDICT_FALSE(fflush(dest_.get().get()) != 0)) {

@@ -20,7 +20,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/container/inlined_vector.h"
@@ -151,12 +150,11 @@ void SerializedMessageAssembler::Reset(Builder&& builder) {
 struct SerializedMessageAssembler::LeafHandler {
   static constexpr int kFieldNumber = kUnboundFieldNumber;
 
-  absl::Status HandleVarint(
-      uint64_t repr,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
-      absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
-      SerializedMessageWriter& message_writer) const {
+  absl::Status HandleVarint(uint64_t repr,
+                            absl::Span<FieldValues> /*fields_to_add*/,
+                            absl::Span<const bool> fields_to_remove,
+                            absl::Span<bool> /*submessages_rewritten*/,
+                            SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
       return absl::OkStatus();
@@ -164,12 +162,11 @@ struct SerializedMessageAssembler::LeafHandler {
     return message_writer.WriteUInt64(field_number, repr);
   }
 
-  absl::Status HandleFixed32(
-      uint32_t repr,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
-      absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
-      SerializedMessageWriter& message_writer) const {
+  absl::Status HandleFixed32(uint32_t repr,
+                             absl::Span<FieldValues> /*fields_to_add*/,
+                             absl::Span<const bool> fields_to_remove,
+                             absl::Span<bool> /*submessages_rewritten*/,
+                             SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
       return absl::OkStatus();
@@ -177,12 +174,11 @@ struct SerializedMessageAssembler::LeafHandler {
     return message_writer.WriteFixed32(field_number, repr);
   }
 
-  absl::Status HandleFixed64(
-      uint64_t repr,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
-      absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
-      SerializedMessageWriter& message_writer) const {
+  absl::Status HandleFixed64(uint64_t repr,
+                             absl::Span<FieldValues> /*fields_to_add*/,
+                             absl::Span<const bool> fields_to_remove,
+                             absl::Span<bool> /*submessages_rewritten*/,
+                             SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
       return absl::OkStatus();
@@ -191,10 +187,9 @@ struct SerializedMessageAssembler::LeafHandler {
   }
 
   absl::Status HandleLengthDelimitedFromReader(
-      ReaderSpan<> repr,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
+      ReaderSpan<> repr, absl::Span<FieldValues> /*fields_to_add*/,
       absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
+      absl::Span<bool> /*submessages_rewritten*/,
       SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
@@ -204,10 +199,10 @@ struct SerializedMessageAssembler::LeafHandler {
   }
 
   absl::Status HandleLengthDelimitedFromCord(
-      CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
+      CordIteratorSpan repr, std::string& /*scratch*/,
+      absl::Span<FieldValues> /*fields_to_add*/,
       absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
+      absl::Span<bool> /*submessages_rewritten*/,
       SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
@@ -217,10 +212,9 @@ struct SerializedMessageAssembler::LeafHandler {
   }
 
   absl::Status HandleLengthDelimitedFromString(
-      absl::string_view repr,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
+      absl::string_view repr, absl::Span<FieldValues> /*fields_to_add*/,
       absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
+      absl::Span<bool> /*submessages_rewritten*/,
       SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
@@ -229,11 +223,10 @@ struct SerializedMessageAssembler::LeafHandler {
     return message_writer.WriteString(field_number, repr);
   }
 
-  absl::Status HandleBeginGroup(
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
-      absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
-      SerializedMessageWriter& message_writer) const {
+  absl::Status HandleBeginGroup(absl::Span<FieldValues> /*fields_to_add*/,
+                                absl::Span<const bool> fields_to_remove,
+                                absl::Span<bool> /*submessages_rewritten*/,
+                                SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
       return absl::OkStatus();
@@ -241,11 +234,10 @@ struct SerializedMessageAssembler::LeafHandler {
     return message_writer.OpenGroup(field_number);
   }
 
-  absl::Status HandleEndGroup(
-      ABSL_ATTRIBUTE_UNUSED absl::Span<FieldValues> fields_to_add,
-      absl::Span<const bool> fields_to_remove,
-      ABSL_ATTRIBUTE_UNUSED absl::Span<bool> submessages_rewritten,
-      SerializedMessageWriter& message_writer) const {
+  absl::Status HandleEndGroup(absl::Span<FieldValues> /*fields_to_add*/,
+                              absl::Span<const bool> fields_to_remove,
+                              absl::Span<bool> /*submessages_rewritten*/,
+                              SerializedMessageWriter& message_writer) const {
     if (field_for_remove.raw < fields_to_remove.size() &&
         fields_to_remove[field_for_remove.raw]) {
       return absl::OkStatus();
@@ -281,7 +273,7 @@ struct SerializedMessageAssembler::SubmessageHandler {
   }
 
   absl::Status HandleLengthDelimitedFromCord(
-      CordIteratorSpan repr, ABSL_ATTRIBUTE_UNUSED std::string& scratch,
+      CordIteratorSpan repr, std::string& /*scratch*/,
       absl::Span<FieldValues> fields_to_add,
       absl::Span<const bool> fields_to_remove,
       absl::Span<bool> submessages_rewritten,

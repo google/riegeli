@@ -141,7 +141,7 @@ class ZstdDictionary {
   struct ZSTD_CDictCache;
 
   struct ZSTD_CDictReleaser {
-    void operator()(ABSL_ATTRIBUTE_UNUSED ZSTD_CDict* ptr) {
+    void operator()(ZSTD_CDict* /*ptr*/) {
       // `*ptr` is owned by `*compression_cache`.
       compression_cache.Reset();
     }

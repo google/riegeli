@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -433,7 +432,7 @@ next_field:
           return Fail(absl::InvalidArgumentError("Missing LF after CR"));
         }
         src.move_cursor(1);
-        ABSL_FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       case CharClass::kLf:
         ++line_number_;
         if (skip_empty_lines_ && field_index == 0 && field.empty()) {
@@ -482,7 +481,7 @@ next_field:
               return Fail(absl::InvalidArgumentError("Missing LF after CR"));
             }
             src.move_cursor(1);
-            ABSL_FALLTHROUGH_INTENDED;
+            [[fallthrough]];
           case CharClass::kLf:
             ++line_number_;
             if (ABSL_PREDICT_FALSE(standalone_record_)) {
@@ -630,7 +629,7 @@ bool CsvReaderBase::HasNextRecord() {
           return false;
         }
         if (ABSL_PREDICT_FALSE(*src.cursor() != '\n')) return false;
-        ABSL_FALLTHROUGH_INTENDED;
+        [[fallthrough]];
       case CharClass::kLf:
         if (skip_empty_lines_) {
           ++line_number_;

@@ -19,7 +19,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -335,9 +334,8 @@ inline SearchGuide<typename Traits::Pos> GetSearchGuide(
 
 template <typename Traits, typename OtherPos>
 inline SearchGuide<typename Traits::Pos> GetSearchGuide(
-    SearchGuide<OtherPos>&& guide,
-    ABSL_ATTRIBUTE_UNUSED typename Traits::Pos&& pos,
-    ABSL_ATTRIBUTE_UNUSED const Traits& traits) {
+    SearchGuide<OtherPos>&& guide, typename Traits::Pos&& /*pos*/,
+    const Traits& /*traits*/) {
   return std::move(guide);
 }
 
@@ -347,7 +345,7 @@ struct CancelSearch;
 template <typename Pos, typename Ordering>
 struct CancelSearch<Pos, Ordering,
                     std::enable_if_t<IsOrdering<Ordering>::value>> {
-  static PartialOrdering DoCancel(ABSL_ATTRIBUTE_UNUSED const Pos& pos) {
+  static PartialOrdering DoCancel(const Pos& /*pos*/) {
     return PartialOrdering::equivalent;
   }
   static PartialOrdering DoNotCancel(Ordering ordering) {

@@ -97,9 +97,9 @@ class PathRef : public StringRefBase, public WithCompare<PathRef> {
       typename DependentPath = std::filesystem::path,
       std::enable_if_t<std::is_same_v<typename DependentPath::value_type, char>,
                        int> = 0>
-  /*implicit*/ PathRef(
-      const std::filesystem::path& path ABSL_ATTRIBUTE_LIFETIME_BOUND,
-      ABSL_ATTRIBUTE_UNUSED TemporaryStorage<std::string>&& storage)
+  /*implicit*/ PathRef(const std::filesystem::path& path
+                           ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                       TemporaryStorage<std::string>&& /*storage*/)
       : PathRef(path) {}
 
   // For `std::filesystem::path` with `value_type = wchar_t`, stores a reference
