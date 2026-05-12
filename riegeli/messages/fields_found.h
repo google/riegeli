@@ -476,8 +476,8 @@ class FieldHandlerWrapperImpl {
                                    Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleVarint(std::forward<Accepted>(accepted),
-                                             repr, context...);
+          return field_handler_.DynamicHandleVarint(
+              std::forward<Accepted>(accepted), repr, context...);
         },
         [] { return absl::OkStatus(); }, context...);
   }
@@ -513,8 +513,8 @@ class FieldHandlerWrapperImpl {
                                     Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleFixed32(std::forward<Accepted>(accepted),
-                                              repr, context...);
+          return field_handler_.DynamicHandleFixed32(
+              std::forward<Accepted>(accepted), repr, context...);
         },
         [] { return absl::OkStatus(); }, context...);
   }
@@ -550,8 +550,8 @@ class FieldHandlerWrapperImpl {
                                     Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleFixed64(std::forward<Accepted>(accepted),
-                                              repr, context...);
+          return field_handler_.DynamicHandleFixed64(
+              std::forward<Accepted>(accepted), repr, context...);
         },
         [] { return absl::OkStatus(); }, context...);
   }
@@ -626,7 +626,7 @@ class FieldHandlerWrapperImpl {
       Accepted&& accepted, ReaderSpan<> repr, Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleLengthDelimitedFromReader(
+          return field_handler_.DynamicHandleLengthDelimitedFromReader(
               std::forward<Accepted>(accepted), std::move(repr), context...);
         },
         [&] { return SkipLengthDelimitedFromReader(std::move(repr)); },
@@ -645,7 +645,7 @@ class FieldHandlerWrapperImpl {
                                                     Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleLengthDelimitedFromCord(
+          return field_handler_.DynamicHandleLengthDelimitedFromCord(
               std::forward<Accepted>(accepted), std::move(repr), scratch,
               context...);
         },
@@ -663,7 +663,7 @@ class FieldHandlerWrapperImpl {
       Accepted&& accepted, absl::string_view repr, Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleLengthDelimitedFromString(
+          return field_handler_.DynamicHandleLengthDelimitedFromString(
               std::forward<Accepted>(accepted), repr, context...);
         },
         [] { return absl::OkStatus(); }, context...);
@@ -699,7 +699,7 @@ class FieldHandlerWrapperImpl {
                                        Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleStartGroup(
+          return field_handler_.DynamicHandleStartGroup(
               std::forward<Accepted>(accepted), context...);
         },
         [] { return absl::OkStatus(); }, context...);
@@ -736,8 +736,8 @@ class FieldHandlerWrapperImpl {
                                      Context&... context) const {
     return action_wrapper_(
         [&] {
-          return field_handler_.HandleEndGroup(std::forward<Accepted>(accepted),
-                                               context...);
+          return field_handler_.DynamicHandleEndGroup(
+              std::forward<Accepted>(accepted), context...);
         },
         [] { return absl::OkStatus(); }, context...);
   }

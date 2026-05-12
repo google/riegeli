@@ -228,10 +228,10 @@ namespace riegeli {
 //
 // `MaybeAccepted` is some type explicitly convertible to `bool`, with
 // `operator*` returning some `Accepted` type. `MaybeAccepted` can be e.g.
-// `std::optional<Accepted>` or `Accepted*`. If `AcceptX()` returns a value
-// explicitly convertible to `true`, then the field is accepted, and the
-// corresponding `HandleX()` function is called with the result of `operator*`
-// as the first argument.
+// `std::optional<Accepted>`, `Accepted*`, or `FieldAcceptedIf`. If `AcceptX()`
+// returns a value explicitly convertible to `true`, then the field is accepted,
+// and the corresponding `HandleX()` function is called with the result of
+// `operator*` as the first argument.
 
 // In `FieldHandler::kFieldNumber`, marks a dynamic field handler.
 inline constexpr int kDynamicFieldNumber =
@@ -571,6 +571,31 @@ absl::Status SkipLengthDelimitedFromCord(const CordIteratorSpan& value,
                                          Action&& action);
 
 absl::Status SkipLengthDelimitedFromCord(CordIteratorSpan value);
+
+// An `Accepted` type for a dynamic field handler which does not carry any
+// information about the field being accepted.
+//
+// This is used as the first parameter of a `DynamicHandleX()` function.
+struct FieldAccepted {};
+
+// A `MaybeAccepted` type for a dynamic field handler which does not carry any
+// information about the field being accepted.
+//
+// This is used as the result of an `AcceptX()` function.
+class FieldAcceptedIf {
+ public:
+  explicit FieldAcceptedIf(bool accepted) : accepted_(accepted) {}
+
+  FieldAcceptedIf(const FieldAcceptedIf& that) = default;
+  FieldAcceptedIf& operator=(const FieldAcceptedIf& that) = default;
+
+  explicit operator bool() const { return accepted_; }
+
+  FieldAccepted operator*() const { return FieldAccepted(); }
+
+ private:
+  bool accepted_;
+};
 
 // Implementation details follow.
 

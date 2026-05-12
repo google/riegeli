@@ -53,23 +53,6 @@ DynamicFieldHandler(int field_number, BaseFieldHandler&& field_handler) {
 // Implementation details follow.
 template <typename BaseFieldHandler>
 class DynamicFieldHandlerType {
- private:
-  struct Accepted {};
-
-  class MaybeAccepted {
-   public:
-    explicit MaybeAccepted(bool accepted) : accepted_(accepted) {}
-
-    MaybeAccepted(const MaybeAccepted& that) = default;
-
-    explicit operator bool() const { return accepted_; }
-
-    Accepted operator*() const { return Accepted(); }
-
-   private:
-    bool accepted_;
-  };
-
  public:
   template <
       typename BaseFieldHandlerInitializer,
@@ -87,8 +70,8 @@ class DynamicFieldHandlerType {
   static constexpr int kFieldNumber = kDynamicFieldNumber;
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
-  MaybeAccepted AcceptVarint(int field_number) const {
-    return MaybeAccepted(field_number == field_number_);
+  FieldAcceptedIf AcceptVarint(int field_number) const {
+    return FieldAcceptedIf(field_number == field_number_);
   }
 
   template <
@@ -100,14 +83,14 @@ class DynamicFieldHandlerType {
               serialized_message_reader_internal::IsStaticFieldHandlerForVarint<
                   BaseFieldHandler, Context...>>,
           int> = 0>
-  absl::Status DynamicHandleVarint(Accepted, uint64_t repr,
+  absl::Status DynamicHandleVarint(FieldAccepted, uint64_t repr,
                                    Context&... context) const {
     return base_field_handler_.HandleVarint(repr, context...);
   }
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
-  MaybeAccepted AcceptFixed32(int field_number) const {
-    return MaybeAccepted(field_number == field_number_);
+  FieldAcceptedIf AcceptFixed32(int field_number) const {
+    return FieldAcceptedIf(field_number == field_number_);
   }
 
   template <
@@ -119,14 +102,14 @@ class DynamicFieldHandlerType {
               serialized_message_reader_internal::
                   IsStaticFieldHandlerForFixed32<BaseFieldHandler, Context...>>,
           int> = 0>
-  absl::Status DynamicHandleFixed32(Accepted, uint32_t repr,
+  absl::Status DynamicHandleFixed32(FieldAccepted, uint32_t repr,
                                     Context&... context) const {
     return base_field_handler_.HandleFixed32(repr, context...);
   }
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
-  MaybeAccepted AcceptFixed64(int field_number) const {
-    return MaybeAccepted(field_number == field_number_);
+  FieldAcceptedIf AcceptFixed64(int field_number) const {
+    return FieldAcceptedIf(field_number == field_number_);
   }
 
   template <
@@ -138,14 +121,14 @@ class DynamicFieldHandlerType {
               serialized_message_reader_internal::
                   IsStaticFieldHandlerForFixed64<BaseFieldHandler, Context...>>,
           int> = 0>
-  absl::Status DynamicHandleFixed64(Accepted, uint64_t repr,
+  absl::Status DynamicHandleFixed64(FieldAccepted, uint64_t repr,
                                     Context&... context) const {
     return base_field_handler_.HandleFixed64(repr, context...);
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE MaybeAccepted
+  ABSL_ATTRIBUTE_ALWAYS_INLINE FieldAcceptedIf
   AcceptLengthDelimited(int field_number) const {
-    return MaybeAccepted(field_number == field_number_);
+    return FieldAcceptedIf(field_number == field_number_);
   }
 
   template <typename... Context,
@@ -158,7 +141,7 @@ class DynamicFieldHandlerType {
                             BaseFieldHandler, Context...>>,
                 int> = 0>
   absl::Status DynamicHandleLengthDelimitedFromReader(
-      Accepted, ReaderSpan<> repr, Context&... context) const {
+      FieldAccepted, ReaderSpan<> repr, Context&... context) const {
     return base_field_handler_.HandleLengthDelimitedFromReader(std::move(repr),
                                                                context...);
   }
@@ -172,7 +155,7 @@ class DynamicFieldHandlerType {
                         IsStaticFieldHandlerForLengthDelimitedFromCord<
                             BaseFieldHandler, Context...>>,
                 int> = 0>
-  absl::Status DynamicHandleLengthDelimitedFromCord(Accepted,
+  absl::Status DynamicHandleLengthDelimitedFromCord(FieldAccepted,
                                                     CordIteratorSpan repr,
                                                     std::string& scratch,
                                                     Context&... context) const {
@@ -190,14 +173,14 @@ class DynamicFieldHandlerType {
                             BaseFieldHandler, Context...>>,
                 int> = 0>
   absl::Status DynamicHandleLengthDelimitedFromString(
-      Accepted, absl::string_view repr, Context&... context) const {
+      FieldAccepted, absl::string_view repr, Context&... context) const {
     return base_field_handler_.HandleLengthDelimitedFromString(repr,
                                                                context...);
   }
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
-  MaybeAccepted AcceptStartGroup(int field_number) const {
-    return MaybeAccepted(field_number == field_number_);
+  FieldAcceptedIf AcceptStartGroup(int field_number) const {
+    return FieldAcceptedIf(field_number == field_number_);
   }
 
   template <typename... Context,
@@ -209,13 +192,14 @@ class DynamicFieldHandlerType {
                         IsStaticFieldHandlerForStartGroup<BaseFieldHandler,
                                                           Context...>>,
                 int> = 0>
-  absl::Status DynamicHandleStartGroup(Accepted, Context&... context) const {
+  absl::Status DynamicHandleStartGroup(FieldAccepted,
+                                       Context&... context) const {
     return base_field_handler_.HandleStartGroup(context...);
   }
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE
-  MaybeAccepted AcceptEndGroup(int field_number) const {
-    return MaybeAccepted(field_number == field_number_);
+  FieldAcceptedIf AcceptEndGroup(int field_number) const {
+    return FieldAcceptedIf(field_number == field_number_);
   }
 
   template <typename... Context,
@@ -227,7 +211,7 @@ class DynamicFieldHandlerType {
                         IsStaticFieldHandlerForEndGroup<BaseFieldHandler,
                                                         Context...>>,
                 int> = 0>
-  absl::Status DynamicHandleEndGroup(Accepted, Context&... context) const {
+  absl::Status DynamicHandleEndGroup(FieldAccepted, Context&... context) const {
     return base_field_handler_.HandleEndGroup(context...);
   }
 
