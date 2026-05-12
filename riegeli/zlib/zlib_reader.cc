@@ -309,7 +309,7 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
 }
 
 bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
-                   const RecyclingPoolOptions& recycling_pool_options) {
+                   RecyclingPoolOptions recycling_pool_options) {
   RIEGELI_ASSERT_NE(header, ZlibReaderBase::Header::kRaw)
       << "Failed precondition of RecognizeZlib(): "
          "Header::kRaw cannot be reliably detected";

@@ -46,6 +46,9 @@ class PrefixLimitingReaderBase : public Reader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // The base position of the original `Reader`. It must be at least as large
     // as the initial position.
     //

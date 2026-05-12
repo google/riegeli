@@ -36,13 +36,13 @@ SizedSharedBuffer& StdInPending() {
 
 }  // namespace
 
-StdIn::StdIn(Options options) : FdReader(std_in_fd, std::move(options)) {
+StdIn::StdIn(const Options& options) : FdReader(std_in_fd, options) {
   SizedSharedBuffer& pending = StdInPending();
   if (!pending.empty()) RestoreBuffer(std::move(pending));
 }
 
-void StdIn::Reset(Options options) {
-  FdReader::Reset(std_in_fd, std::move(options));
+void StdIn::Reset(const Options& options) {
+  FdReader::Reset(std_in_fd, options);
   SizedSharedBuffer& pending = StdInPending();
   if (!pending.empty()) RestoreBuffer(std::move(pending));
 }
@@ -54,16 +54,16 @@ void StdIn::Done() {
   FdReader::Done();
 }
 
-StdOut::StdOut(Options options) : FdWriter(std_out_fd, std::move(options)) {}
+StdOut::StdOut(const Options& options) : FdWriter(std_out_fd, options) {}
 
-void StdOut::Reset(Options options) {
-  FdWriter::Reset(std_out_fd, std::move(options));
+void StdOut::Reset(const Options& options) {
+  FdWriter::Reset(std_out_fd, options);
 }
 
-StdErr::StdErr(Options options) : FdWriter(std_err_fd, std::move(options)) {}
+StdErr::StdErr(const Options& options) : FdWriter(std_err_fd, options) {}
 
-void StdErr::Reset(Options options) {
-  FdWriter::Reset(std_err_fd, std::move(options));
+void StdErr::Reset(const Options& options) {
+  FdWriter::Reset(std_err_fd, options);
 }
 
 InjectedStdInFd::InjectedStdInFd(int fd)

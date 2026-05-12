@@ -57,6 +57,9 @@ class FileReaderBase : public Reader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // `FileReader` has a larger `kDefaultMaxBufferSize` (1M) because remote
     // file access may have high latency of each operation.
     static constexpr size_t kDefaultMaxBufferSize = size_t{1} << 20;
@@ -251,12 +254,13 @@ class FileReader : public FileReaderBase {
   explicit FileReader(Closed) noexcept : FileReaderBase(kClosed) {}
 
   // Will read from the `tsl::RandomAccessFile` provided by `src`.
-  explicit FileReader(Initializer<Src> src, Options options = Options());
+  explicit FileReader(Initializer<Src> src, const Options& options = Options());
 
   // Opens a `tsl::RandomAccessFile` for reading.
   //
   // If opening the file fails, `FileReader` will be failed and closed.
-  explicit FileReader(PathInitializer filename, Options options = Options());
+  explicit FileReader(PathInitializer filename,
+                      const Options& options = Options());
 
   FileReader(FileReader&& that) = default;
   FileReader& operator=(FileReader&& that) = default;
@@ -265,9 +269,9 @@ class FileReader : public FileReaderBase {
   // constructing a temporary `FileReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
-                                          Options options = Options());
+                                          const Options& options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(PathInitializer filename, Options options = Options());
+  void Reset(PathInitializer filename, const Options& options = Options());
 
   // Returns the object providing and possibly owning the
   // `tsl::RandomAccessFile` being read from. If the
@@ -287,7 +291,7 @@ class FileReader : public FileReaderBase {
 
  private:
   using FileReaderBase::Initialize;
-  void Initialize(PathInitializer filename, Options&& options);
+  void Initialize(PathInitializer filename, const Options& options);
 
   // The object providing and possibly owning the
   // `tsl::RandomAccessFile` being read from.
@@ -296,8 +300,8 @@ class FileReader : public FileReaderBase {
 
 explicit FileReader(Closed) -> FileReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit FileReader(Src&& src,
-                    FileReaderBase::Options options = FileReaderBase::Options())
+explicit FileReader(Src&& src, const FileReaderBase::Options& options =
+                                   FileReaderBase::Options())
     -> FileReader<std::conditional_t<
         std::is_convertible_v<Src&&, PathInitializer>,
         std::unique_ptr<tsl::RandomAccessFile>, TargetT<Src>>>;
@@ -361,7 +365,7 @@ inline void FileReaderBase::Initialize(tsl::RandomAccessFile* src,
 }
 
 template <typename Src>
-inline FileReader<Src>::FileReader(Initializer<Src> src, Options options)
+inline FileReader<Src>::FileReader(Initializer<Src> src, const Options& options)
     : FileReaderBase(options.buffer_options(), options.env(),
                      options.growing_source()),
       src_(std::move(src)) {
@@ -369,10 +373,11 @@ inline FileReader<Src>::FileReader(Initializer<Src> src, Options options)
 }
 
 template <typename Src>
-inline FileReader<Src>::FileReader(PathInitializer filename, Options options)
+inline FileReader<Src>::FileReader(PathInitializer filename,
+                                   const Options& options)
     : FileReaderBase(options.buffer_options(), options.env(),
                      options.growing_source()) {
-  Initialize(std::move(filename), std::move(options));
+  Initialize(std::move(filename), options);
 }
 
 template <typename Src>
@@ -382,7 +387,8 @@ inline void FileReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void FileReader<Src>::Reset(Initializer<Src> src, Options options) {
+inline void FileReader<Src>::Reset(Initializer<Src> src,
+                                   const Options& options) {
   FileReaderBase::Reset(options.buffer_options(), options.env(),
                         options.growing_source());
   src_.Reset(std::move(src));
@@ -390,15 +396,16 @@ inline void FileReader<Src>::Reset(Initializer<Src> src, Options options) {
 }
 
 template <typename Src>
-inline void FileReader<Src>::Reset(PathInitializer filename, Options options) {
+inline void FileReader<Src>::Reset(PathInitializer filename,
+                                   const Options& options) {
   FileReaderBase::Reset(options.buffer_options(), options.env(),
                         options.growing_source());
-  Initialize(std::move(filename), std::move(options));
+  Initialize(std::move(filename), options);
 }
 
 template <typename Src>
 inline void FileReader<Src>::Initialize(PathInitializer filename,
-                                        Options&& options) {
+                                        const Options& options) {
   if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
   std::unique_ptr<tsl::RandomAccessFile> src = OpenFile();
   if (ABSL_PREDICT_FALSE(src == nullptr)) return;

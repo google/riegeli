@@ -63,6 +63,9 @@ class XzWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // What container format to write.
     //
     // `Flush()` is effective and `ReadMode()` is supported only with
@@ -171,13 +174,13 @@ class XzWriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
@@ -206,14 +209,14 @@ class XzWriterBase : public BufferedWriter {
   explicit XzWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit XzWriterBase(BufferOptions buffer_options, Container container,
-                        const RecyclingPoolOptions& recycling_pool_options);
+                        RecyclingPoolOptions recycling_pool_options);
 
   XzWriterBase(XzWriterBase&& that) noexcept;
   XzWriterBase& operator=(XzWriterBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, Container container,
-             const RecyclingPoolOptions& recycling_pool_options);
+             RecyclingPoolOptions recycling_pool_options);
   void Initialize(Writer* dest, uint32_t preset, Check check, int parallelism);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
@@ -331,9 +334,9 @@ explicit XzWriter(Dest&& dest,
 
 // Implementation details follow.
 
-inline XzWriterBase::XzWriterBase(
-    BufferOptions buffer_options, Container container,
-    const RecyclingPoolOptions& recycling_pool_options)
+inline XzWriterBase::XzWriterBase(BufferOptions buffer_options,
+                                  Container container,
+                                  RecyclingPoolOptions recycling_pool_options)
     : BufferedWriter(buffer_options),
       container_(container),
       recycling_pool_options_(recycling_pool_options) {}
@@ -368,9 +371,9 @@ inline void XzWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void XzWriterBase::Reset(
-    BufferOptions buffer_options, Container container,
-    const RecyclingPoolOptions& recycling_pool_options) {
+inline void XzWriterBase::Reset(BufferOptions buffer_options,
+                                Container container,
+                                RecyclingPoolOptions recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   container_ = container;
   flush_action_ = LZMA_SYNC_FLUSH;

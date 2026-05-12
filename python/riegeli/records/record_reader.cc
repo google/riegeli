@@ -366,7 +366,7 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
     });
   }
 
-  PythonReader python_reader(src_arg, std::move(python_reader_options));
+  PythonReader python_reader(src_arg, python_reader_options);
   PythonUnlocked([&] {
     self->record_reader.emplace(std::move(python_reader),
                                 std::move(record_reader_options));

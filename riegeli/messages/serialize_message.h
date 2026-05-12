@@ -45,6 +45,10 @@ class SerializeMessageOptions {
  public:
   SerializeMessageOptions() noexcept {}
 
+  SerializeMessageOptions(const SerializeMessageOptions& that) = default;
+  SerializeMessageOptions& operator=(const SerializeMessageOptions& that) =
+      default;
+
   // If `false`, all required fields must be set. This is verified in debug
   // mode.
   //

@@ -53,6 +53,9 @@ class XzReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // What container format to expect.
     //
     // Default: `Container::kXzOrLzma`.
@@ -95,13 +98,13 @@ class XzReaderBase : public BufferedReader {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
@@ -140,15 +143,15 @@ class XzReaderBase : public BufferedReader {
 
   explicit XzReaderBase(BufferOptions buffer_options, Container container,
                         uint32_t flags,
-                        const RecyclingPoolOptions& recycling_pool_options);
+                        RecyclingPoolOptions recycling_pool_options);
 
   XzReaderBase(XzReaderBase&& that) noexcept;
   XzReaderBase& operator=(XzReaderBase&& that) noexcept;
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, Container container, uint32_t flags,
-             const RecyclingPoolOptions& recycling_pool_options);
-  static int GetWindowBits(const Options& options);
+             RecyclingPoolOptions recycling_pool_options);
+  static int GetWindowBits(Options options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
@@ -269,9 +272,9 @@ bool RecognizeXz(Reader& src);
 
 // Implementation details follow.
 
-inline XzReaderBase::XzReaderBase(
-    BufferOptions buffer_options, Container container, uint32_t flags,
-    const RecyclingPoolOptions& recycling_pool_options)
+inline XzReaderBase::XzReaderBase(BufferOptions buffer_options,
+                                  Container container, uint32_t flags,
+                                  RecyclingPoolOptions recycling_pool_options)
     : BufferedReader(buffer_options),
       container_(container),
       flags_(flags),
@@ -307,9 +310,9 @@ inline void XzReaderBase::Reset(Closed) {
   decompressor_.reset();
 }
 
-inline void XzReaderBase::Reset(
-    BufferOptions buffer_options, Container container, uint32_t flags,
-    const RecyclingPoolOptions& recycling_pool_options) {
+inline void XzReaderBase::Reset(BufferOptions buffer_options,
+                                Container container, uint32_t flags,
+                                RecyclingPoolOptions recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   container_ = container;
   flags_ = flags;

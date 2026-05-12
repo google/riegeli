@@ -90,18 +90,18 @@ inline size_t AvailableLength(DependentFILE* src) {
 
 }  // namespace
 
-void CFileReaderBase::Initialize(FILE* src, Options&& options) {
+void CFileReaderBase::Initialize(FILE* src, const Options& options) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
-  InitializePos(src, std::move(options)
+  InitializePos(src, options
 #ifdef _WIN32
-                         ,
+                ,
                 /*mode_was_passed_to_fopen=*/false
 #endif
   );
 }
 
-void CFileReaderBase::InitializePos(FILE* src, Options&& options
+void CFileReaderBase::InitializePos(FILE* src, const Options& options
 #ifdef _WIN32
                                     ,
                                     bool mode_was_passed_to_fopen
@@ -137,7 +137,10 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
     }
     original_mode_ = original_mode;
   }
-  if (options.assumed_pos() == std::nullopt) {
+#endif  // _WIN32
+  std::optional<Position> assumed_pos = options.assumed_pos();
+#ifdef _WIN32
+  if (assumed_pos == std::nullopt) {
     if (text_mode == 0) {
       const int fd = _fileno(src);
       if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -155,17 +158,17 @@ void CFileReaderBase::InitializePos(FILE* src, Options&& options
         return;
       }
     }
-    if (text_mode != _O_BINARY) options.set_assumed_pos(0);
+    if (text_mode != _O_BINARY) assumed_pos = 0;
   }
 #endif  // _WIN32
-  if (options.assumed_pos() != std::nullopt) {
+  if (assumed_pos != std::nullopt) {
     if (ABSL_PREDICT_FALSE(
-            *options.assumed_pos() >
+            *assumed_pos >
             Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
-    set_limit_pos(*options.assumed_pos());
+    set_limit_pos(*assumed_pos);
     // `supports_random_access_` is left as `false`.
     random_access_status_ = Global([] {
       return absl::UnimplementedError(

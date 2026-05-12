@@ -36,7 +36,7 @@
 
 namespace riegeli {
 
-void LimitingReaderBase::Initialize(Reader* src, const Options& options) {
+void LimitingReaderBase::Initialize(Reader* src, Options options) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of LimitingReader: null Reader pointer";
   set_buffer(src->start(), src->start_to_limit(), src->start_to_cursor());

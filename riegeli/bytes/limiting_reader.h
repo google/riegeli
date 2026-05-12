@@ -50,6 +50,9 @@ class LimitingReaderBase : public Reader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // The limit expressed as an absolute position.
     //
     // `std::nullopt` means no limit, unless `max_length()` is set.
@@ -224,7 +227,7 @@ class LimitingReaderBase : public Reader {
 
   void Reset(Closed);
   void Reset(bool exact, bool fail_if_longer);
-  void Initialize(Reader* src, const Options& options);
+  void Initialize(Reader* src, Options options);
 
   // Sets cursor of `src` to cursor of `*this`.
   void SyncBuffer(Reader& src);

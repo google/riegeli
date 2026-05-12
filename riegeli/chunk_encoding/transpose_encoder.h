@@ -74,6 +74,9 @@ class TransposeEncoder : public ChunkEncoder {
    public:
     TuningOptions() noexcept {}
 
+    TuningOptions(const TuningOptions& that) = default;
+    TuningOptions& operator=(const TuningOptions& that) = default;
+
     // The default approximate bucket size, used if compression is enabled.
     // Finer bucket granularity (i.e. smaller size) worsens compression density
     // but makes field projection more effective.
@@ -97,13 +100,13 @@ class TransposeEncoder : public ChunkEncoder {
     //
     // Default: `RecyclingPoolOptions()`.
     TuningOptions& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     TuningOptions&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }

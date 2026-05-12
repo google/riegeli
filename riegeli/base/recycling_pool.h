@@ -44,7 +44,10 @@ namespace riegeli {
 // Options for `RecyclingPool` and `KeyedRecyclingPool`.
 class RecyclingPoolOptions {
  public:
-  RecyclingPoolOptions() = default;
+  RecyclingPoolOptions() noexcept {}
+
+  RecyclingPoolOptions(const RecyclingPoolOptions& that) = default;
+  RecyclingPoolOptions& operator=(const RecyclingPoolOptions& that) = default;
 
   // Maximum number of objects to keep in a pool.
   //

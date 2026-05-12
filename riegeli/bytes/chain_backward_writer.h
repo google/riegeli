@@ -48,6 +48,9 @@ class ChainBackwardWriterBase : public BackwardWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
     //
@@ -126,13 +129,13 @@ class ChainBackwardWriterBase : public BackwardWriter {
  protected:
   explicit ChainBackwardWriterBase(Closed) noexcept : BackwardWriter(kClosed) {}
 
-  explicit ChainBackwardWriterBase(const Options& options);
+  explicit ChainBackwardWriterBase(Options options);
 
   ChainBackwardWriterBase(ChainBackwardWriterBase&& that) noexcept;
   ChainBackwardWriterBase& operator=(ChainBackwardWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const Options& options);
+  void Reset(Options options);
   void Initialize(Chain* dest, bool prepend);
 
   void Done() override;
@@ -248,7 +251,7 @@ explicit ChainBackwardWriter(ChainBackwardWriterBase::Options options =
 
 // Implementation details follow.
 
-inline ChainBackwardWriterBase::ChainBackwardWriterBase(const Options& options)
+inline ChainBackwardWriterBase::ChainBackwardWriterBase(Options options)
     : options_(Chain::Options()
                    .set_min_block_size(options.min_block_size())
                    .set_max_block_size(options.max_block_size())) {}
@@ -270,7 +273,7 @@ inline void ChainBackwardWriterBase::Reset(Closed) {
   options_ = Chain::Options();
 }
 
-inline void ChainBackwardWriterBase::Reset(const Options& options) {
+inline void ChainBackwardWriterBase::Reset(Options options) {
   BackwardWriter::Reset();
   options_ = Chain::Options()
                  .set_min_block_size(options.min_block_size())
@@ -329,7 +332,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline ChainBackwardWriter<Dest>::ChainBackwardWriter(Options options)
-    : ChainBackwardWriter(riegeli::Maker(), std::move(options)) {}
+    : ChainBackwardWriter(riegeli::Maker(), options) {}
 
 template <typename Dest>
 inline void ChainBackwardWriter<Dest>::Reset(Closed) {
@@ -349,7 +352,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline void ChainBackwardWriter<Dest>::Reset(Options options) {
-  Reset(riegeli::Maker(), std::move(options));
+  Reset(riegeli::Maker(), options);
 }
 
 }  // namespace riegeli

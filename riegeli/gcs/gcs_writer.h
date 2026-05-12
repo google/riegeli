@@ -66,6 +66,12 @@ class GcsWriter
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // The effective buffer size is always a multiple of 256 KiB, and is at
     // least the `UploadBufferSize` setting in the client (which defaults to
     // 8 MiB).

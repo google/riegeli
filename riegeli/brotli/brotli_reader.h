@@ -42,6 +42,12 @@ class BrotliReaderBase : public PullableReader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // Shared Brotli dictionary. The same dictionary must have been used
     // for compression. If no dictionary was used for compression, then no
     // dictionary must be supplied for decompression.

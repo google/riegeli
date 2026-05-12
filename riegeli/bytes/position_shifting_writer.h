@@ -51,6 +51,9 @@ class PositionShiftingWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // The base position of the new `Writer`.
     //
     // Default: 0.

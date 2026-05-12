@@ -105,6 +105,9 @@ class WriterOStreamBase : public std::iostream {
   class Options {
    public:
     Options() noexcept {}
+
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
   };
 
   // Returns the `Writer`. Unchanged by `close()`.

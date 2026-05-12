@@ -44,6 +44,12 @@ class WriterCFileOptions {
  public:
   WriterCFileOptions() noexcept {}
 
+  WriterCFileOptions(const WriterCFileOptions& that) = default;
+  WriterCFileOptions& operator=(const WriterCFileOptions& that) = default;
+
+  WriterCFileOptions(WriterCFileOptions&& that) = default;
+  WriterCFileOptions& operator=(WriterCFileOptions&& that) = default;
+
   // The filename assumed by the returned `OwnedCFile`.
   //
   // Default: "<unspecified>".

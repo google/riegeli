@@ -43,6 +43,9 @@ class Bzip2ReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `true`, concatenated compressed streams are decoded to concatenation
     // of their decompressed contents. An empty compressed stream is decoded to
     // empty decompressed contents.

@@ -55,6 +55,9 @@ class ResizableWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
     //
@@ -539,7 +542,7 @@ template <
             std::is_default_constructible<typename ResizableTraits::Resizable>>,
         int>>
 inline ResizableWriter<ResizableTraits, Dest>::ResizableWriter(Options options)
-    : ResizableWriter(riegeli::Maker(), std::move(options)) {}
+    : ResizableWriter(riegeli::Maker(), options) {}
 
 template <typename ResizableTraits, typename Dest>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(Closed) {
@@ -564,7 +567,7 @@ template <
             std::is_default_constructible<typename ResizableTraits::Resizable>>,
         int>>
 inline void ResizableWriter<ResizableTraits, Dest>::Reset(Options options) {
-  Reset(riegeli::Maker(), std::move(options));
+  Reset(riegeli::Maker(), options);
 }
 
 template <typename ResizableTraits, typename Dest>

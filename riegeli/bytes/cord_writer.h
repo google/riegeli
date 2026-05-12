@@ -54,6 +54,9 @@ class CordWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
     //
@@ -137,13 +140,13 @@ class CordWriterBase : public Writer {
  protected:
   explicit CordWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  explicit CordWriterBase(const Options& options);
+  explicit CordWriterBase(Options options);
 
   CordWriterBase(CordWriterBase&& that) noexcept;
   CordWriterBase& operator=(CordWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const Options& options);
+  void Reset(Options options);
   void Initialize(absl::Cord* dest, bool append);
 
   void Done() override;
@@ -315,7 +318,7 @@ explicit CordWriter(CordWriterBase::Options options = CordWriterBase::Options())
 
 // Implementation details follow.
 
-inline CordWriterBase::CordWriterBase(const Options& options)
+inline CordWriterBase::CordWriterBase(Options options)
     : min_block_size_(IntCast<uint32_t>(options.min_block_size())),
       max_block_size_(IntCast<uint32_t>(options.max_block_size())) {}
 
@@ -355,7 +358,7 @@ inline void CordWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void CordWriterBase::Reset(const Options& options) {
+inline void CordWriterBase::Reset(Options options) {
   Writer::Reset();
   size_hint_ = std::nullopt;
   min_block_size_ = IntCast<uint32_t>(options.min_block_size());
@@ -411,7 +414,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int>>
 inline CordWriter<Dest>::CordWriter(Options options)
-    : CordWriter(riegeli::Maker(), std::move(options)) {}
+    : CordWriter(riegeli::Maker(), options) {}
 
 template <typename Dest>
 inline void CordWriter<Dest>::Reset(Closed) {
@@ -430,7 +433,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int>>
 inline void CordWriter<Dest>::Reset(Options options) {
-  Reset(riegeli::Maker(), std::move(options));
+  Reset(riegeli::Maker(), options);
 }
 
 }  // namespace riegeli

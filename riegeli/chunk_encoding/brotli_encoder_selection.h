@@ -34,7 +34,7 @@ namespace riegeli::chunk_encoding_internal {
 // It can be overridden to support also Rust Brotli.
 std::unique_ptr<Writer> NewBrotliWriter(
     Chain* compressed, const CompressorOptions& compressor_options,
-    const RecyclingPoolOptions& recycling_pool_options);
+    RecyclingPoolOptions recycling_pool_options);
 
 // Support for `NewBrotliWriter()`: uses C Brotli, ignores
 // `compressor_options.brotli_encoder()`.

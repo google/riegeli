@@ -50,6 +50,9 @@ class PrefixLimitingWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // The base position of the original `Writer`. It must be at least as large
     // as the initial position.
     //

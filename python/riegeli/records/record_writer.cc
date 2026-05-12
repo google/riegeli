@@ -331,7 +331,7 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
         *std::move(serialized_metadata));
   }
 
-  PythonWriter python_writer(dest_arg, std::move(python_writer_options));
+  PythonWriter python_writer(dest_arg, python_writer_options);
   PythonUnlocked([&] {
     self->record_writer.emplace(std::move(python_writer),
                                 std::move(record_writer_options));

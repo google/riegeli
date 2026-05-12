@@ -53,6 +53,9 @@ class ChainWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
     //
@@ -135,13 +138,13 @@ class ChainWriterBase : public Writer {
  protected:
   explicit ChainWriterBase(Closed) noexcept : Writer(kClosed) {}
 
-  explicit ChainWriterBase(const Options& options);
+  explicit ChainWriterBase(Options options);
 
   ChainWriterBase(ChainWriterBase&& that) noexcept;
   ChainWriterBase& operator=(ChainWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const Options& options);
+  void Reset(Options options);
   void Initialize(Chain* dest, bool append);
 
   void Done() override;
@@ -304,7 +307,7 @@ explicit ChainWriter(ChainWriterBase::Options options =
 
 // Implementation details follow.
 
-inline ChainWriterBase::ChainWriterBase(const Options& options)
+inline ChainWriterBase::ChainWriterBase(Options options)
     : options_(Chain::Options()
                    .set_min_block_size(options.min_block_size())
                    .set_max_block_size(options.max_block_size())) {}
@@ -331,7 +334,7 @@ inline void ChainWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void ChainWriterBase::Reset(const Options& options) {
+inline void ChainWriterBase::Reset(Options options) {
   Writer::Reset();
   options_ = Chain::Options()
                  .set_min_block_size(options.min_block_size())
@@ -394,7 +397,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline ChainWriter<Dest>::ChainWriter(Options options)
-    : ChainWriter(riegeli::Maker(), std::move(options)) {}
+    : ChainWriter(riegeli::Maker(), options) {}
 
 template <typename Dest>
 inline void ChainWriter<Dest>::Reset(Closed) {
@@ -413,7 +416,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, Chain>, int>>
 inline void ChainWriter<Dest>::Reset(Options options) {
-  Reset(riegeli::Maker(), std::move(options));
+  Reset(riegeli::Maker(), options);
 }
 
 }  // namespace riegeli

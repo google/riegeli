@@ -35,6 +35,9 @@ class ReadLineOptions {
  public:
   ReadLineOptions() noexcept {}
 
+  ReadLineOptions(const ReadLineOptions& that) = default;
+  ReadLineOptions& operator=(const ReadLineOptions& that) = default;
+
   // Options can also be specified by the line terminator alone.
   /*implicit*/ ReadLineOptions(ReadNewline newline) : newline_(newline) {}
 

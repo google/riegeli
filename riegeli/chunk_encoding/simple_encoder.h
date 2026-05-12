@@ -55,6 +55,9 @@ class SimpleEncoder : public ChunkEncoder {
    public:
     TuningOptions() noexcept {}
 
+    TuningOptions(const TuningOptions& that) = default;
+    TuningOptions& operator=(const TuningOptions& that) = default;
+
     // Expected uncompressed size of concatenated values, or `std::nullopt` if
     // unknown. This may improve compression density and performance.
     //
@@ -79,13 +82,13 @@ class SimpleEncoder : public ChunkEncoder {
     //
     // Default: `RecyclingPoolOptions()`.
     TuningOptions& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     TuningOptions&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }

@@ -76,6 +76,9 @@ class LinearSortedStringSet : public WithCompare<LinearSortedStringSet> {
    public:
     DecodeOptions() noexcept {}
 
+    DecodeOptions(const DecodeOptions& that) = default;
+    DecodeOptions& operator=(const DecodeOptions& that) = default;
+
     // If `false`, performs partial validation of the structure of data, which
     // is sufficient to prevent undefined behavior when the set is used. The
     // only aspect not validated is that elements are sorted and unique. This is

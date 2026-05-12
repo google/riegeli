@@ -160,18 +160,18 @@ inline void FdSetReadAllHint([[maybe_unused]] DependentInt src,
 
 #endif
 
-void FdReaderBase::Initialize(int src, Options&& options) {
+void FdReaderBase::Initialize(int src, const Options& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
-  InitializePos(src, std::move(options)
+  InitializePos(src, options
 #ifdef _WIN32
-                         ,
+                ,
                 /*mode_was_passed_to_open=*/false
 #endif
   );
 }
 
-void FdReaderBase::InitializePos(int src, Options&& options
+void FdReaderBase::InitializePos(int src, const Options& options
 #ifdef _WIN32
                                  ,
                                  bool mode_was_passed_to_open
@@ -200,7 +200,10 @@ void FdReaderBase::InitializePos(int src, Options&& options
     }
     original_mode_ = original_mode;
   }
-  if (options.assumed_pos() == std::nullopt) {
+#endif  // _WIN32
+  std::optional<Position> assumed_pos = options.assumed_pos();
+#ifdef _WIN32
+  if (assumed_pos == std::nullopt) {
     if (text_mode == 0) {
       // There is no `_getmode()`, but `_setmode()` returns the previous mode.
       text_mode = _setmode(src, _O_BINARY);
@@ -219,11 +222,11 @@ void FdReaderBase::InitializePos(int src, Options&& options
             "FdReaderBase::Options::independent_pos() requires binary mode"));
         return;
       }
-      options.set_assumed_pos(0);
+      assumed_pos = 0;
     }
   }
 #endif  // _WIN32
-  if (options.assumed_pos() != std::nullopt) {
+  if (assumed_pos != std::nullopt) {
     if (ABSL_PREDICT_FALSE(options.independent_pos() != std::nullopt)) {
       Fail(absl::InvalidArgumentError(
           "FdReaderBase::Options::assumed_pos() and independent_pos() "
@@ -231,12 +234,12 @@ void FdReaderBase::InitializePos(int src, Options&& options
       return;
     }
     if (ABSL_PREDICT_FALSE(
-            *options.assumed_pos() >
+            *assumed_pos >
             Position{std::numeric_limits<fd_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
-    set_limit_pos(*options.assumed_pos());
+    set_limit_pos(*assumed_pos);
     // `supports_random_access_` is left as `false`.
     random_access_status_ = Global([] {
       return absl::UnimplementedError(

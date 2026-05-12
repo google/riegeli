@@ -51,6 +51,9 @@ class SnappyWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //

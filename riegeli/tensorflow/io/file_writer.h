@@ -60,6 +60,9 @@ class FileWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // `FileWriter` has a larger `kDefaultMaxBufferSize` (1M) because remote
     // file access may have high latency of each operation.
     static constexpr size_t kDefaultMaxBufferSize = size_t{1} << 20;
@@ -199,12 +202,14 @@ class FileWriter : public FileWriterBase {
   explicit FileWriter(Closed) noexcept : FileWriterBase(kClosed) {}
 
   // Will write to the `tsl::WritableFile` provided by `dest`.
-  explicit FileWriter(Initializer<Dest> dest, Options options = Options());
+  explicit FileWriter(Initializer<Dest> dest,
+                      const Options& options = Options());
 
   // Opens a `tsl::WritableFile` for writing.
   //
   // If opening the file fails, `FileWriter` will be failed and closed.
-  explicit FileWriter(PathInitializer filename, Options options = Options());
+  explicit FileWriter(PathInitializer filename,
+                      const Options& options = Options());
 
   FileWriter(FileWriter&& that) = default;
   FileWriter& operator=(FileWriter&& that) = default;
@@ -213,9 +218,9 @@ class FileWriter : public FileWriterBase {
   // constructing a temporary `FileWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
-                                          Options options = Options());
+                                          const Options& options = Options());
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(PathInitializer filename, Options options = Options());
+  void Reset(PathInitializer filename, const Options& options = Options());
 
   // Returns the object providing and possibly owning the
   // `tsl::WritableFile` being written to. Unchanged by `Close()`.
@@ -233,7 +238,7 @@ class FileWriter : public FileWriterBase {
 
  private:
   using FileWriterBase::Initialize;
-  void Initialize(PathInitializer filename, Options&& options);
+  void Initialize(PathInitializer filename, const Options& options);
 
   // The object providing and possibly owning the `tsl::WritableFile`
   // being written to.
@@ -242,8 +247,8 @@ class FileWriter : public FileWriterBase {
 
 explicit FileWriter(Closed) -> FileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit FileWriter(Dest&& dest,
-                    FileWriterBase::Options options = FileWriterBase::Options())
+explicit FileWriter(Dest&& dest, const FileWriterBase::Options& options =
+                                     FileWriterBase::Options())
     -> FileWriter<
         std::conditional_t<std::is_convertible_v<Dest&&, PathInitializer>,
                            std::unique_ptr<tsl::WritableFile>, TargetT<Dest>>>;
@@ -303,16 +308,18 @@ inline void FileWriterBase::Initialize(tsl::WritableFile* dest) {
 }
 
 template <typename Dest>
-inline FileWriter<Dest>::FileWriter(Initializer<Dest> dest, Options options)
+inline FileWriter<Dest>::FileWriter(Initializer<Dest> dest,
+                                    const Options& options)
     : FileWriterBase(options.buffer_options(), options.env()),
       dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline FileWriter<Dest>::FileWriter(PathInitializer filename, Options options)
+inline FileWriter<Dest>::FileWriter(PathInitializer filename,
+                                    const Options& options)
     : FileWriterBase(options.buffer_options(), options.env()) {
-  Initialize(std::move(filename), std::move(options));
+  Initialize(std::move(filename), options);
 }
 
 template <typename Dest>
@@ -322,21 +329,23 @@ inline void FileWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void FileWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
+inline void FileWriter<Dest>::Reset(Initializer<Dest> dest,
+                                    const Options& options) {
   FileWriterBase::Reset(options.buffer_options(), options.env());
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());
 }
 
 template <typename Dest>
-inline void FileWriter<Dest>::Reset(PathInitializer filename, Options options) {
+inline void FileWriter<Dest>::Reset(PathInitializer filename,
+                                    const Options& options) {
   FileWriterBase::Reset(options.buffer_options(), options.env());
-  Initialize(std::move(filename), std::move(options));
+  Initialize(std::move(filename), options);
 }
 
 template <typename Dest>
 inline void FileWriter<Dest>::Initialize(PathInitializer filename,
-                                         Options&& options) {
+                                         const Options& options) {
   if (ABSL_PREDICT_FALSE(!InitializeFilename(std::move(filename)))) return;
   std::unique_ptr<tsl::WritableFile> dest = OpenFile(options.append());
   if (ABSL_PREDICT_FALSE(dest == nullptr)) return;

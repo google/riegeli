@@ -62,13 +62,13 @@
 
 namespace riegeli {
 
-void CFileWriterBase::Initialize(FILE* dest, Options&& options) {
+void CFileWriterBase::Initialize(FILE* dest, const Options& options) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
-  InitializePos(dest, std::move(options), /*mode_was_passed_to_fopen=*/false);
+  InitializePos(dest, options, /*mode_was_passed_to_fopen=*/false);
 }
 
-void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
+void CFileWriterBase::InitializePos(FILE* dest, const Options& options,
                                     bool mode_was_passed_to_fopen) {
   RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
@@ -115,7 +115,10 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
     }
     original_mode_ = original_mode;
   }
-  if (options.assumed_pos() == std::nullopt) {
+#endif  // _WIN32
+  std::optional<Position> assumed_pos = options.assumed_pos();
+#ifdef _WIN32
+  if (assumed_pos == std::nullopt) {
     if (text_mode == 0) {
       const int fd = _fileno(dest);
       if (ABSL_PREDICT_FALSE(fd < 0)) {
@@ -133,17 +136,17 @@ void CFileWriterBase::InitializePos(FILE* dest, Options&& options,
         return;
       }
     }
-    if (text_mode != _O_BINARY) options.set_assumed_pos(0);
+    if (text_mode != _O_BINARY) assumed_pos = 0;
   }
 #endif  // _WIN32
-  if (options.assumed_pos() != std::nullopt) {
+  if (assumed_pos != std::nullopt) {
     if (ABSL_PREDICT_FALSE(
-            *options.assumed_pos() >
+            *assumed_pos >
             Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
-    set_start_pos(*options.assumed_pos());
+    set_start_pos(*assumed_pos);
     supports_random_access_ = LazyBoolState::kFalse;
     supports_read_mode_ = LazyBoolState::kFalse;
     random_access_status_ = Global([] {

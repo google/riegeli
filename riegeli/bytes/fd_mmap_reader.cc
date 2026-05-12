@@ -193,13 +193,13 @@ void MMapBlock::operator()(absl::string_view data) const {
 
 }  // namespace
 
-void FdMMapReaderBase::Initialize(int src, Options&& options) {
+void FdMMapReaderBase::Initialize(int src, const Options& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
-  InitializePos(src, std::move(options));
+  InitializePos(src, options);
 }
 
-void FdMMapReaderBase::InitializePos(int src, Options&& options) {
+void FdMMapReaderBase::InitializePos(int src, const Options& options) {
   Position initial_pos;
   if (options.independent_pos() != std::nullopt) {
     initial_pos = *options.independent_pos();

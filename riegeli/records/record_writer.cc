@@ -354,7 +354,7 @@ inline bool RecordWriterBase::Worker::AddRecord(
     SerializeMessageOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(
-          !chunk_encoder_->AddRecord(record, std::move(serialize_options)))) {
+          !chunk_encoder_->AddRecord(record, serialize_options))) {
     return Fail(chunk_encoder_->status());
   }
   return true;
@@ -931,7 +931,7 @@ bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,
                                    SerializeMessageOptions serialize_options) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   const size_t size = serialize_options.GetByteSize(record);
-  return WriteRecordImpl(size, record, std::move(serialize_options));
+  return WriteRecordImpl(size, record, serialize_options);
 }
 
 bool RecordWriterBase::WriteRecord(BytesRef record) {

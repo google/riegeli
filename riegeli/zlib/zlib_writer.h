@@ -53,6 +53,12 @@ class ZlibWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // What format of header to write.
     //
     // Default: `Header::kZlib`.
@@ -145,13 +151,13 @@ class ZlibWriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
@@ -178,7 +184,7 @@ class ZlibWriterBase : public BufferedWriter {
 
   explicit ZlibWriterBase(BufferOptions buffer_options, int window_bits,
                           ZlibDictionary&& dictionary,
-                          const RecyclingPoolOptions& recycling_pool_options);
+                          RecyclingPoolOptions recycling_pool_options);
 
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
   ZlibWriterBase& operator=(ZlibWriterBase&& that) noexcept;
@@ -186,7 +192,7 @@ class ZlibWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, int window_bits,
              ZlibDictionary&& dictionary,
-             const RecyclingPoolOptions& recycling_pool_options);
+             RecyclingPoolOptions recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
@@ -300,7 +306,7 @@ explicit ZlibWriter(Dest&& dest,
 
 inline ZlibWriterBase::ZlibWriterBase(
     BufferOptions buffer_options, int window_bits, ZlibDictionary&& dictionary,
-    const RecyclingPoolOptions& recycling_pool_options)
+    RecyclingPoolOptions recycling_pool_options)
     : BufferedWriter(buffer_options),
       window_bits_(window_bits),
       dictionary_(std::move(dictionary)),
@@ -338,9 +344,9 @@ inline void ZlibWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void ZlibWriterBase::Reset(
-    BufferOptions buffer_options, int window_bits, ZlibDictionary&& dictionary,
-    const RecyclingPoolOptions& recycling_pool_options) {
+inline void ZlibWriterBase::Reset(BufferOptions buffer_options, int window_bits,
+                                  ZlibDictionary&& dictionary,
+                                  RecyclingPoolOptions recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   window_bits_ = window_bits;
   recycling_pool_options_ = recycling_pool_options;

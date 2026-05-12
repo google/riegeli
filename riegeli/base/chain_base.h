@@ -81,6 +81,9 @@ class Chain : public WithCompare<Chain, absl::string_view> {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // Expected final size, or `std::nullopt` if unknown. This may improve
     // performance and memory usage.
     //

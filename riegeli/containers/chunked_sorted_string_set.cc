@@ -43,12 +43,12 @@ namespace riegeli {
 
 ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(
     std::initializer_list<absl::string_view> src, Options options) {
-  return FromSorted<>(src, std::move(options));
+  return FromSorted<>(src, options);
 }
 
 ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
     std::initializer_list<absl::string_view> src, Options options) {
-  return FromUnsorted<>(src, std::move(options));
+  return FromUnsorted<>(src, options);
 }
 
 inline ChunkedSortedStringSet::ChunkedSortedStringSet(Chunks&& chunks)

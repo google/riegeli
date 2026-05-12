@@ -56,6 +56,9 @@ class PythonWriter : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `true`, `PythonWriter::Close()` closes the stream, and
     // `PythonWriter::Flush(flush_type)` flushes the stream even if `flush_type`
     // is `FlushType::kFromObject`.

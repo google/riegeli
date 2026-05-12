@@ -42,6 +42,12 @@ class ReaderCFileOptions {
  public:
   ReaderCFileOptions() noexcept {}
 
+  ReaderCFileOptions(const ReaderCFileOptions& that) = default;
+  ReaderCFileOptions& operator=(const ReaderCFileOptions& that) = default;
+
+  ReaderCFileOptions(ReaderCFileOptions&& that) = default;
+  ReaderCFileOptions& operator=(ReaderCFileOptions&& that) = default;
+
   // The filename assumed by the returned `OwnedCFile`.
   //
   // Default: "<unspecified>".

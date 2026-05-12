@@ -63,6 +63,9 @@ class PythonReader : public BufferedReader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `true`, `PythonReader::Close()` closes the stream.
     //
     // Default: `false`.

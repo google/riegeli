@@ -50,6 +50,12 @@ class ZstdWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
@@ -250,13 +256,13 @@ class ZstdWriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
@@ -288,7 +294,7 @@ class ZstdWriterBase : public BufferedWriter {
                           ZstdDictionary&& dictionary,
                           std::optional<Position> pledged_size,
                           bool reserve_max_size,
-                          const RecyclingPoolOptions& recycling_pool_options);
+                          RecyclingPoolOptions recycling_pool_options);
 
   ZstdWriterBase(ZstdWriterBase&& that) noexcept;
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
@@ -296,7 +302,7 @@ class ZstdWriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, ZstdDictionary&& dictionary,
              std::optional<Position> pledged_size, bool reserve_max_size,
-             const RecyclingPoolOptions& recycling_pool_options);
+             RecyclingPoolOptions recycling_pool_options);
   void Initialize(Writer* dest, int compression_level, int window_log_or_0,
                   int target_cblock_size_or_0, bool store_checksum);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
@@ -394,7 +400,7 @@ explicit ZstdWriter(Dest&& dest,
 inline ZstdWriterBase::ZstdWriterBase(
     BufferOptions buffer_options, ZstdDictionary&& dictionary,
     std::optional<Position> pledged_size, bool reserve_max_size,
-    const RecyclingPoolOptions& recycling_pool_options)
+    RecyclingPoolOptions recycling_pool_options)
     : BufferedWriter(buffer_options),
       dictionary_(std::move(dictionary)),
       pledged_size_(pledged_size),
@@ -439,10 +445,11 @@ inline void ZstdWriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void ZstdWriterBase::Reset(
-    BufferOptions buffer_options, ZstdDictionary&& dictionary,
-    std::optional<Position> pledged_size, bool reserve_max_size,
-    const RecyclingPoolOptions& recycling_pool_options) {
+inline void ZstdWriterBase::Reset(BufferOptions buffer_options,
+                                  ZstdDictionary&& dictionary,
+                                  std::optional<Position> pledged_size,
+                                  bool reserve_max_size,
+                                  RecyclingPoolOptions recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   dictionary_ = std::move(dictionary);
   pledged_size_ = pledged_size;

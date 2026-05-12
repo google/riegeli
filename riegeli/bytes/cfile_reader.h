@@ -49,6 +49,12 @@ class CFileReaderBase : public BufferedReader {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // If `CFileReader` opens a `FILE` with a filename, `mode()` is the second
     // argument of `fopen()` and specifies the open mode, typically "r" (on
     // Windows: "rb").
@@ -203,8 +209,8 @@ class CFileReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source);
-  void Initialize(FILE* src, Options&& options);
-  void InitializePos(FILE* src, Options&& options
+  void Initialize(FILE* src, const Options& options);
+  void InitializePos(FILE* src, const Options& options
 #ifdef _WIN32
                      ,
                      bool mode_was_passed_to_fopen
@@ -260,14 +266,15 @@ class CFileReader : public CFileReaderBase {
   explicit CFileReader(Closed) noexcept : CFileReaderBase(kClosed) {}
 
   // Will read from the `FILE` provided by `src`.
-  explicit CFileReader(Initializer<Src> src, Options options = Options());
+  explicit CFileReader(Initializer<Src> src,
+                       const Options& options = Options());
 
   // Will read from `src`.
   template <
       typename DependentSrc = Src,
       std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int> = 0>
   explicit CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                       Options options = Options());
+                       const Options& options = Options());
 
   // Opens a file for reading.
   //
@@ -279,7 +286,8 @@ class CFileReader : public CFileReaderBase {
                 std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                    std::is_default_constructible<DependentSrc>>,
                 int> = 0>
-  explicit CFileReader(PathInitializer filename, Options options = Options());
+  explicit CFileReader(PathInitializer filename,
+                       const Options& options = Options());
 
   CFileReader(CFileReader&& that) = default;
   CFileReader& operator=(CFileReader&& that) = default;
@@ -288,18 +296,18 @@ class CFileReader : public CFileReaderBase {
   // constructing a temporary `CFileReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <
       typename DependentSrc = Src,
       std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* src,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                                 SupportsReset<DependentSrc>>,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathInitializer filename,
-                                          Options options = Options());
+                                          const Options& options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being read
   // from. Unchanged by `Close()`.
@@ -325,7 +333,7 @@ class CFileReader : public CFileReaderBase {
  private:
   template <typename DependentSrc = Src,
             std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int> = 0>
-  void OpenImpl(PathInitializer filename, Options&& options);
+  void OpenImpl(PathInitializer filename, const Options& options);
 
   // The object providing and possibly owning the `FILE` being read from.
   Dependency<CFileHandle, Src> src_;
@@ -333,8 +341,8 @@ class CFileReader : public CFileReaderBase {
 
 explicit CFileReader(Closed) -> CFileReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit CFileReader(
-    Src&& src, CFileReaderBase::Options options = CFileReaderBase::Options())
+explicit CFileReader(Src&& src, const CFileReaderBase::Options& options =
+                                    CFileReaderBase::Options())
     -> CFileReader<std::conditional_t<
         std::disjunction_v<std::is_convertible<Src&&, FILE*>,
                            std::is_convertible<Src&&, PathInitializer>>,
@@ -393,18 +401,19 @@ inline void CFileReaderBase::Reset(BufferOptions buffer_options,
 }
 
 template <typename Src>
-inline CFileReader<Src>::CFileReader(Initializer<Src> src, Options options)
+inline CFileReader<Src>::CFileReader(Initializer<Src> src,
+                                     const Options& options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(std::move(src)) {
-  Initialize(src_.get().get(), std::move(options));
+  Initialize(src_.get().get(), options);
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int>>
 inline CFileReader<Src>::CFileReader(FILE* src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                                     Options options)
-    : CFileReader(riegeli::Maker(src), std::move(options)) {}
+                                     const Options& options)
+    : CFileReader(riegeli::Maker(src), options) {}
 
 template <typename Src>
 template <typename DependentSrc,
@@ -412,10 +421,11 @@ template <typename DependentSrc,
               std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                  std::is_default_constructible<DependentSrc>>,
               int>>
-inline CFileReader<Src>::CFileReader(PathInitializer filename, Options options)
+inline CFileReader<Src>::CFileReader(PathInitializer filename,
+                                     const Options& options)
     : CFileReaderBase(options.buffer_options(), options.growing_source()),
       src_(riegeli::Maker()) {
-  OpenImpl(std::move(filename), std::move(options));
+  OpenImpl(std::move(filename), options);
 }
 
 template <typename Src>
@@ -425,17 +435,18 @@ inline void CFileReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void CFileReader<Src>::Reset(Initializer<Src> src, Options options) {
+inline void CFileReader<Src>::Reset(Initializer<Src> src,
+                                    const Options& options) {
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
   src_.Reset(std::move(src));
-  Initialize(src_.get().get(), std::move(options));
+  Initialize(src_.get().get(), options);
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<std::is_constructible_v<DependentSrc, FILE*>, int>>
-inline void CFileReader<Src>::Reset(FILE* src, Options options) {
-  Reset(riegeli::Maker(src), std::move(options));
+inline void CFileReader<Src>::Reset(FILE* src, const Options& options) {
+  Reset(riegeli::Maker(src), options);
 }
 
 template <typename Src>
@@ -443,18 +454,20 @@ template <typename DependentSrc,
           std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentSrc>,
                                               SupportsReset<DependentSrc>>,
                            int>>
-inline void CFileReader<Src>::Reset(PathInitializer filename, Options options) {
+inline void CFileReader<Src>::Reset(PathInitializer filename,
+                                    const Options& options) {
   // In case `filename` is owned by `src_` and gets invalidated.
   std::string filename_copy = std::move(filename);
   riegeli::Reset(src_.manager());
   CFileReaderBase::Reset(options.buffer_options(), options.growing_source());
-  OpenImpl(std::move(filename_copy), std::move(options));
+  OpenImpl(std::move(filename_copy), options);
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<CFileSupportsOpen<DependentSrc>::value, int>>
-void CFileReader<Src>::OpenImpl(PathInitializer filename, Options&& options) {
+void CFileReader<Src>::OpenImpl(PathInitializer filename,
+                                const Options& options) {
   absl::Status status =
       src_.manager().Open(std::move(filename), options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -462,9 +475,9 @@ void CFileReader<Src>::OpenImpl(PathInitializer filename, Options&& options) {
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(src_.get().get(), std::move(options)
+  InitializePos(src_.get().get(), options
 #ifdef _WIN32
-                                      ,
+                ,
                 /*mode_was_passed_to_fopen=*/true
 #endif
   );

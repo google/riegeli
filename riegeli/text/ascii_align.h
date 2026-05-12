@@ -47,6 +47,9 @@ class AlignOptions {
  public:
   AlignOptions() noexcept {}
 
+  AlignOptions(const AlignOptions& that) = default;
+  AlignOptions& operator=(const AlignOptions& that) = default;
+
   // Options can also be specified by the minimum width alone.
   /*implicit*/ AlignOptions(Position width) : width_(width) {}
 
@@ -85,7 +88,7 @@ class AsciiLeftType {
  public:
   explicit AsciiLeftType(std::tuple<Initializer<T>...> values,
                          AlignOptions options)
-      : values_(std::move(values)), options_(std::move(options)) {}
+      : values_(std::move(values)), options_(options) {}
 
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const AsciiLeftType& src) {
@@ -175,7 +178,7 @@ template <typename Arg,
 inline AsciiLeftType<TargetRefT<Arg>> AsciiLeft(
     Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
   return AsciiLeftType<TargetRefT<Arg>>(
-      std::forward_as_tuple(std::forward<Arg>(arg)), std::move(options));
+      std::forward_as_tuple(std::forward<Arg>(arg)), options);
 }
 
 // `riegeli::OwningAsciiLeft()` is like `riegeli::AsciiLeft()`, but the
@@ -209,7 +212,7 @@ class AsciiCenterType {
  public:
   explicit AsciiCenterType(std::tuple<Initializer<T>...> values,
                            AlignOptions options)
-      : values_(std::move(values)), options_(std::move(options)) {}
+      : values_(std::move(values)), options_(options) {}
 
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const AsciiCenterType& src) {
@@ -300,7 +303,7 @@ template <typename Arg,
 inline AsciiCenterType<TargetRefT<Arg>> AsciiCenter(
     Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
   return AsciiCenterType<TargetRefT<Arg>>(
-      std::forward_as_tuple(std::forward<Arg>(arg)), std::move(options));
+      std::forward_as_tuple(std::forward<Arg>(arg)), options);
 }
 
 // `riegeli::OwningAsciiCenter()` is like `riegeli::AsciiCenter()`, but the
@@ -334,7 +337,7 @@ class AsciiRightType {
  public:
   explicit AsciiRightType(std::tuple<Initializer<T>...> values,
                           AlignOptions options)
-      : values_(std::move(values)), options_(std::move(options)) {}
+      : values_(std::move(values)), options_(options) {}
 
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const AsciiRightType& src) {
@@ -424,7 +427,7 @@ template <typename Arg,
 inline AsciiRightType<TargetRefT<Arg>> AsciiRight(
     Arg&& arg ABSL_ATTRIBUTE_LIFETIME_BOUND, AlignOptions options) {
   return AsciiRightType<TargetRefT<Arg>>(
-      std::forward_as_tuple(std::forward<Arg>(arg)), std::move(options));
+      std::forward_as_tuple(std::forward<Arg>(arg)), options);
 }
 
 // `riegeli::OwningAsciiRight()` is like `riegeli::AsciiRight()`, but the

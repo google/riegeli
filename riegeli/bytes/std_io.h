@@ -45,7 +45,7 @@ class StdIn : public FdReader<UnownedFd> {
   explicit StdIn(Closed) noexcept : FdReader(kClosed) {}
 
   // Will read from standard input.
-  explicit StdIn(Options options = Options());
+  explicit StdIn(const Options& options = Options());
 
   StdIn(StdIn&& that) = default;
   StdIn& operator=(StdIn&& that) = default;
@@ -53,7 +53,7 @@ class StdIn : public FdReader<UnownedFd> {
   // Makes `*this` equivalent to a newly constructed `StdIn`. This avoids
   // constructing a temporary `StdIn` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Options& options = Options());
 
  protected:
   void Done() override;
@@ -91,7 +91,7 @@ class StdOut : public FdWriter<UnownedFd> {
   explicit StdOut(Closed) noexcept : FdWriter(kClosed) {}
 
   // Will write to standard output.
-  explicit StdOut(Options options = Options());
+  explicit StdOut(const Options& options = Options());
 
   StdOut(StdOut&& that) = default;
   StdOut& operator=(StdOut&& that) = default;
@@ -99,7 +99,7 @@ class StdOut : public FdWriter<UnownedFd> {
   // Makes `*this` equivalent to a newly constructed `StdOut`. This avoids
   // constructing a temporary `StdOut` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Options& options = Options());
 };
 
 // A new `Writer` writing to standard error (by default to the same destination
@@ -130,7 +130,7 @@ class StdErr : public FdWriter<UnownedFd> {
   explicit StdErr(Closed) noexcept : FdWriter(kClosed) {}
 
   // Will write to standard error.
-  explicit StdErr(Options options = Options());
+  explicit StdErr(const Options& options = Options());
 
   StdErr(StdErr&& that) = default;
   StdErr& operator=(StdErr&& that) = default;
@@ -138,7 +138,7 @@ class StdErr : public FdWriter<UnownedFd> {
   // Makes `*this` equivalent to a newly constructed `StdErr`. This avoids
   // constructing a temporary `StdErr` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(const Options& options = Options());
 };
 
 // Sets file descriptors used by future instances of `Std{In,Out,Err}` in the

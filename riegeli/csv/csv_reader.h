@@ -57,6 +57,12 @@ class CsvReaderBase : public Object {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // If not `std::nullopt`, automatically reads field names from the first
     // record, specifies how field names are normalized, and verifies that all
     // required fields are present (in any order).

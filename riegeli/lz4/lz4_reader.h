@@ -42,7 +42,7 @@ namespace riegeli {
 namespace lz4_internal {
 
 bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info,
-                  const RecyclingPoolOptions& recycling_pool_options);
+                  RecyclingPoolOptions recycling_pool_options);
 
 }  // namespace lz4_internal
 
@@ -52,6 +52,12 @@ class Lz4ReaderBase : public BufferedReader {
   class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
+
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
 
     // If `true`, supports decompressing as much as possible from a truncated
     // source, then retrying when the source has grown. This has a small
@@ -114,13 +120,13 @@ class Lz4ReaderBase : public BufferedReader {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
@@ -165,7 +171,7 @@ class Lz4ReaderBase : public BufferedReader {
 
   explicit Lz4ReaderBase(BufferOptions buffer_options, bool growing_source,
                          bool concatenate, Lz4Dictionary&& dictionary,
-                         const RecyclingPoolOptions& recycling_pool_options);
+                         RecyclingPoolOptions recycling_pool_options);
 
   Lz4ReaderBase(Lz4ReaderBase&& that) noexcept;
   Lz4ReaderBase& operator=(Lz4ReaderBase&& that) noexcept;
@@ -173,7 +179,7 @@ class Lz4ReaderBase : public BufferedReader {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source,
              bool concatenate, Lz4Dictionary&& dictionary,
-             const RecyclingPoolOptions& recycling_pool_options);
+             RecyclingPoolOptions recycling_pool_options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
@@ -189,7 +195,7 @@ class Lz4ReaderBase : public BufferedReader {
   // For `LZ4F_dctxDeleter`.
   friend bool lz4_internal::GetFrameInfo(
       Reader& src, LZ4F_frameInfo_t& frame_info,
-      const RecyclingPoolOptions& recycling_pool_options);
+      RecyclingPoolOptions recycling_pool_options);
 
   struct LZ4F_dctxDeleter {
     void operator()(LZ4F_dctx* ptr) const {
@@ -283,9 +289,8 @@ explicit Lz4Reader(Src&& src,
 // Returns `true` if the data look like they have been Lz4-compressed.
 //
 // The current position of `src` is unchanged.
-bool RecognizeLz4(Reader& src,
-                  const RecyclingPoolOptions& recycling_pool_options =
-                      RecyclingPoolOptions());
+bool RecognizeLz4(Reader& src, RecyclingPoolOptions recycling_pool_options =
+                                   RecyclingPoolOptions());
 
 // Returns the claimed uncompressed size of Lz4-compressed data.
 //
@@ -296,15 +301,15 @@ bool RecognizeLz4(Reader& src,
 //
 // The current position of `src` is unchanged.
 std::optional<Position> Lz4UncompressedSize(
-    Reader& src, const RecyclingPoolOptions& recycling_pool_options =
-                     RecyclingPoolOptions());
+    Reader& src,
+    RecyclingPoolOptions recycling_pool_options = RecyclingPoolOptions());
 
 // Implementation details follow.
 
-inline Lz4ReaderBase::Lz4ReaderBase(
-    BufferOptions buffer_options, bool growing_source, bool concatenate,
-    Lz4Dictionary&& dictionary,
-    const RecyclingPoolOptions& recycling_pool_options)
+inline Lz4ReaderBase::Lz4ReaderBase(BufferOptions buffer_options,
+                                    bool growing_source, bool concatenate,
+                                    Lz4Dictionary&& dictionary,
+                                    RecyclingPoolOptions recycling_pool_options)
     : BufferedReader(buffer_options),
       growing_source_(growing_source),
       concatenate_(concatenate),
@@ -347,10 +352,10 @@ inline void Lz4ReaderBase::Reset(Closed) {
   dictionary_ = Lz4Dictionary();
 }
 
-inline void Lz4ReaderBase::Reset(
-    BufferOptions buffer_options, bool growing_source, bool concatenate,
-    Lz4Dictionary&& dictionary,
-    const RecyclingPoolOptions& recycling_pool_options) {
+inline void Lz4ReaderBase::Reset(BufferOptions buffer_options,
+                                 bool growing_source, bool concatenate,
+                                 Lz4Dictionary&& dictionary,
+                                 RecyclingPoolOptions recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;
   concatenate_ = concatenate;

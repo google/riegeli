@@ -198,6 +198,9 @@ class AnyTextReaderOptions : public BufferOptionsBase<AnyTextReaderOptions> {
  public:
   AnyTextReaderOptions() noexcept {}
 
+  AnyTextReaderOptions(const AnyTextReaderOptions& that) = default;
+  AnyTextReaderOptions& operator=(const AnyTextReaderOptions& that) = default;
+
   // Line terminator representation to translate from LF.
   //
   // Default: `ReadNewline::kCrLfOrLf`.

@@ -37,7 +37,7 @@
 
 namespace riegeli {
 
-void LimitingWriterBase::Initialize(Writer* dest, const Options& options,
+void LimitingWriterBase::Initialize(Writer* dest, Options options,
                                     bool is_owning) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of LimitingWriter: null Writer pointer";

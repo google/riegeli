@@ -42,6 +42,9 @@ class ParseMessageOptions {
  public:
   ParseMessageOptions() noexcept {}
 
+  ParseMessageOptions(const ParseMessageOptions& that) = default;
+  ParseMessageOptions& operator=(const ParseMessageOptions& that) = default;
+
   // If `false`, replaces existing contents of the destination, clearing it
   // first.
   //

@@ -40,14 +40,13 @@ namespace riegeli::chunk_encoding_internal {
 
 Compressor::Compressor(CompressorOptions compressor_options,
                        TuningOptions tuning_options)
-    : compressor_options_(std::move(compressor_options)),
-      tuning_options_(std::move(tuning_options)) {
+    : compressor_options_(compressor_options), tuning_options_(tuning_options) {
   Initialize();
   SetWriteSizeHint();
 }
 
 void Compressor::Clear(TuningOptions tuning_options) {
-  tuning_options_ = std::move(tuning_options);
+  tuning_options_ = tuning_options;
   Clear();
 }
 

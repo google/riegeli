@@ -59,6 +59,9 @@ class TextParseMessageOptions {
  public:
   TextParseMessageOptions();
 
+  TextParseMessageOptions(TextParseMessageOptions&& that) = default;
+  TextParseMessageOptions& operator=(TextParseMessageOptions&& that) = default;
+
   // If `false`, replaces existing contents of the destination, clearing it
   // first.
   //

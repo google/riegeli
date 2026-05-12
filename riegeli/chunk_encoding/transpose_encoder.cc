@@ -197,7 +197,7 @@ inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(NodeId node_id)
 
 TransposeEncoder::TransposeEncoder(CompressorOptions compressor_options,
                                    TuningOptions tuning_options)
-    : compressor_options_(std::move(compressor_options)),
+    : compressor_options_(compressor_options),
       bucket_size_(compressor_options_.compression_type() ==
                            CompressionType::kNone
                        ? std::numeric_limits<uint64_t>::max()

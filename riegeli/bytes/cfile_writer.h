@@ -55,6 +55,12 @@ class CFileWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // If `CFileWriter` opens a `FILE` with a filename, `mode()` is the second
     // argument of `fopen()` and specifies the open mode, typically "w" or "a"
     // (on Windows: "wb" or "ab").
@@ -284,8 +290,8 @@ class CFileWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
-  void Initialize(FILE* dest, Options&& options);
-  void InitializePos(FILE* dest, Options&& options,
+  void Initialize(FILE* dest, const Options& options);
+  void InitializePos(FILE* dest, const Options& options,
                      bool mode_was_passed_to_fopen);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
@@ -362,14 +368,15 @@ class CFileWriter : public CFileWriterBase {
   explicit CFileWriter(Closed) noexcept : CFileWriterBase(kClosed) {}
 
   // Will write to the `FILE` provided by `dest`.
-  explicit CFileWriter(Initializer<Dest> dest, Options options = Options());
+  explicit CFileWriter(Initializer<Dest> dest,
+                       const Options& options = Options());
 
   // Will write to `dest`.
   template <
       typename DependentDest = Dest,
       std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int> = 0>
   explicit CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                       Options options = Options());
+                       const Options& options = Options());
 
   // Opens a file for writing.
   //
@@ -381,7 +388,8 @@ class CFileWriter : public CFileWriterBase {
                                  CFileSupportsOpen<DependentDest>,
                                  std::is_default_constructible<DependentDest>>,
                              int> = 0>
-  explicit CFileWriter(PathInitializer filename, Options options = Options());
+  explicit CFileWriter(PathInitializer filename,
+                       const Options& options = Options());
 
   CFileWriter(CFileWriter&& that) = default;
   CFileWriter& operator=(CFileWriter&& that) = default;
@@ -390,19 +398,19 @@ class CFileWriter : public CFileWriterBase {
   // constructing a temporary `CFileWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <
       typename DependentDest = Dest,
       std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(FILE* dest,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <
       typename DependentDest = Dest,
       std::enable_if_t<std::conjunction_v<CFileSupportsOpen<DependentDest>,
                                           SupportsReset<DependentDest>>,
                        int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathInitializer filename,
-                                          Options options = Options());
+                                          const Options& options = Options());
 
   // Returns the object providing and possibly owning the `FILE` being written
   // to. Unchanged by `Close()`.
@@ -429,7 +437,7 @@ class CFileWriter : public CFileWriterBase {
  private:
   template <typename DependentDest = Dest,
             std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int> = 0>
-  void OpenImpl(PathInitializer filename, Options&& options);
+  void OpenImpl(PathInitializer filename, const Options& options);
 
   // The object providing and possibly owning the `FILE` being written to.
   Dependency<CFileHandle, Dest> dest_;
@@ -437,8 +445,8 @@ class CFileWriter : public CFileWriterBase {
 
 explicit CFileWriter(Closed) -> CFileWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit CFileWriter(
-    Dest&& dest, CFileWriterBase::Options options = CFileWriterBase::Options())
+explicit CFileWriter(Dest&& dest, const CFileWriterBase::Options& options =
+                                      CFileWriterBase::Options())
     -> CFileWriter<std::conditional_t<
         std::disjunction_v<std::is_convertible<Dest&&, FILE*>,
                            std::is_convertible<Dest&&, PathInitializer>>,
@@ -508,17 +516,18 @@ inline void CFileWriterBase::Reset(BufferOptions buffer_options) {
 }
 
 template <typename Dest>
-inline CFileWriter<Dest>::CFileWriter(Initializer<Dest> dest, Options options)
+inline CFileWriter<Dest>::CFileWriter(Initializer<Dest> dest,
+                                      const Options& options)
     : CFileWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get().get(), std::move(options));
+  Initialize(dest_.get().get(), options);
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int>>
 inline CFileWriter<Dest>::CFileWriter(FILE* dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                                      Options options)
-    : CFileWriter(riegeli::Maker(dest), std::move(options)) {}
+                                      const Options& options)
+    : CFileWriter(riegeli::Maker(dest), options) {}
 
 template <typename Dest>
 template <typename DependentDest,
@@ -526,9 +535,10 @@ template <typename DependentDest,
               std::conjunction_v<CFileSupportsOpen<DependentDest>,
                                  std::is_default_constructible<DependentDest>>,
               int>>
-inline CFileWriter<Dest>::CFileWriter(PathInitializer filename, Options options)
+inline CFileWriter<Dest>::CFileWriter(PathInitializer filename,
+                                      const Options& options)
     : CFileWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
-  OpenImpl(std::move(filename), std::move(options));
+  OpenImpl(std::move(filename), options);
 }
 
 template <typename Dest>
@@ -538,17 +548,18 @@ inline void CFileWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void CFileWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
+inline void CFileWriter<Dest>::Reset(Initializer<Dest> dest,
+                                     const Options& options) {
   CFileWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get().get(), std::move(options));
+  Initialize(dest_.get().get(), options);
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_constructible_v<DependentDest, FILE*>, int>>
-inline void CFileWriter<Dest>::Reset(FILE* dest, Options options) {
-  Reset(riegeli::Maker(dest), std::move(options));
+inline void CFileWriter<Dest>::Reset(FILE* dest, const Options& options) {
+  Reset(riegeli::Maker(dest), options);
 }
 
 template <typename Dest>
@@ -557,18 +568,19 @@ template <typename DependentDest,
                                               SupportsReset<DependentDest>>,
                            int>>
 inline void CFileWriter<Dest>::Reset(PathInitializer filename,
-                                     Options options) {
+                                     const Options& options) {
   // In case `filename` is owned by `dest_` and gets invalidated.
   std::string filename_copy = std::move(filename);
   riegeli::Reset(dest_.manager());
   CFileWriterBase::Reset(options.buffer_options());
-  OpenImpl(std::move(filename_copy), std::move(options));
+  OpenImpl(std::move(filename_copy), options);
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<CFileSupportsOpen<DependentDest>::value, int>>
-void CFileWriter<Dest>::OpenImpl(PathInitializer filename, Options&& options) {
+void CFileWriter<Dest>::OpenImpl(PathInitializer filename,
+                                 const Options& options) {
   absl::Status status =
       dest_.manager().Open(std::move(filename), options.mode());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -576,7 +588,7 @@ void CFileWriter<Dest>::OpenImpl(PathInitializer filename, Options&& options) {
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(dest_.get().get(), std::move(options),
+  InitializePos(dest_.get().get(), options,
                 /*mode_was_passed_to_fopen=*/true);
 }
 

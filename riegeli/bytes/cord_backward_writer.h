@@ -48,6 +48,9 @@ class CordBackwardWriterBase : public BackwardWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
     //
@@ -127,13 +130,13 @@ class CordBackwardWriterBase : public BackwardWriter {
  protected:
   explicit CordBackwardWriterBase(Closed) noexcept : BackwardWriter(kClosed) {}
 
-  explicit CordBackwardWriterBase(const Options& options);
+  explicit CordBackwardWriterBase(Options options);
 
   CordBackwardWriterBase(CordBackwardWriterBase&& that) noexcept;
   CordBackwardWriterBase& operator=(CordBackwardWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(const Options& options);
+  void Reset(Options options);
   void Initialize(absl::Cord* dest, bool prepend);
 
   void Done() override;
@@ -259,7 +262,7 @@ explicit CordBackwardWriter(
 
 // Implementation details follow.
 
-inline CordBackwardWriterBase::CordBackwardWriterBase(const Options& options)
+inline CordBackwardWriterBase::CordBackwardWriterBase(Options options)
     : min_block_size_(IntCast<uint32_t>(options.min_block_size())),
       max_block_size_(IntCast<uint32_t>(options.max_block_size())) {}
 
@@ -294,7 +297,7 @@ inline void CordBackwardWriterBase::Reset(Closed) {
   buffer_ = Buffer();
 }
 
-inline void CordBackwardWriterBase::Reset(const Options& options) {
+inline void CordBackwardWriterBase::Reset(Options options) {
   BackwardWriter::Reset();
   size_hint_ = std::nullopt;
   min_block_size_ = IntCast<uint32_t>(options.min_block_size());
@@ -340,7 +343,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int>>
 inline CordBackwardWriter<Dest>::CordBackwardWriter(Options options)
-    : CordBackwardWriter(riegeli::Maker(), std::move(options)) {}
+    : CordBackwardWriter(riegeli::Maker(), options) {}
 
 template <typename Dest>
 inline void CordBackwardWriter<Dest>::Reset(Closed) {
@@ -360,7 +363,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, absl::Cord>, int>>
 inline void CordBackwardWriter<Dest>::Reset(Options options) {
-  Reset(riegeli::Maker(), std::move(options));
+  Reset(riegeli::Maker(), options);
 }
 
 }  // namespace riegeli

@@ -56,6 +56,9 @@ class DecompressorOptions {
  public:
   DecompressorOptions() noexcept {}
 
+  DecompressorOptions(const DecompressorOptions& that) = default;
+  DecompressorOptions& operator=(const DecompressorOptions& that) = default;
+
   // Options for a global `RecyclingPool` of decompression contexts.
   //
   // They tune the amount of memory which is kept to speed up creation of new
@@ -63,13 +66,13 @@ class DecompressorOptions {
   //
   // Default: `RecyclingPoolOptions()`.
   DecompressorOptions& set_recycling_pool_options(
-      const RecyclingPoolOptions& recycling_pool_options) &
+      RecyclingPoolOptions recycling_pool_options) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     recycling_pool_options_ = recycling_pool_options;
     return *this;
   }
   DecompressorOptions&& set_recycling_pool_options(
-      const RecyclingPoolOptions& recycling_pool_options) &&
+      RecyclingPoolOptions recycling_pool_options) &&
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     return std::move(set_recycling_pool_options(recycling_pool_options));
   }
@@ -134,7 +137,7 @@ class Decompressor : public Object {
 
  private:
   void Initialize(Initializer<Src> src, CompressionType compression_type,
-                  const RecyclingPoolOptions& recycling_pool_options);
+                  RecyclingPoolOptions recycling_pool_options);
 
   Any<Reader*>::Inlining<Src, BrotliReader<Src>, ZstdReader<Src>,
                          SnappyReader<Src>>
@@ -169,7 +172,7 @@ inline void Decompressor<Src>::Reset(Initializer<Src> src,
 template <typename Src>
 inline void Decompressor<Src>::Initialize(
     Initializer<Src> src, CompressionType compression_type,
-    const RecyclingPoolOptions& recycling_pool_options) {
+    RecyclingPoolOptions recycling_pool_options) {
   if (compression_type == CompressionType::kNone) {
     decompressed_ = std::move(src);
     return;

@@ -61,6 +61,12 @@ class CsvWriterBase : public Object {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // If not `std::nullopt`, sets field names, and automatically writes them
     // as the first record.
     //

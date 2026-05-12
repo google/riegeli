@@ -163,6 +163,9 @@ class AnyTextWriterOptions : public BufferOptionsBase<AnyTextWriterOptions> {
  public:
   AnyTextWriterOptions() noexcept {}
 
+  AnyTextWriterOptions(const AnyTextWriterOptions& that) = default;
+  AnyTextWriterOptions& operator=(const AnyTextWriterOptions& that) = default;
+
   // Line terminator representation to translate from LF.
   //
   // Default: `WriteNewline::kNative`.

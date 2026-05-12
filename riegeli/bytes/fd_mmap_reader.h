@@ -50,6 +50,9 @@ class FdMMapReaderBase : public ChainReader<Chain> {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `FdMMapReader` opens a fd with a filename, `mode()` is the second
     // argument of `open()` (on Windows: `_open()`) and specifies the open mode
     // and flags, typically `O_RDONLY` (on Windows: `_O_RDONLY | _O_BINARY`).
@@ -185,8 +188,8 @@ class FdMMapReaderBase : public ChainReader<Chain> {
 
   void Reset(Closed);
   void Reset();
-  void Initialize(int src, Options&& options);
-  void InitializePos(int src, Options&& options);
+  void Initialize(int src, const Options& options);
+  void InitializePos(int src, const Options& options);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 #ifdef _WIN32
   ABSL_ATTRIBUTE_COLD bool FailWindowsOperation(absl::string_view operation);
@@ -241,14 +244,15 @@ class FdMMapReader : public FdMMapReaderBase {
   explicit FdMMapReader(Closed) noexcept : FdMMapReaderBase(kClosed) {}
 
   // Will read from the fd provided by `src`.
-  explicit FdMMapReader(Initializer<Src> src, Options options = Options());
+  explicit FdMMapReader(Initializer<Src> src,
+                        const Options& options = Options());
 
   // Will read from `src`.
   template <
       typename DependentSrc = Src,
       std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int> = 0>
   explicit FdMMapReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                        Options options = Options());
+                        const Options& options = Options());
 
   // Opens a file for reading.
   //
@@ -260,7 +264,8 @@ class FdMMapReader : public FdMMapReaderBase {
                 std::conjunction_v<FdSupportsOpen<DependentSrc>,
                                    std::is_default_constructible<DependentSrc>>,
                 int> = 0>
-  explicit FdMMapReader(PathInitializer filename, Options options = Options());
+  explicit FdMMapReader(PathInitializer filename,
+                        const Options& options = Options());
 
   // Opens a file for reading, with the filename interpreted relatively to the
   // directory specified by an existing fd.
@@ -274,7 +279,7 @@ class FdMMapReader : public FdMMapReaderBase {
                                    std::is_default_constructible<DependentSrc>>,
                 int> = 0>
   explicit FdMMapReader(UnownedFd dir_fd, PathRef filename,
-                        Options options = Options());
+                        const Options& options = Options());
 
   FdMMapReader(FdMMapReader&& that) = default;
   FdMMapReader& operator=(FdMMapReader&& that) = default;
@@ -283,24 +288,25 @@ class FdMMapReader : public FdMMapReaderBase {
   // constructing a temporary `FdMMapReader` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Src> src,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <
       typename DependentSrc = Src,
       std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int> = 0>
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src, Options options = Options());
+  ABSL_ATTRIBUTE_REINITIALIZES void Reset(int src,
+                                          const Options& options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<std::conjunction_v<FdSupportsOpen<DependentSrc>,
                                                 SupportsReset<DependentSrc>>,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathInitializer filename,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <typename DependentSrc = Src,
             std::enable_if_t<std::conjunction_v<FdSupportsOpenAt<DependentSrc>,
                                                 SupportsReset<DependentSrc>>,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(UnownedFd dir_fd,
                                           PathInitializer filename,
-                                          Options options = Options());
+                                          const Options& options = Options());
 
   // Returns the object providing and possibly owning the fd being read from.
   // Unchanged by `Close()`.
@@ -328,10 +334,10 @@ class FdMMapReader : public FdMMapReaderBase {
 
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int> = 0>
-  void OpenImpl(PathInitializer filename, Options&& options);
+  void OpenImpl(PathInitializer filename, const Options& options);
   template <typename DependentSrc = Src,
             std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int> = 0>
-  void OpenAtImpl(UnownedFd dir_fd, PathRef filename, Options&& options);
+  void OpenAtImpl(UnownedFd dir_fd, PathRef filename, const Options& options);
 
   template <typename DependentSrc = Src,
             std::enable_if_t<std::is_same_v<DependentSrc, UnownedFd>, int> = 0>
@@ -343,14 +349,14 @@ class FdMMapReader : public FdMMapReaderBase {
 
 explicit FdMMapReader(Closed) -> FdMMapReader<DeleteCtad<Closed>>;
 template <typename Src>
-explicit FdMMapReader(
-    Src&& src, FdMMapReaderBase::Options options = FdMMapReaderBase::Options())
+explicit FdMMapReader(Src&& src, const FdMMapReaderBase::Options& options =
+                                     FdMMapReaderBase::Options())
     -> FdMMapReader<std::conditional_t<
         std::disjunction_v<std::is_convertible<Src&&, int>,
                            std::is_convertible<Src&&, absl::string_view>>,
         OwnedFd, TargetT<Src>>>;
 explicit FdMMapReader(UnownedFd dir_fd, PathRef filename,
-                      FdMMapReaderBase::Options options =
+                      const FdMMapReaderBase::Options& options =
                           FdMMapReaderBase::Options()) -> FdMMapReader<OwnedFd>;
 
 // Implementation details follow.
@@ -384,17 +390,18 @@ inline void FdMMapReaderBase::Reset() {
 }
 
 template <typename Src>
-inline FdMMapReader<Src>::FdMMapReader(Initializer<Src> src, Options options)
+inline FdMMapReader<Src>::FdMMapReader(Initializer<Src> src,
+                                       const Options& options)
     : src_(std::move(src)) {
-  Initialize(src_.get().get(), std::move(options));
+  Initialize(src_.get().get(), options);
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int>>
 inline FdMMapReader<Src>::FdMMapReader(int src ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                                       Options options)
-    : FdMMapReader(riegeli::Maker(src), std::move(options)) {}
+                                       const Options& options)
+    : FdMMapReader(riegeli::Maker(src), options) {}
 
 template <typename Src>
 template <typename DependentSrc,
@@ -403,9 +410,9 @@ template <typename DependentSrc,
                                  std::is_default_constructible<DependentSrc>>,
               int>>
 inline FdMMapReader<Src>::FdMMapReader(PathInitializer filename,
-                                       Options options)
+                                       const Options& options)
     : src_(riegeli::Maker()) {
-  OpenImpl(std::move(filename), std::move(options));
+  OpenImpl(std::move(filename), options);
 }
 
 template <typename Src>
@@ -415,9 +422,9 @@ template <typename DependentSrc,
                                  std::is_default_constructible<DependentSrc>>,
               int>>
 inline FdMMapReader<Src>::FdMMapReader(UnownedFd dir_fd, PathRef filename,
-                                       Options options)
+                                       const Options& options)
     : src_(riegeli::Maker()) {
-  OpenAtImpl(std::move(dir_fd), filename, std::move(options));
+  OpenAtImpl(std::move(dir_fd), filename, options);
 }
 
 template <typename Src>
@@ -427,17 +434,18 @@ inline void FdMMapReader<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void FdMMapReader<Src>::Reset(Initializer<Src> src, Options options) {
+inline void FdMMapReader<Src>::Reset(Initializer<Src> src,
+                                     const Options& options) {
   FdMMapReaderBase::Reset();
   src_.Reset(std::move(src));
-  Initialize(src_.get().get(), std::move(options));
+  Initialize(src_.get().get(), options);
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<std::is_constructible_v<DependentSrc, int>, int>>
-inline void FdMMapReader<Src>::Reset(int src, Options options) {
-  Reset(riegeli::Maker(src), std::move(options));
+inline void FdMMapReader<Src>::Reset(int src, const Options& options) {
+  Reset(riegeli::Maker(src), options);
 }
 
 template <typename Src>
@@ -446,12 +454,12 @@ template <typename DependentSrc,
                                               SupportsReset<DependentSrc>>,
                            int>>
 inline void FdMMapReader<Src>::Reset(PathInitializer filename,
-                                     Options options) {
+                                     const Options& options) {
   // In case `filename` is owned by `src_` and gets invalidated.
   std::string filename_copy = std::move(filename);
   riegeli::Reset(src_.manager());
   FdMMapReaderBase::Reset();
-  OpenImpl(std::move(filename_copy), std::move(options));
+  OpenImpl(std::move(filename_copy), options);
 }
 
 template <typename Src>
@@ -460,18 +468,19 @@ template <typename DependentSrc,
                                               SupportsReset<DependentSrc>>,
                            int>>
 inline void FdMMapReader<Src>::Reset(UnownedFd dir_fd, PathInitializer filename,
-                                     Options options) {
+                                     const Options& options) {
   // In case `filename` is owned by `src_` and gets invalidated.
   std::string filename_copy = std::move(filename);
   riegeli::Reset(src_.manager());
   FdMMapReaderBase::Reset();
-  OpenAtImpl(dir_fd, filename_copy, std::move(options));
+  OpenAtImpl(dir_fd, filename_copy, options);
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<FdSupportsOpen<DependentSrc>::value, int>>
-void FdMMapReader<Src>::OpenImpl(PathInitializer filename, Options&& options) {
+void FdMMapReader<Src>::OpenImpl(PathInitializer filename,
+                                 const Options& options) {
   absl::Status status = src_.manager().Open(std::move(filename), options.mode(),
                                             OwnedFd::kDefaultPermissions);
   if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -479,14 +488,14 @@ void FdMMapReader<Src>::OpenImpl(PathInitializer filename, Options&& options) {
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(src_.get().get(), std::move(options));
+  InitializePos(src_.get().get(), options);
 }
 
 template <typename Src>
 template <typename DependentSrc,
           std::enable_if_t<FdSupportsOpenAt<DependentSrc>::value, int>>
 void FdMMapReader<Src>::OpenAtImpl(UnownedFd dir_fd, PathRef filename,
-                                   Options&& options) {
+                                   const Options& options) {
   absl::Status status =
       src_.manager().OpenAt(std::move(dir_fd), absl::string_view(filename),
                             options.mode(), OwnedFd::kDefaultPermissions);
@@ -495,7 +504,7 @@ void FdMMapReader<Src>::OpenAtImpl(UnownedFd dir_fd, PathRef filename,
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(src_.get().get(), std::move(options));
+  InitializePos(src_.get().get(), options);
 }
 
 template <typename Src>

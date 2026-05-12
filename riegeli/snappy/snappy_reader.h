@@ -39,7 +39,13 @@ class Writer;
 // Template parameter independent part of `SnappyReader`.
 class SnappyReaderBase : public ChainReader<Chain> {
  public:
-  class Options {};
+  class Options {
+   public:
+    Options() noexcept {}
+
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+  };
 
   // Returns the compressed `Reader`. Unchanged by `Close()`.
   virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;

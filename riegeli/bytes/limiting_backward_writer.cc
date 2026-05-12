@@ -37,8 +37,7 @@
 namespace riegeli {
 
 void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
-                                            const Options& options,
-                                            bool is_owning) {
+                                            Options options, bool is_owning) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of LimitingBackwardWriter: "
          "null BackwardWriter pointer";

@@ -58,6 +58,9 @@ class FdWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `FdWriter` opens a fd with a filename, `mode()` is the second argument
     // of `open()` (on Windows: `_open()`) and specifies the open mode and
     // flags, typically one of:
@@ -381,8 +384,9 @@ class FdWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options);
-  void Initialize(int dest, Options&& options);
-  void InitializePos(int dest, Options&& options, bool mode_was_passed_to_open);
+  void Initialize(int dest, const Options& options);
+  void InitializePos(int dest, const Options& options,
+                     bool mode_was_passed_to_open);
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 #ifdef _WIN32
   ABSL_ATTRIBUTE_COLD bool FailWindowsOperation(absl::string_view operation);
@@ -511,14 +515,14 @@ class FdWriter : public FdWriterBase {
   explicit FdWriter(Closed) noexcept : FdWriterBase(kClosed) {}
 
   // Will write to the fd provided by `dest`.
-  explicit FdWriter(Initializer<Dest> dest, Options options = Options());
+  explicit FdWriter(Initializer<Dest> dest, const Options& options = Options());
 
   // Will write to `dest`.
   template <
       typename DependentDest = Dest,
       std::enable_if_t<std::is_constructible_v<DependentDest, int>, int> = 0>
   explicit FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                    Options options = Options());
+                    const Options& options = Options());
 
   // Opens a file for writing.
   //
@@ -530,7 +534,8 @@ class FdWriter : public FdWriterBase {
                                  FdSupportsOpen<DependentDest>,
                                  std::is_default_constructible<DependentDest>>,
                              int> = 0>
-  explicit FdWriter(PathInitializer filename, Options options = Options());
+  explicit FdWriter(PathInitializer filename,
+                    const Options& options = Options());
 
   // Opens a file for writing, with the filename interpreted relatively to the
   // directory specified by an existing fd.
@@ -544,7 +549,7 @@ class FdWriter : public FdWriterBase {
                                  std::is_default_constructible<DependentDest>>,
                              int> = 0>
   explicit FdWriter(UnownedFd dir_fd, PathRef filename,
-                    Options options = Options());
+                    const Options& options = Options());
 
   FdWriter(FdWriter&& that) = default;
   FdWriter& operator=(FdWriter&& that) = default;
@@ -553,25 +558,25 @@ class FdWriter : public FdWriterBase {
   // constructing a temporary `FdWriter` and moving from it.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Closed);
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Initializer<Dest> dest,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <
       typename DependentDest = Dest,
       std::enable_if_t<std::is_constructible_v<DependentDest, int>, int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(int dest,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <typename DependentDest = Dest,
             std::enable_if_t<std::conjunction_v<FdSupportsOpen<DependentDest>,
                                                 SupportsReset<DependentDest>>,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(PathInitializer filename,
-                                          Options options = Options());
+                                          const Options& options = Options());
   template <typename DependentDest = Dest,
             std::enable_if_t<std::conjunction_v<FdSupportsOpenAt<DependentDest>,
                                                 SupportsReset<DependentDest>>,
                              int> = 0>
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(UnownedFd dir_fd,
                                           PathInitializer filename,
-                                          Options options = Options());
+                                          const Options& options = Options());
 
   // Returns the object providing and possibly owning the fd being written to.
   // Unchanged by `Close()`.
@@ -597,10 +602,10 @@ class FdWriter : public FdWriterBase {
  private:
   template <typename DependentDest = Dest,
             std::enable_if_t<FdSupportsOpen<DependentDest>::value, int> = 0>
-  void OpenImpl(PathInitializer filename, Options&& options);
+  void OpenImpl(PathInitializer filename, const Options& options);
   template <typename DependentDest = Dest,
             std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int> = 0>
-  void OpenAtImpl(UnownedFd dir_fd, PathRef filename, Options&& options);
+  void OpenAtImpl(UnownedFd dir_fd, PathRef filename, const Options& options);
 
   // The object providing and possibly owning the fd being written to.
   Dependency<FdHandle, Dest> dest_;
@@ -608,15 +613,15 @@ class FdWriter : public FdWriterBase {
 
 explicit FdWriter(Closed) -> FdWriter<DeleteCtad<Closed>>;
 template <typename Dest>
-explicit FdWriter(Dest&& dest,
-                  FdWriterBase::Options options = FdWriterBase::Options())
+explicit FdWriter(
+    Dest&& dest, const FdWriterBase::Options& options = FdWriterBase::Options())
     -> FdWriter<std::conditional_t<
         std::disjunction_v<std::is_convertible<Dest&&, int>,
                            std::is_convertible<Dest&&, PathInitializer>>,
         OwnedFd, TargetT<Dest>>>;
 explicit FdWriter(UnownedFd dir_fd, PathRef filename,
-                  FdWriterBase::Options options = FdWriterBase::Options())
-    -> FdWriter<OwnedFd>;
+                  const FdWriterBase::Options& options =
+                      FdWriterBase::Options()) -> FdWriter<OwnedFd>;
 
 // Implementation details follow.
 
@@ -685,17 +690,17 @@ inline void FdWriterBase::Reset(BufferOptions buffer_options) {
 }
 
 template <typename Dest>
-inline FdWriter<Dest>::FdWriter(Initializer<Dest> dest, Options options)
+inline FdWriter<Dest>::FdWriter(Initializer<Dest> dest, const Options& options)
     : FdWriterBase(options.buffer_options()), dest_(std::move(dest)) {
-  Initialize(dest_.get().get(), std::move(options));
+  Initialize(dest_.get().get(), options);
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_constructible_v<DependentDest, int>, int>>
 inline FdWriter<Dest>::FdWriter(int dest ABSL_ATTRIBUTE_LIFETIME_BOUND,
-                                Options options)
-    : FdWriter(riegeli::Maker(dest), std::move(options)) {}
+                                const Options& options)
+    : FdWriter(riegeli::Maker(dest), options) {}
 
 template <typename Dest>
 template <typename DependentDest,
@@ -703,9 +708,10 @@ template <typename DependentDest,
               std::conjunction_v<FdSupportsOpen<DependentDest>,
                                  std::is_default_constructible<DependentDest>>,
               int>>
-inline FdWriter<Dest>::FdWriter(PathInitializer filename, Options options)
+inline FdWriter<Dest>::FdWriter(PathInitializer filename,
+                                const Options& options)
     : FdWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
-  OpenImpl(std::move(filename), std::move(options));
+  OpenImpl(std::move(filename), options);
 }
 
 template <typename Dest>
@@ -715,9 +721,9 @@ template <typename DependentDest,
                                  std::is_default_constructible<DependentDest>>,
               int>>
 inline FdWriter<Dest>::FdWriter(UnownedFd dir_fd, PathRef filename,
-                                Options options)
+                                const Options& options)
     : FdWriterBase(options.buffer_options()), dest_(riegeli::Maker()) {
-  OpenAtImpl(std::move(dir_fd), filename, std::move(options));
+  OpenAtImpl(std::move(dir_fd), filename, options);
 }
 
 template <typename Dest>
@@ -727,17 +733,18 @@ inline void FdWriter<Dest>::Reset(Closed) {
 }
 
 template <typename Dest>
-inline void FdWriter<Dest>::Reset(Initializer<Dest> dest, Options options) {
+inline void FdWriter<Dest>::Reset(Initializer<Dest> dest,
+                                  const Options& options) {
   FdWriterBase::Reset(options.buffer_options());
   dest_.Reset(std::move(dest));
-  Initialize(dest_.get().get(), std::move(options));
+  Initialize(dest_.get().get(), options);
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_constructible_v<DependentDest, int>, int>>
-inline void FdWriter<Dest>::Reset(int dest, Options options) {
-  Reset(riegeli::Maker(dest), std::move(options));
+inline void FdWriter<Dest>::Reset(int dest, const Options& options) {
+  Reset(riegeli::Maker(dest), options);
 }
 
 template <typename Dest>
@@ -745,12 +752,13 @@ template <typename DependentDest,
           std::enable_if_t<std::conjunction_v<FdSupportsOpen<DependentDest>,
                                               SupportsReset<DependentDest>>,
                            int>>
-inline void FdWriter<Dest>::Reset(PathInitializer filename, Options options) {
+inline void FdWriter<Dest>::Reset(PathInitializer filename,
+                                  const Options& options) {
   // In case `filename` is owned by `dest_` and gets invalidated.
   std::string filename_copy = std::move(filename);
   riegeli::Reset(dest_.manager());
   FdWriterBase::Reset(options.buffer_options());
-  OpenImpl(std::move(filename_copy), std::move(options));
+  OpenImpl(std::move(filename_copy), options);
 }
 
 template <typename Dest>
@@ -759,18 +767,19 @@ template <typename DependentDest,
                                               SupportsReset<DependentDest>>,
                            int>>
 inline void FdWriter<Dest>::Reset(UnownedFd dir_fd, PathInitializer filename,
-                                  Options options) {
+                                  const Options& options) {
   // In case `filename` is owned by `dest_` and gets invalidated.
   std::string filename_copy = std::move(filename);
   riegeli::Reset(dest_.manager());
   FdWriterBase::Reset(options.buffer_options());
-  OpenAtImpl(dir_fd, filename_copy, std::move(options));
+  OpenAtImpl(dir_fd, filename_copy, options);
 }
 
 template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<FdSupportsOpen<DependentDest>::value, int>>
-void FdWriter<Dest>::OpenImpl(PathInitializer filename, Options&& options) {
+void FdWriter<Dest>::OpenImpl(PathInitializer filename,
+                              const Options& options) {
   absl::Status status = dest_.manager().Open(
       std::move(filename), options.mode(), options.permissions());
   if (ABSL_PREDICT_FALSE(!status.ok())) {
@@ -778,7 +787,7 @@ void FdWriter<Dest>::OpenImpl(PathInitializer filename, Options&& options) {
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(dest_.get().get(), std::move(options),
+  InitializePos(dest_.get().get(), options,
                 /*mode_was_passed_to_open=*/true);
 }
 
@@ -786,7 +795,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<FdSupportsOpenAt<DependentDest>::value, int>>
 void FdWriter<Dest>::OpenAtImpl(UnownedFd dir_fd, PathRef filename,
-                                Options&& options) {
+                                const Options& options) {
   absl::Status status =
       dest_.manager().OpenAt(std::move(dir_fd), absl::string_view(filename),
                              options.mode(), options.permissions());
@@ -795,7 +804,7 @@ void FdWriter<Dest>::OpenAtImpl(UnownedFd dir_fd, PathRef filename,
     FailWithoutAnnotation(std::move(status));
     return;
   }
-  InitializePos(dest_.get().get(), std::move(options),
+  InitializePos(dest_.get().get(), options,
                 /*mode_was_passed_to_open=*/true);
 }
 

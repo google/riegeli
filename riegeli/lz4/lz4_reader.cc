@@ -336,7 +336,7 @@ std::unique_ptr<Reader> Lz4ReaderBase::NewReaderImpl(Position initial_pos) {
 namespace lz4_internal {
 
 inline bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info,
-                         const RecyclingPoolOptions& recycling_pool_options) {
+                         RecyclingPoolOptions recycling_pool_options) {
   using LZ4F_dctxDeleter = Lz4ReaderBase::LZ4F_dctxDeleter;
   RecyclingPool<LZ4F_dctx, LZ4F_dctxDeleter>::Handle decompressor;
   {
@@ -372,14 +372,13 @@ inline bool GetFrameInfo(Reader& src, LZ4F_frameInfo_t& frame_info,
 
 }  // namespace lz4_internal
 
-bool RecognizeLz4(Reader& src,
-                  const RecyclingPoolOptions& recycling_pool_options) {
+bool RecognizeLz4(Reader& src, RecyclingPoolOptions recycling_pool_options) {
   LZ4F_frameInfo_t frame_info;
   return lz4_internal::GetFrameInfo(src, frame_info, recycling_pool_options);
 }
 
 std::optional<Position> Lz4UncompressedSize(
-    Reader& src, const RecyclingPoolOptions& recycling_pool_options) {
+    Reader& src, RecyclingPoolOptions recycling_pool_options) {
   LZ4F_frameInfo_t frame_info;
   if (!lz4_internal::GetFrameInfo(src, frame_info, recycling_pool_options)) {
     return std::nullopt;

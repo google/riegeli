@@ -34,6 +34,9 @@ class BufferOptions {
  public:
   BufferOptions() noexcept {}
 
+  BufferOptions(const BufferOptions& that) = default;
+  BufferOptions& operator=(const BufferOptions& that) = default;
+
   // Tunes the minimal buffer size, which determines how much data at a time is
   // typically read from the source / written to the destination.
   //

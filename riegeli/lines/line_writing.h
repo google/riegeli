@@ -36,6 +36,9 @@ class WriteLineOptions {
  public:
   WriteLineOptions() noexcept {}
 
+  WriteLineOptions(const WriteLineOptions& that) = default;
+  WriteLineOptions& operator=(const WriteLineOptions& that) = default;
+
   // Options can also be specified by the line terminator alone.
   /*implicit*/ WriteLineOptions(WriteNewline newline) : newline_(newline) {}
 

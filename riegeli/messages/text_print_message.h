@@ -35,6 +35,9 @@ class TextPrintMessageOptions {
  public:
   TextPrintMessageOptions() noexcept {}
 
+  TextPrintMessageOptions(TextPrintMessageOptions&& that) = default;
+  TextPrintMessageOptions& operator=(TextPrintMessageOptions&& that) = default;
+
   // If `false`, all required fields must be set. This is verified in debug
   // mode.
   //

@@ -44,6 +44,9 @@ class CompressorOptions {
  public:
   CompressorOptions() noexcept {}
 
+  CompressorOptions(const CompressorOptions& that) = default;
+  CompressorOptions& operator=(const CompressorOptions& that) = default;
+
   // Parses options from text:
   // ```
   //   options ::= option? ("," option?)*

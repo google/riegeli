@@ -51,6 +51,9 @@ class StringWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `false`, replaces existing contents of the destination, clearing it
     // first.
     //
@@ -395,7 +398,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, std::string>, int>>
 inline StringWriter<Dest>::StringWriter(Options options)
-    : StringWriter(riegeli::Maker(), std::move(options)) {}
+    : StringWriter(riegeli::Maker(), options) {}
 
 template <typename Dest>
 inline void StringWriter<Dest>::Reset(Closed) {
@@ -414,7 +417,7 @@ template <typename Dest>
 template <typename DependentDest,
           std::enable_if_t<std::is_same_v<DependentDest, std::string>, int>>
 inline void StringWriter<Dest>::Reset(Options options) {
-  Reset(riegeli::Maker(), std::move(options));
+  Reset(riegeli::Maker(), options);
 }
 
 }  // namespace riegeli

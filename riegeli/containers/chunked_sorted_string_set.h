@@ -58,6 +58,9 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // Tunes the number of elements encoded together. A larger `chunk_size`
     // reduces memory usage, but the time complexity of lookups is roughly
     // proportional to `chunk_size`.
@@ -105,6 +108,9 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   class DecodeOptions {
    public:
     DecodeOptions() noexcept {}
+
+    DecodeOptions(const DecodeOptions& that) = default;
+    DecodeOptions& operator=(const DecodeOptions& that) = default;
 
     // If `false`, performs partial validation of the structure of data, which
     // is sufficient to prevent undefined behavior when the set is used. The
@@ -658,7 +664,7 @@ ChunkedSortedStringSet ChunkedSortedStringSet::FromSorted(Src&& src,
   if (IsRandomAccessIterable<Src>::value) {
     options.set_size_hint(std::distance(iter, end_iter));
   }
-  ChunkedSortedStringSet::Builder builder(std::move(options));
+  ChunkedSortedStringSet::Builder builder(options);
   for (; iter != end_iter; ++iter) {
     builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }
@@ -686,7 +692,7 @@ inline ChunkedSortedStringSet ChunkedSortedStringSet::FromUnsorted(
             });
 
   options.set_size_hint(iterators.size());
-  ChunkedSortedStringSet::Builder builder(std::move(options));
+  ChunkedSortedStringSet::Builder builder(options);
   for (const SrcIterator& iter : iterators) {
     builder.InsertNext(*MaybeMakeMoveIterator<Src>(iter));
   }

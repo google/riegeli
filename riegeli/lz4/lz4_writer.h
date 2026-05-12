@@ -53,6 +53,12 @@ class Lz4WriterBase : public BufferedWriter {
           << "Unexpected value of LZ4F_compressionLevel_max()";
     }
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
+    Options(Options&& that) = default;
+    Options& operator=(Options&& that) = default;
+
     // Tunes the tradeoff between compression density and compression speed
     // (higher = better density but slower).
     //
@@ -220,13 +226,13 @@ class Lz4WriterBase : public BufferedWriter {
     //
     // Default: `RecyclingPoolOptions()`.
     Options& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &
+        RecyclingPoolOptions recycling_pool_options) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       recycling_pool_options_ = recycling_pool_options;
       return *this;
     }
     Options&& set_recycling_pool_options(
-        const RecyclingPoolOptions& recycling_pool_options) &&
+        RecyclingPoolOptions recycling_pool_options) &&
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       return std::move(set_recycling_pool_options(recycling_pool_options));
     }
@@ -258,7 +264,7 @@ class Lz4WriterBase : public BufferedWriter {
                          Lz4Dictionary&& dictionary,
                          std::optional<Position> pledged_size,
                          bool reserve_max_size,
-                         const RecyclingPoolOptions& recycling_pool_options);
+                         RecyclingPoolOptions recycling_pool_options);
 
   Lz4WriterBase(Lz4WriterBase&& that) noexcept;
   Lz4WriterBase& operator=(Lz4WriterBase&& that) noexcept;
@@ -266,7 +272,7 @@ class Lz4WriterBase : public BufferedWriter {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, Lz4Dictionary&& dictionary,
              std::optional<Position> pledged_size, bool reserve_max_size,
-             const RecyclingPoolOptions& recycling_pool_options);
+             RecyclingPoolOptions recycling_pool_options);
   void Initialize(Writer* dest, int compression_level, int window_log,
                   bool store_content_checksum, bool store_block_checksum);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
@@ -369,10 +375,11 @@ explicit Lz4Writer(Dest&& dest,
 
 // Implementation details follow.
 
-inline Lz4WriterBase::Lz4WriterBase(
-    BufferOptions buffer_options, Lz4Dictionary&& dictionary,
-    std::optional<Position> pledged_size, bool reserve_max_size,
-    const RecyclingPoolOptions& recycling_pool_options)
+inline Lz4WriterBase::Lz4WriterBase(BufferOptions buffer_options,
+                                    Lz4Dictionary&& dictionary,
+                                    std::optional<Position> pledged_size,
+                                    bool reserve_max_size,
+                                    RecyclingPoolOptions recycling_pool_options)
     : BufferedWriter(buffer_options),
       dictionary_(std::move(dictionary)),
       pledged_size_(pledged_size),
@@ -422,10 +429,11 @@ inline void Lz4WriterBase::Reset(Closed) {
   associated_reader_.Reset();
 }
 
-inline void Lz4WriterBase::Reset(
-    BufferOptions buffer_options, Lz4Dictionary&& dictionary,
-    std::optional<Position> pledged_size, bool reserve_max_size,
-    const RecyclingPoolOptions& recycling_pool_options) {
+inline void Lz4WriterBase::Reset(BufferOptions buffer_options,
+                                 Lz4Dictionary&& dictionary,
+                                 std::optional<Position> pledged_size,
+                                 bool reserve_max_size,
+                                 RecyclingPoolOptions recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   pledged_size_ = pledged_size;
   reserve_max_size_ = reserve_max_size;

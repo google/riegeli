@@ -86,6 +86,9 @@ class ReaderIStreamBase : public std::istream {
   class Options {
    public:
     Options() noexcept {}
+
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
   };
 
   // Returns the `Reader`. Unchanged by `close()`.

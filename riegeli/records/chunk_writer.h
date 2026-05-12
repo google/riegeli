@@ -123,6 +123,9 @@ class DefaultChunkWriterBase : public ChunkWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // File position assumed initially.
     //
     // This can be used to prepare a file fragment which can be appended to the

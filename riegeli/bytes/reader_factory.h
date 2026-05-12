@@ -36,7 +36,13 @@ namespace riegeli {
 // Template parameter independent part of `ReaderFactory`.
 class ReaderFactoryBase : public Object {
  public:
-  class Options : public BufferOptionsBase<Options> {};
+  class Options : public BufferOptionsBase<Options> {
+   public:
+    Options() noexcept {}
+
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+  };
 
   // Returns the original `Reader`. Unchanged by `Close()`.
   virtual Reader* SrcReader() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;

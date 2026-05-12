@@ -56,6 +56,9 @@ class GcsReader
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     static constexpr size_t kDefaultMinBufferSize = size_t{64} << 10;
     static constexpr size_t kDefaultMaxBufferSize = size_t{1} << 20;
   };
@@ -172,8 +175,7 @@ class GcsReader
   }
 
   template <typename... ReadObjectOptions>
-  void Initialize(const Options& options,
-                  ReadObjectOptions&&... read_object_options);
+  void Initialize(Options options, ReadObjectOptions&&... read_object_options);
   void Initialize(google::cloud::storage::ObjectReadStream stream,
                   BufferOptions buffer_options,
                   const RangeOptions& range_options);
@@ -238,7 +240,7 @@ void GcsReader::Reset(const google::cloud::storage::Client& client,
 }
 
 template <typename... ReadObjectOptions>
-inline void GcsReader::Initialize(const Options& options,
+inline void GcsReader::Initialize(Options options,
                                   ReadObjectOptions&&... read_object_options) {
   if (ABSL_PREDICT_FALSE(!object_.ok())) {
     Fail(object_.status());

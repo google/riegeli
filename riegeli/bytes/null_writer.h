@@ -24,7 +24,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/buffer.h"
-#include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -43,6 +42,9 @@ class NullWriter : public Writer {
   class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {}
+
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
 
     // `NullWriter` has a smaller default buffer size (1024) so that writing
     // larger values is skipped altogether.

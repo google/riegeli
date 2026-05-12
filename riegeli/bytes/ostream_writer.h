@@ -50,6 +50,9 @@ class OStreamWriterBase : public BufferedWriter {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // If `std::nullopt`, the current position reported by `pos()` corresponds
     // to the current stream position if possible, otherwise 0 is assumed as the
     // initial position. Random access is supported if the stream supports

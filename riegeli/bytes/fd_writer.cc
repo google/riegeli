@@ -58,10 +58,10 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
+#include "riegeli/base/byte_fill.h"
 #ifdef _WIN32
 #include "riegeli/base/errno_mapping.h"
 #endif
-#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_id.h"
@@ -77,13 +77,13 @@ namespace riegeli {
 
 TypeId FdWriterBase::GetTypeId() const { return TypeId::For<FdWriterBase>(); }
 
-void FdWriterBase::Initialize(int dest, Options&& options) {
+void FdWriterBase::Initialize(int dest, const Options& options) {
   RIEGELI_ASSERT_GE(dest, 0)
       << "Failed precondition of FdWriter: negative file descriptor";
-  InitializePos(dest, std::move(options), /*mode_was_passed_to_open=*/false);
+  InitializePos(dest, options, /*mode_was_passed_to_open=*/false);
 }
 
-void FdWriterBase::InitializePos(int dest, Options&& options,
+void FdWriterBase::InitializePos(int dest, const Options& options,
                                  bool mode_was_passed_to_open) {
   RIEGELI_ASSERT(!has_independent_pos_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
@@ -100,29 +100,31 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
   RIEGELI_ASSERT_OK(read_mode_status_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
+#ifdef _WIN32
+  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
+      << "Failed precondition of FdWriterBase::InitializePos(): "
+         "original_mode_ not reset";
+#endif  // _WIN32
+  int mode = options.mode();
 #ifndef _WIN32
   if (!mode_was_passed_to_open) {
-    const int mode = fcntl(dest, F_GETFL);
+    mode = fcntl(dest, F_GETFL);
     if (ABSL_PREDICT_FALSE(mode < 0)) {
       FailOperation("fcntl()");
       return;
     }
-    options.set_mode(mode);
   }
-  if ((options.mode() & O_ACCMODE) != O_RDWR) {
+  if ((mode & O_ACCMODE) != O_RDWR) {
     supports_read_mode_ = LazyBoolState::kFalse;
     read_mode_status_ = Global([] {
       return absl::UnimplementedError("Mode does not include O_RDWR");
     });
   }
 #else   // _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
-      << "Failed precondition of FdWriterBase::InitializePos(): "
-         "original_mode_ not reset";
-  int text_mode = options.mode() &
-                  (_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT);
+  int text_mode =
+      mode & (_O_BINARY | _O_TEXT | _O_WTEXT | _O_U16TEXT | _O_U8TEXT);
   if (mode_was_passed_to_open) {
-    if ((options.mode() & (_O_RDONLY | _O_WRONLY | _O_RDWR)) != _O_RDWR) {
+    if ((mode & (_O_RDONLY | _O_WRONLY | _O_RDWR)) != _O_RDWR) {
       supports_read_mode_ = LazyBoolState::kFalse;
       read_mode_status_ = Global([] {
         return absl::UnimplementedError("Mode does not include _O_RDWR");
@@ -136,7 +138,10 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     }
     original_mode_ = original_mode;
   }
-  if (options.assumed_pos() == std::nullopt) {
+#endif  // _WIN32
+  std::optional<Position> assumed_pos = options.assumed_pos();
+#ifdef _WIN32
+  if (assumed_pos == std::nullopt) {
     if (text_mode == 0) {
       // There is no `_getmode()`, but `_setmode()` returns the previous mode.
       text_mode = _setmode(dest, _O_BINARY);
@@ -155,11 +160,11 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
             "FdWriterBase::Options::independent_pos() requires binary mode"));
         return;
       }
-      options.set_assumed_pos(0);
+      assumed_pos = 0;
     }
   }
 #endif  // _WIN32
-  if (options.assumed_pos() != std::nullopt) {
+  if (assumed_pos != std::nullopt) {
     if (ABSL_PREDICT_FALSE(options.independent_pos() != std::nullopt)) {
       Fail(absl::InvalidArgumentError(
           "FdWriterBase::Options::assumed_pos() and independent_pos() "
@@ -167,12 +172,12 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
       return;
     }
     if (ABSL_PREDICT_FALSE(
-            *options.assumed_pos() >
+            *assumed_pos >
             Position{std::numeric_limits<fd_internal::Offset>::max()})) {
       FailOverflow();
       return;
     }
-    set_start_pos(*options.assumed_pos());
+    set_start_pos(*assumed_pos);
     supports_random_access_ = LazyBoolState::kFalse;
     supports_read_mode_ = LazyBoolState::kFalse;
     random_access_status_ = Global([] {
@@ -181,7 +186,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     });
     read_mode_status_.Update(random_access_status_);
   } else if (options.independent_pos() != std::nullopt) {
-    if (ABSL_PREDICT_FALSE((options.mode() & O_APPEND) != 0)) {
+    if (ABSL_PREDICT_FALSE((mode & O_APPEND) != 0)) {
       Fail(
           absl::InvalidArgumentError("FdWriterBase::Options::independent_pos() "
                                      "is incompatible with append mode"));
@@ -205,7 +210,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
     }
   } else {
     const fd_internal::Offset file_pos = fd_internal::LSeek(
-        dest, 0, (options.mode() & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
+        dest, 0, (mode & O_APPEND) != 0 ? SEEK_END : SEEK_CUR);
     if (file_pos < 0) {
       // Random access is not supported. Assume 0 as the initial position.
       supports_random_access_ = LazyBoolState::kFalse;
@@ -216,7 +221,7 @@ void FdWriterBase::InitializePos(int dest, Options&& options,
       return;
     }
     set_start_pos(IntCast<Position>(file_pos));
-    if ((options.mode() & O_APPEND) != 0) {
+    if ((mode & O_APPEND) != 0) {
       // `fd_internal::LSeek(SEEK_END)` succeeded.
       supports_random_access_ = LazyBoolState::kFalse;
       if (

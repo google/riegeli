@@ -48,6 +48,9 @@ class LimitingWriterBase : public Writer {
    public:
     Options() noexcept {}
 
+    Options(const Options& that) = default;
+    Options& operator=(const Options& that) = default;
+
     // The limit expressed as an absolute position.
     //
     // `std::nullopt` means no limit, unless `max_length()` is set.
@@ -163,7 +166,7 @@ class LimitingWriterBase : public Writer {
 
   void Reset(Closed);
   void Reset(bool exact);
-  void Initialize(Writer* dest, const Options& options, bool is_owning);
+  void Initialize(Writer* dest, Options options, bool is_owning);
   bool exact() const { return exact_; }
 
   // Sets cursor of `dest` to cursor of `*this`. Fails `*this` if the limit is
