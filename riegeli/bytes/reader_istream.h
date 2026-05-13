@@ -324,7 +324,9 @@ class ReaderIStream<Src>::Mover {
 };
 
 template <typename Src>
-inline ReaderIStream<Src>::ReaderIStream(Initializer<Src> src, Options options)
+inline ReaderIStream<Src>::ReaderIStream(Initializer<Src> src,
+                                         Options /*options*/
+                                         )
     : src_(std::move(src)) {
   Initialize(src_.get());
 }
@@ -336,7 +338,8 @@ inline void ReaderIStream<Src>::Reset(Closed) {
 }
 
 template <typename Src>
-inline void ReaderIStream<Src>::Reset(Initializer<Src> src, Options options) {
+inline void ReaderIStream<Src>::Reset(Initializer<Src> src, Options /*options*/
+) {
   ReaderIStreamBase::Reset();
   src_.Reset(std::move(src));
   Initialize(src_.get());

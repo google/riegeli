@@ -170,7 +170,7 @@ class Lz4ReaderBase : public BufferedReader {
   explicit Lz4ReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit Lz4ReaderBase(BufferOptions buffer_options, bool growing_source,
-                         bool concatenate, Lz4Dictionary&& dictionary,
+                         bool concatenate, Lz4Dictionary dictionary,
                          RecyclingPoolOptions recycling_pool_options);
 
   Lz4ReaderBase(Lz4ReaderBase&& that) noexcept;
@@ -178,7 +178,7 @@ class Lz4ReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source,
-             bool concatenate, Lz4Dictionary&& dictionary,
+             bool concatenate, Lz4Dictionary dictionary,
              RecyclingPoolOptions recycling_pool_options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
@@ -308,7 +308,7 @@ std::optional<Position> Lz4UncompressedSize(
 
 inline Lz4ReaderBase::Lz4ReaderBase(BufferOptions buffer_options,
                                     bool growing_source, bool concatenate,
-                                    Lz4Dictionary&& dictionary,
+                                    Lz4Dictionary dictionary,
                                     RecyclingPoolOptions recycling_pool_options)
     : BufferedReader(buffer_options),
       growing_source_(growing_source),
@@ -354,7 +354,7 @@ inline void Lz4ReaderBase::Reset(Closed) {
 
 inline void Lz4ReaderBase::Reset(BufferOptions buffer_options,
                                  bool growing_source, bool concatenate,
-                                 Lz4Dictionary&& dictionary,
+                                 Lz4Dictionary dictionary,
                                  RecyclingPoolOptions recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;

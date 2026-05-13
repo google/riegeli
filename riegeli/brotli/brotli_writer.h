@@ -162,15 +162,15 @@ class BrotliWriterBase : public BufferedWriter {
   explicit BrotliWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit BrotliWriterBase(BufferOptions buffer_options,
-                            BrotliDictionary&& dictionary,
-                            BrotliAllocator&& allocator);
+                            BrotliDictionary dictionary,
+                            BrotliAllocator allocator);
 
   BrotliWriterBase(BrotliWriterBase&& that) noexcept;
   BrotliWriterBase& operator=(BrotliWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(BufferOptions buffer_options, BrotliDictionary&& dictionary,
-             BrotliAllocator&& allocator);
+  void Reset(BufferOptions buffer_options, BrotliDictionary dictionary,
+             BrotliAllocator allocator);
   void Initialize(Writer* dest, int compression_level, int window_log);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverDest(absl::Status status);
 
@@ -262,8 +262,8 @@ explicit BrotliWriter(Dest&& dest, BrotliWriterBase::Options options =
 // Implementation details follow.
 
 inline BrotliWriterBase::BrotliWriterBase(BufferOptions buffer_options,
-                                          BrotliDictionary&& dictionary,
-                                          BrotliAllocator&& allocator)
+                                          BrotliDictionary dictionary,
+                                          BrotliAllocator allocator)
     : BufferedWriter(buffer_options),
       dictionary_(std::move(dictionary)),
       allocator_(std::move(allocator)) {}
@@ -299,8 +299,8 @@ inline void BrotliWriterBase::Reset(Closed) {
 }
 
 inline void BrotliWriterBase::Reset(BufferOptions buffer_options,
-                                    BrotliDictionary&& dictionary,
-                                    BrotliAllocator&& allocator) {
+                                    BrotliDictionary dictionary,
+                                    BrotliAllocator allocator) {
   BufferedWriter::Reset(buffer_options);
   initial_compressed_pos_ = 0;
   compressor_.reset();

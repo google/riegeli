@@ -260,8 +260,7 @@ class Lz4WriterBase : public BufferedWriter {
  protected:
   explicit Lz4WriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
-  explicit Lz4WriterBase(BufferOptions buffer_options,
-                         Lz4Dictionary&& dictionary,
+  explicit Lz4WriterBase(BufferOptions buffer_options, Lz4Dictionary dictionary,
                          std::optional<Position> pledged_size,
                          bool reserve_max_size,
                          RecyclingPoolOptions recycling_pool_options);
@@ -270,7 +269,7 @@ class Lz4WriterBase : public BufferedWriter {
   Lz4WriterBase& operator=(Lz4WriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(BufferOptions buffer_options, Lz4Dictionary&& dictionary,
+  void Reset(BufferOptions buffer_options, Lz4Dictionary dictionary,
              std::optional<Position> pledged_size, bool reserve_max_size,
              RecyclingPoolOptions recycling_pool_options);
   void Initialize(Writer* dest, int compression_level, int window_log,
@@ -281,7 +280,7 @@ class Lz4WriterBase : public BufferedWriter {
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateStatusImpl(
       absl::Status status) override;
   bool WriteInternal(absl::string_view src) override;
-  bool FlushImpl(FlushType flush_type);
+  bool FlushImpl(FlushType flush_type) override;
   Reader* ReadModeBehindBuffer(Position initial_pos) override;
 
  private:
@@ -376,7 +375,7 @@ explicit Lz4Writer(Dest&& dest,
 // Implementation details follow.
 
 inline Lz4WriterBase::Lz4WriterBase(BufferOptions buffer_options,
-                                    Lz4Dictionary&& dictionary,
+                                    Lz4Dictionary dictionary,
                                     std::optional<Position> pledged_size,
                                     bool reserve_max_size,
                                     RecyclingPoolOptions recycling_pool_options)
@@ -430,7 +429,7 @@ inline void Lz4WriterBase::Reset(Closed) {
 }
 
 inline void Lz4WriterBase::Reset(BufferOptions buffer_options,
-                                 Lz4Dictionary&& dictionary,
+                                 Lz4Dictionary dictionary,
                                  std::optional<Position> pledged_size,
                                  bool reserve_max_size,
                                  RecyclingPoolOptions recycling_pool_options) {

@@ -183,7 +183,7 @@ class ZlibWriterBase : public BufferedWriter {
   explicit ZlibWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit ZlibWriterBase(BufferOptions buffer_options, int window_bits,
-                          ZlibDictionary&& dictionary,
+                          ZlibDictionary dictionary,
                           RecyclingPoolOptions recycling_pool_options);
 
   ZlibWriterBase(ZlibWriterBase&& that) noexcept;
@@ -191,7 +191,7 @@ class ZlibWriterBase : public BufferedWriter {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, int window_bits,
-             ZlibDictionary&& dictionary,
+             ZlibDictionary dictionary,
              RecyclingPoolOptions recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Writer* dest, int compression_level);
@@ -305,7 +305,7 @@ explicit ZlibWriter(Dest&& dest,
 // Implementation details follow.
 
 inline ZlibWriterBase::ZlibWriterBase(
-    BufferOptions buffer_options, int window_bits, ZlibDictionary&& dictionary,
+    BufferOptions buffer_options, int window_bits, ZlibDictionary dictionary,
     RecyclingPoolOptions recycling_pool_options)
     : BufferedWriter(buffer_options),
       window_bits_(window_bits),
@@ -345,7 +345,7 @@ inline void ZlibWriterBase::Reset(Closed) {
 }
 
 inline void ZlibWriterBase::Reset(BufferOptions buffer_options, int window_bits,
-                                  ZlibDictionary&& dictionary,
+                                  ZlibDictionary dictionary,
                                   RecyclingPoolOptions recycling_pool_options) {
   BufferedWriter::Reset(buffer_options);
   window_bits_ = window_bits;

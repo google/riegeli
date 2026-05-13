@@ -291,7 +291,7 @@ class ZstdWriterBase : public BufferedWriter {
   explicit ZstdWriterBase(Closed) noexcept : BufferedWriter(kClosed) {}
 
   explicit ZstdWriterBase(BufferOptions buffer_options,
-                          ZstdDictionary&& dictionary,
+                          ZstdDictionary dictionary,
                           std::optional<Position> pledged_size,
                           bool reserve_max_size,
                           RecyclingPoolOptions recycling_pool_options);
@@ -300,7 +300,7 @@ class ZstdWriterBase : public BufferedWriter {
   ZstdWriterBase& operator=(ZstdWriterBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(BufferOptions buffer_options, ZstdDictionary&& dictionary,
+  void Reset(BufferOptions buffer_options, ZstdDictionary dictionary,
              std::optional<Position> pledged_size, bool reserve_max_size,
              RecyclingPoolOptions recycling_pool_options);
   void Initialize(Writer* dest, int compression_level, int window_log_or_0,
@@ -398,7 +398,7 @@ explicit ZstdWriter(Dest&& dest,
 // Implementation details follow.
 
 inline ZstdWriterBase::ZstdWriterBase(
-    BufferOptions buffer_options, ZstdDictionary&& dictionary,
+    BufferOptions buffer_options, ZstdDictionary dictionary,
     std::optional<Position> pledged_size, bool reserve_max_size,
     RecyclingPoolOptions recycling_pool_options)
     : BufferedWriter(buffer_options),
@@ -446,7 +446,7 @@ inline void ZstdWriterBase::Reset(Closed) {
 }
 
 inline void ZstdWriterBase::Reset(BufferOptions buffer_options,
-                                  ZstdDictionary&& dictionary,
+                                  ZstdDictionary dictionary,
                                   std::optional<Position> pledged_size,
                                   bool reserve_max_size,
                                   RecyclingPoolOptions recycling_pool_options) {

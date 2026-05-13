@@ -332,7 +332,8 @@ class WriterOStream<Dest>::Mover {
 
 template <typename Dest>
 inline WriterOStream<Dest>::WriterOStream(Initializer<Dest> dest,
-                                          Options options)
+                                          Options /*options*/
+                                          )
     : dest_(std::move(dest)) {
   Initialize(dest_.get());
 }
@@ -345,7 +346,8 @@ inline void WriterOStream<Dest>::Reset(Closed) {
 
 template <typename Dest>
 inline void WriterOStream<Dest>::Reset(Initializer<Dest> dest,
-                                       Options options) {
+                                       Options /*options*/
+) {
   WriterOStreamBase::Reset();
   dest_.Reset(std::move(dest));
   Initialize(dest_.get());

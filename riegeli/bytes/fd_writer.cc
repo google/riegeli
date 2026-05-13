@@ -237,7 +237,7 @@ void FdWriterBase::InitializePos(int dest, const Options& options,
     } else {
       // `fd_internal::LSeek(SEEK_CUR)` succeeded, and
       // `fd_internal::LSeek(SEEK_END)` will be checked later.
-      //  `supports_random_access_` and `supports_read_mode_` are left as
+      // `supports_random_access_` and `supports_read_mode_` are left as
       // `LazyBoolState::kUnknown`.
     }
   }

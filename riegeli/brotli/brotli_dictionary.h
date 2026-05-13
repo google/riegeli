@@ -133,7 +133,7 @@ class BrotliDictionary {
   // `BrotliEncoderPreparedDictionary` pointer. It can be used for compression
   // but not for decompression.
   //
-  // Does not take ownedship of `prepared, which must be valid until the last
+  // Does not take ownership of `prepared, which must be valid until the last
   // `BrotliReader` or `BrotliWriter` using this dictionary is closed or no
   // longer used.
   BrotliDictionary& add_native_unowned(

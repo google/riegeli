@@ -100,7 +100,7 @@ inline ZlibDictionary& ZlibDictionary::Reset() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
 inline ZlibDictionary& ZlibDictionary::set_data(BytesInitializer data) &
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   owned_data_.Reset(std::move(data));
-  data_ = owned_data_->data();
+  data_ = *owned_data_;
   return *this;
 }
 

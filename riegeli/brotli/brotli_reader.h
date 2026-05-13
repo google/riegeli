@@ -108,14 +108,14 @@ class BrotliReaderBase : public PullableReader {
  protected:
   explicit BrotliReaderBase(Closed) noexcept : PullableReader(kClosed) {}
 
-  explicit BrotliReaderBase(BrotliDictionary&& dictionary,
-                            BrotliAllocator&& allocator);
+  explicit BrotliReaderBase(BrotliDictionary dictionary,
+                            BrotliAllocator allocator);
 
   BrotliReaderBase(BrotliReaderBase&& that) noexcept;
   BrotliReaderBase& operator=(BrotliReaderBase&& that) noexcept;
 
   void Reset(Closed);
-  void Reset(BrotliDictionary&& dictionary, BrotliAllocator&& allocator);
+  void Reset(BrotliDictionary dictionary, BrotliAllocator allocator);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
 
@@ -211,8 +211,8 @@ explicit BrotliReader(
 
 // Implementation details follow.
 
-inline BrotliReaderBase::BrotliReaderBase(BrotliDictionary&& dictionary,
-                                          BrotliAllocator&& allocator)
+inline BrotliReaderBase::BrotliReaderBase(BrotliDictionary dictionary,
+                                          BrotliAllocator allocator)
     : dictionary_(std::move(dictionary)), allocator_(std::move(allocator)) {}
 
 inline BrotliReaderBase::BrotliReaderBase(BrotliReaderBase&& that) noexcept
@@ -245,8 +245,8 @@ inline void BrotliReaderBase::Reset(Closed) {
   allocator_ = BrotliAllocator();
 }
 
-inline void BrotliReaderBase::Reset(BrotliDictionary&& dictionary,
-                                    BrotliAllocator&& allocator) {
+inline void BrotliReaderBase::Reset(BrotliDictionary dictionary,
+                                    BrotliAllocator allocator) {
   PullableReader::Reset();
   initial_compressed_pos_ = 0;
   truncated_ = false;

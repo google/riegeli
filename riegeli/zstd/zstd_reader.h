@@ -158,7 +158,7 @@ class ZstdReaderBase : public BufferedReader {
   explicit ZstdReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZstdReaderBase(BufferOptions buffer_options, bool growing_source,
-                          bool concatenate, ZstdDictionary&& dictionary,
+                          bool concatenate, ZstdDictionary dictionary,
                           RecyclingPoolOptions recycling_pool_options);
 
   ZstdReaderBase(ZstdReaderBase&& that) noexcept;
@@ -166,7 +166,7 @@ class ZstdReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source,
-             bool concatenate, ZstdDictionary&& dictionary,
+             bool concatenate, ZstdDictionary dictionary,
              RecyclingPoolOptions recycling_pool_options);
   void Initialize(Reader* src);
   ABSL_ATTRIBUTE_COLD absl::Status AnnotateOverSrc(absl::Status status);
@@ -289,7 +289,7 @@ std::optional<uint32_t> ZstdDictId(Reader& src);
 
 inline ZstdReaderBase::ZstdReaderBase(
     BufferOptions buffer_options, bool growing_source, bool concatenate,
-    ZstdDictionary&& dictionary, RecyclingPoolOptions recycling_pool_options)
+    ZstdDictionary dictionary, RecyclingPoolOptions recycling_pool_options)
     : BufferedReader(buffer_options),
       growing_source_(growing_source),
       concatenate_(concatenate),
@@ -335,7 +335,7 @@ inline void ZstdReaderBase::Reset(Closed) {
 
 inline void ZstdReaderBase::Reset(BufferOptions buffer_options,
                                   bool growing_source, bool concatenate,
-                                  ZstdDictionary&& dictionary,
+                                  ZstdDictionary dictionary,
                                   RecyclingPoolOptions recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   growing_source_ = growing_source;

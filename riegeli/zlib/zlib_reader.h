@@ -188,7 +188,7 @@ class ZlibReaderBase : public BufferedReader {
   explicit ZlibReaderBase(Closed) noexcept : BufferedReader(kClosed) {}
 
   explicit ZlibReaderBase(BufferOptions buffer_options, int window_bits,
-                          bool concatenate, ZlibDictionary&& dictionary,
+                          bool concatenate, ZlibDictionary dictionary,
                           RecyclingPoolOptions recycling_pool_options);
 
   ZlibReaderBase(ZlibReaderBase&& that) noexcept;
@@ -196,7 +196,7 @@ class ZlibReaderBase : public BufferedReader {
 
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, int window_bits, bool concatenate,
-             ZlibDictionary&& dictionary,
+             ZlibDictionary dictionary,
              RecyclingPoolOptions recycling_pool_options);
   static int GetWindowBits(const Options& options);
   void Initialize(Reader* src);
@@ -334,7 +334,7 @@ std::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src);
 
 inline ZlibReaderBase::ZlibReaderBase(
     BufferOptions buffer_options, int window_bits, bool concatenate,
-    ZlibDictionary&& dictionary, RecyclingPoolOptions recycling_pool_options)
+    ZlibDictionary dictionary, RecyclingPoolOptions recycling_pool_options)
     : BufferedReader(buffer_options),
       window_bits_(window_bits),
       concatenate_(concatenate),
@@ -380,7 +380,7 @@ inline void ZlibReaderBase::Reset(Closed) {
 }
 
 inline void ZlibReaderBase::Reset(BufferOptions buffer_options, int window_bits,
-                                  bool concatenate, ZlibDictionary&& dictionary,
+                                  bool concatenate, ZlibDictionary dictionary,
                                   RecyclingPoolOptions recycling_pool_options) {
   BufferedReader::Reset(buffer_options);
   window_bits_ = window_bits;
