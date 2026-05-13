@@ -191,10 +191,10 @@ class MemoryEstimator {
   //  * `std::array<T, size>`
   //  * `std::vector<T, Alloc>` (`Alloc` is ignored)
   //  * `absl::InlinedVector<T, N, Alloc>` (`Alloc` is ignored)
-  //  * `absl::flat_hash_set<T, Eq, Hash, Alloc>` (`Alloc` is ignored)
-  //  * `absl::flat_hash_map<K, V, Eq, Hash, Alloc>` (`Alloc` is ignored)
-  //  * `absl::node_hash_set<T, Eq, Hash, Alloc>` (`Alloc` is ignored)
-  //  * `absl::node_hash_map<K, V, Eq, Hash, Alloc>` (`Alloc` is ignored)
+  //  * `absl::flat_hash_set<T, Hash, Eq, Alloc>` (`Alloc` is ignored)
+  //  * `absl::flat_hash_map<K, V, Hash, Eq, Alloc>` (`Alloc` is ignored)
+  //  * `absl::node_hash_set<T, Hash, Eq, Alloc>` (`Alloc` is ignored)
+  //  * `absl::node_hash_map<K, V, Hash, Eq, Alloc>` (`Alloc` is ignored)
   //  * `google::protobuf::Message`
   template <typename T>
   void RegisterSubobjects(const T* object);
@@ -596,44 +596,44 @@ inline void RiegeliRegisterSubobjects(
   memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
-template <typename T, typename Eq, typename Hash, typename Alloc>
+template <typename T, typename Hash, typename Eq, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::flat_hash_set<T, Eq, Hash, Alloc>* self,
+    const absl::flat_hash_set<T, Hash, Eq, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::flat_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(*self));
+          absl::flat_hash_set<T, Hash, Eq, Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
-template <typename K, typename V, typename Eq, typename Hash, typename Alloc>
+template <typename K, typename V, typename Hash, typename Eq, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::flat_hash_map<K, V, Eq, Hash, Alloc>* self,
+    const absl::flat_hash_map<K, V, Hash, Eq, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::flat_hash_map<K, V, Eq, Hash,
+          absl::flat_hash_map<K, V, Hash, Eq,
                               Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
-template <typename T, typename Eq, typename Hash, typename Alloc>
+template <typename T, typename Hash, typename Eq, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::node_hash_set<T, Eq, Hash, Alloc>* self,
+    const absl::node_hash_set<T, Hash, Eq, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::node_hash_set<T, Eq, Hash, Alloc>>::AllocatedByteSize(*self));
+          absl::node_hash_set<T, Hash, Eq, Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
 
-template <typename K, typename V, typename Eq, typename Hash, typename Alloc>
+template <typename K, typename V, typename Hash, typename Eq, typename Alloc>
 inline void RiegeliRegisterSubobjects(
-    const absl::node_hash_map<K, V, Eq, Hash, Alloc>* self,
+    const absl::node_hash_map<K, V, Hash, Eq, Alloc>* self,
     MemoryEstimator& memory_estimator) {
   memory_estimator.RegisterMemory(
       absl::container_internal::hashtable_debug_internal::HashtableDebugAccess<
-          absl::node_hash_map<K, V, Eq, Hash,
+          absl::node_hash_map<K, V, Hash, Eq,
                               Alloc>>::AllocatedByteSize(*self));
   memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
 }
