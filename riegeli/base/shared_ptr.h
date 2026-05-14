@@ -33,6 +33,8 @@
 #include "riegeli/base/new_aligned.h"
 #include "riegeli/base/ref_count.h"
 
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 // `SharedPtr<T>` implements shared ownership of an object of type `T`.
@@ -177,16 +179,18 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   }
 
   // Returns the pointer.
-  T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return ptr_.get(); }
+  T* absl_nullable get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return ptr_.get();
+  }
 
   // Dereferences the pointer.
   T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(ptr_, nullptr)
+    RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of SharedPtr::operator*: null pointer";
     return *ptr_;
   }
   T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(ptr_, nullptr)
+    RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of SharedPtr::operator->: null pointer";
     return ptr_.get();
   }
@@ -196,12 +200,12 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   //
   // If the returned pointer is `nullptr`, it allowed but not required to call
   // `DeleteReleased()`.
-  T* Release() { return ptr_.release(); }
+  T* absl_nullable Release() { return ptr_.release(); }
 
   // Deletes the pointer obtained by `Release()`.
   //
   // Does nothing if `ptr == nullptr`.
-  static void DeleteReleased(T* ptr) {
+  static void DeleteReleased(T* absl_nullable ptr) {
     if (ptr != nullptr) Unrefer()(ptr);
   }
 
@@ -216,7 +220,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   // Indicates support for:
   //  * `ExternalRef(const SharedPtr&, substr)`
   //  * `ExternalRef(SharedPtr&&, substr)`
-  friend void RiegeliSupportsExternalRef(const SharedPtr*) {}
+  friend void RiegeliSupportsExternalRef(const SharedPtr* absl_nullable) {}
 
   // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(SharedPtr* self) {
@@ -278,8 +282,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   }
 
   template <typename SubT>
-  static T* UpCast(SubT* ptr) {
-    T* const super_ptr = ptr;
+  static T* absl_nullable UpCast(SubT* absl_nullable ptr) {
+    T* const absl_nullable super_ptr = ptr;
     RIEGELI_CHECK(
         static_cast<void*>(const_cast<std::remove_cv_t<T>*>(super_ptr)) ==
         static_cast<void*>(const_cast<std::remove_cv_t<SubT>*>(ptr)))
@@ -356,7 +360,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   }
 
   template <typename SubT>
-  static SubT* Ref(SubT* ptr) {
+  static SubT* absl_nullable Ref(SubT* absl_nullable ptr) {
     if (ptr != nullptr) ref_count(ptr).Ref();
     return ptr;
   }
@@ -372,6 +376,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   void ResetImpl(Initializer<T> value) {
     if constexpr (IsAssignable<T>::value) {
       if (IsUnique()) {
+        RIEGELI_ASSERT(ptr_ != nullptr) << "Guaranteed by IsUnique()";
         *ptr_ = std::move(value);
         return;
       }
@@ -410,7 +415,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
     }
   }
 
-  std::unique_ptr<T, Unrefer> ptr_;
+  absl_nullable std::unique_ptr<T, Unrefer> ptr_;
 };
 
 template <typename T>

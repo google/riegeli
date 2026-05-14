@@ -17,6 +17,10 @@
 
 #include <type_traits>
 
+#include "absl/base/nullability.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 // `PassOwnership` and `ShareOwnership` type tags specify how ownership of a

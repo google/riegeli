@@ -30,6 +30,8 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/ownership.h"
 
+ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace riegeli {
 
 namespace intrusive_shared_ptr_internal {
@@ -106,10 +108,12 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
   // Creates an `IntrusiveSharedPtr` holding `ptr`.
   //
   // Takes ownership of `ptr` unless the second parameter is `kShareOwnership`.
-  explicit IntrusiveSharedPtr(T* ptr ABSL_ATTRIBUTE_LIFETIME_BOUND,
+  explicit IntrusiveSharedPtr(T* absl_nullable ptr
+                                  ABSL_ATTRIBUTE_LIFETIME_BOUND,
                               PassOwnership = kPassOwnership) noexcept
       : ptr_(ptr) {}
-  explicit IntrusiveSharedPtr(T* ptr ABSL_ATTRIBUTE_LIFETIME_BOUND,
+  explicit IntrusiveSharedPtr(T* absl_nullable ptr
+                                  ABSL_ATTRIBUTE_LIFETIME_BOUND,
                               ShareOwnership) noexcept
       : ptr_(Ref(ptr)) {}
 
@@ -174,11 +178,11 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
   //
   // The old object, if any, is destroyed afterwards.
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(T* ptr = nullptr, PassOwnership = kPassOwnership) {
+  void Reset(T* absl_nullable ptr = nullptr, PassOwnership = kPassOwnership) {
     ptr_.reset(ptr);
   }
   ABSL_ATTRIBUTE_REINITIALIZES
-  void Reset(T* ptr, ShareOwnership) { ptr_.reset(Ref(ptr)); }
+  void Reset(T* absl_nullable ptr, ShareOwnership) { ptr_.reset(Ref(ptr)); }
 
   // Replaces the object with a constructed value.
   //
@@ -243,23 +247,25 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
   }
 
   // Returns the pointer.
-  T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return ptr_.get(); }
+  T* absl_nullable get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return ptr_.get();
+  }
 
   // Dereferences the pointer.
   T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(ptr_, nullptr)
+    RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of IntrusiveSharedPtr::operator*: null pointer";
     return *ptr_;
   }
   T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(ptr_, nullptr)
+    RIEGELI_ASSERT(ptr_ != nullptr)
         << "Failed precondition of IntrusiveSharedPtr::operator->: null "
            "pointer";
     return ptr_.get();
   }
 
   // Returns the pointer. This `IntrusiveSharedPtr` is left empty.
-  T* Release() { return ptr_.release(); }
+  T* absl_nullable Release() { return ptr_.release(); }
 
   template <typename OtherT>
   friend bool operator==(const IntrusiveSharedPtr& a,
@@ -273,7 +279,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
   // Indicates support for:
   //  * `ExternalRef(const IntrusiveSharedPtr&, substr)`
   //  * `ExternalRef(IntrusiveSharedPtr&&, substr)`
-  friend void RiegeliSupportsExternalRef(const IntrusiveSharedPtr*) {}
+  friend void RiegeliSupportsExternalRef(
+      const IntrusiveSharedPtr* absl_nullable) {}
 
   // Supports `ExternalRef`.
   friend ExternalStorage RiegeliToExternalStorage(IntrusiveSharedPtr* self) {
@@ -310,7 +317,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
   };
 
   template <typename SubT>
-  static SubT* Ref(SubT* ptr) {
+  static SubT* absl_nullable Ref(SubT* absl_nullable ptr) {
     if (ptr != nullptr) ptr->Ref();
     return ptr;
   }
@@ -327,6 +334,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
   void ResetImpl(Initializer<T> value) {
     if constexpr (IsAssignable<T>::value) {
       if (IsUnique()) {
+        RIEGELI_ASSERT(ptr_ != nullptr) << "Guaranteed by IsUnique()";
         *ptr_ = std::move(value);
         return;
       }
@@ -334,14 +342,16 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
     ptr_ = std::move(value);
   }
 
-  std::unique_ptr<T, Unrefer> ptr_;
+  absl_nullable std::unique_ptr<T, Unrefer> ptr_;
 };
 
 template <typename T>
-explicit IntrusiveSharedPtr(T* ptr, PassOwnership = kPassOwnership)
+explicit IntrusiveSharedPtr(T* absl_nullable ptr,
+                            PassOwnership = kPassOwnership)
     -> IntrusiveSharedPtr<T>;
 template <typename T>
-explicit IntrusiveSharedPtr(T* ptr, ShareOwnership) -> IntrusiveSharedPtr<T>;
+explicit IntrusiveSharedPtr(T* absl_nullable ptr, ShareOwnership)
+    -> IntrusiveSharedPtr<T>;
 template <typename T, std::enable_if_t<!std::is_pointer_v<T>, int> = 0>
 explicit IntrusiveSharedPtr(T&& value) -> IntrusiveSharedPtr<TargetT<T>>;
 

@@ -20,7 +20,10 @@
 #include <atomic>
 #include <type_traits>
 
+#include "absl/base/nullability.h"
 #include "riegeli/base/ownership.h"
+
+ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli {
 
