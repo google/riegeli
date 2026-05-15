@@ -250,8 +250,10 @@ StableDependencyDefault<Handle, Manager>::EnsureAllocatedSlow(
   Dependency<Handle, Manager>* const dep = new Dependency<Handle, Manager>();
   Dependency<Handle, Manager>* other_dep = nullptr;
   if (ABSL_PREDICT_FALSE(!self.dep_.compare_exchange_strong(
-          other_dep, dep, std::memory_order_acq_rel))) {
-    // We lost the race.
+          other_dep, dep, std::memory_order_release,
+          std::memory_order_acquire))) {
+    // Another thread has just called `EnsureAllocated()` and won the race.
+    // `dep` is not needed after all.
     delete dep;
     return *other_dep;
   }
