@@ -300,6 +300,13 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
     return HashState::combine(std::move(hash_state), absl::string_view(self));
   }
 
+  // Supports `MemoryEstimator`.
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const CompactString* self,
+                                        MemoryEstimator& memory_estimator) {
+    RegisterSubobjects(self->repr_, memory_estimator);
+  }
+
   // Default stringification by `absl::StrCat()` etc.
   template <typename Sink>
   friend void AbslStringify(Sink& dest, const CompactString& src) {
@@ -347,14 +354,9 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
     self->DumpStructure(substr, dest);
   }
 
-  // Supports `MemoryEstimator`.
-  template <typename MemoryEstimator>
-  friend void RiegeliRegisterSubobjects(const CompactString* self,
-                                        MemoryEstimator& memory_estimator) {
-    self->RegisterSubobjects(memory_estimator);
-  }
-
  private:
+  friend class OptionalCompactString;  // For `RegisterSubobjects()`.
+
   struct FromReprTag {
     explicit FromReprTag() = default;
   };
@@ -537,7 +539,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
 
   void DumpStructure(absl::string_view substr, std::ostream& dest) const;
   template <typename MemoryEstimator>
-  void RegisterSubobjects(MemoryEstimator& memory_estimator) const;
+  static void RegisterSubobjects(uintptr_t repr,
+                                 MemoryEstimator& memory_estimator);
 
   uintptr_t repr_ = kInlineTag;
 };
@@ -878,12 +881,13 @@ inline const char* CompactString::CStrFromRaw(uintptr_t* raw) {
 
 template <typename MemoryEstimator>
 inline void CompactString::RegisterSubobjects(
-    MemoryEstimator& memory_estimator) const {
-  const uintptr_t tag = repr_ & kTagMask;
+    uintptr_t repr, MemoryEstimator& memory_estimator) {
+  const uintptr_t tag = repr & kTagMask;
   if (tag == kInlineTag) return;
   const size_t offset = tag == 0 ? 2 * sizeof(size_t) : IntCast<size_t>(tag);
   memory_estimator.RegisterDynamicMemory(
-      allocated_data() - offset, offset + allocated_capacity_for_tag(tag));
+      allocated_data(repr) - offset,
+      offset + allocated_capacity_for_tag(tag, repr));
 }
 
 }  // namespace riegeli

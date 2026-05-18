@@ -190,6 +190,25 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
     return riegeli::Compare(*a, b);
   }
 
+  // Supports `MemoryEstimator`.
+  template <typename MemoryEstimator>
+  friend void RiegeliRegisterSubobjects(const OptionalCompactString* self,
+                                        MemoryEstimator& memory_estimator) {
+    if (self->repr_ == kNullRepr) return;
+    CompactString::RegisterSubobjects(self->repr_, memory_estimator);
+  }
+
+  // Supports `riegeli::Debug()`.
+  template <typename DebugStream>
+  friend void RiegeliDebug(const OptionalCompactString& src,
+                           DebugStream& dest) {
+    if (src == nullptr) {
+      dest.Debug(nullptr);
+    } else {
+      dest.Debug(*src);
+    }
+  }
+
  private:
   static constexpr uintptr_t kNullRepr = 0;
 
