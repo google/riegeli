@@ -398,11 +398,14 @@ struct StringResizableTraits {
   static void Reserve(Resizable& dest, size_t new_capacity, size_t used_size) {
     if (new_capacity > dest.capacity()) {
       dest.erase(used_size);
-      // Use `std::string().capacity()` instead of `Resizable().capacity()`
-      // because `Resizable` is not necessarily default-constructible. They are
-      // normally the same, and even if they are not, this is a matter of
-      // performance tuning, not correctness.
-      dest.reserve(dest.capacity() <= std::string().capacity()
+      size_t min_capacity;
+      if constexpr (std::is_default_constructible_v<Alloc>) {
+        min_capacity =
+            std::basic_string<char, std::char_traits<char>, Alloc>().capacity();
+      } else {
+        min_capacity = std::string().capacity();
+      }
+      dest.reserve(dest.capacity() <= min_capacity
                        ? new_capacity
                        : UnsignedClamp(dest.capacity() + dest.capacity() / 2,
                                        new_capacity, dest.max_size()));

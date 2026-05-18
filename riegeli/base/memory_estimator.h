@@ -483,7 +483,13 @@ template <typename Char, typename Traits, typename Alloc>
 inline void RiegeliRegisterSubobjects(
     const std::basic_string<Char, Traits, Alloc>* self,
     MemoryEstimator& memory_estimator) {
-  if (self->capacity() > std::basic_string<Char, Traits, Alloc>().capacity()) {
+  size_t min_capacity;
+  if constexpr (std::is_default_constructible_v<Alloc>) {
+    min_capacity = std::basic_string<Char, Traits, Alloc>().capacity();
+  } else {
+    min_capacity = std::basic_string<Char, Traits>().capacity();
+  }
+  if (self->capacity() > min_capacity) {
     memory_estimator.RegisterDynamicMemory((self->capacity() + 1) *
                                            sizeof(Char));
   } else {
@@ -590,7 +596,13 @@ template <typename T, size_t N, typename Alloc>
 inline void RiegeliRegisterSubobjects(
     const absl::InlinedVector<T, N, Alloc>* self,
     MemoryEstimator& memory_estimator) {
-  if (self->capacity() > N) {
+  size_t min_capacity;
+  if constexpr (std::is_default_constructible_v<Alloc>) {
+    min_capacity = absl::InlinedVector<T, N, Alloc>().capacity();
+  } else {
+    min_capacity = absl::InlinedVector<T, N>().capacity();
+  }
+  if (self->capacity() > min_capacity) {
     memory_estimator.RegisterDynamicMemory(self->capacity() * sizeof(T));
   }
   memory_estimator.RegisterSubobjects(self->cbegin(), self->cend());
