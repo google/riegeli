@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <optional>
 #include <utility>
 
@@ -68,10 +67,9 @@ void LimitingWriterBase::set_max_pos(Position max_pos) {
 }
 
 void LimitingWriterBase::set_max_length(Position max_length) {
-  if (ABSL_PREDICT_FALSE(max_length >
-                         std::numeric_limits<Position>::max() - pos())) {
+  if (ABSL_PREDICT_FALSE(max_length > kMaxPosition - pos())) {
     if (exact_) FailLengthOverflow(max_length);
-    max_pos_ = std::numeric_limits<Position>::max();
+    max_pos_ = kMaxPosition;
     return;
   }
   set_max_pos(pos() + max_length);

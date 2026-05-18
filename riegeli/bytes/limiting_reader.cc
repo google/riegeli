@@ -82,7 +82,7 @@ inline bool LimitingReaderBase::CheckEnough() {
 
 inline bool LimitingReaderBase::FailNotEnough() {
   return Fail(absl::InvalidArgumentError(
-      max_pos() == std::numeric_limits<Position>::max()
+      max_pos() == kMaxPosition
           ? "Not enough data: expected impossibly much"
           : absl::StrCat("Not enough data: expected at least ", max_pos(),
                          " or ", max_length(), " more")));

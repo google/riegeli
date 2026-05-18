@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <optional>
 #include <utility>
 
@@ -154,9 +153,8 @@ bool PrefixLimitingWriterBase::SeekSlow(Position new_pos) {
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
   bool seek_ok;
-  if (ABSL_PREDICT_FALSE(new_pos >
-                         std::numeric_limits<Position>::max() - base_pos_)) {
-    dest.Seek(std::numeric_limits<Position>::max());
+  if (ABSL_PREDICT_FALSE(new_pos > kMaxPosition - base_pos_)) {
+    dest.Seek(kMaxPosition);
     seek_ok = false;
   } else {
     seek_ok = dest.Seek(new_pos + base_pos_);
@@ -185,9 +183,8 @@ bool PrefixLimitingWriterBase::TruncateImpl(Position new_size) {
   Writer& dest = *DestWriter();
   SyncBuffer(dest);
   bool truncate_ok;
-  if (ABSL_PREDICT_FALSE(new_size >
-                         std::numeric_limits<Position>::max() - base_pos_)) {
-    dest.Seek(std::numeric_limits<Position>::max());
+  if (ABSL_PREDICT_FALSE(new_size > kMaxPosition - base_pos_)) {
+    dest.Seek(kMaxPosition);
     truncate_ok = false;
   } else {
     truncate_ok = dest.Truncate(new_size + base_pos_);

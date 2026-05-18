@@ -148,7 +148,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   Position max_length() const { return SaturatingSub(max_pos_, pos()); }
 
   // Clears the limit.
-  void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
+  void clear_limit() { max_pos_ = kMaxPosition; }
 
   bool SupportsTruncate() override;
 
@@ -190,6 +190,8 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailLimitExceeded();
   ABSL_ATTRIBUTE_COLD bool FailLimitExceeded(BackwardWriter& dest);
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
@@ -199,7 +201,7 @@ class LimitingBackwardWriterBase : public BackwardWriter {
   bool WriteInternal(Src&& src, RemovePrefix&& remove_prefix);
 
   // Invariant: `start_pos() <= max_pos_`
-  Position max_pos_ = std::numeric_limits<Position>::max();
+  Position max_pos_ = kMaxPosition;
 
   bool exact_ = false;
 
@@ -299,13 +301,13 @@ inline LimitingBackwardWriterBase& LimitingBackwardWriterBase::operator=(
 
 inline void LimitingBackwardWriterBase::Reset(Closed) {
   BackwardWriter::Reset(kClosed);
-  max_pos_ = std::numeric_limits<Position>::max();
+  max_pos_ = kMaxPosition;
   exact_ = false;
 }
 
 inline void LimitingBackwardWriterBase::Reset(bool exact) {
   BackwardWriter::Reset();
-  max_pos_ = std::numeric_limits<Position>::max();
+  max_pos_ = kMaxPosition;
   exact_ = exact;
 }
 

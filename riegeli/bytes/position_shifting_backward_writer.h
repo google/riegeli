@@ -113,6 +113,8 @@ class PositionShiftingBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailUnderflow(Position new_pos, Object& object);
 
   // This template is defined and used only in position_shifting_writer.cc.
@@ -245,11 +247,11 @@ inline void PositionShiftingBackwardWriterBase::SyncBuffer(
 
 inline bool PositionShiftingBackwardWriterBase::MakeBuffer(BackwardWriter& dest,
                                                            size_t min_length) {
-  const Position max_pos = std::numeric_limits<Position>::max() - base_pos_;
+  const Position max_pos = kMaxPosition - base_pos_;
   if (ABSL_PREDICT_FALSE(dest.limit_pos() > max_pos)) {
     if (ABSL_PREDICT_FALSE(dest.pos() > max_pos)) {
       set_buffer(dest.cursor());
-      set_start_pos(std::numeric_limits<Position>::max());
+      set_start_pos(kMaxPosition);
       return FailOverflow();
     }
     set_buffer(dest.cursor() - IntCast<size_t>(max_pos - dest.pos()),

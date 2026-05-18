@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -132,6 +133,8 @@ class BrotliReaderBase : public PullableReader {
       BrotliDecoderDestroyInstance(ptr);
     }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor();
 

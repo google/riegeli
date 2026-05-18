@@ -146,6 +146,8 @@ class ResizableWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
+
   // Discards uninitialized space from the end of `secondary_buffer_`, so that
   // it contains only actual data written.
   void SyncSecondaryBuffer();
@@ -341,6 +343,8 @@ class ResizableWriter : public ResizableWriterBase {
 
  private:
   class Mover;
+
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
 
   // The object providing and possibly owning the `Resizable` being written
   // to, with uninitialized space appended (possibly empty); `cursor()` points
@@ -652,8 +656,7 @@ bool ResizableWriter<ResizableTraits, Dest>::GrowDestUnderCapacityAndMakeBuffer(
       << "Failed precondition in "
          "ResizableWriter::GrowDestUnderCapacityAndMakeBuffer(): "
          "secondary buffer is used";
-  RIEGELI_ASSERT_LE(min_length,
-                    std::numeric_limits<size_t>::max() - IntCast<size_t>(pos()))
+  RIEGELI_ASSERT_LE(min_length, kMaxPosition - IntCast<size_t>(pos()))
       << "Failed precondition of "
          "ResizableWriter::GrowDestUnderCapacityAndMakeBuffer(): "
          "Writer position overflow";

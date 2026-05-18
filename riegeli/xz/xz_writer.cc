@@ -17,7 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <limits>
 #include <memory>
 #include <utility>
 
@@ -166,8 +165,7 @@ inline bool XzWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                         lzma_action flush) {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of XzWriterBase::WriteInternal()";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   compressor_->next_in = reinterpret_cast<const uint8_t*>(src.data());

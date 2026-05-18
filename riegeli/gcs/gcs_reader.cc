@@ -18,7 +18,6 @@
 #include <stdint.h>
 
 #include <functional>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -78,8 +77,7 @@ void GcsReader::Initialize(google::cloud::storage::ObjectReadStream stream,
         break;
       case Origin::kEnd:
         if (stream.size() != std::nullopt &&
-            ABSL_PREDICT_TRUE(*stream.size() <=
-                              uint64_t{std::numeric_limits<int64_t>::max()})) {
+            ABSL_PREDICT_TRUE(*stream.size() <= kMaxPosition)) {
           initial_pos = SaturatingSub(
               *stream.size(), IntCast<uint64_t>(range_options.initial_pos));
         }
@@ -92,8 +90,7 @@ void GcsReader::Initialize(google::cloud::storage::ObjectReadStream stream,
                            .set_buffer_options(buffer_options));
   PropagateStatus();
   if (src().size() != std::nullopt &&
-      ABSL_PREDICT_TRUE(*src().size() <=
-                        uint64_t{std::numeric_limits<int64_t>::max()})) {
+      ABSL_PREDICT_TRUE(*src().size() <= kMaxPosition)) {
     set_exact_size(*src().size());
     if (range_options.max_size != std::nullopt &&
         ABSL_PREDICT_TRUE(*range_options.max_size >= 0)) {

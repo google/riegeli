@@ -308,6 +308,8 @@ class CFileWriterBase : public BufferedWriter {
   // Encodes a `bool` or a marker that the value is not resolved yet.
   enum class LazyBoolState : uint8_t { kUnknown, kTrue, kFalse };
 
+  static const Position kMaxPosition;
+
   absl::Status FailedOperationStatus(absl::string_view operation);
   // Lazily determined condition shared by `SupportsRandomAccess()` and
   // `SupportsReadMode()`.

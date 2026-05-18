@@ -180,7 +180,7 @@ class LimitingReaderBase : public Reader {
   Position max_length() const;
 
   // Clears the limit.
-  void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
+  void clear_limit() { max_pos_ = kMaxPosition; }
 
   // Accesses the exactness setting.
   //
@@ -257,6 +257,8 @@ class LimitingReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   // For `FailNotEnoughAtPos()`, `FailNotEnoughAtLength()`,
   // `FailNotEnoughAtEnd()`, and `FailPositionLimitExceeded()`.
   friend class ScopedLimiter;
@@ -278,7 +280,7 @@ class LimitingReaderBase : public Reader {
   bool ReadInternal(size_t length, Dest& dest);
 
   // Invariant: `pos() <= max_pos_`
-  Position max_pos_ = std::numeric_limits<Position>::max();
+  Position max_pos_ = kMaxPosition;
 
   bool exact_ = false;
   bool fail_if_longer_ = false;
@@ -592,14 +594,14 @@ inline LimitingReaderBase& LimitingReaderBase::operator=(
 
 inline void LimitingReaderBase::Reset(Closed) {
   Reader::Reset(kClosed);
-  max_pos_ = std::numeric_limits<Position>::max();
+  max_pos_ = kMaxPosition;
   exact_ = false;
   fail_if_longer_ = false;
 }
 
 inline void LimitingReaderBase::Reset(bool exact, bool fail_if_longer) {
   Reader::Reset();
-  max_pos_ = std::numeric_limits<Position>::max();
+  max_pos_ = kMaxPosition;
   exact_ = exact;
   fail_if_longer_ = fail_if_longer;
 }
@@ -626,7 +628,7 @@ inline void LimitingReaderBase::set_max_pos(Position max_pos) {
 inline void LimitingReaderBase::set_max_length(Position max_length) {
   max_pos_ = pos() + max_length;  // Wrap-around is not an error.
   if (ABSL_PREDICT_FALSE(max_pos_ < max_length)) {
-    max_pos_ = std::numeric_limits<Position>::max();
+    max_pos_ = kMaxPosition;
     if (exact_) FailLengthOverflow(max_length);
     return;
   }

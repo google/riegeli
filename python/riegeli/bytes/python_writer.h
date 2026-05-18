@@ -22,6 +22,7 @@
 #include <Python.h>
 // clang-format: do not reorder the above include.
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -129,6 +130,8 @@ class PythonWriter : public BufferedWriter {
   bool TruncateBehindBuffer(Position new_size) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   std::optional<Position> SizeInternal();
 

@@ -62,6 +62,9 @@
 
 namespace riegeli {
 
+const Position CFileWriterBase::kMaxPosition =
+    Position{std::numeric_limits<cfile_internal::Offset>::max()};
+
 void CFileWriterBase::Initialize(FILE* dest, const Options& options) {
   RIEGELI_ASSERT_NE(dest, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
@@ -140,9 +143,7 @@ void CFileWriterBase::InitializePos(FILE* dest, const Options& options,
   }
 #endif  // _WIN32
   if (assumed_pos != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
-            Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -363,10 +364,7 @@ bool CFileWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal()";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   FILE* const dest = DestFile();
-  if (ABSL_PREDICT_FALSE(
-          src.size() >
-          Position{std::numeric_limits<cfile_internal::Offset>::max()} -
-              start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   const size_t length_written = fwrite(src.data(), 1, src.size(), dest);

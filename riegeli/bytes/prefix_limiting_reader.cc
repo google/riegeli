@@ -210,9 +210,8 @@ bool PrefixLimitingReaderBase::SeekSlow(Position new_pos) {
   Reader& src = *SrcReader();
   SyncBuffer(src);
   bool seek_ok;
-  if (ABSL_PREDICT_FALSE(new_pos >
-                         std::numeric_limits<Position>::max() - base_pos_)) {
-    src.Seek(std::numeric_limits<Position>::max());
+  if (ABSL_PREDICT_FALSE(new_pos > kMaxPosition - base_pos_)) {
+    src.Seek(kMaxPosition);
     seek_ok = false;
   } else {
     seek_ok = src.Seek(new_pos + base_pos_);

@@ -150,6 +150,8 @@ class JoiningReaderBase : public PullableReader {
                              size_t recommended_length) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   bool OpenShardInternal();
   bool CloseShardInternal();
 
@@ -252,8 +254,7 @@ inline void JoiningReaderBase::MakeBuffer(Reader& shard) {
       << "Failed precondition of JoiningReaderBase::MakeBuffer(): "
          "shard is closed";
   set_buffer(shard.cursor(),
-             UnsignedMin(shard.available(),
-                         std::numeric_limits<Position>::max() - limit_pos()));
+             UnsignedMin(shard.available(), kMaxPosition - limit_pos()));
   move_limit_pos(available());
   if (ABSL_PREDICT_FALSE(!shard.ok())) {
     FailWithoutAnnotation(AnnotateOverShard(shard.status()));

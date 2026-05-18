@@ -16,7 +16,9 @@
 #define RIEGELI_TENSORFLOW_IO_FILE_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -149,6 +151,9 @@ class FileWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition =
+      Position{std::numeric_limits<int64_t>::max()};
+
   // Writes `buffer_` to the file. Sets buffer pointers to `nullptr`.
   bool SyncBuffer();
 

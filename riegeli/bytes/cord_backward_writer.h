@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -153,6 +154,8 @@ class CordBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
+
   // When deciding whether to copy an array of bytes or share memory, prefer
   // copying up to this length.
   size_t MaxBytesToCopy() const;

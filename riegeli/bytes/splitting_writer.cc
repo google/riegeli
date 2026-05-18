@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <optional>
 #include <utility>
 
@@ -69,7 +68,7 @@ inline bool SplittingWriterBase::OpenShardInternal() {
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of SplittingWriterBase::OpenShardInternal(): "
          "shard already opened";
-  if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
+  if (ABSL_PREDICT_FALSE(start_pos() == kMaxPosition)) {
     return FailOverflow();
   }
   const std::optional<Position> size_limit = OpenShardImpl();

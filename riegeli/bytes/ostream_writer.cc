@@ -19,7 +19,6 @@
 #include <cerrno>
 #include <ios>
 #include <istream>
-#include <limits>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -63,9 +62,7 @@ void OStreamWriterBase::Initialize(std::ostream* dest,
     return;
   }
   if (assumed_pos != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
-            Position{std::numeric_limits<std::streamoff>::max()})) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -209,9 +206,7 @@ bool OStreamWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal()";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   std::ostream& dest = *DestStream();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         Position{std::numeric_limits<std::streamoff>::max()} -
-                             start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   errno = 0;

@@ -225,6 +225,8 @@ class CFileReaderBase : public BufferedReader {
   std::optional<Position> SizeImpl() override;
 
  private:
+  static const Position kMaxPosition;
+
   absl::Status FailedOperationStatus(absl::string_view operation);
 
   bool growing_source_ = false;

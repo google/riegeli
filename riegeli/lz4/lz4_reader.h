@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -205,6 +206,8 @@ class Lz4ReaderBase : public BufferedReader {
           << LZ4F_getErrorName(result);
     }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor(Reader& src);
   bool ReadHeader(Reader& src);

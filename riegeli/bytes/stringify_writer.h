@@ -66,6 +66,8 @@ class StringifyWriter : public BufferedWriter {
   bool WriteInternal(absl::string_view src) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   Dest dest_{};
 };
 
@@ -127,8 +129,7 @@ bool StringifyWriter<Dest>::WriteInternal(absl::string_view src) {
          "nothing to write";
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of BufferedWriter::WriteInternal()";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   dest_->Append(src);

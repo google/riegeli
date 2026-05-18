@@ -121,6 +121,8 @@ class PositionShiftingReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailUnderflow(Position new_pos, Object& object);
 
   // This template is defined and used only in position_shifting_reader.cc.
@@ -243,16 +245,16 @@ inline void PositionShiftingReaderBase::SyncBuffer(Reader& src) {
 
 inline bool PositionShiftingReaderBase::MakeBuffer(Reader& src,
                                                    size_t min_length) {
-  const Position max_pos = std::numeric_limits<Position>::max() - base_pos_;
+  const Position max_pos = kMaxPosition - base_pos_;
   if (ABSL_PREDICT_FALSE(src.limit_pos() > max_pos)) {
     if (ABSL_PREDICT_FALSE(src.pos() > max_pos)) {
       set_buffer(src.cursor());
-      set_limit_pos(std::numeric_limits<Position>::max());
+      set_limit_pos(kMaxPosition);
       return FailOverflow();
     }
     set_buffer(src.start(), IntCast<size_t>(max_pos - src.start_pos()),
                src.start_to_cursor());
-    set_limit_pos(std::numeric_limits<Position>::max());
+    set_limit_pos(kMaxPosition);
     if (ABSL_PREDICT_FALSE(available() < min_length)) return FailOverflow();
   } else {
     set_buffer(src.start(), src.start_to_limit(), src.start_to_cursor());

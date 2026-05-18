@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -185,6 +186,8 @@ class XzReaderBase : public BufferedReader {
 
     Container container;
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor();
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,

@@ -163,8 +163,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                           int flush) {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of ZlibWriterBase::WriteInternal()";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   z_stream* const z_stream_ptr = static_cast<z_stream*>(compressor_.get());

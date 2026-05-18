@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <optional>
 #include <utility>
 
@@ -72,8 +71,8 @@ bool ChainBackwardWriterBase::PushSlow(size_t min_length,
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(min_length >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   MakeBuffer(dest, min_length, recommended_length);
@@ -89,8 +88,8 @@ bool ChainBackwardWriterBase::WriteSlow(ExternalRef src) {
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -108,8 +107,8 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -127,8 +126,8 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -146,8 +145,8 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -165,8 +164,8 @@ bool ChainBackwardWriterBase::WriteSlow(ByteFill src) {
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -184,8 +183,8 @@ bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());

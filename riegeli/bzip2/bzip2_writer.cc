@@ -111,8 +111,7 @@ inline bool Bzip2WriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                            int flush) {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of Bzip2WriterBase::WriteInternal()";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   compressor_->next_in = const_cast<char*>(src.data());

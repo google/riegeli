@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BROTLI_BROTLI_WRITER_H_
 #define RIEGELI_BROTLI_BROTLI_WRITER_H_
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -189,6 +190,8 @@ class BrotliWriterBase : public BufferedWriter {
       BrotliEncoderDestroyInstance(ptr);
     }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   bool WriteInternal(absl::string_view src, Writer& dest,
                      BrotliEncoderOperation op);

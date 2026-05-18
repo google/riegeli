@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -116,6 +117,8 @@ class PrefixLimitingBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   // This template is defined and used only in prefix_limiting_writer.cc.
   template <typename Src>
   bool WriteInternal(Src&& src);

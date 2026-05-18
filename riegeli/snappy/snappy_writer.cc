@@ -73,8 +73,7 @@ inline bool SnappyWriterBase::SyncBuffer() {
   set_start_pos(pos());
   uncompressed_.RemoveSuffix(available());
   set_buffer();
-  if (ABSL_PREDICT_FALSE(IntCast<size_t>(start_pos()) >
-                         std::numeric_limits<uint32_t>::max())) {
+  if (ABSL_PREDICT_FALSE(IntCast<size_t>(start_pos()) > kMaxPosition)) {
     return FailOverflow();
   }
   return true;
@@ -114,6 +113,8 @@ bool SnappyWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
+  // Use a higher limit than `kMaxPosition` here to allow creating a larger
+  // buffer near the end of the supported range and filling it partially.
   if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
                                           IntCast<size_t>(start_pos()))) {
     return FailOverflow();
@@ -137,8 +138,8 @@ bool SnappyWriterBase::WriteSlow(ExternalRef src) {
   if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(std::move(src));
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -153,8 +154,8 @@ bool SnappyWriterBase::WriteSlow(const Chain& src) {
   if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -174,8 +175,8 @@ bool SnappyWriterBase::WriteSlow(Chain&& src) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -190,8 +191,8 @@ bool SnappyWriterBase::WriteSlow(const absl::Cord& src) {
   if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -211,8 +212,8 @@ bool SnappyWriterBase::WriteSlow(absl::Cord&& src) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(start_pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() >
+                         kMaxPosition - IntCast<size_t>(start_pos()))) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -225,10 +226,8 @@ bool SnappyWriterBase::WriteSlow(ByteFill src) {
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(IntCast<size_t>(pos()) >
-                             std::numeric_limits<uint32_t>::max() ||
-                         src.size() > std::numeric_limits<uint32_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(IntCast<size_t>(pos()) > kMaxPosition ||
+                         src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   const size_t first_length = UnsignedMin(

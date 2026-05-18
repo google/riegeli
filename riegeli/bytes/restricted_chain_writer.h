@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -74,6 +75,8 @@ class RestrictedChainWriter : public Writer {
   bool WriteSlow(ByteFill src) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
+
   // Discards uninitialized space from the end of `dest_`, so that it contains
   // only actual data written.
   void SyncBuffer();

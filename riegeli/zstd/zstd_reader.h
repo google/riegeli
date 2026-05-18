@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -183,6 +184,8 @@ class ZstdReaderBase : public BufferedReader {
   struct ZSTD_DCtxDeleter {
     void operator()(ZSTD_DCtx* ptr) const { ZSTD_freeDCtx(ptr); }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor(Reader& src);
 

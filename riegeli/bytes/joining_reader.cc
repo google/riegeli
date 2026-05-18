@@ -169,7 +169,7 @@ bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = ShardReader();
   }
-  if (ABSL_PREDICT_FALSE(limit_pos() == std::numeric_limits<Position>::max())) {
+  if (ABSL_PREDICT_FALSE(limit_pos() == kMaxPosition)) {
     return FailOverflow();
   }
   MakeBuffer(*shard);
@@ -193,7 +193,7 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
   }
   for (;;) {
     const size_t length_to_read =
-        UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
+        UnsignedMin(length, kMaxPosition - limit_pos());
     size_t length_read;
     const bool read_ok = shard->Read(length_to_read, dest, &length_read);
     move_limit_pos(length_read);
@@ -252,7 +252,7 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
   }
   for (;;) {
     const size_t length_to_read =
-        UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
+        UnsignedMin(length, kMaxPosition - limit_pos());
     size_t length_read;
     const bool read_ok =
         shard->ReadAndAppend(length_to_read, dest, &length_read);
@@ -290,7 +290,7 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
   }
   for (;;) {
     const size_t length_to_read =
-        UnsignedMin(length, std::numeric_limits<Position>::max() - limit_pos());
+        UnsignedMin(length, kMaxPosition - limit_pos());
     Position length_read;
     const bool copy_ok = shard->Copy(length_to_read, dest, &length_read);
     move_limit_pos(length_read);
@@ -332,7 +332,7 @@ bool JoiningReaderBase::ReadSomeBehindScratch(size_t max_length, char* dest) {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = ShardReader();
   }
-  const Position remaining = std::numeric_limits<Position>::max() - limit_pos();
+  const Position remaining = kMaxPosition - limit_pos();
   if (ABSL_PREDICT_FALSE(remaining == 0)) return FailOverflow();
   max_length = UnsignedMin(max_length, remaining);
   for (;;) {
@@ -373,7 +373,7 @@ bool JoiningReaderBase::CopySomeBehindScratch(size_t max_length, Writer& dest) {
     if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
     shard = ShardReader();
   }
-  const Position remaining = std::numeric_limits<Position>::max() - limit_pos();
+  const Position remaining = kMaxPosition - limit_pos();
   if (ABSL_PREDICT_FALSE(remaining == 0)) return FailOverflow();
   max_length = UnsignedMin(max_length, remaining);
   for (;;) {

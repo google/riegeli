@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -152,6 +153,8 @@ class ChainBackwardWriterBase : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
+
   // Discards uninitialized space from the beginning of `dest`, so that it
   // contains only actual data written.
   void SyncBuffer(Chain& dest);

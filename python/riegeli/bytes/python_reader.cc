@@ -175,12 +175,11 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
     }
   }
   for (;;) {
-    if (ABSL_PREDICT_FALSE(limit_pos() ==
-                           std::numeric_limits<Position>::max())) {
+    if (ABSL_PREDICT_FALSE(limit_pos() == kMaxPosition)) {
       return FailOverflow();
     }
     const size_t length_to_read = UnsignedMin(
-        max_length, std::numeric_limits<Position>::max() - limit_pos(),
+        max_length, kMaxPosition - limit_pos(),
         absl::bit_floor(size_t{std::numeric_limits<Py_ssize_t>::max()}));
     size_t length_read;
     if (!use_bytes_) {

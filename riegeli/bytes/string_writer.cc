@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <cstring>
-#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -96,8 +95,7 @@ inline bool StringWriterBase::GrowDestUnderCapacityAndMakeBuffer(
       << "Failed precondition in "
          "StringWriterBase::GrowDestUnderCapacityAndMakeBuffer(): "
          "secondary buffer is used";
-  RIEGELI_ASSERT_LE(min_length,
-                    std::numeric_limits<size_t>::max() - cursor_index)
+  RIEGELI_ASSERT_LE(min_length, kMaxPosition - cursor_index)
       << "Failed precondition of "
          "StringWriterBase::GrowDestUnderCapacityAndMakeBuffer(): "
          "Writer position overflow";
@@ -160,8 +158,7 @@ bool StringWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(min_length > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(min_length > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
@@ -199,8 +196,7 @@ bool StringWriterBase::WriteSlow(absl::string_view src) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
@@ -247,8 +243,7 @@ bool StringWriterBase::WriteSlow(ExternalRef src) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
@@ -284,8 +279,7 @@ bool StringWriterBase::WriteSlow(const Chain& src) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
@@ -321,8 +315,7 @@ bool StringWriterBase::WriteSlow(Chain&& src) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
@@ -358,8 +351,7 @@ bool StringWriterBase::WriteSlow(const absl::Cord& src) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
@@ -395,8 +387,7 @@ bool StringWriterBase::WriteSlow(absl::Cord&& src) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {
@@ -432,8 +423,7 @@ bool StringWriterBase::WriteSlow(ByteFill src) {
   std::string& dest = *DestString();
   RIEGELI_ASSERT_GE(dest.size(), limit_pos() - secondary_buffer_.size())
       << "StringWriter destination changed unexpectedly";
-  if (ABSL_PREDICT_FALSE(src.size() > std::numeric_limits<size_t>::max() -
-                                          IntCast<size_t>(pos()))) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
   }
   if (!uses_secondary_buffer()) {

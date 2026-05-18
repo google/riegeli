@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -72,6 +73,8 @@ class HadoopSnappyReaderBase : public PullableReader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailInvalidStream(absl::string_view message);
 
   Position initial_compressed_pos_ = 0;

@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -320,6 +321,8 @@ class ZstdWriterBase : public BufferedWriter {
   struct ZSTD_CCtxDeleter {
     void operator()(ZSTD_CCtx* ptr) const { ZSTD_freeCCtx(ptr); }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   bool WriteInternal(absl::string_view src, Writer& dest,
                      ZSTD_EndDirective end_op);

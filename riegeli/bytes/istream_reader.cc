@@ -19,7 +19,6 @@
 #include <cerrno>
 #include <ios>
 #include <istream>
-#include <limits>
 #include <optional>
 #include <string>
 
@@ -55,9 +54,7 @@ void IStreamReaderBase::Initialize(std::istream* src,
   // `std::istream::peek()` and `std::istream::tellg()`.
   src->clear(src->rdstate() & ~std::ios_base::eofbit);
   if (assumed_pos != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
-            Position{std::numeric_limits<std::streamoff>::max()})) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -184,18 +181,13 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
   std::istream& src = *SrcStream();
   errno = 0;
   for (;;) {
-    if (ABSL_PREDICT_FALSE(
-            limit_pos() >=
-            Position{std::numeric_limits<std::streamoff>::max()})) {
+    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
       return FailOverflow();
     }
-    std::streamsize length_to_read = IntCast<std::streamsize>(UnsignedMin(
-        min_length,
-        Position{std::numeric_limits<std::streamoff>::max()} - limit_pos()));
-    const std::streamsize max_length_to_read =
-        IntCast<std::streamsize>(UnsignedMin(
-            max_length, Position{std::numeric_limits<std::streamoff>::max()} -
-                            limit_pos()));
+    std::streamsize length_to_read = IntCast<std::streamsize>(
+        UnsignedMin(min_length, kMaxPosition - limit_pos()));
+    const std::streamsize max_length_to_read = IntCast<std::streamsize>(
+        UnsignedMin(max_length, kMaxPosition - limit_pos()));
     std::streamsize length_read;
     if (length_to_read < max_length_to_read) {
       // Use `std::istream::readsome()` to read as much data as is available,

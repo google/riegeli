@@ -18,7 +18,9 @@
 #include <stdint.h>
 
 #include <cerrno>
+#include <ios>
 #include <istream>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <utility>
@@ -134,6 +136,9 @@ class OStreamWriterBase : public BufferedWriter {
  private:
   // Encodes a `bool` or a marker that the value is not resolved yet.
   enum class LazyBoolState : uint8_t { kUnknown, kTrue, kFalse };
+
+  static constexpr Position kMaxPosition =
+      Position{std::numeric_limits<std::streamoff>::max()};
 
   absl::Status FailedOperationStatus(absl::string_view operation);
 

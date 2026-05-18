@@ -24,7 +24,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -212,8 +211,7 @@ inline bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                           ZSTD_EndDirective end_op) {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of ZstdWriterBase::WriteInternal()";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   if (pledged_size_ != std::nullopt) {

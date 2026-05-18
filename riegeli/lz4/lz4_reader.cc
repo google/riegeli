@@ -193,8 +193,7 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
     decompress_options.stableDst = 1;
     effective_min_length = std::numeric_limits<size_t>::max();
   }
-  max_length = UnsignedMin(max_length,
-                           std::numeric_limits<Position>::max() - limit_pos());
+  max_length = UnsignedMin(max_length, kMaxPosition - limit_pos());
   for (;;) {
     size_t src_length = src.available();
     size_t dest_length = max_length;
@@ -230,8 +229,7 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
       RIEGELI_ASSERT_EQ(dest_length, max_length)
           << "LZ4F_decompress_usingDict() returned but there are still "
              "input data and output space";
-      RIEGELI_ASSERT_EQ(dest_length,
-                        std::numeric_limits<Position>::max() - limit_pos())
+      RIEGELI_ASSERT_EQ(dest_length, kMaxPosition - limit_pos())
           << "The position does not overflow but the output buffer is full, "
              "while less than min_length was output, which implies that "
              "LZ4F_decompress_usingDict() wants to output more than the "

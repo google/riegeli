@@ -154,8 +154,7 @@ bool HadoopSnappyReaderBase::PullBehindScratch(size_t recommended_length) {
     src.move_cursor(sizeof(uint32_t) + compressed_length);
   } while (uncompressed_length == 0);
   remaining_chunk_length_ -= uncompressed_length;
-  const Position max_length =
-      std::numeric_limits<Position>::max() - limit_pos();
+  const Position max_length = kMaxPosition - limit_pos();
   if (ABSL_PREDICT_FALSE(uncompressed_length > max_length)) {
     set_buffer(uncompressed_data, IntCast<size_t>(max_length));
     move_limit_pos(available());

@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -128,6 +129,8 @@ class BufferedWriter : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   // Writes `buffer_` to the destination. Sets buffer pointers to `nullptr`.
   bool SyncBuffer();
 

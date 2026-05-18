@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -82,6 +83,8 @@ class NullBackwardWriter : public BackwardWriter {
   bool TruncateImpl(Position new_size) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   // Resets buffer pointers to the beginning of the buffer.
   void SyncBuffer();
 

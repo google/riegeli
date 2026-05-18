@@ -15,6 +15,7 @@
 #ifndef RIEGELI_ZLIB_ZLIB_WRITER_H_
 #define RIEGELI_ZLIB_ZLIB_WRITER_H_
 
+#include <limits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -229,6 +230,8 @@ class ZlibWriterBase : public BufferedWriter {
     int compression_level;
     int window_bits;
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          int zlib_code);

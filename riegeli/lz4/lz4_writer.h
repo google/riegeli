@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -292,6 +293,8 @@ class Lz4WriterBase : public BufferedWriter {
           << LZ4F_getErrorName(result);
     }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   bool DoneCompression(Writer& dest);
 

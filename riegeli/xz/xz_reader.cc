@@ -167,8 +167,7 @@ bool XzReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal()";
   Reader& src = *SrcReader();
   truncated_ = false;
-  max_length = UnsignedMin(max_length,
-                           std::numeric_limits<Position>::max() - limit_pos());
+  max_length = UnsignedMin(max_length, kMaxPosition - limit_pos());
   decompressor_->next_out = reinterpret_cast<uint8_t*>(dest);
   for (;;) {
     decompressor_->avail_out = PtrDistance(
@@ -188,8 +187,7 @@ bool XzReaderBase::ReadInternal(size_t min_length, size_t max_length,
           RIEGELI_ASSERT_EQ(decompressor_->avail_out, 0u)
               << "lzma_code() returned but there are still input data "
                  "and output space";
-          RIEGELI_ASSERT_EQ(length_read,
-                            std::numeric_limits<Position>::max() - limit_pos())
+          RIEGELI_ASSERT_EQ(length_read, kMaxPosition - limit_pos())
               << "The position does not overflow but the output buffer is "
                  "full, while less than min_length was output, which is "
                  "impossible because the buffer has size max_length which is "

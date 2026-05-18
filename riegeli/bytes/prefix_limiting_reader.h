@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -121,6 +122,8 @@ class PrefixLimitingReaderBase : public Reader {
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   // This template is defined and used only in prefix_limiting_reader.cc.
   template <typename Dest>
   bool ReadInternal(size_t length, Dest& dest);

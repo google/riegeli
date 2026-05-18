@@ -17,7 +17,6 @@
 #include <stddef.h>
 
 #include <cstring>
-#include <limits>
 #include <optional>
 
 #include "absl/base/optimization.h"
@@ -82,13 +81,12 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(min_length > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   const size_t buffer_length = UnsignedMin(
       buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length),
-      std::numeric_limits<Position>::max() - start_pos());
+      kMaxPosition - start_pos());
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(), buffer_length);
   return true;

@@ -187,8 +187,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
     effective_min_length = std::numeric_limits<size_t>::max();
   }
   just_initialized_ = false;
-  max_length = UnsignedMin(max_length,
-                           std::numeric_limits<Position>::max() - limit_pos());
+  max_length = UnsignedMin(max_length, kMaxPosition - limit_pos());
   ZSTD_outBuffer output = {dest, max_length, 0};
   for (;;) {
     ZSTD_inBuffer input = {src.cursor(), src.available(), 0};
@@ -223,8 +222,7 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       RIEGELI_ASSERT_EQ(output.pos, output.size)
           << "ZSTD_decompressStream() returned but there are still "
              "input data and output space";
-      RIEGELI_ASSERT_EQ(output.pos,
-                        std::numeric_limits<Position>::max() - limit_pos())
+      RIEGELI_ASSERT_EQ(output.pos, kMaxPosition - limit_pos())
           << "The position does not overflow but the output buffer is full, "
              "while less than min_length was output, which implies that "
              "ZSTD_decompressStream() wants to output more than the "

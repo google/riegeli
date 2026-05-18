@@ -17,7 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -163,8 +162,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                             BrotliEncoderOperation op) {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of BrotliWriterBase::WriteInternal()";
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   size_t available_in = src.size();

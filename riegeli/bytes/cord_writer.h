@@ -166,6 +166,8 @@ class CordWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
+
   // When deciding whether to copy an array of bytes or share memory, prefer
   // copying up to this length.
   size_t MaxBytesToCopy() const;
@@ -376,8 +378,7 @@ inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
     const size_t existing_length = cord_buffer_.length();
     if (existing_length > 0) {
       cord_buffer_.SetLength(
-          UnsignedMin(cord_buffer_.capacity(),
-                      std::numeric_limits<size_t>::max() - dest->size()));
+          UnsignedMin(cord_buffer_.capacity(), kMaxPosition - dest->size()));
       set_buffer(cord_buffer_.data(), cord_buffer_.length(), existing_length);
     }
   } else {

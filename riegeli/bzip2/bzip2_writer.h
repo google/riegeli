@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BZIP2_BZIP2_WRITER_H_
 #define RIEGELI_BZIP2_BZIP2_WRITER_H_
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -107,6 +108,8 @@ class Bzip2WriterBase : public BufferedWriter {
       delete ptr;
     }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          int bzlib_code);

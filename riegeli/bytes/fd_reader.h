@@ -273,6 +273,8 @@ class FdReaderBase : public BufferedReader {
   std::unique_ptr<Reader> NewReaderCurrentPosImpl() override;
 
  private:
+  static const Position kMaxPosition;
+
   absl::Status FailedOperationStatus(absl::string_view operation);
 
   bool SeekInternal(int src, Position new_pos);

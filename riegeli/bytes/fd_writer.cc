@@ -75,6 +75,9 @@
 
 namespace riegeli {
 
+const Position FdWriterBase::kMaxPosition =
+    Position{std::numeric_limits<fd_internal::Offset>::max()};
+
 TypeId FdWriterBase::GetTypeId() const { return TypeId::For<FdWriterBase>(); }
 
 void FdWriterBase::Initialize(int dest, const Options& options) {
@@ -171,9 +174,7 @@ void FdWriterBase::InitializePos(int dest, const Options& options,
           "must not be both set"));
       return;
     }
-    if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
-            Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -193,9 +194,7 @@ void FdWriterBase::InitializePos(int dest, const Options& options,
       return;
     }
     has_independent_pos_ = true;
-    if (ABSL_PREDICT_FALSE(
-            *options.independent_pos() >
-            Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(*options.independent_pos() > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -443,10 +442,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
       << "Failed precondition of BufferedWriter::WriteInternal()";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   const int dest = DestFd();
-  if (ABSL_PREDICT_FALSE(
-          src.size() >
-          Position{std::numeric_limits<fd_internal::Offset>::max()} -
-              start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   do {
@@ -529,10 +525,7 @@ bool FdWriterBase::WriteSlow(ByteFill src) {
   if (ABSL_PREDICT_FALSE(size == std::nullopt)) return false;
   RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
       << "BufferedWriter::SizeImpl() flushes the buffer";
-  if (ABSL_PREDICT_FALSE(
-          src.size() >
-          Position{std::numeric_limits<fd_internal::Offset>::max()} -
-              start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   const Position new_pos = start_pos() + src.size();

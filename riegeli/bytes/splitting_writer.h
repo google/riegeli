@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 
 #include "absl/base/attributes.h"
@@ -162,6 +163,8 @@ class SplittingWriterBase : public PushableWriter {
   bool FlushBehindScratch(FlushType flush_type) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   bool OpenShardInternal();
   bool CloseShardInternal();
 

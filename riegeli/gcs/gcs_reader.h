@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -125,6 +126,8 @@ class GcsReader
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
 
  private:
+  static constexpr uint64_t kMaxPosition = std::numeric_limits<int64_t>::max();
+
   friend class GcsWriter;  // For `set_exact_size()`.
 
   struct NewReaderTag {};

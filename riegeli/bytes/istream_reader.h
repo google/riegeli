@@ -18,7 +18,9 @@
 #include <stddef.h>
 
 #include <cerrno>
+#include <ios>
 #include <istream>
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -118,6 +120,9 @@ class IStreamReaderBase : public BufferedReader {
   std::optional<Position> SizeImpl() override;
 
  private:
+  static constexpr Position kMaxPosition =
+      std::numeric_limits<std::streamoff>::max();
+
   absl::Status FailedOperationStatus(absl::string_view operation);
 
   bool growing_source_ = false;

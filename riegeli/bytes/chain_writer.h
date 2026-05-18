@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -164,6 +165,8 @@ class ChainWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
+
   // Discards uninitialized space from the end of `dest`, so that it contains
   // only actual data written. Ensures that data which follow the current
   // position are separated in `*tail_`.

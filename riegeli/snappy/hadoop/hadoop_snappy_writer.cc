@@ -17,7 +17,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <limits>
 #include <optional>
 #include <utility>
 
@@ -91,14 +90,14 @@ bool HadoopSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
-  if (ABSL_PREDICT_FALSE(start_pos() == std::numeric_limits<Position>::max())) {
+  if (ABSL_PREDICT_FALSE(start_pos() == kMaxPosition)) {
     return FailOverflow();
   }
   const size_t length = UnsignedMin(
       ApplyBufferConstraints(
           ApplySizeHint(snappy::kBlockSize, size_hint_, start_pos()), 1,
           recommended_length, snappy::kBlockSize),
-      std::numeric_limits<Position>::max() - start_pos());
+      kMaxPosition - start_pos());
   uncompressed_.Reset(length);
   set_buffer(uncompressed_.data(), length);
   return true;

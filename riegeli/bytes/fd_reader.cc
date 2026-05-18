@@ -160,6 +160,9 @@ inline void FdSetReadAllHint([[maybe_unused]] DependentInt src,
 
 #endif
 
+const Position FdReaderBase::kMaxPosition =
+    Position{std::numeric_limits<fd_internal::Offset>::max()};
+
 void FdReaderBase::Initialize(int src, const Options& options) {
   RIEGELI_ASSERT_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
@@ -233,9 +236,7 @@ void FdReaderBase::InitializePos(int src, const Options& options
           "must not be both set"));
       return;
     }
-    if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
-            Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -247,9 +248,7 @@ void FdReaderBase::InitializePos(int src, const Options& options
     });
   } else if (options.independent_pos() != std::nullopt) {
     has_independent_pos_ = true;
-    if (ABSL_PREDICT_FALSE(
-            *options.independent_pos() >
-            Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(*options.independent_pos() > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -399,15 +398,12 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal()";
   const int src = SrcFd();
   for (;;) {
-    if (ABSL_PREDICT_FALSE(
-            limit_pos() >=
-            Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
       return FailOverflow();
     }
 #ifndef _WIN32
     const size_t length_to_read = UnsignedMin(
-        max_length,
-        Position{std::numeric_limits<fd_internal::Offset>::max()} - limit_pos(),
+        max_length, kMaxPosition - limit_pos(),
         absl::bit_floor(size_t{std::numeric_limits<ssize_t>::max()}),
         // Darwin and FreeBSD cannot read more than 2 GB - 1 at a time.
         // Limit to 1 GB for better alignment of reads.
@@ -431,11 +427,9 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                              file_handle == reinterpret_cast<HANDLE>(-2))) {
         return FailWindowsOperation("_get_osfhandle()");
       }
-      length_to_read = UnsignedMin(
-          max_length,
-          Position{std::numeric_limits<fd_internal::Offset>::max()} -
-              limit_pos(),
-          absl::bit_floor(std::numeric_limits<DWORD>::max()));
+      length_to_read =
+          UnsignedMin(max_length, kMaxPosition - limit_pos(),
+                      absl::bit_floor(std::numeric_limits<DWORD>::max()));
       OVERLAPPED overlapped{};
       overlapped.Offset = IntCast<DWORD>(limit_pos() & 0xffffffff);
       overlapped.OffsetHigh = IntCast<DWORD>(limit_pos() >> 32);
@@ -446,9 +440,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       }
     } else {
       length_to_read = UnsignedMin(
-          max_length,
-          Position{std::numeric_limits<fd_internal::Offset>::max()} -
-              limit_pos(),
+          max_length, kMaxPosition - limit_pos(),
           absl::bit_floor(unsigned{std::numeric_limits<int>::max()}));
       const int length_read_int =
           _read(src, dest, IntCast<unsigned>(length_to_read));
@@ -496,20 +488,14 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
         const int dest_fd = fd_writer->DestFd();
         fd_internal::Offset src_offset = limit_pos();
         fd_internal::Offset dest_offset = fd_writer->start_pos();
-        if (ABSL_PREDICT_FALSE(
-                limit_pos() >=
-                Position{std::numeric_limits<fd_internal::Offset>::max()})) {
+        if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
           return FailOverflow();
         }
         const size_t length_to_copy = UnsignedMin(
-            length,
-            Position{std::numeric_limits<fd_internal::Offset>::max()} -
-                limit_pos(),
+            length, kMaxPosition - limit_pos(),
             absl::bit_floor(size_t{std::numeric_limits<ssize_t>::max()}));
-        if (ABSL_PREDICT_FALSE(
-                length_to_copy >
-                Position{std::numeric_limits<fd_internal::Offset>::max()} -
-                    fd_writer->start_pos())) {
+        if (ABSL_PREDICT_FALSE(length_to_copy >
+                               kMaxPosition - fd_writer->start_pos())) {
           return fd_writer->FailOverflow();
         }
       again:

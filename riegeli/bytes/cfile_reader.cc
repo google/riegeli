@@ -90,6 +90,9 @@ inline size_t AvailableLength(DependentFILE* src) {
 
 }  // namespace
 
+const Position CFileReaderBase::kMaxPosition =
+    Position{std::numeric_limits<cfile_internal::Offset>::max()};
+
 void CFileReaderBase::Initialize(FILE* src, const Options& options) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
@@ -162,9 +165,7 @@ void CFileReaderBase::InitializePos(FILE* src, const Options& options
   }
 #endif  // _WIN32
   if (assumed_pos != std::nullopt) {
-    if (ABSL_PREDICT_FALSE(
-            *assumed_pos >
-            Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(*assumed_pos > kMaxPosition)) {
       FailOverflow();
       return;
     }
@@ -305,15 +306,12 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal()";
   FILE* const src = SrcFile();
   for (;;) {
-    if (ABSL_PREDICT_FALSE(
-            limit_pos() >=
-            Position{std::numeric_limits<cfile_internal::Offset>::max()})) {
+    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
       return FailOverflow();
     }
-    const size_t length_to_read = UnsignedMin(
-        UnsignedClamp(AvailableLength(src), min_length, max_length),
-        Position{std::numeric_limits<cfile_internal::Offset>::max()} -
-            limit_pos());
+    const size_t length_to_read =
+        UnsignedMin(UnsignedClamp(AvailableLength(src), min_length, max_length),
+                    kMaxPosition - limit_pos());
     const size_t length_read = fread(dest, 1, length_to_read, src);
     RIEGELI_ASSERT_LE(length_read, length_to_read)
         << "fread() read more than requested";

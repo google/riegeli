@@ -16,7 +16,9 @@
 #define RIEGELI_SNAPPY_SNAPPY_WRITER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
+#include <limits>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -121,6 +123,8 @@ class SnappyWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<uint32_t>::max();
+
   // `snappy::kBlockSize`
   static constexpr size_t kBlockSize = size_t{64} << 10;
 

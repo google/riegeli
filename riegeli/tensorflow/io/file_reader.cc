@@ -90,7 +90,7 @@ std::unique_ptr<tsl::RandomAccessFile> FileReaderBase::OpenFile() {
 }
 
 void FileReaderBase::InitializePos(Position initial_pos) {
-  if (ABSL_PREDICT_FALSE(initial_pos > std::numeric_limits<uint64_t>::max())) {
+  if (ABSL_PREDICT_FALSE(initial_pos > kMaxPosition)) {
     FailOverflow();
     return;
   }
@@ -176,11 +176,10 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 
 inline bool FileReaderBase::ReadToDest(size_t length,
                                        tsl::RandomAccessFile* src, char* dest) {
-  if (ABSL_PREDICT_FALSE(limit_pos() >= std::numeric_limits<uint64_t>::max())) {
+  if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
     return FailOverflow();
   }
-  const size_t length_to_read =
-      UnsignedMin(length, std::numeric_limits<uint64_t>::max() - limit_pos());
+  const size_t length_to_read = UnsignedMin(length, kMaxPosition - limit_pos());
   absl::string_view result;
   const absl::Status status = src->Read(IntCast<uint64_t>(limit_pos()), result,
                                         absl::MakeSpan(dest, length_to_read));
@@ -199,8 +198,8 @@ inline bool FileReaderBase::ReadToDest(size_t length,
       << "RandomAccessFile::Read() succeeded but read less than requested";
   if (ABSL_PREDICT_FALSE(result.size() < length)) {
     // `result.size() == length_to_read < length`, which implies that
-    // `std::numeric_limits<uint64_t>::max()` was reached.
-    RIEGELI_ASSERT_EQ(limit_pos(), std::numeric_limits<uint64_t>::max())
+    // `kMaxPosition` was reached.
+    RIEGELI_ASSERT_EQ(limit_pos(), kMaxPosition)
         << "Maximum position must have been reached";
     return FailOverflow();
   }
@@ -214,13 +213,13 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
                  buffer_.data() + buffer_.size())
       << "Failed precondition of FileReaderBase::ReadToBuffer(): "
          "flat_buffer not a suffix of buffer_";
-  if (ABSL_PREDICT_FALSE(limit_pos() >= std::numeric_limits<uint64_t>::max())) {
+  if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
     buffer_.RemoveSuffix(flat_buffer.size());
     set_buffer(buffer_.data(), buffer_.size(), cursor_index);
     return FailOverflow();
   }
-  const size_t length_to_read = UnsignedMin(
-      flat_buffer.size(), std::numeric_limits<uint64_t>::max() - limit_pos());
+  const size_t length_to_read =
+      UnsignedMin(flat_buffer.size(), kMaxPosition - limit_pos());
   absl::string_view result;
   const absl::Status status =
       src->Read(IntCast<uint64_t>(limit_pos()), result,
@@ -252,8 +251,8 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
       << "RandomAccessFile::Read() succeeded but read less than requested";
   if (ABSL_PREDICT_FALSE(result.size() < flat_buffer.size())) {
     // `result.size() == length_to_read < flat_buffer.size()`, which implies
-    // that `std::numeric_limits<uint64_t>::max()` was reached.
-    RIEGELI_ASSERT_EQ(limit_pos(), std::numeric_limits<uint64_t>::max())
+    // that `kMaxPosition` was reached.
+    RIEGELI_ASSERT_EQ(limit_pos(), kMaxPosition)
         << "Maximum position must have been reached";
     return FailOverflow();
   }

@@ -24,6 +24,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -136,6 +137,8 @@ class PythonReader : public BufferedReader {
   std::optional<Position> SizeImpl() override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
   std::optional<Position> SizeInternal();
 

@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <limits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -258,6 +259,8 @@ class XzWriterBase : public BufferedWriter {
     bool with_parallelism;
     uint32_t preset;
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,
                                          lzma_ret liblzma_code);

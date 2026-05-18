@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -149,8 +148,7 @@ bool PrefixLimitingBackwardWriterBase::TruncateImpl(Position new_size) {
   BackwardWriter& dest = *DestWriter();
   SyncBuffer(dest);
   bool truncate_ok;
-  if (ABSL_PREDICT_FALSE(new_size >
-                         std::numeric_limits<Position>::max() - base_pos_)) {
+  if (ABSL_PREDICT_FALSE(new_size > kMaxPosition - base_pos_)) {
     truncate_ok = false;
   } else {
     truncate_ok = dest.Truncate(new_size + base_pos_);

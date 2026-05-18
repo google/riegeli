@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <optional>
 #include <utility>
 
@@ -176,8 +175,7 @@ std::optional<Position> PositionShiftingWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!MakeBuffer(dest) || size == std::nullopt)) {
     return std::nullopt;
   }
-  if (ABSL_PREDICT_FALSE(*size >
-                         std::numeric_limits<Position>::max() - base_pos_)) {
+  if (ABSL_PREDICT_FALSE(*size > kMaxPosition - base_pos_)) {
     FailOverflow();
     return std::nullopt;
   }

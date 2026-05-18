@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -116,6 +117,8 @@ class Bzip2ReaderBase : public BufferedReader {
       delete ptr;
     }
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor();
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,

@@ -16,7 +16,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <optional>
 
 #include "absl/base/optimization.h"
@@ -47,13 +46,12 @@ inline void NullBackwardWriter::SyncBuffer() {
 
 inline bool NullBackwardWriter::MakeBuffer(size_t min_length,
                                            size_t recommended_length) {
-  if (ABSL_PREDICT_FALSE(min_length >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(min_length > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   const size_t buffer_length = UnsignedMin(
       buffer_sizer_.BufferLength(start_pos(), min_length, recommended_length),
-      std::numeric_limits<Position>::max() - start_pos());
+      kMaxPosition - start_pos());
   buffer_.Reset(buffer_length);
   set_buffer(buffer_.data(), buffer_length);
   return true;
@@ -80,8 +78,7 @@ bool NullBackwardWriter::WriteSlow(absl::string_view src) {
          "enough space available, use Write(string_view) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -94,8 +91,7 @@ bool NullBackwardWriter::WriteSlow(ExternalRef src) {
          "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -108,8 +104,7 @@ bool NullBackwardWriter::WriteSlow(const Chain& src) {
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -122,8 +117,7 @@ bool NullBackwardWriter::WriteSlow(const absl::Cord& src) {
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   move_start_pos(src.size());
@@ -136,8 +130,7 @@ bool NullBackwardWriter::WriteSlow(ByteFill src) {
          "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   SyncBuffer();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   move_start_pos(src.size());

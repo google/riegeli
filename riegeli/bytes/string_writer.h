@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -114,6 +115,8 @@ class StringWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr size_t kMaxPosition = std::numeric_limits<size_t>::max();
+
   // Returns the amount of data written, either to `*DestString()` or to
   // `secondary_buffer_`.
   size_t used_size() const;

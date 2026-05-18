@@ -120,6 +120,8 @@ class PositionShiftingWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailUnderflow(absl::string_view operation,
                                          Position new_pos, Object& object);
 
@@ -250,11 +252,11 @@ inline void PositionShiftingWriterBase::SyncBuffer(Writer& dest) {
 
 inline bool PositionShiftingWriterBase::MakeBuffer(Writer& dest,
                                                    size_t min_length) {
-  const Position max_pos = std::numeric_limits<Position>::max() - base_pos_;
+  const Position max_pos = kMaxPosition - base_pos_;
   if (ABSL_PREDICT_FALSE(dest.limit_pos() > max_pos)) {
     if (ABSL_PREDICT_FALSE(dest.pos() > max_pos)) {
       set_buffer(dest.cursor());
-      set_start_pos(std::numeric_limits<Position>::max());
+      set_start_pos(kMaxPosition);
       return FailOverflow();
     }
     set_buffer(dest.cursor(), IntCast<size_t>(max_pos - dest.pos()));

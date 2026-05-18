@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -110,6 +111,8 @@ class HadoopSnappyWriterBase : public PushableWriter {
   Reader* ReadModeBehindScratch(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   // Compresses buffered data, but unlike `PushSlow()`, does not ensure that a
   // buffer is allocated.
   //

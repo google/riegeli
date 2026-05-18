@@ -16,7 +16,9 @@
 #define RIEGELI_TENSORFLOW_IO_FILE_READER_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -135,6 +137,9 @@ class FileReaderBase : public Reader {
   }
 
  protected:
+  static constexpr Position kMaxPosition =
+      Position{std::numeric_limits<uint64_t>::max()};
+
   explicit FileReaderBase(Closed) noexcept : Reader(kClosed) {}
 
   explicit FileReaderBase(BufferOptions buffer_options, tsl::Env* env,

@@ -150,7 +150,7 @@ class LimitingWriterBase : public Writer {
   Position max_length() const { return SaturatingSub(max_pos_, pos()); }
 
   // Clears the limit.
-  void clear_limit() { max_pos_ = std::numeric_limits<Position>::max(); }
+  void clear_limit() { max_pos_ = kMaxPosition; }
 
   bool SupportsRandomAccess() override;
   bool SupportsTruncate() override;
@@ -195,6 +195,8 @@ class LimitingWriterBase : public Writer {
   Reader* ReadModeImpl(Position initial_pos) override;
 
  private:
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
+
   ABSL_ATTRIBUTE_COLD bool FailLimitExceeded();
   ABSL_ATTRIBUTE_COLD bool FailLimitExceeded(Writer& dest);
   ABSL_ATTRIBUTE_COLD void FailLengthOverflow(Position max_length);
@@ -204,7 +206,7 @@ class LimitingWriterBase : public Writer {
   bool WriteInternal(Src&& src, RemoveSuffix&& remove_suffix);
 
   // Invariant: `start_pos() <= max_pos_`
-  Position max_pos_ = std::numeric_limits<Position>::max();
+  Position max_pos_ = kMaxPosition;
 
   bool exact_ = false;
 
@@ -296,13 +298,13 @@ inline LimitingWriterBase& LimitingWriterBase::operator=(
 
 inline void LimitingWriterBase::Reset(Closed) {
   Writer::Reset(kClosed);
-  max_pos_ = std::numeric_limits<Position>::max();
+  max_pos_ = kMaxPosition;
   exact_ = false;
 }
 
 inline void LimitingWriterBase::Reset(bool exact) {
   Writer::Reset();
-  max_pos_ = std::numeric_limits<Position>::max();
+  max_pos_ = kMaxPosition;
   exact_ = exact;
 }
 

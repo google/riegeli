@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -219,6 +220,8 @@ class ZlibReaderBase : public BufferedReader {
     // `void*` is `z_stream*`. Avoid including `zlib.h` in the header.
     void operator()(void* ptr) const;
   };
+
+  static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor();
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation,

@@ -20,7 +20,6 @@
 
 #include <stddef.h>
 
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -169,8 +168,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of BufferedWriter::WriteInternal()";
   Writer& dest = *DestWriter();
-  if (ABSL_PREDICT_FALSE(src.size() >
-                         std::numeric_limits<Position>::max() - start_pos())) {
+  if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   if (pledged_size_ != std::nullopt) {
