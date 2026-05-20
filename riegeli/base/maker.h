@@ -189,11 +189,11 @@ class MakerType
     return std::get<index>(args_);
   }
   template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
-  std::tuple_element_t<index, std::tuple<Args...>>& arg() && {
+  std::tuple_element_t<index, std::tuple<Args...>>&& arg() && {
     return std::get<index>(std::move(args_));
   }
   template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
-  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const&& {
+  const std::tuple_element_t<index, std::tuple<Args...>>&& arg() const&& {
     return std::get<index>(std::move(args_));
   }
 
@@ -397,11 +397,11 @@ class MakerTypeFor
     return maker().template arg<index>();
   }
   template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
-  std::tuple_element_t<index, std::tuple<Args...>>& arg() && {
+  std::tuple_element_t<index, std::tuple<Args...>>&& arg() && {
     return std::move(*this).maker().template arg<index>();
   }
   template <size_t index, std::enable_if_t<(index < sizeof...(Args)), int> = 0>
-  const std::tuple_element_t<index, std::tuple<Args...>>& arg() const&& {
+  const std::tuple_element_t<index, std::tuple<Args...>>&& arg() const&& {
     return std::move(*this).maker().template arg<index>();
   }
 
