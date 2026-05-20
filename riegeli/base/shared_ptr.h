@@ -60,7 +60,7 @@ namespace riegeli {
 // class. Prefer `SharedPtr` unless `IntrusiveSharedPtr` is needed.
 template <typename T>
 class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
-    : public WithEqual<SharedPtr<T>, std::nullptr_t> {
+    : public WithCompare<SharedPtr<T>, std::nullptr_t> {
  private:
   template <typename SubT>
   struct IsCompatibleProperSubtype
@@ -209,12 +209,26 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
     if (ptr != nullptr) Unrefer()(ptr);
   }
 
-  template <typename OtherT>
+  template <typename OtherT, std::common_type_t<T*, OtherT*> = nullptr>
   friend bool operator==(const SharedPtr& a, const SharedPtr<OtherT>& b) {
-    return a.ptr_ == b.ptr_;
+    return a.get() == b.get();
   }
   friend bool operator==(const SharedPtr& a, std::nullptr_t) {
-    return a.ptr_ == nullptr;
+    return a.get() == nullptr;
+  }
+
+  template <typename OtherT, std::common_type_t<T*, OtherT*> = nullptr>
+  friend StrongOrdering RIEGELI_COMPARE(const SharedPtr& a,
+                                        const SharedPtr<OtherT>& b) {
+    return riegeli::Compare(a.get(), b.get());
+  }
+  friend StrongOrdering RIEGELI_COMPARE(const SharedPtr& a, std::nullptr_t) {
+    return riegeli::Compare(a.get(), static_cast<T*>(nullptr));
+  }
+
+  template <typename HashState>
+  friend HashState AbslHashValue(HashState hash_state, const SharedPtr& self) {
+    return HashState::combine(std::move(hash_state), self.get());
   }
 
   // Indicates support for:

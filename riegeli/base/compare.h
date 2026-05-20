@@ -15,6 +15,7 @@
 #ifndef RIEGELI_BASE_COMPARE_H_
 #define RIEGELI_BASE_COMPARE_H_
 
+#include <functional>  // IWYU pragma: keep
 #include <type_traits>
 
 #include "absl/base/nullability.h"
@@ -199,11 +200,12 @@ inline StrongOrdering RIEGELI_COMPARE(T a, T b) {
                  : StrongOrdering::equal;
 }
 
-template <typename T>
-inline StrongOrdering RIEGELI_COMPARE(T* a, T* b) {
-  return a < b   ? StrongOrdering::less
-         : a > b ? StrongOrdering::greater
-                 : StrongOrdering::equal;
+template <typename A, typename B, std::common_type_t<A*, B*> = nullptr>
+inline StrongOrdering RIEGELI_COMPARE(A* a, B* b) {
+  using Common = std::common_type_t<A*, B*>;
+  return std::less<Common>()(a, b)      ? StrongOrdering::less
+         : std::greater<Common>()(a, b) ? StrongOrdering::greater
+                                        : StrongOrdering::equal;
 }
 
 inline StrongOrdering RIEGELI_COMPARE(absl::string_view a,
