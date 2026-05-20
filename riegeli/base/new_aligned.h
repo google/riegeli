@@ -21,6 +21,7 @@
 #include <new>
 #include <utility>
 
+#include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
@@ -44,12 +45,12 @@ template <>
 inline void EnsureSpaceForObject<void>(size_t& /*num_bytes*/) {}
 
 template <typename T, typename... Args>
-inline void ConstructObject(T* ptr, Args&&... args) {
+inline void ConstructObject(void* ptr, Args&&... args) {
   new (ptr) T(std::forward<Args>(args)...);
 }
 
 template <>
-inline void ConstructObject(void* /*ptr*/) {}
+inline void ConstructObject<void>(void* /*ptr*/) {}
 
 template <typename T>
 inline void DestroyObject(T* ptr) {
@@ -85,14 +86,14 @@ inline T* NewAligned(size_t num_bytes, Args&&... args) {
   static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
   new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
-  T* ptr;
+  void* ptr;
   if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
-    ptr = static_cast<T*>(operator new(num_bytes));
+    ptr = operator new(num_bytes);
   } else {
-    ptr = static_cast<T*>(operator new(num_bytes, std::align_val_t(alignment)));
+    ptr = operator new(num_bytes, std::align_val_t(alignment));
   }
-  new_aligned_internal::ConstructObject(ptr, std::forward<Args>(args)...);
-  return ptr;
+  new_aligned_internal::ConstructObject<T>(ptr, std::forward<Args>(args)...);
+  return static_cast<T*>(ptr);
 }
 
 template <typename T, size_t alignment = alignof(T)>
@@ -101,10 +102,12 @@ inline void DeleteAligned(T* ptr, size_t num_bytes) {
                 "alignment must be a power of 2");
   new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
   new_aligned_internal::DestroyObject(ptr);
+  void* const void_ptr =
+      const_cast<void*>(absl::implicit_cast<const void*>(ptr));
   if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
-    operator delete(ptr, num_bytes);
+    operator delete(void_ptr, num_bytes);
   } else {
-    operator delete(ptr, num_bytes, std::align_val_t(alignment));
+    operator delete(void_ptr, num_bytes, std::align_val_t(alignment));
   }
 }
 
@@ -122,16 +125,16 @@ inline T* SizeReturningNewAligned(size_t min_num_bytes,
   static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
   new_aligned_internal::EnsureSpaceForObject<T>(min_num_bytes);
-  T* ptr;
+  void* ptr;
   const size_t capacity = EstimatedAllocatedSize(min_num_bytes);
   if constexpr (alignment <= __STDCPP_DEFAULT_NEW_ALIGNMENT__) {
-    ptr = static_cast<T*>(operator new(capacity));
+    ptr = operator new(capacity);
   } else {
-    ptr = static_cast<T*>(operator new(capacity, std::align_val_t(alignment)));
+    ptr = operator new(capacity, std::align_val_t(alignment));
   }
   *actual_num_bytes = capacity;
-  new_aligned_internal::ConstructObject(ptr, std::forward<Args>(args)...);
-  return ptr;
+  new_aligned_internal::ConstructObject<T>(ptr, std::forward<Args>(args)...);
+  return static_cast<T*>(ptr);
 }
 
 }  // namespace riegeli

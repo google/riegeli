@@ -143,6 +143,7 @@ cc_library(
         ":arithmetic",
         ":assert",
         ":estimated_allocated_size",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/numeric:bits",
     ],
