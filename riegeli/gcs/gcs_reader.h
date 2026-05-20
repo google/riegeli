@@ -130,7 +130,9 @@ class GcsReader
 
   friend class GcsWriter;  // For `set_exact_size()`.
 
-  struct NewReaderTag {};
+  struct NewReaderTag {
+    explicit NewReaderTag() = default;
+  };
 
   enum class Origin { kBegin, kEnd };
   struct RangeOptions {
