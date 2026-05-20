@@ -243,7 +243,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
                 int> = 0>
   size_t GetRefCount() const {
     if (ptr_ == nullptr) return 0;
-    return ptr_->GetRefCount();
+    return ptr_->GetCount();
   }
 
   // Returns the pointer.
