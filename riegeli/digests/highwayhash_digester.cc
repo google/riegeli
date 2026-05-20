@@ -25,7 +25,7 @@ alignas(32) const HighwayHashKey
         0x98470d187b523e8f,
         0x592040a2da3c4b53,
         0xbff8b246e3c587a2,
-};
+    };
 
 template <>
 alignas(32) const HighwayHashKey
@@ -34,7 +34,7 @@ alignas(32) const HighwayHashKey
         0xb44bc74d89d26c86,
         0x111ea964039fa769,
         0x6f7d7159e15612b6,
-};
+    };
 
 template <>
 alignas(32) const HighwayHashKey
@@ -43,6 +43,6 @@ alignas(32) const HighwayHashKey
         0x21e397ea62c264b6,
         0x9d856914f2ad0e15,
         0x64dca6f86247f384,
-};
+    };
 
 }  // namespace riegeli
