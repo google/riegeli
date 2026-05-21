@@ -229,6 +229,9 @@ class MemoryEstimator {
 //  * Includes memory allocator overhead.
 //  * Takes object sharing into account.
 //  * Does not report unknown types.
+//
+// It is less efficient than `MemoryEstimatorSimplified`, in particular it has
+// memory overhead proportional to the number of potentially shared objects.
 class MemoryEstimatorDefault : public MemoryEstimator {
  public:
   MemoryEstimatorDefault() = default;
@@ -252,7 +255,7 @@ class MemoryEstimatorDefault : public MemoryEstimator {
   absl::flat_hash_set<const void*> objects_seen_;
 };
 
-// A faster but less accurate `MemoryEstimator`.
+// A more efficient but less accurate `MemoryEstimator`.
 //
 //  * Does not include memory allocator overhead.
 //  * Does not take object sharing into account (if an object is shared then
