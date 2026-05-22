@@ -432,7 +432,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   absl_nullable std::unique_ptr<T, Unrefer> ptr_;
 };
 
-template <typename T>
+template <typename T,
+          std::enable_if_t<!std::is_same_v<T, std::nullptr_t>, int> = 0>
 explicit SharedPtr(T&& value) -> SharedPtr<TargetT<T>>;
 
 }  // namespace riegeli

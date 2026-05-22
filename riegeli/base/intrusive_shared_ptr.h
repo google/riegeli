@@ -368,7 +368,11 @@ explicit IntrusiveSharedPtr(T* absl_nullable ptr,
 template <typename T>
 explicit IntrusiveSharedPtr(T* absl_nullable ptr, ShareOwnership)
     -> IntrusiveSharedPtr<T>;
-template <typename T, std::enable_if_t<!std::is_pointer_v<T>, int> = 0>
+template <typename T,
+          std::enable_if_t<
+              std::conjunction_v<std::negation<std::is_same<T, std::nullptr_t>>,
+                                 std::negation<std::is_pointer<T>>>,
+              int> = 0>
 explicit IntrusiveSharedPtr(T&& value) -> IntrusiveSharedPtr<TargetT<T>>;
 
 }  // namespace riegeli
