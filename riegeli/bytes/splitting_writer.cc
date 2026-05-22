@@ -68,9 +68,7 @@ inline bool SplittingWriterBase::OpenShardInternal() {
   RIEGELI_ASSERT(!shard_is_open())
       << "Failed precondition of SplittingWriterBase::OpenShardInternal(): "
          "shard already opened";
-  if (ABSL_PREDICT_FALSE(start_pos() == kMaxPosition)) {
-    return FailOverflow();
-  }
+  if (ABSL_PREDICT_FALSE(start_pos() == kMaxPosition)) return FailOverflow();
   const std::optional<Position> size_limit = OpenShardImpl();
   if (ABSL_PREDICT_FALSE(size_limit == std::nullopt)) {
     RIEGELI_ASSERT(!ok())

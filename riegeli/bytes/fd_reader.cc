@@ -398,9 +398,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal()";
   const int src = SrcFd();
   for (;;) {
-    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
-      return FailOverflow();
-    }
+    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) return FailOverflow();
 #ifndef _WIN32
     const size_t length_to_read = UnsignedMin(
         max_length, kMaxPosition - limit_pos(),

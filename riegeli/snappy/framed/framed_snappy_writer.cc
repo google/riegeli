@@ -104,9 +104,7 @@ bool FramedSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(!PushInternal(dest))) return false;
-  if (ABSL_PREDICT_FALSE(start_pos() == kMaxPosition)) {
-    return FailOverflow();
-  }
+  if (ABSL_PREDICT_FALSE(start_pos() == kMaxPosition)) return FailOverflow();
   const size_t length = UnsignedMin(
       ApplyBufferConstraints(
           ApplySizeHint(snappy::kBlockSize, size_hint_, start_pos()), 1,

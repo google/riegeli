@@ -176,9 +176,7 @@ bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
 
 inline bool FileReaderBase::ReadToDest(size_t length,
                                        tsl::RandomAccessFile* src, char* dest) {
-  if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
-    return FailOverflow();
-  }
+  if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) return FailOverflow();
   const size_t length_to_read = UnsignedMin(length, kMaxPosition - limit_pos());
   absl::string_view result;
   const absl::Status status = src->Read(IntCast<uint64_t>(limit_pos()), result,

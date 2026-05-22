@@ -181,9 +181,7 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
   std::istream& src = *SrcStream();
   errno = 0;
   for (;;) {
-    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
-      return FailOverflow();
-    }
+    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) return FailOverflow();
     std::streamsize length_to_read = IntCast<std::streamsize>(
         UnsignedMin(min_length, kMaxPosition - limit_pos()));
     const std::streamsize max_length_to_read = IntCast<std::streamsize>(

@@ -306,9 +306,7 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
       << "Failed precondition of BufferedReader::ReadInternal()";
   FILE* const src = SrcFile();
   for (;;) {
-    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) {
-      return FailOverflow();
-    }
+    if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) return FailOverflow();
     const size_t length_to_read =
         UnsignedMin(UnsignedClamp(AvailableLength(src), min_length, max_length),
                     kMaxPosition - limit_pos());
