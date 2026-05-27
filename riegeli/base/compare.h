@@ -323,25 +323,22 @@ class WithCompareMarker {};
 
 template <typename T, typename Other>
 class WithSwappedEqual {
-  friend bool operator==(const Other& a, const T& b) { return b == a; }
+  template <typename DependentT = T,
+            std::enable_if_t<
+                compare_internal::HasEqual<DependentT, Other>::value, int> = 0>
+  friend bool operator==(const Other& a, const T& b) {
+    return b == a;
+  }
 };
 
 template <typename T, typename Other>
 class WithSwappedCompare {
+  template <
+      typename DependentT = T,
+      std::enable_if_t<compare_internal::HasCompare<DependentT, Other>::value,
+                       int> = 0>
   friend auto RIEGELI_COMPARE(const Other& a, const T& b) {
     return NegateOrdering(RIEGELI_COMPARE(b, a));
-  }
-  friend bool operator<(const Other& a, const T& b) {
-    return RIEGELI_COMPARE(b, a) > 0;
-  }
-  friend bool operator>(const Other& a, const T& b) {
-    return RIEGELI_COMPARE(b, a) < 0;
-  }
-  friend bool operator<=(const Other& a, const T& b) {
-    return RIEGELI_COMPARE(b, a) >= 0;
-  }
-  friend bool operator>=(const Other& a, const T& b) {
-    return RIEGELI_COMPARE(b, a) <= 0;
   }
 };
 
@@ -360,11 +357,12 @@ class WithSwappedCompare {
 // If `T` supports heterogeneous comparisons against other types, use
 // `WithEqual<T, Other...>` instead, specifying the types of these parameters.
 // For each of these types, define the appropriate `==` with the first parameter
-// of type `const T&` or `T`.
+// of type `const T&` or `T`. This is applicable also if the comparison is
+// defined conditionally.
 //
-// If the other parameter does not have a concrete type because the `==` is a
-// template, do not add a template parameter of `WithEqual`. Instead, define
-// also `==` with swapped parameters, wrapped in
+// If the other parameter does not have a concrete type because the `==` is
+// a template over several other types, do not add a template parameter of
+// `WithEqual`. Instead, define also `==` with swapped parameters, wrapped in
 // `#if !__cpp_impl_three_way_comparison`.
 template <typename T, typename... Others>
 class WithEqual

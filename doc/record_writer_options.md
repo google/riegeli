@@ -67,7 +67,8 @@ compression level which tunes the tradeoff between compression density and
 compression speed (higher = better density but slower).
 
 `zstd_level` must be between -131072 and 22. Level 0 is currently equivalent to
-3. Default: 3.
+
+1.  Default: 3.
 
 ### `snappy`
 
