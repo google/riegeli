@@ -76,6 +76,10 @@ namespace riegeli {
 class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
     : public WithCompare<CompactString, absl::string_view> {
  public:
+  // Supports heterogeneous lookup against `absl::string_view`.
+  struct absl_container_hash;
+  struct absl_container_eq;
+
   static constexpr size_t max_size() {
     return std::numeric_limits<size_t>::max() - 2 * sizeof(size_t);
   }
@@ -545,8 +549,9 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
   uintptr_t repr_ = kInlineTag;
 };
 
-// Hash and equality which support heterogeneous lookup.
-struct CompactStringHash {
+// Implementation details follow.
+
+struct CompactString::absl_container_hash {
   using is_transparent = void;
   size_t operator()(const CompactString& value) const {
     return absl::Hash<CompactString>()(value);
@@ -555,7 +560,8 @@ struct CompactStringHash {
     return absl::Hash<absl::string_view>()(value);
   }
 };
-struct CompactStringEq {
+
+struct CompactString::absl_container_eq {
   using is_transparent = void;
   bool operator()(const CompactString& a, const CompactString& b) const {
     return a == b;
@@ -566,12 +572,7 @@ struct CompactStringEq {
   bool operator()(absl::string_view a, const CompactString& b) const {
     return a == b;
   }
-  bool operator()(absl::string_view a, absl::string_view b) const {
-    return a == b;
-  }
 };
-
-// Implementation details follow.
 
 inline uintptr_t CompactString::MakeRepr(size_t size, size_t capacity) {
   RIEGELI_ASSERT_LE(size, capacity)
