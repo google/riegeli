@@ -77,7 +77,11 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
       dest.Append(std::move(cord_buffer_));
     }
   } else {
-    ExternalRef(std::move(buffer_), data).AppendTo(dest);
+    if (Wasteful(buffer_.capacity(), data.size())) {
+      cord_internal::AppendToBlockyCord(data, dest);
+    } else {
+      ExternalRef(std::move(buffer_), data).AppendTo(dest);
+    }
   }
   set_buffer();
 }
