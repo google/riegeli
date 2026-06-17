@@ -317,41 +317,45 @@ class MemoryEstimatorReportingUnknownTypes : public MemoryEstimatorDefault {
   absl::flat_hash_set<std::type_index> unknown_types_;
 };
 
-// Uses `MemoryEstimatorDefault` to estimate memory owned by a single object
-// and its subobjects, including `sizeof` the original object.
-template <typename T>
-inline size_t EstimateMemory(const T& object) {
+// Uses `MemoryEstimatorDefault` to estimate memory owned by a fixed number of
+// objects with their subobjects, including `sizeof` the original objects.
+template <typename... T>
+size_t EstimateMemory(const T&... objects) {
   MemoryEstimatorDefault memory_estimator;
-  memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&object));
-  memory_estimator.RegisterSubobjects(&object);
+  ((memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&objects)),
+    memory_estimator.RegisterSubobjects(&objects)),
+   ...);
   return memory_estimator.TotalMemory();
 }
 
-// Uses `MemoryEstimatorSimplified` to estimate memory owned by a single object
-// and its subobjects, including `sizeof` the original object.
-template <typename T>
-inline size_t EstimateMemorySimplified(const T& object) {
+// Uses `MemoryEstimatorSimplified` to estimate memory owned by a fixed
+// number of objects with their subobjects, including `sizeof` the original
+// objects.
+template <typename... T>
+size_t EstimateMemorySimplified(const T&... objects) {
   MemoryEstimatorSimplified memory_estimator;
-  memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&object));
-  memory_estimator.RegisterSubobjects(&object);
+  ((memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&objects)),
+    memory_estimator.RegisterSubobjects(&objects)),
+   ...);
   return memory_estimator.TotalMemory();
 }
 
 // Uses `MemoryEstimatorReportingUnknownTypes` to estimate memory owned by a
-// single object and its subobjects, including `sizeof` the original object, and
-// unknown types.
+// fixed number of objects with their subobjects, including `sizeof` the
+// original objects, and unknown types.
 
 struct TotalMemoryWithUnknownTypes {
   size_t total_memory;
   std::vector<std::string> unknown_types;
 };
 
-template <typename T>
-inline TotalMemoryWithUnknownTypes EstimateMemoryReportingUnknownTypes(
-    const T& object) {
+template <typename... T>
+TotalMemoryWithUnknownTypes EstimateMemoryReportingUnknownTypes(
+    const T&... objects) {
   MemoryEstimatorReportingUnknownTypes memory_estimator;
-  memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&object));
-  memory_estimator.RegisterSubobjects(&object);
+  ((memory_estimator.RegisterMemory(MemoryEstimator::DynamicSizeOf(&objects)),
+    memory_estimator.RegisterSubobjects(&objects)),
+   ...);
   return TotalMemoryWithUnknownTypes{memory_estimator.TotalMemory(),
                                      memory_estimator.UnknownTypes()};
 }
