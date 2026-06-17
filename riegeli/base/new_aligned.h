@@ -53,12 +53,12 @@ template <>
 inline void ConstructObject<void>(void* /*ptr*/) {}
 
 template <typename T>
-inline void DestroyObject(T* ptr) {
-  ptr->~T();
+inline void DestroyObject(T* absl_nullable ptr) {
+  if (ptr != nullptr) ptr->~T();
 }
 
 template <>
-inline void DestroyObject(void* /*ptr*/) {}
+inline void DestroyObject(void* absl_nullable /*ptr*/) {}
 
 }  // namespace new_aligned_internal
 
@@ -97,7 +97,7 @@ inline T* NewAligned(size_t num_bytes, Args&&... args) {
 }
 
 template <typename T, size_t alignment = alignof(T)>
-inline void DeleteAligned(T* ptr, size_t num_bytes) {
+inline void DeleteAligned(T* absl_nullable ptr, size_t num_bytes) {
   static_assert(absl::has_single_bit(alignment),
                 "alignment must be a power of 2");
   new_aligned_internal::EnsureSpaceForObject<T>(num_bytes);
