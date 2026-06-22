@@ -47,7 +47,8 @@ namespace riegeli {
 
 static_assert(ZstdWriterBase::Options::kMinWindowLog == ZSTD_WINDOWLOG_MIN);
 static_assert(ZstdWriterBase::Options::kMaxWindowLog == ZSTD_WINDOWLOG_MAX);
-static_assert(ZstdWriterBase::Options::kMinTargetCBlockSize ==
+// `ZSTD_TARGETCBLOCKSIZE_MIN` was 64 before zstd-1.5.6.
+static_assert(ZstdWriterBase::Options::kMinTargetCBlockSize >=
               ZSTD_TARGETCBLOCKSIZE_MIN);
 static_assert(ZstdWriterBase::Options::kMaxTargetCBlockSize ==
               ZSTD_TARGETCBLOCKSIZE_MAX);
