@@ -126,6 +126,16 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
     return CompactString::ViewFromRaw(&repr_);
   }
 
+  // Views the value as an `absl::string_view`.
+  //
+  // Precondition: `*this != nullptr`.
+  absl::string_view value() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    RIEGELI_CHECK(*this != nullptr)
+        << "Failed precondition of OptionalCompactString::value(): "
+           "OptionalCompactString is nullptr";
+    return CompactString::ViewFromRaw(&repr_);
+  }
+
   ArrowProxy<absl::string_view> operator->() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(*this != nullptr)
