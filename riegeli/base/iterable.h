@@ -77,6 +77,15 @@ struct IterableHasSize<
                   decltype(size(std::declval<const Iterable&>())), size_t>>>
     : std::true_type {};
 
+template <typename Iterable, typename = void>
+struct HasRiegeliHasMovableElements : std::false_type {};
+
+template <typename Iterable>
+struct HasRiegeliHasMovableElements<
+    Iterable, std::void_t<decltype(RiegeliHasMovableElements(
+                  static_cast<Iterable* absl_nullable>(nullptr)))>>
+    : std::true_type {};
+
 }  // namespace iterable_internal
 
 // `IsIterable<T>::value` is `true` when `T` is iterable, supporting
@@ -102,12 +111,14 @@ using IteratorTypeT = typename IteratorType<Iterable>::type;
 // move would just yield unnecessarily separate template instantiations.
 //
 // To customize that for a class `Iterable`, define a free function
-// `friend constexpr bool RiegeliHasMovableElements(Iterable*)` as a friend of
-// `Iterable` inside class definition or in the same namespace as `Iterable`,
-// so that it can be found via ADL.
+// `friend T RiegeliHasMovableElements(Iterable*) { return {}; }` as a friend
+// of `Iterable` inside class definition or in the same namespace as `Iterable`,
+// so that it can be found via ADL. Its return type should have a static
+// member `value`, such as `std::true_type`, `std::false_type`, or
+// `std::bool_constant<value>`.
 //
-// The argument of `RiegeliHasMovableElements(Iterable*)` is always a null
-// pointer, used to choose the right overload based on the type.
+// `RiegeliHasMovableElements(Iterable*)` is never called, only its result type
+// is checked.
 
 template <typename Iterable, typename Enable = void>
 struct HasMovableElements
@@ -118,14 +129,11 @@ struct HasMovableElements
 
 template <typename Iterable>
 struct HasMovableElements<
-    Iterable,
-    std::enable_if_t<std::conjunction_v<
-        std::negation<std::is_reference<Iterable>>,
-        std::is_convertible<decltype(RiegeliHasMovableElements(
-                                static_cast<Iterable* absl_nullable>(nullptr))),
-                            bool>>>>
-    : std::bool_constant<RiegeliHasMovableElements(
-          static_cast<Iterable* absl_nullable>(nullptr))> {};
+    Iterable, std::enable_if_t<std::conjunction_v<
+                  std::negation<std::is_reference<Iterable>>,
+                  iterable_internal::HasRiegeliHasMovableElements<Iterable>>>>
+    : decltype(RiegeliHasMovableElements(
+          static_cast<Iterable* absl_nullable>(nullptr))){};
 
 template <typename Iterable>
 struct HasMovableElements<Iterable&> : std::false_type {};
