@@ -168,7 +168,7 @@ class DatasetTestBase(test.TestCase):
           dataset, requires_initialization=requires_initialization
       )
       result = []
-      for _ in range(len(expected_output)):
+      for _ in range(len(expected_output)):  # pyrefly: ignore[bad-argument-type]
         result.append(self.evaluate(get_next()))
       self._compareOutputToExpected(result, expected_output, assert_items_equal)
       with self.assertRaises(errors.OutOfRangeError):
@@ -206,7 +206,9 @@ class RiegeliDatasetTest(DatasetTestBase):
 
       # Note: if records were serialized proto messages, passing
       # options='transpose' to RecordWriter would make compression better.
-      with riegeli.RecordWriter(tf.io.gfile.GFile(filename, 'wb')) as writer:
+      with riegeli.RecordWriter(
+          tf.io.gfile.GFile(filename, 'wb')  # pyrefly: ignore[bad-argument-type]
+      ) as writer:
         for j in range(self._num_records):
           writer.write_record(self._record(i, j))
     return filenames

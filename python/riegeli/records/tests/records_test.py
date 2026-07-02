@@ -280,7 +280,7 @@ class RecordsTest(parameterized.TestCase):
     byte_writer = FakeFile(random_access is RandomAccess.RANDOM_ACCESS)
     with self.assertRaises(NotImplementedError):
       with riegeli.RecordWriter(
-          byte_writer,
+          byte_writer,  # pyrefly: ignore[bad-argument-type]
           assumed_pos=(
               0
               if random_access is RandomAccess.SEQUENTIAL_ACCESS_EXPLICIT
@@ -295,7 +295,7 @@ class RecordsTest(parameterized.TestCase):
     byte_reader = FakeFile(random_access is RandomAccess.RANDOM_ACCESS)
     with self.assertRaises(NotImplementedError):
       with riegeli.RecordReader(
-          byte_reader,
+          byte_reader,  # pyrefly: ignore[bad-argument-type]
           owns_src=False,
           assumed_pos=(
               0
@@ -527,7 +527,7 @@ class RecordsTest(parameterized.TestCase):
       ) as reader:
         metadata_read = reader.read_metadata()
         self.assertEqual(metadata_read, metadata_written)
-        record_type = riegeli.get_record_type(metadata_read)
+        record_type = riegeli.get_record_type(metadata_read)  # pyrefly: ignore[bad-argument-type]
         assert record_type is not None
         self.assertEqual(
             record_type.DESCRIPTOR.full_name, 'riegeli.tests.SimpleMessage'
