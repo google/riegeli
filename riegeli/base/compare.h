@@ -213,11 +213,9 @@ inline StrongOrdering RIEGELI_COMPARE(absl::string_view a,
   return AsStrongOrdering(a.compare(b));
 }
 
-#endif
+#endif  // !__cpp_impl_three_way_comparison
 
-namespace compare_internal {
-
-#if !__cpp_impl_three_way_comparison
+// `HasEqual<A, B>::value` is `true` if `A == B` is defined.
 
 template <typename A, typename B, typename Enable = void>
 struct HasEqual : std::false_type {};
@@ -228,7 +226,8 @@ struct HasEqual<
     std::void_t<decltype(std::declval<const A&>() == std::declval<const B&>())>>
     : std::true_type {};
 
-#endif
+// `HasCompare<A, B>::value` is `true` if `A <=> B` (C++20) or
+// `RIEGELI_COMPARE(A, B)` (C++17) is defined.
 
 template <typename A, typename B, typename Enable = void>
 struct HasCompare : std::false_type {};
@@ -244,6 +243,19 @@ struct HasCompare<A, B,
 #endif
                           )>> : std::true_type {
 };
+
+// `HasLessThan<A, B>::value` is `true` if `A < B` is defined.
+
+template <typename A, typename B, typename Enable = void>
+struct HasLessThan : std::false_type {};
+
+template <typename A, typename B>
+struct HasLessThan<
+    A, B,
+    std::void_t<decltype(std::declval<const A&>() < std::declval<const B&>())>>
+    : std::true_type {};
+
+namespace compare_internal {
 
 template <typename T, typename Enable = void>
 struct IsDedicatedOrdering : std::false_type {};
@@ -270,7 +282,7 @@ struct HasCompareWithLiteral0<T, std::void_t<decltype(
 
 // Call `riegeli::Compare(a, b)` instead of C++20 `a <=> b`.
 template <typename A, typename B,
-          std::enable_if_t<compare_internal::HasCompare<A, B>::value, int> = 0>
+          std::enable_if_t<HasCompare<A, B>::value, int> = 0>
 inline auto Compare(const A& a, const B& b) {
 #if __cpp_impl_three_way_comparison
   return a <=> b;
@@ -311,9 +323,23 @@ inline Ordering NegateOrdering(Ordering ordering) {
   return ordering;
 }
 
-#if !__cpp_impl_three_way_comparison
-
-namespace compare_internal {
+// `WithEqualMarker` and `WithCompareMarker` can be used to detect classes
+// relying on `WithEqual` and `WithCompare`.
+//
+// In C++17, a class `T` with comparisons defined using `WithEqual` derives
+// from `WithEqualMarker<T>`, and a class `T` with comparisons defined using
+// `WithCompare` derives from `WithCompareMarker<T>`.
+//
+// `WithEqual` and `WithCompare` provide derived comparison operators with
+// swapped parameters based on available definitions of `operator==` and
+// `RIEGELI_COMPARE()`. If the type of the other parameter in a heterogeneous
+// comparison also relies on `WithEqual` or `WithCompare`, it will provide
+// comparison operators with the same parameter order, with the same meaning.
+// To avoid ambiguity, comparison operators with swapped parameters should be
+// excluded if the type of the other parameter already provides them.
+//
+// This is not an issue in C++20, where swapping parameters is handled on the
+// language level, rather than by providing explicit definitions.
 
 template <typename T>
 class WithEqualMarker {};
@@ -321,11 +347,14 @@ class WithEqualMarker {};
 template <typename T>
 class WithCompareMarker {};
 
+#if !__cpp_impl_three_way_comparison
+
+namespace compare_internal {
+
 template <typename T, typename Other>
 class WithSwappedEqual {
   template <typename DependentT = T,
-            std::enable_if_t<
-                compare_internal::HasEqual<DependentT, Other>::value, int> = 0>
+            std::enable_if_t<HasEqual<DependentT, Other>::value, int> = 0>
   friend bool operator==(const Other& a, const T& b) {
     return b == a;
   }
@@ -333,10 +362,8 @@ class WithSwappedEqual {
 
 template <typename T, typename Other>
 class WithSwappedCompare {
-  template <
-      typename DependentT = T,
-      std::enable_if_t<compare_internal::HasCompare<DependentT, Other>::value,
-                       int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<HasCompare<DependentT, Other>::value, int> = 0>
   friend auto RIEGELI_COMPARE(const Other& a, const T& b) {
     return NegateOrdering(RIEGELI_COMPARE(b, a));
   }
@@ -344,7 +371,7 @@ class WithSwappedCompare {
 
 }  // namespace compare_internal
 
-#endif
+#endif  // !__cpp_impl_three_way_comparison
 
 // In C++17, `WithEqual` emulates C++20 rules of rewriting `!=` from `==`,
 // and swapping parameters in heterogeneous `==` and `!=`. Since C++20 it has
@@ -363,20 +390,19 @@ class WithSwappedCompare {
 // If the other parameter does not have a concrete type because the `==` is
 // a template over several other types, do not add a template parameter of
 // `WithEqual`. Instead, define also `==` with swapped parameters, wrapped in
-// `#if !__cpp_impl_three_way_comparison`.
+// `#if !__cpp_impl_three_way_comparison`, and excluded if the other parameter
+// type derives from `WithEqualMarker<Other>`.
 template <typename T, typename... Others>
 class WithEqual
 #if !__cpp_impl_three_way_comparison
-    : public compare_internal::WithEqualMarker<T>,
+    : public WithEqualMarker<T>,
       public compare_internal::WithSwappedEqual<T, Others>...
 #endif
 {
  public:
 #if !__cpp_impl_three_way_comparison
-  template <
-      typename DependentT = T,
-      std::enable_if_t<
-          compare_internal::HasEqual<DependentT, DependentT>::value, int> = 0>
+  template <typename DependentT = T,
+            std::enable_if_t<HasEqual<DependentT, DependentT>::value, int> = 0>
   friend bool operator!=(const T& a, const T& b) {
     return !(a == b);
   }
@@ -384,24 +410,23 @@ class WithEqual
   template <
       typename Other,
       std::enable_if_t<std::conjunction_v<std::negation<std::is_same<T, Other>>,
-                                          compare_internal::HasEqual<T, Other>>,
+                                          HasEqual<T, Other>>,
                        int> = 0>
   friend bool operator!=(const T& a, const Other& b) {
     return !(a == b);
   }
 
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<
-                    std::negation<std::is_same<Other, T>>,
-                    std::negation<std::is_base_of<
-                        compare_internal::WithEqualMarker<Other>, Other>>,
-                    compare_internal::HasEqual<Other, T>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                          std::negation<std::is_base_of<
+                                              WithEqualMarker<Other>, Other>>,
+                                          HasEqual<Other, T>>,
+                       int> = 0>
   friend bool operator!=(const Other& a, const T& b) {
     return !(a == b);
   }
-#endif
+#endif  // !__cpp_impl_three_way_comparison
 };
 
 // In C++17, `WithCompare` emulates C++20 rules of rewriting `<`, `>`, `<=`,
@@ -415,7 +440,7 @@ template <typename T, typename... Others>
 class WithCompare : public WithEqual<T, Others...>
 #if !__cpp_impl_three_way_comparison
     ,
-                    public compare_internal::WithCompareMarker<T>,
+                    public WithCompareMarker<T>,
                     public compare_internal::WithSwappedCompare<T, Others>...
 #endif
 {
@@ -423,62 +448,58 @@ class WithCompare : public WithEqual<T, Others...>
 #if !__cpp_impl_three_way_comparison
   template <
       typename DependentT = T,
-      std::enable_if_t<
-          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+      std::enable_if_t<HasCompare<DependentT, DependentT>::value, int> = 0>
   friend bool operator<(const T& a, const T& b) {
     return RIEGELI_COMPARE(a, b) < 0;
   }
   template <
       typename DependentT = T,
-      std::enable_if_t<
-          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+      std::enable_if_t<HasCompare<DependentT, DependentT>::value, int> = 0>
   friend bool operator>(const T& a, const T& b) {
     return RIEGELI_COMPARE(a, b) > 0;
   }
   template <
       typename DependentT = T,
-      std::enable_if_t<
-          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+      std::enable_if_t<HasCompare<DependentT, DependentT>::value, int> = 0>
   friend bool operator<=(const T& a, const T& b) {
     return RIEGELI_COMPARE(a, b) <= 0;
   }
   template <
       typename DependentT = T,
-      std::enable_if_t<
-          compare_internal::HasCompare<DependentT, DependentT>::value, int> = 0>
+      std::enable_if_t<HasCompare<DependentT, DependentT>::value, int> = 0>
   friend bool operator>=(const T& a, const T& b) {
     return RIEGELI_COMPARE(a, b) >= 0;
   }
 
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<T, Other>>,
-                                   compare_internal::HasCompare<T, Other>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                          HasCompare<T, Other>>,
+                       int> = 0>
   friend bool operator<(const T& a, const Other& b) {
     return RIEGELI_COMPARE(a, b) < 0;
   }
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<T, Other>>,
-                                   compare_internal::HasCompare<T, Other>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                          HasCompare<T, Other>>,
+                       int> = 0>
   friend bool operator>(const T& a, const Other& b) {
     return RIEGELI_COMPARE(a, b) > 0;
   }
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<T, Other>>,
-                                   compare_internal::HasCompare<T, Other>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                          HasCompare<T, Other>>,
+                       int> = 0>
   friend bool operator<=(const T& a, const Other& b) {
     return RIEGELI_COMPARE(a, b) <= 0;
   }
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<std::negation<std::is_same<T, Other>>,
-                                   compare_internal::HasCompare<T, Other>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<T, Other>>,
+                                          HasCompare<T, Other>>,
+                       int> = 0>
   friend bool operator>=(const T& a, const Other& b) {
     return RIEGELI_COMPARE(a, b) >= 0;
   }
@@ -489,7 +510,7 @@ class WithCompare : public WithEqual<T, Others...>
                     std::negation<std::is_same<Other, T>>,
                     std::negation<std::is_base_of<
                         compare_internal::WithCompareMarker<Other>, Other>>,
-                    compare_internal::HasCompare<Other, T>>,
+                    HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator<(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) < 0;
@@ -500,7 +521,7 @@ class WithCompare : public WithEqual<T, Others...>
                     std::negation<std::is_same<Other, T>>,
                     std::negation<std::is_base_of<
                         compare_internal::WithCompareMarker<Other>, Other>>,
-                    compare_internal::HasCompare<Other, T>>,
+                    HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator>(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) > 0;
@@ -511,7 +532,7 @@ class WithCompare : public WithEqual<T, Others...>
                     std::negation<std::is_same<Other, T>>,
                     std::negation<std::is_base_of<
                         compare_internal::WithCompareMarker<Other>, Other>>,
-                    compare_internal::HasCompare<Other, T>>,
+                    HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator<=(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) <= 0;
@@ -522,12 +543,12 @@ class WithCompare : public WithEqual<T, Others...>
                     std::negation<std::is_same<Other, T>>,
                     std::negation<std::is_base_of<
                         compare_internal::WithCompareMarker<Other>, Other>>,
-                    compare_internal::HasCompare<Other, T>>,
+                    HasCompare<Other, T>>,
                 int> = 0>
   friend bool operator>=(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) >= 0;
   }
-#endif
+#endif  // !__cpp_impl_three_way_comparison
 };
 
 }  // namespace riegeli
