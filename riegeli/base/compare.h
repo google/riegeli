@@ -504,47 +504,43 @@ class WithCompare : public WithEqual<T, Others...>
     return RIEGELI_COMPARE(a, b) >= 0;
   }
 
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<
-                    std::negation<std::is_same<Other, T>>,
-                    std::negation<std::is_base_of<
-                        compare_internal::WithCompareMarker<Other>, Other>>,
-                    HasCompare<Other, T>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                          std::negation<std::is_base_of<
+                                              WithCompareMarker<Other>, Other>>,
+                                          HasCompare<Other, T>>,
+                       int> = 0>
   friend bool operator<(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) < 0;
   }
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<
-                    std::negation<std::is_same<Other, T>>,
-                    std::negation<std::is_base_of<
-                        compare_internal::WithCompareMarker<Other>, Other>>,
-                    HasCompare<Other, T>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                          std::negation<std::is_base_of<
+                                              WithCompareMarker<Other>, Other>>,
+                                          HasCompare<Other, T>>,
+                       int> = 0>
   friend bool operator>(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) > 0;
   }
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<
-                    std::negation<std::is_same<Other, T>>,
-                    std::negation<std::is_base_of<
-                        compare_internal::WithCompareMarker<Other>, Other>>,
-                    HasCompare<Other, T>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                          std::negation<std::is_base_of<
+                                              WithCompareMarker<Other>, Other>>,
+                                          HasCompare<Other, T>>,
+                       int> = 0>
   friend bool operator<=(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) <= 0;
   }
-  template <typename Other,
-            std::enable_if_t<
-                std::conjunction_v<
-                    std::negation<std::is_same<Other, T>>,
-                    std::negation<std::is_base_of<
-                        compare_internal::WithCompareMarker<Other>, Other>>,
-                    HasCompare<Other, T>>,
-                int> = 0>
+  template <
+      typename Other,
+      std::enable_if_t<std::conjunction_v<std::negation<std::is_same<Other, T>>,
+                                          std::negation<std::is_base_of<
+                                              WithCompareMarker<Other>, Other>>,
+                                          HasCompare<Other, T>>,
+                       int> = 0>
   friend bool operator>=(const Other& a, const T& b) {
     return RIEGELI_COMPARE(a, b) >= 0;
   }
