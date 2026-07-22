@@ -18,8 +18,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <optional>
-
 #include "absl/base/optimization.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -818,38 +816,6 @@ inline size_t ReadCanonicalVarint64(const char* src, size_t available,
       src, available, acc, dest);
 }
 
-inline std::optional<const char*> ReadVarint32(const char* src,
-                                               const char* limit,
-                                               uint32_t& dest) {
-  const size_t length = ReadVarint32(src, PtrDistance(src, limit), dest);
-  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
-  return src + length;
-}
-
-inline std::optional<const char*> ReadVarint64(const char* src,
-                                               const char* limit,
-                                               uint64_t& dest) {
-  const size_t length = ReadVarint64(src, PtrDistance(src, limit), dest);
-  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
-  return src + length;
-}
-
-inline std::optional<const char*> ReadVarintSigned32(const char* src,
-                                                     const char* limit,
-                                                     int32_t& dest) {
-  const size_t length = ReadVarintSigned32(src, PtrDistance(src, limit), dest);
-  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
-  return src + length;
-}
-
-inline std::optional<const char*> ReadVarintSigned64(const char* src,
-                                                     const char* limit,
-                                                     int64_t& dest) {
-  const size_t length = ReadVarintSigned64(src, PtrDistance(src, limit), dest);
-  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
-  return src + length;
-}
-
 namespace varint_internal {
 
 template <typename T, bool canonical, size_t initial_index>
@@ -1167,20 +1133,6 @@ inline size_t CopyVarint64(const char* src, size_t available, char* dest) {
   if (ABSL_PREDICT_TRUE(byte1 < 0x80)) return 2;
   return varint_internal::CopyVarintFromArray<uint64_t, /*canonical=*/false, 2>(
       src, available, dest);
-}
-
-inline std::optional<size_t> CopyVarint32(const char* src, const char* limit,
-                                          char* dest) {
-  const size_t length = CopyVarint32(src, PtrDistance(src, limit), dest);
-  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
-  return length;
-}
-
-inline std::optional<size_t> CopyVarint64(const char* src, const char* limit,
-                                          char* dest) {
-  const size_t length = CopyVarint64(src, PtrDistance(src, limit), dest);
-  if (ABSL_PREDICT_FALSE(length == 0)) return std::nullopt;
-  return length;
 }
 
 inline size_t CopyCanonicalVarint32(const char* src, size_t available,
