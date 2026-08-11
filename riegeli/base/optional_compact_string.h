@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/hash/hash.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
@@ -40,6 +41,11 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
     : public WithCompare<OptionalCompactString, std::nullptr_t, CompactString,
                          absl::string_view> {
  public:
+  // Supports heterogeneous lookup against `nullptr`, `CompactString`, and
+  // `absl::string_view`.
+  struct absl_container_hash;
+  struct absl_container_eq;
+
   // Creates a null `OptionalCompactString`.
   OptionalCompactString() = default;
   /*implicit*/ OptionalCompactString(std::nullptr_t) {}
@@ -200,6 +206,15 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
     return riegeli::Compare(*a, b);
   }
 
+  template <typename HashState>
+  friend HashState AbslHashValue(HashState hash_state,
+                                 const OptionalCompactString& self) {
+    if (self == nullptr) {
+      return HashState::combine(std::move(hash_state), nullptr);
+    }
+    return HashState::combine(std::move(hash_state), *self);
+  }
+
   // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const OptionalCompactString* self,
@@ -223,6 +238,52 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
   static constexpr uintptr_t kNullRepr = 0;
 
   uintptr_t repr_ = kNullRepr;
+};
+
+// Implementation details follow.
+
+struct OptionalCompactString::absl_container_hash {
+  using is_transparent = void;
+  size_t operator()(const OptionalCompactString& value) const {
+    return absl::Hash<OptionalCompactString>()(value);
+  }
+  size_t operator()(std::nullptr_t) const {
+    return absl::Hash<std::nullptr_t>()(nullptr);
+  }
+  size_t operator()(const CompactString& value) const {
+    return absl::Hash<CompactString>()(value);
+  }
+  size_t operator()(absl::string_view value) const {
+    return absl::Hash<absl::string_view>()(value);
+  }
+};
+
+struct OptionalCompactString::absl_container_eq {
+  using is_transparent = void;
+  bool operator()(const OptionalCompactString& a,
+                  const OptionalCompactString& b) const {
+    return a == b;
+  }
+  bool operator()(const OptionalCompactString& a, std::nullptr_t b) const {
+    return a == b;
+  }
+  bool operator()(std::nullptr_t a, const OptionalCompactString& b) const {
+    return a == b;
+  }
+  bool operator()(const OptionalCompactString& a,
+                  const CompactString& b) const {
+    return a == b;
+  }
+  bool operator()(const CompactString& a,
+                  const OptionalCompactString& b) const {
+    return a == b;
+  }
+  bool operator()(const OptionalCompactString& a, absl::string_view b) const {
+    return a == b;
+  }
+  bool operator()(absl::string_view a, const OptionalCompactString& b) const {
+    return a == b;
+  }
 };
 
 }  // namespace riegeli
