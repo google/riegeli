@@ -73,7 +73,7 @@ class CheckResult {
   CheckResult& operator=(const CheckResult& that) = default;
 
   // Returns `true` if the check succeeded.
-  explicit operator bool() const { return header_ == nullptr; }
+  explicit constexpr operator bool() const { return header_ == nullptr; }
 
   // Returns the header stream.
   //
@@ -161,15 +161,15 @@ ABSL_ATTRIBUTE_COLD CheckResult CheckImpossibleResult(const char* function);
 // These functions allow using `a` and `b` multiple times without reevaluation.
 // They are small enough to be inlined, with the slow path delegated to
 // `CheckOpResult()`.
-#define RIEGELI_INTERNAL_DEFINE_CHECK_OP(name, op)                            \
-  template <typename A, typename B>                                           \
-  inline CheckResult Check##name(const char* function, const char* assertion, \
-                                 const A& a, const B& b) {                    \
-    if (ABSL_PREDICT_TRUE(a op b)) return CheckResult();                      \
-    CheckResult check_result = CheckOpResult(function, assertion, a, b);      \
-    if (check_result) RIEGELI_INTERNAL_UNREACHABLE();                         \
-    return check_result;                                                      \
-  }                                                                           \
+#define RIEGELI_INTERNAL_DEFINE_CHECK_OP(name, op)                           \
+  template <typename A, typename B>                                          \
+  constexpr CheckResult Check##name(                                         \
+      const char* function, const char* assertion, const A& a, const B& b) { \
+    if (ABSL_PREDICT_TRUE(a op b)) return CheckResult();                     \
+    CheckResult check_result = CheckOpResult(function, assertion, a, b);     \
+    if (check_result) RIEGELI_INTERNAL_UNREACHABLE();                        \
+    return check_result;                                                     \
+  }                                                                          \
   static_assert(true, "")  // Eat a semicolon.
 
 RIEGELI_INTERNAL_DEFINE_CHECK_OP(Eq, ==);
