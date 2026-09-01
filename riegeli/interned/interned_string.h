@@ -27,6 +27,7 @@
 #include "absl/base/nullability.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
@@ -56,10 +57,10 @@ class BasicInternedString;
 
 namespace interned_internal {
 
-template <typename Encoder, typename Tag, size_t num_shards>
+template <typename Encoder, typename Tag, typename Mutex, size_t num_shards>
 class GlobalStringInterner;
 
-template <typename Encoder, typename Tag, size_t num_shards>
+template <typename Encoder, typename Tag, typename Mutex, size_t num_shards>
 class LocalStringInterner;
 
 // The public name of `OptionalInternedString` is `InternedString::Optional`.
@@ -446,7 +447,8 @@ class OptionalInternedString
 // `InternedString::Optional` for inherited operations.
 template <typename Encoder = DefaultStringEncoder,
           typename InternerParam = interned_internal::GlobalStringInterner<
-              Encoder, /*Tag=*/void, kDefaultInternerNumShards>>
+              Encoder, /*Tag=*/void, absl::Mutex,
+              kDefaultInternerNumShards<absl::Mutex>>>
 class BasicInternedString
     : public interned_internal::OptionalInternedString<Encoder, InternerParam>,
       public WithCompare<
@@ -470,9 +472,16 @@ class BasicInternedString
   // By default, a global interner has multiple shards, while a local interner
   // has a single shard. With more shards, parallel usage is less likely to
   // cause contention.
-  template <size_t new_num_shards = kDefaultInternerNumShards>
-  using Concurrent = BasicInternedString<
-      Encoder, typename InternerParam::template Concurrent<new_num_shards>>;
+  //
+  // `Mutex` protects the set of object pointers in each shard.
+  //
+  // A mutex must support `lock()`, `unlock()`, `lock_shared()`, and
+  // `unlock_shared()`, analogously to `absl::Mutex`.
+  template <typename NewMutex = absl::Mutex,
+            size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
+  using Concurrent =
+      BasicInternedString<Encoder, typename InternerParam::template Concurrent<
+                                       NewMutex, new_num_shards>>;
 
   // Navigates between `InternedString` and `InternedString::Optional`.
   using NotOptional = typename BasicInternedString::NotOptional;
@@ -756,7 +765,8 @@ using InternedString = BasicInternedString<>;
 template <typename Encoder = DefaultStringEncoder>
 using BasicLocallyInternedString =
     BasicInternedString<Encoder, interned_internal::LocalStringInterner<
-                                     Encoder, /*Tag=*/void, /*num_shards=*/1>>;
+                                     Encoder, /*Tag=*/void, absl::Mutex,
+                                     /*num_shards=*/1>>;
 
 // `LocallyInternedString` is `BasicLocallyInternedString<>` with default
 // template parameters, avoiding spelling `<>` in the common case. See
@@ -770,21 +780,24 @@ namespace interned_internal {
 // `InternedString::Interner` represents a global interner for the given
 // template parameters. See `LocallyInternedString::Interner` for a non-global
 // version.
-template <typename Encoder, typename Tag, size_t num_shards>
+template <typename Encoder, typename Tag, typename MutexParam,
+          size_t num_shards>
 class GlobalStringInterner {
  public:
   // Changes the tag type of the interner. See `InternedString::WithTag` for
   // details.
   template <typename NewTag>
-  using WithTag = GlobalStringInterner<Encoder, NewTag, num_shards>;
+  using WithTag = GlobalStringInterner<Encoder, NewTag, MutexParam, num_shards>;
 
   // Tunes the interner for concurrency. See `InternedString::Concurrent` for
   // details.
   //
   // By default, a global interner is tuned for concurrency and has multiple
   // shards.
-  template <size_t new_num_shards = kDefaultInternerNumShards>
-  using Concurrent = GlobalStringInterner<Encoder, Tag, new_num_shards>;
+  template <typename NewMutex = absl::Mutex,
+            size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
+  using Concurrent =
+      GlobalStringInterner<Encoder, Tag, NewMutex, new_num_shards>;
 
   // References to interned strings. See `InternedString` and
   // `InternedString::Optional` for details.
@@ -895,6 +908,7 @@ class GlobalStringInterner {
   }
 
  private:
+  using Mutex = MutexParam;
   using InternedRepr = InternedStringRepr<Encoder, GlobalStringInterner>;
   using SharedRepr = SharedStringRepr<Encoder, GlobalStringInterner>;
   using Shard = Shard<InternedRepr, SharedRepr, typename Encoder::Hash,
@@ -903,7 +917,7 @@ class GlobalStringInterner {
 
   friend Interned;          // For `InternInternal()`.
   friend OptionalInterned;  // For `InternInternal()`.
-  friend Shard;             // For `GetShard()`.
+  friend Shard;             // For `Mutex` and `GetShard()`.
 
   template <typename Arg>
   static SharedRepr InternInternal(const Arg& value) {
@@ -950,21 +964,24 @@ class GlobalStringInterner {
 // be incorrect across families, e.g. when only some fields are compared because
 // other fields are implicitly equivalent within the family. Efficiency depends
 // on usage patterns.
-template <typename Encoder, typename Tag, size_t num_shards>
+template <typename Encoder, typename Tag, typename MutexParam,
+          size_t num_shards>
 class LocalStringInterner {
  public:
   // Changes the tag type of the interner. See `InternedString::WithTag` for
   // details.
   template <typename NewTag>
-  using WithTag = LocalStringInterner<Encoder, NewTag, num_shards>;
+  using WithTag = LocalStringInterner<Encoder, NewTag, MutexParam, num_shards>;
 
   // Tunes the interner for concurrency. See `InternedString::Concurrent` for
   // details.
   //
   // By default, a local interner is not tuned for concurrency and has a single
   // shard, but it is still thread-safe.
-  template <size_t new_num_shards = kDefaultInternerNumShards>
-  using Concurrent = LocalStringInterner<Encoder, Tag, new_num_shards>;
+  template <typename NewMutex = absl::Mutex,
+            size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
+  using Concurrent =
+      LocalStringInterner<Encoder, Tag, NewMutex, new_num_shards>;
 
   // References to interned strings. See `InternedString` and
   // `InternedString::Optional` for details.
@@ -1072,6 +1089,7 @@ class LocalStringInterner {
   }
 
  private:
+  using Mutex = MutexParam;
   using InternedRepr = InternedStringRepr<Encoder, LocalStringInterner>;
   using SharedRepr = SharedStringRepr<Encoder, LocalStringInterner>;
   using Shard = Shard<InternedRepr, SharedRepr, typename Encoder::Hash,
@@ -1079,7 +1097,7 @@ class LocalStringInterner {
   using ShardArray = std::array<Shard, num_shards>;
 
   friend Interned;  // For `InternInternal()`.
-  friend Shard;     // For `GetShard()`.
+  friend Shard;     // For `Mutex` and `GetShard()`.
 
   template <typename Arg>
   SharedRepr InternInternal(const Arg& value) const {

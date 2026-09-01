@@ -22,8 +22,10 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/nullability.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/container/hash_container_defaults.h"
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
@@ -35,9 +37,70 @@ ABSL_POINTERS_DEFAULT_NONNULL
 
 namespace riegeli::interned_internal {
 
+// `RiegeliHasScalableSharedLocks(Mutex*)` indicates whether concurrent
+// `lock_shared()` on the same `Mutex` is as efficient as on distinct mutexes.
+//
+// To customize that for a class `Mutex`, define a free function
+// `friend T RiegeliHasScalableSharedLocks(Mutex*) { return {}; }` as a friend
+// of `Mutex` inside class definition or in the same namespace as `Mutex`,
+// so that it can be found via ADL. Its return type should have a static
+// member `value`, such as `std::true_type`, `std::false_type`, or
+// `std::bool_constant<value>`.
+//
+// `RiegeliHasScalableSharedLocks(Mutex*)` is never called, only its result type
+// is checked.
+
+template <typename Mutex, typename = void>
+struct HasRiegeliHasScalableSharedLocks : std::false_type {};
+
+template <typename Mutex>
+struct HasRiegeliHasScalableSharedLocks<
+    Mutex, std::void_t<decltype(RiegeliHasScalableSharedLocks(
+               static_cast<Mutex* absl_nullable>(nullptr)))>>
+    : decltype(RiegeliHasScalableSharedLocks(
+          static_cast<Mutex* absl_nullable>(nullptr))){};
+
 // Default template parameter `num_shards` for global interners.
 // Also, a default template parameter for `Concurrent` nested types.
-constexpr size_t kDefaultInternerNumShards = 64;
+template <typename Mutex>
+inline constexpr size_t kDefaultInternerNumShards =
+    HasRiegeliHasScalableSharedLocks<Mutex>::value ? 1 : 64;
+
+template <typename Mutex>
+class ABSL_SCOPED_LOCKABLE MutexLock {
+ public:
+  explicit MutexLock(Mutex& mutex ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mutex)
+      : mutex_(mutex) {
+    mutex_.lock();
+  }
+
+  MutexLock(const MutexLock&) = delete;
+  MutexLock& operator=(const MutexLock&) = delete;
+
+  ~MutexLock() ABSL_UNLOCK_FUNCTION() { mutex_.unlock(); }
+
+ private:
+  Mutex& mutex_;
+};
+
+template <typename Mutex>
+class ABSL_SCOPED_LOCKABLE ReaderMutexLock {
+ public:
+  explicit ReaderMutexLock(Mutex& mutex ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      ABSL_SHARED_LOCK_FUNCTION(mutex)
+      : mutex_(mutex) {
+    mutex_.lock_shared();
+  }
+
+  ReaderMutexLock(const ReaderMutexLock&) = delete;
+  ReaderMutexLock& operator=(const ReaderMutexLock&) = delete;
+
+  ~ReaderMutexLock() ABSL_UNLOCK_FUNCTION() { mutex_.unlock_shared(); }
+
+ private:
+  Mutex& mutex_;
+};
 
 template <typename Arg, typename T, typename Hash, typename Eq,
           typename Enable = void>

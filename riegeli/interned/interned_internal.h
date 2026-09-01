@@ -25,9 +25,9 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/synchronization/mutex.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/ownership.h"
+#include "riegeli/interned/interned_common_internal.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 
@@ -136,14 +136,14 @@ class ABSL_CACHELINE_ALIGNED Shard {
   void Reserve(size_t capacity) {
     RIEGELI_ASSERT_GT(capacity, 0u)
         << "Failed precondition of Shard::Reserve(): capacity is zero";
-    absl::MutexLock lock(mutex_);
+    MutexLock<Mutex> lock(mutex_);
     objects_.reserve(capacity);
   }
 
   template <typename Arg>
   SharedRepr Intern(Arg&& arg, size_t hash, const Interner& interner) {
     {
-      absl::ReaderMutexLock lock(mutex_);
+      ReaderMutexLock<Mutex> lock(mutex_);
       const auto iter = objects_.find(KeyForFind<Arg>{arg, hash});
       if (ABSL_PREDICT_TRUE(iter != objects_.end())) {
         return SharedRepr(iter->repr.get(), kShareOwnership);
@@ -154,7 +154,7 @@ class ABSL_CACHELINE_ALIGNED Shard {
 
   template <typename Arg>
   absl_nullable SharedRepr Find(const Arg& arg, size_t hash) const {
-    absl::ReaderMutexLock lock(mutex_);
+    ReaderMutexLock<Mutex> lock(mutex_);
     const auto iter = objects_.find(KeyForFind<Arg>{arg, hash});
     if (iter != objects_.end()) {
       return SharedRepr(iter->repr.get(), kShareOwnership);
@@ -202,12 +202,12 @@ class ABSL_CACHELINE_ALIGNED Shard {
   }
 
   size_t NumObjects() const {
-    absl::ReaderMutexLock lock(mutex_);
+    ReaderMutexLock<Mutex> lock(mutex_);
     return objects_.size();
   }
 
   size_t TotalNumReferences() const {
-    absl::ReaderMutexLock lock(mutex_);
+    ReaderMutexLock<Mutex> lock(mutex_);
     size_t count = 0;
     for (const Element<Repr>& element : objects_) {
       count += element.repr->GetCount();
@@ -219,18 +219,20 @@ class ABSL_CACHELINE_ALIGNED Shard {
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const Shard* self,
                                         MemoryEstimator& memory_estimator) {
-    absl::ReaderMutexLock lock(self->mutex_);
+    ReaderMutexLock<Mutex> lock(self->mutex_);
     memory_estimator.RegisterSubobjects(&self->objects_);
   }
 
  private:
+  using Mutex = typename Interner::Mutex;
+
   template <typename Arg>
   ABSL_ATTRIBUTE_NOINLINE SharedRepr InternSlow(Arg&& arg, size_t hash,
                                                 const Interner& interner);
 
   ABSL_ATTRIBUTE_NOINLINE static void UnrefSlow(const Repr& repr);
 
-  mutable absl::Mutex mutex_;
+  mutable Mutex mutex_;
   absl::flat_hash_set<Element<Repr>, ElementHash<Repr, Hash>,
                       ElementEq<Repr, Eq>>
       objects_ ABSL_GUARDED_BY(mutex_);
@@ -246,7 +248,7 @@ auto Shard<Repr, SharedRepr, Hash, Eq, Interner>::InternSlow(
       Repr::New(std::forward<Arg>(arg), interner);
   const Repr* const result = new_repr.get();
 
-  absl::MutexLock lock(mutex_);
+  MutexLock<Mutex> lock(mutex_);
   bool inserted = false;
   const auto iter = objects_.lazy_emplace(
       KeyForFind<decltype(result->value())>{result->value(), hash},

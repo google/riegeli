@@ -27,6 +27,7 @@
 #include "absl/container/hash_container_defaults.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
@@ -53,11 +54,11 @@ class Interned;
 
 namespace interned_internal {
 
-template <typename T, typename Hash, typename Eq, typename Tag,
+template <typename T, typename Hash, typename Eq, typename Tag, typename Mutex,
           size_t num_shards>
 class GlobalInterner;
 
-template <typename T, typename Hash, typename Eq, typename Tag,
+template <typename T, typename Hash, typename Eq, typename Tag, typename Mutex,
           size_t num_shards>
 class LocalInterner;
 
@@ -556,7 +557,8 @@ class OptionalInterned
 template <typename T, typename Hash = absl::DefaultHashContainerHash<T>,
           typename Eq = absl::DefaultHashContainerEq<T>,
           typename InternerParam = interned_internal::GlobalInterner<
-              T, Hash, Eq, /*Tag=*/void, kDefaultInternerNumShards>>
+              T, Hash, Eq, /*Tag=*/void, absl::Mutex,
+              kDefaultInternerNumShards<absl::Mutex>>>
 class Interned
     : public interned_internal::OptionalInterned<T, Hash, Eq, InternerParam>,
       public WithCompare<
@@ -579,10 +581,16 @@ class Interned
   // By default, a global interner has multiple shards, while a local interner
   // has a single shard. With more shards, parallel usage is less likely to
   // cause contention.
-  template <size_t new_num_shards = kDefaultInternerNumShards>
-  using Concurrent =
-      Interned<T, Hash, Eq,
-               typename InternerParam::template Concurrent<new_num_shards>>;
+  //
+  // `Mutex` protects the set of object pointers in each shard.
+  //
+  // A mutex must support `lock()`, `unlock()`, `lock_shared()`, and
+  // `unlock_shared()`, analogously to `absl::Mutex`.
+  template <typename NewMutex = absl::Mutex,
+            size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
+  using Concurrent = Interned<
+      T, Hash, Eq,
+      typename InternerParam::template Concurrent<NewMutex, new_num_shards>>;
 
   // Navigates between `Interned` and `Interned::Optional`.
   using NotOptional = typename Interned::NotOptional;
@@ -847,7 +855,7 @@ template <typename T, typename Hash = absl::DefaultHashContainerHash<T>,
 using LocallyInterned =
     Interned<T, Hash, Eq,
              interned_internal::LocalInterner<T, Hash, Eq, /*Tag=*/void,
-                                              /*num_shards=*/1>>;
+                                              absl::Mutex, /*num_shards=*/1>>;
 
 namespace interned_internal {
 
@@ -857,19 +865,20 @@ namespace interned_internal {
 // other template parameters. See `LocallyInterned::Interner` for a non-global
 // version.
 template <typename T, typename Hash, typename Eq, typename Tag,
-          size_t num_shards>
+          typename MutexParam, size_t num_shards>
 class GlobalInterner {
  public:
   // Changes the tag type of the interner. See `Interned::WithTag` for details.
   template <typename NewTag>
-  using WithTag = GlobalInterner<T, Hash, Eq, NewTag, num_shards>;
+  using WithTag = GlobalInterner<T, Hash, Eq, NewTag, MutexParam, num_shards>;
 
   // Tunes the interner for concurrency. See `Interned::Concurrent` for details.
   //
   // By default, a global interner is tuned for concurrency and has multiple
   // shards.
-  template <size_t new_num_shards = kDefaultInternerNumShards>
-  using Concurrent = GlobalInterner<T, Hash, Eq, Tag, new_num_shards>;
+  template <typename NewMutex = absl::Mutex,
+            size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
+  using Concurrent = GlobalInterner<T, Hash, Eq, Tag, NewMutex, new_num_shards>;
 
   // References to interned objects. See `Interned` and `Interned::Optional`
   // for details.
@@ -1002,13 +1011,14 @@ class GlobalInterner {
   }
 
  private:
+  using Mutex = MutexParam;
   using InternedRepr = InternedRepr<T, Hash, Eq, GlobalInterner>;
   using SharedRepr = IntrusiveSharedPtr<const InternedRepr>;
   using Shard = Shard<InternedRepr, SharedRepr, Hash, Eq, GlobalInterner>;
   using ShardArray = std::array<Shard, num_shards>;
 
   friend OptionalInterned;  // For `InternInternal()`.
-  friend Shard;             // For `GetShard()`.
+  friend Shard;             // For `Mutex` and `GetShard()`.
 
   template <typename Arg>
   static SharedRepr InternInternal(Arg&& arg) {
@@ -1048,19 +1058,20 @@ class GlobalInterner {
 // other fields are implicitly equivalent within the family. Efficiency depends
 // on usage patterns.
 template <typename T, typename Hash, typename Eq, typename Tag,
-          size_t num_shards>
+          typename MutexParam, size_t num_shards>
 class LocalInterner {
  public:
   // Changes the tag type of the interner. See `Interned::WithTag` for details.
   template <typename NewTag>
-  using WithTag = LocalInterner<T, Hash, Eq, NewTag, num_shards>;
+  using WithTag = LocalInterner<T, Hash, Eq, NewTag, MutexParam, num_shards>;
 
   // Tunes the interner for concurrency. See `Interned::Concurrent` for details.
   //
   // By default, a local interner is not tuned for concurrency and has a single
   // shard, but it is still thread-safe.
-  template <size_t new_num_shards = kDefaultInternerNumShards>
-  using Concurrent = LocalInterner<T, Hash, Eq, Tag, new_num_shards>;
+  template <typename NewMutex = absl::Mutex,
+            size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
+  using Concurrent = LocalInterner<T, Hash, Eq, Tag, NewMutex, new_num_shards>;
 
   // References to interned objects. See `Interned` and `Interned::Optional`
   // for details.
@@ -1196,13 +1207,14 @@ class LocalInterner {
   }
 
  private:
+  using Mutex = MutexParam;
   using InternedRepr = InternedRepr<T, Hash, Eq, LocalInterner>;
   using SharedRepr = IntrusiveSharedPtr<const InternedRepr>;
   using Shard = Shard<InternedRepr, SharedRepr, Hash, Eq, LocalInterner>;
   using ShardArray = std::array<Shard, num_shards>;
 
   friend OptionalInterned;  // For `InternInternal()`.
-  friend Shard;             // For `GetShard()`.
+  friend Shard;             // For `Mutex` and `GetShard()`.
 
   template <typename Arg>
   SharedRepr InternInternal(Arg&& arg) const {
