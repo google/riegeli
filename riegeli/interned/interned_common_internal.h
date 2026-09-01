@@ -68,6 +68,25 @@ template <typename Mutex>
 inline constexpr size_t kDefaultInternerNumShards =
     HasRiegeliHasScalableSharedLocks<Mutex>::value ? 1 : 64;
 
+// Default template parameters for arena blocks, in bytes.
+constexpr size_t kDefaultArenaMinBlockSize = 256;
+constexpr size_t kDefaultArenaMaxBlockSize = size_t{64} << 10;
+
+class ABSL_LOCKABLE NullMutex {
+ public:
+  constexpr NullMutex() = default;
+
+  NullMutex(NullMutex&& that) = default;
+  NullMutex& operator=(NullMutex&& that) = default;
+
+  void lock() const ABSL_EXCLUSIVE_LOCK_FUNCTION() {}
+  void unlock() const ABSL_UNLOCK_FUNCTION() {}
+  void lock_shared() const ABSL_SHARED_LOCK_FUNCTION() {}
+  void unlock_shared() const ABSL_UNLOCK_FUNCTION() {}
+
+  friend std::true_type RiegeliHasScalableSharedLocks(NullMutex*) { return {}; }
+};
+
 template <typename Mutex>
 class ABSL_SCOPED_LOCKABLE MutexLock {
  public:
@@ -86,6 +105,19 @@ class ABSL_SCOPED_LOCKABLE MutexLock {
   Mutex& mutex_;
 };
 
+// Not needed but helps with inlining decisions.
+template <>
+class ABSL_SCOPED_LOCKABLE MutexLock<NullMutex> {
+ public:
+  explicit MutexLock(NullMutex& mutex ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      ABSL_EXCLUSIVE_LOCK_FUNCTION(mutex) {}
+
+  MutexLock(const MutexLock&) = delete;
+  MutexLock& operator=(const MutexLock&) = delete;
+
+  ~MutexLock() ABSL_UNLOCK_FUNCTION() {}
+};
+
 template <typename Mutex>
 class ABSL_SCOPED_LOCKABLE ReaderMutexLock {
  public:
@@ -102,6 +134,19 @@ class ABSL_SCOPED_LOCKABLE ReaderMutexLock {
 
  private:
   Mutex& mutex_;
+};
+
+// Not needed but helps with inlining decisions.
+template <>
+class ABSL_SCOPED_LOCKABLE ReaderMutexLock<NullMutex> {
+ public:
+  explicit ReaderMutexLock(NullMutex& mutex ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      ABSL_SHARED_LOCK_FUNCTION(mutex) {}
+
+  ReaderMutexLock(const ReaderMutexLock&) = delete;
+  ReaderMutexLock& operator=(const ReaderMutexLock&) = delete;
+
+  ~ReaderMutexLock() ABSL_UNLOCK_FUNCTION() {}
 };
 
 template <typename Arg, typename T, typename Hash, typename Eq,

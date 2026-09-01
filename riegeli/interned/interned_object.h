@@ -532,7 +532,8 @@ class OptionalInterned
 // or local (managed explicitly). The default is global.
 //
 // Interned objects are destroyed and erased from the interner when all
-// references to them are dropped.
+// references to them are dropped. See `ArenaInterned` for a variant that is
+// faster but does not delete objects until the interner is destroyed.
 //
 // Asymptotic memory usage per interned object:
 //   global interner: heap(sizeof(T) + 8) + 14.8
@@ -1313,7 +1314,7 @@ template <typename T, typename Hash, typename Eq, typename Interner>
 struct OptionalInterned<T, Hash, Eq, Interner>::ValueHash {
   using is_transparent = void;
   size_t operator()(const Optional& self) const {
-    if (self == nullptr) {
+    if (self.repr() == nullptr) {
       if constexpr (HasTransparentNullptrHash<Hash>::value) {
         return hash(nullptr);
       } else {
@@ -1410,7 +1411,7 @@ struct OptionalInterned<T, Hash, Eq, Interner>::ValueEq {
                                                    const PassedKey&>>,
                              int> = 0>
   bool operator()(const Optional& a, const PassedKey& b) const {
-    if (a == nullptr) return false;
+    if (a.repr() == nullptr) return false;
     return eq(*a, b);
   }
   template <typename PassedKey, typename DependentEq = Eq,
@@ -1423,7 +1424,7 @@ struct OptionalInterned<T, Hash, Eq, Interner>::ValueEq {
                                                    const PassedKey&>>,
                              int> = 0>
   bool operator()(const PassedKey& a, const Optional& b) const {
-    if (b == nullptr) return false;
+    if (b.repr() == nullptr) return false;
     return eq(*b, a);
   }
   template <typename PassedKey, typename DependentEq = Eq,
