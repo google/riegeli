@@ -18,7 +18,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <bit>
 #include <cstring>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -202,6 +204,22 @@ inline void WriteLittleEndianSize(size_t data, char* dest) {
   for (size_t i = 0; i < sizeof(size_t); ++i) {
     dest[i] = static_cast<char>(data >> (i * 8));
   }
+#endif
+}
+
+// `std::assume_aligned()` which does not require C++20.
+template <size_t alignment, typename T>
+constexpr T* AssumeAligned(T* ptr) {
+  static_assert(std::has_single_bit(alignment));
+#if __cpp_lib_assume_aligned
+  return std::assume_aligned<alignment>(ptr);
+#elif defined(__clang__) || defined(__GNUC__)
+  return static_cast<T*>(__builtin_assume_aligned(ptr, alignment));
+#elif defined(_MSC_VER)
+  __assume((reinterpret_cast<uintptr_t>(ptr) & (alignment - 1)) == 0);
+  return ptr;
+#else
+  return ptr;
 #endif
 }
 

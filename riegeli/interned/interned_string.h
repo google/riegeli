@@ -26,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/hash/hash.h"
+#include "absl/numeric/bits.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/assert.h"
@@ -57,10 +58,12 @@ class BasicInternedString;
 
 namespace interned_internal {
 
-template <typename Encoder, typename Tag, typename Mutex, size_t num_shards>
+template <typename Encoder, typename Tag, typename Mutex, size_t num_shards,
+          size_t alignment>
 class GlobalStringInterner;
 
-template <typename Encoder, typename Tag, typename Mutex, size_t num_shards>
+template <typename Encoder, typename Tag, typename Mutex, size_t num_shards,
+          size_t alignment>
 class LocalStringInterner;
 
 // The public name of `OptionalInternedString` is `InternedString::Optional`.
@@ -441,14 +444,14 @@ class OptionalInternedString
 //
 // Among the template parameters, only `Encoder` should be specified explicitly.
 // Other parameters should be specified by using `LocallyInternedString` or by
-// nested types `WithTag` and `Concurrent`.
+// nested types `WithTag`, `Concurrent`, and `WithAlignment`.
 //
 // `InternedString` derives from `InternedString::Optional`. See
 // `InternedString::Optional` for inherited operations.
 template <typename Encoder = DefaultStringEncoder,
           typename InternerParam = interned_internal::GlobalStringInterner<
               Encoder, /*Tag=*/void, absl::Mutex,
-              kDefaultInternerNumShards<absl::Mutex>>>
+              kDefaultInternerNumShards<absl::Mutex>, /*alignment=*/1>>
 class BasicInternedString
     : public interned_internal::OptionalInternedString<Encoder, InternerParam>,
       public WithCompare<
@@ -482,6 +485,14 @@ class BasicInternedString
   using Concurrent =
       BasicInternedString<Encoder, typename InternerParam::template Concurrent<
                                        NewMutex, new_num_shards>>;
+
+  // Configures the alignment of string data.
+  //
+  // If the strings encode another type (supported by custom `Encoder`),
+  // they can be `reinterpret_cast` to a type with the required alignment.
+  template <size_t new_alignment>
+  using WithAlignment = BasicInternedString<
+      Encoder, typename InternerParam::template WithAlignment<new_alignment>>;
 
   // Navigates between `InternedString` and `InternedString::Optional`.
   using NotOptional = typename BasicInternedString::NotOptional;
@@ -766,7 +777,7 @@ template <typename Encoder = DefaultStringEncoder>
 using BasicLocallyInternedString =
     BasicInternedString<Encoder, interned_internal::LocalStringInterner<
                                      Encoder, /*Tag=*/void, absl::Mutex,
-                                     /*num_shards=*/1>>;
+                                     /*num_shards=*/1, /*alignment=*/1>>;
 
 // `LocallyInternedString` is `BasicLocallyInternedString<>` with default
 // template parameters, avoiding spelling `<>` in the common case. See
@@ -781,13 +792,16 @@ namespace interned_internal {
 // template parameters. See `LocallyInternedString::Interner` for a non-global
 // version.
 template <typename Encoder, typename Tag, typename MutexParam,
-          size_t num_shards>
+          size_t num_shards, size_t alignment>
 class GlobalStringInterner {
  public:
+  static_assert(absl::has_single_bit(alignment));
+
   // Changes the tag type of the interner. See `InternedString::WithTag` for
   // details.
   template <typename NewTag>
-  using WithTag = GlobalStringInterner<Encoder, NewTag, MutexParam, num_shards>;
+  using WithTag =
+      GlobalStringInterner<Encoder, NewTag, MutexParam, num_shards, alignment>;
 
   // Tunes the interner for concurrency. See `InternedString::Concurrent` for
   // details.
@@ -797,7 +811,13 @@ class GlobalStringInterner {
   template <typename NewMutex = absl::Mutex,
             size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
   using Concurrent =
-      GlobalStringInterner<Encoder, Tag, NewMutex, new_num_shards>;
+      GlobalStringInterner<Encoder, Tag, NewMutex, new_num_shards, alignment>;
+
+  // Configures the alignment of string data. See
+  // `InternedString::WithAlignment` for details.
+  template <size_t new_alignment>
+  using WithAlignment =
+      GlobalStringInterner<Encoder, Tag, MutexParam, num_shards, new_alignment>;
 
   // References to interned strings. See `InternedString` and
   // `InternedString::Optional` for details.
@@ -915,8 +935,12 @@ class GlobalStringInterner {
                       typename Encoder::Eq, GlobalStringInterner>;
   using ShardArray = std::array<Shard, num_shards>;
 
+  static constexpr size_t kAlignment = alignment;
+
   friend Interned;          // For `InternInternal()`.
   friend OptionalInterned;  // For `InternInternal()`.
+  friend InternedRepr;      // For `kAlignment`.
+  friend SharedRepr;        // For `kAlignment`.
   friend Shard;             // For `Mutex` and `GetShard()`.
 
   template <typename Arg>
@@ -965,13 +989,16 @@ class GlobalStringInterner {
 // other fields are implicitly equivalent within the family. Efficiency depends
 // on usage patterns.
 template <typename Encoder, typename Tag, typename MutexParam,
-          size_t num_shards>
+          size_t num_shards, size_t alignment>
 class LocalStringInterner {
  public:
+  static_assert(absl::has_single_bit(alignment));
+
   // Changes the tag type of the interner. See `InternedString::WithTag` for
   // details.
   template <typename NewTag>
-  using WithTag = LocalStringInterner<Encoder, NewTag, MutexParam, num_shards>;
+  using WithTag =
+      LocalStringInterner<Encoder, NewTag, MutexParam, num_shards, alignment>;
 
   // Tunes the interner for concurrency. See `InternedString::Concurrent` for
   // details.
@@ -981,7 +1008,13 @@ class LocalStringInterner {
   template <typename NewMutex = absl::Mutex,
             size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
   using Concurrent =
-      LocalStringInterner<Encoder, Tag, NewMutex, new_num_shards>;
+      LocalStringInterner<Encoder, Tag, NewMutex, new_num_shards, alignment>;
+
+  // Configures the alignment of string data. See
+  // `InternedString::WithAlignment` for details.
+  template <size_t new_alignment>
+  using WithAlignment =
+      LocalStringInterner<Encoder, Tag, MutexParam, num_shards, new_alignment>;
 
   // References to interned strings. See `InternedString` and
   // `InternedString::Optional` for details.
@@ -1096,8 +1129,12 @@ class LocalStringInterner {
                       typename Encoder::Eq, LocalStringInterner>;
   using ShardArray = std::array<Shard, num_shards>;
 
-  friend Interned;  // For `InternInternal()`.
-  friend Shard;     // For `Mutex` and `GetShard()`.
+  static constexpr size_t kAlignment = alignment;
+
+  friend Interned;      // For `InternInternal()`.
+  friend InternedRepr;  // For `kAlignment`.
+  friend SharedRepr;    // For `kAlignment`.
+  friend Shard;         // For `Mutex` and `GetShard()`.
 
   template <typename Arg>
   SharedRepr InternInternal(const Arg& value) const {

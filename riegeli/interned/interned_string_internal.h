@@ -27,6 +27,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/numeric/bits.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
@@ -51,7 +52,8 @@ class SharedStringRepr;
 // of `InternedString::Optional` instances. The reference from `Shard` is
 // conceptually a weak reference and is not included in the reference count.
 template <typename Encoder, typename Interner>
-class InternedStringRepr {
+class alignas(UnsignedMax(Interner::kAlignment, sizeof(size_t)))
+    InternedStringRepr {
  private:
   struct Deleter {
     void operator()(const InternedStringRepr* ptr) const {
@@ -84,14 +86,27 @@ class InternedStringRepr {
   explicit InternedStringRepr(const Arg& value, size_t size, Interner interner)
       : interner_(std::move(interner)) {
     char* dest;
-    if (ABSL_PREDICT_TRUE(size <= kMaxSmallSize)) {
-      encoded_[0] = static_cast<char>(size << 1);
-      dest = small_data();
-    } else if (size <= kMaxMediumSize) {
-      WriteLittleEndian16(IntCast<uint16_t>((size << 2) | 1), encoded_);
-      dest = medium_data();
+    if constexpr (kAlignment == 1) {
+      if (ABSL_PREDICT_TRUE(size <= kMaxSmallSize)) {
+        encoded_[0] = static_cast<char>(size << 1);
+        dest = small_data();
+      } else if (size <= kMaxMediumSize) {
+        WriteLittleEndian16(IntCast<uint16_t>((size << 2) | 1), encoded_);
+        dest = medium_data();
+      } else {
+        WriteLittleEndianSize((size << 2) | 3, encoded_);
+        dest = large_data();
+      }
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      if (ABSL_PREDICT_TRUE(size <= kMaxMediumSize)) {
+        WriteLittleEndian16(IntCast<uint16_t>(size << 1), encoded_);
+        dest = medium_data();
+      } else {
+        WriteLittleEndianSize((size << 1) | 1, encoded_);
+        dest = large_data();
+      }
     } else {
-      WriteLittleEndianSize((size << 2) | 3, encoded_);
+      WriteLittleEndianSize(size, encoded_);
       dest = large_data();
     }
     Encoder::Encode(value, dest);
@@ -101,34 +116,66 @@ class InternedStringRepr {
   InternedStringRepr& operator=(const InternedStringRepr&) = delete;
 
   static const InternedStringRepr* FromData(const char* data) {
-    return reinterpret_cast<const InternedStringRepr*>(
-        (reinterpret_cast<uintptr_t>(data) -
-         (offsetof(InternedStringRepr, encoded_) + 1)) &
-        ~uintptr_t{sizeof(size_t) - 1});
+    if constexpr (kAlignment < sizeof(size_t)) {
+      return reinterpret_cast<const InternedStringRepr*>(
+          RoundUp<sizeof(size_t)>(reinterpret_cast<uintptr_t>(data) -
+                                  sizeof(InternedStringRepr)));
+    } else {
+      return reinterpret_cast<const InternedStringRepr*>(
+          data - sizeof(InternedStringRepr));
+    }
   }
 
   static size_t SizeFromData(const char* data) {
-    const uintptr_t ptr = reinterpret_cast<uintptr_t>(data);
-    if (ABSL_PREDICT_TRUE((ptr & 1) != 0)) {
-      const size_t size = size_t{static_cast<uint8_t>(data[-1])} >> 1;
-      RIEGELI_ASSUME_LE(size, kMaxSmallSize);
-      return size;
-    } else if ((ptr & 2) != 0) {
-      const size_t size = size_t{ReadLittleEndian16(data - 2)} >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxSmallSize);
-      RIEGELI_ASSUME_LE(size, kMaxMediumSize);
-      return size;
+    if constexpr (kAlignment == 1) {
+      const uintptr_t ptr = reinterpret_cast<uintptr_t>(data);
+      if (ABSL_PREDICT_TRUE((ptr & 1) != 0)) {
+        const size_t size = size_t{static_cast<uint8_t>(data[-1])} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxSmallSize);
+        return size;
+      } else if ((ptr & 2) != 0) {
+        const size_t size =
+            size_t{ReadLittleEndian16(data - kMediumDataOffset)} >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxSmallSize);
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return size;
+      } else {
+        const size_t size = ReadLittleEndianSize(data - kLargeDataOffset) >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return size;
+      }
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      const uintptr_t ptr = reinterpret_cast<uintptr_t>(data);
+      if (ABSL_PREDICT_TRUE((ptr & kAlignment) != 0)) {
+        const size_t size =
+            size_t{ReadLittleEndian16(data - kMediumDataOffset)} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return size;
+      } else {
+        const size_t size = ReadLittleEndianSize(data - kLargeDataOffset) >> 1;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return size;
+      }
     } else {
-      const size_t size = ReadLittleEndianSize(data - sizeof(size_t)) >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+      const size_t size = ReadLittleEndianSize(data - kLargeDataOffset);
       RIEGELI_ASSUME_LE(size, kMaxSize);
       return size;
     }
   }
 
   static bool EmptyFromData(const char* data) {
-    const uintptr_t ptr = reinterpret_cast<uintptr_t>(data);
-    return ABSL_PREDICT_TRUE((ptr & 1) != 0) && data[-1] == '\0';
+    if constexpr (kAlignment == 1) {
+      const uintptr_t ptr = reinterpret_cast<uintptr_t>(data);
+      return ABSL_PREDICT_TRUE((ptr & 1) != 0) && data[-1] == '\0';
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      const uintptr_t ptr = reinterpret_cast<uintptr_t>(data);
+      return ABSL_PREDICT_TRUE((ptr & kAlignment) != 0) &&
+             ReadLittleEndian16(data - kMediumDataOffset) == 0;
+    } else {
+      return ReadLittleEndianSize(data - kLargeDataOffset) == 0;
+    }
   }
 
   // Supports `SharedStringRepr`.
@@ -141,49 +188,96 @@ class InternedStringRepr {
   }
 
   const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
-    if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
-      return small_data();
-    } else if ((first_byte & 3) == 1) {
-      return medium_data();
+    if constexpr (kAlignment == 1) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        return small_data();
+      } else if ((first_byte & 3) == 1) {
+        return medium_data();
+      } else {
+        return large_data();
+      }
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        return medium_data();
+      } else {
+        return large_data();
+      }
     } else {
       return large_data();
     }
   }
 
   size_t size() const {
-    const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
-    if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
-      const size_t size = size_t{first_byte} >> 1;
-      RIEGELI_ASSUME_LE(size, kMaxSmallSize);
-      return size;
-    } else if ((first_byte & 3) == 1) {
-      const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxSmallSize);
-      RIEGELI_ASSUME_LE(size, kMaxMediumSize);
-      return size;
+    if constexpr (kAlignment == 1) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        const size_t size = size_t{first_byte} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxSmallSize);
+        return size;
+      } else if ((first_byte & 3) == 1) {
+        const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxSmallSize);
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return size;
+      } else {
+        const size_t size = ReadLittleEndianSize(encoded_) >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return size;
+      }
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return size;
+      } else {
+        const size_t size = ReadLittleEndianSize(encoded_) >> 1;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return size;
+      }
     } else {
-      const size_t size = ReadLittleEndianSize(encoded_) >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+      const size_t size = ReadLittleEndianSize(encoded_);
       RIEGELI_ASSUME_LE(size, kMaxSize);
       return size;
     }
   }
 
   absl::string_view value() const {
-    const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
-    if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
-      const size_t size = size_t{first_byte} >> 1;
-      RIEGELI_ASSUME_LE(size, kMaxSmallSize);
-      return absl::string_view(small_data(), size);
-    } else if ((first_byte & 3) == 1) {
-      const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxSmallSize);
-      RIEGELI_ASSUME_LE(size, kMaxMediumSize);
-      return absl::string_view(medium_data(), size);
+    if constexpr (kAlignment == 1) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        const size_t size = size_t{first_byte} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxSmallSize);
+        return absl::string_view(small_data(), size);
+      } else if ((first_byte & 3) == 1) {
+        const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxSmallSize);
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return absl::string_view(medium_data(), size);
+      } else {
+        const size_t size = ReadLittleEndianSize(encoded_) >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return absl::string_view(large_data(), size);
+      }
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return absl::string_view(medium_data(), size);
+      } else {
+        const size_t size = ReadLittleEndianSize(encoded_) >> 1;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return absl::string_view(large_data(), size);
+      }
     } else {
-      const size_t size = ReadLittleEndianSize(encoded_) >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+      const size_t size = ReadLittleEndianSize(encoded_);
       RIEGELI_ASSUME_LE(size, kMaxSize);
       return absl::string_view(large_data(), size);
     }
@@ -203,54 +297,104 @@ class InternedStringRepr {
   using Shard = Shard<InternedStringRepr, SharedStringRepr<Encoder, Interner>,
                       typename Encoder::Hash, typename Encoder::Eq, Interner>;
 
+  static constexpr size_t kAlignment = Interner::kAlignment;
+  static_assert(absl::has_single_bit(kAlignment));
+  static constexpr size_t kEncodedOffset =
+      offsetof(InternedStringRepr, encoded_);
+  static constexpr size_t kMediumDataOffset =
+      UnsignedMax(kAlignment, size_t{2});
+  static constexpr size_t kLargeDataOffset =
+      sizeof(InternedStringRepr) - kEncodedOffset;
+
   static constexpr size_t kMaxSmallSize = 0x7f;
-  static constexpr size_t kMaxMediumSize = 0x3fff;
+  static constexpr size_t kMaxMediumSize = kAlignment == 1 ? 0x3fff : 0x7fff;
 
-  const char* small_data() const { return encoded_ + 1; }
-  char* small_data() { return encoded_ + 1; }
+  const char* small_data() const {
+    return reinterpret_cast<const char*>(this) + (kEncodedOffset + 1);
+  }
+  char* small_data() {
+    return reinterpret_cast<char*>(this) + (kEncodedOffset + 1);
+  }
 
-  const char* medium_data() const { return encoded_ + 2; }
-  char* medium_data() { return encoded_ + 2; }
+  const char* medium_data() const {
+    return AssumeAligned<kAlignment>(reinterpret_cast<const char*>(this) +
+                                     (kEncodedOffset + kMediumDataOffset));
+  }
+  char* medium_data() {
+    return AssumeAligned<kAlignment>(reinterpret_cast<char*>(this) +
+                                     (kEncodedOffset + kMediumDataOffset));
+  }
 
-  const char* large_data() const { return encoded_ + sizeof(size_t); }
-  char* large_data() { return encoded_ + sizeof(size_t); }
+  const char* large_data() const {
+    return AssumeAligned<kAlignment>(reinterpret_cast<const char*>(this + 1));
+  }
+  char* large_data() {
+    return AssumeAligned<kAlignment>(reinterpret_cast<char*>(this + 1));
+  }
 
   static constexpr size_t small_object_size(size_t size) {
-    return offsetof(InternedStringRepr, encoded_) +
-           UnsignedMax(size_t{1} + size, sizeof(size_t));
+    return kEncodedOffset + UnsignedMax(size_t{1} + size, sizeof(size_t));
   }
   static constexpr size_t medium_object_size(size_t size) {
-    return offsetof(InternedStringRepr, encoded_) +
-           UnsignedMax(size_t{2} + size, sizeof(size_t));
+    return kEncodedOffset +
+           UnsignedMax(kMediumDataOffset + size, sizeof(size_t));
   }
   static constexpr size_t large_object_size(size_t size) {
-    return offsetof(InternedStringRepr, encoded_) + sizeof(size_t) + size;
+    return sizeof(InternedStringRepr) + size;
   }
 
   static size_t object_size_for_size(size_t size) {
-    if (ABSL_PREDICT_TRUE(size <= kMaxSmallSize)) {
-      return small_object_size(size);
-    } else if (size <= kMaxMediumSize) {
-      return medium_object_size(size);
+    if constexpr (kAlignment == 1) {
+      if (ABSL_PREDICT_TRUE(size <= kMaxSmallSize)) {
+        return small_object_size(size);
+      } else if (size <= kMaxMediumSize) {
+        return medium_object_size(size);
+      } else {
+        return large_object_size(size);
+      }
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      if (ABSL_PREDICT_TRUE(size <= kMaxMediumSize)) {
+        return medium_object_size(size);
+      } else {
+        return large_object_size(size);
+      }
     } else {
       return large_object_size(size);
     }
   }
 
   size_t object_size() const {
-    const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
-    if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
-      const size_t size = size_t{first_byte} >> 1;
-      RIEGELI_ASSUME_LE(size, kMaxSmallSize);
-      return small_object_size(size);
-    } else if ((first_byte & 3) == 1) {
-      const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxSmallSize);
-      RIEGELI_ASSUME_LE(size, kMaxMediumSize);
-      return medium_object_size(size);
+    if constexpr (kAlignment == 1) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        const size_t size = size_t{first_byte} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxSmallSize);
+        return small_object_size(size);
+      } else if ((first_byte & 3) == 1) {
+        const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxSmallSize);
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return medium_object_size(size);
+      } else {
+        const size_t size = ReadLittleEndianSize(encoded_) >> 2;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return large_object_size(size);
+      }
+    } else if constexpr (kAlignment < sizeof(size_t)) {
+      const uint8_t first_byte = static_cast<uint8_t>(encoded_[0]);
+      if (ABSL_PREDICT_TRUE((first_byte & 1) == 0)) {
+        const size_t size = size_t{ReadLittleEndian16(encoded_)} >> 1;
+        RIEGELI_ASSUME_LE(size, kMaxMediumSize);
+        return medium_object_size(size);
+      } else {
+        const size_t size = ReadLittleEndianSize(encoded_) >> 1;
+        RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+        RIEGELI_ASSUME_LE(size, kMaxSize);
+        return large_object_size(size);
+      }
     } else {
-      const size_t size = ReadLittleEndianSize(encoded_) >> 2;
-      RIEGELI_ASSUME_GT(size, kMaxMediumSize);
+      const size_t size = ReadLittleEndianSize(encoded_);
       RIEGELI_ASSUME_LE(size, kMaxSize);
       return large_object_size(size);
     }
@@ -259,19 +403,27 @@ class InternedStringRepr {
   mutable std::atomic<size_t> ref_count_ = 1;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Interner interner_;
 
-  // The size is encoded in 1 byte, 2 bytes, or as `size_t`. The data follow.
+  // The size is encoded in 1 byte, 2 bytes, or as `size_t`, at the beginning of
+  // `encoded_`. The data follow, aligned to `kAlignment`.
   //
   // Decoding from `InternedStringRepr` distinguishes the cases by the lowest
-  // 1 or 2 bits of `encoded_[0]`.
+  // 1 or 2 bits of `encoded_[0]`, except that if `kAlignment >= sizeof(size_t)`
+  // then only `large_data()` is used and the size is stored as `size_t`.
   //
   // Decoding from `SharedStringRepr`, i.e. from the data pointer,
   // distinguishes the cases by the alignment of the pointer. This is why
   // `encoded_` is aligned to `sizeof(size_t)`.
   //
-  // Encoded size:
+  // Encoded size if `kAlignment == 1`:
   //  * Small  string: 1-byte   `(size << 1) | 0`
   //  * Medium string: 2-byte   `(size << 2) | 1`
   //  * Large  string: `size_t` `(size << 2) | 3`
+  //
+  // Encoded size if `kAlignment > 1 && kAlignment < sizeof(size_t)`:
+  //  * Small or medium string: 2-byte   `(size << 1) | 0`
+  //  * Large           string: `size_t` `(size << 1) | 1`
+  //
+  // Encoded size if `kAlignment >= sizeof(size_t)`: `size_t size`
   alignas(sizeof(size_t)) char encoded_[sizeof(size_t)];
 };
 
@@ -335,7 +487,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedStringRepr
   const char* data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(data_ != nullptr)
         << "Failed precondition of SharedStringRepr::data(): null pointer";
-    return data_;
+    return AssumeAligned<kAlignment>(data_);
   }
   size_t size() const {
     RIEGELI_ASSERT(data_ != nullptr)
@@ -391,6 +543,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedStringRepr
 
  private:
   using pointer = InternedStringRepr*;  // For `ABSL_NULLABILITY_COMPATIBLE`.
+
+  static constexpr size_t kAlignment = Interner::kAlignment;
 
   const char* Ref(const char* absl_nullable data) {
     if (data != nullptr) InternedStringRepr::FromData(data)->Ref();
