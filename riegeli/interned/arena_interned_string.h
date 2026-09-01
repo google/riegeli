@@ -346,6 +346,14 @@ class OptionalArenaInternedString
 // running out of memory unless the number of distinct strings ever interned
 // by the given interner is limited.
 //
+// See `IndexInternedString` for a variant that refers to strings by a numeric
+// index. An index can be more compact than a pointer and indices are allocated
+// consecutively, which allows representing dense maps as vectors, but the
+// interner is needed to resolve an index to the string, which is slightly
+// slower, the numeric index space can be exhausted, and the interner needs an
+// additional internal dictionary, so memory is saved only if the number of
+// string handles is large relatively to the number of distinct strings.
+//
 // By default, interning a string supports heterogeneous lookup against
 // `absl::Cord`. To extend this to other types, provide `Encoder` which provides
 // `Hash` and `Eq` type aliases and the following static members:

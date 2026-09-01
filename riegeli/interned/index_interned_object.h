@@ -210,6 +210,8 @@ class OptionalIndexInterned
 // variant that can be null. `IndexInterned` is generally preferred over
 // `IndexInterned::Optional`.
 //
+// See `IndexInternedString` for a variant optimized for strings.
+//
 // `IndexInterned` objects are created by an interner, which maintains a
 // set of arena-allocated objects to share. The interner is managed explicitly.
 // Interned objects are destroyed and erased when the interner is destroyed.
