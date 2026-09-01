@@ -164,17 +164,27 @@ struct SupportedByHashAndEq<
     : std::true_type {};
 
 template <typename Arg, typename Encoder, typename Enable = void>
+struct SupportedByEncoderForAllocate : std::false_type {};
+
+template <typename Arg, typename Encoder>
+struct SupportedByEncoderForAllocate<
+    Arg, Encoder,
+    std::void_t<decltype(Encoder::EncodedSize(std::declval<const Arg&>())),
+                decltype(Encoder::Encode(std::declval<const Arg&>(),
+                                         std::declval<char*>()))>>
+    : std::true_type {};
+
+template <typename Arg, typename Encoder, typename Enable = void>
 struct SupportedByEncoderForIntern : std::false_type {};
 
 template <typename Arg, typename Encoder>
 struct SupportedByEncoderForIntern<
     Arg, Encoder,
-    std::void_t<decltype(Encoder::EncodedEmpty(std::declval<const Arg&>())),
-                decltype(Encoder::EncodedSize(std::declval<const Arg&>())),
-                decltype(Encoder::Encode(std::declval<const Arg&>(),
-                                         std::declval<char*>()))>>
-    : SupportedByHashAndEq<Arg, absl::string_view, typename Encoder::Hash,
-                           typename Encoder::Eq> {};
+    std::void_t<decltype(Encoder::EncodedEmpty(std::declval<const Arg&>()))>>
+    : std::conjunction<
+          SupportedByEncoderForAllocate<Arg, Encoder>,
+          SupportedByHashAndEq<Arg, absl::string_view, typename Encoder::Hash,
+                               typename Encoder::Eq>> {};
 
 struct DefaultStringEncoder {
   using Hash = absl::DefaultHashContainerHash<absl::string_view>;

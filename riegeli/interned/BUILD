@@ -31,6 +31,33 @@ cc_library(
 )
 
 cc_library(
+    name = "string_arena",
+    srcs = [
+        "interned_common_internal.h",
+        "string_arena_internal.h",
+    ],
+    hdrs = ["string_arena.h"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:compare",
+        "//riegeli/base:cord_utils",
+        "//riegeli/base:iterable",
+        "//riegeli/base:new_aligned",
+        "//riegeli/base:null_safe_memcpy",
+        "@com_google_absl//absl/base:config",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:hash_container_defaults",
+        "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/numeric:bits",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_library(
     name = "interned_object",
     srcs = [
         "interned_common_internal.h",
@@ -109,6 +136,35 @@ cc_library(
         "//riegeli/base:cord_utils",
         "//riegeli/base:global",
         "//riegeli/base:initializer",
+        "//riegeli/base:null_safe_memcpy",
+        "//riegeli/base:type_traits",
+        "@com_google_absl//absl/base:config",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:hash_container_defaults",
+        "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/numeric:bits",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_library(
+    name = "arena_interned_string",
+    srcs = [
+        "arena_interned_string_internal.h",
+        "interned_common_internal.h",
+    ],
+    hdrs = ["arena_interned_string.h"],
+    deps = [
+        ":string_arena",
+        "//riegeli/base:assert",
+        "//riegeli/base:compare",
+        "//riegeli/base:cord_utils",
+        "//riegeli/base:global",
+        "//riegeli/base:iterable",
         "//riegeli/base:null_safe_memcpy",
         "//riegeli/base:type_traits",
         "@com_google_absl//absl/base:config",

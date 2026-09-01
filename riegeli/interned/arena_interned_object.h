@@ -347,6 +347,8 @@ class OptionalArenaInterned
 // that can be null. `ArenaInterned` is generally preferred over
 // `ArenaInterned::Optional`.
 //
+// See `ArenaInternedString` for a variant optimized for strings.
+//
 // `ArenaInterned` objects are created by an interner, which maintains a set
 // of arena-allocated objects to share. An interner can be local (managed
 // explicitly) or global (represented by a stateless type). The default is

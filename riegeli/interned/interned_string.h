@@ -414,7 +414,8 @@ class OptionalInternedString
 // or local (managed explicitly). The default is global.
 //
 // Interned strings are destroyed and erased from the interner when all
-// references to them are dropped.
+// references to them are dropped. See `ArenaInternedString` for a variant that
+// is faster but does not delete strings until the interner is destroyed.
 //
 // By default, interning a string supports heterogeneous lookup against
 // `absl::Cord`. To extend this to other types, provide `Encoder` which provides
