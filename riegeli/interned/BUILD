@@ -8,6 +8,20 @@ package(
 licenses(["notice"])
 
 cc_library(
+    name = "concurrent_vector_internal",
+    srcs = ["concurrent_vector_internal.h"],
+    hdrs = ["concurrent_vector_internal.h"],
+    visibility = ["//riegeli/interned:__subpackages__"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:new_aligned",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+    ],
+)
+
+cc_library(
     name = "object_arena",
     srcs = [
         "interned_common_internal.h",
