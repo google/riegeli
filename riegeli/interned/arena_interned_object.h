@@ -362,6 +362,12 @@ class OptionalArenaInterned
 // running out of memory unless the number of distinct objects ever interned
 // by the given interner is limited.
 //
+// See `IndexInterned` for a variant that refers to objects by a numeric index.
+// An index can be more compact than a pointer and indices are allocated
+// consecutively, which allows representing dense maps as vectors, but the
+// interner is needed to resolve an index to the object, which is slightly
+// slower, and the numeric index space can be exhausted.
+//
 // Asymptotic memory usage per interned object:
 //   active: sizeof(T) + 14.8
 //   archived: sizeof(T)

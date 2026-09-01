@@ -193,3 +193,38 @@ cc_library(
         "@com_google_absl//absl/synchronization",
     ],
 )
+
+cc_library(
+    name = "index_interned_object",
+    srcs = [
+        "arena_interned_object_internal.h",
+        "index_interned_object_internal.h",
+        "interned_common_internal.h",
+        "interned_internal.h",
+        "object_arena_internal.h",
+    ],
+    hdrs = ["index_interned_object.h"],
+    deps = [
+        ":arena_interned_object",
+        ":concurrent_vector_internal",
+        ":object_arena",
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:compare",
+        "//riegeli/base:cord_utils",
+        "//riegeli/base:initializer",
+        "//riegeli/base:new_aligned",
+        "//riegeli/base:null_safe_memcpy",
+        "//riegeli/base:shared_ptr",
+        "//riegeli/base:type_traits",
+        "@com_google_absl//absl/base:config",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:hash_container_defaults",
+        "@com_google_absl//absl/numeric:bits",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_absl//absl/synchronization",
+    ],
+)

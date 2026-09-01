@@ -71,6 +71,7 @@ inline constexpr size_t kDefaultInternerNumShards =
 // Default template parameters for arena blocks, in bytes.
 constexpr size_t kDefaultArenaMinBlockSize = 256;
 constexpr size_t kDefaultArenaMaxBlockSize = size_t{64} << 10;
+constexpr size_t kDefaultArenaFixedBlockSize = size_t{4} << 10;
 
 class ABSL_LOCKABLE NullMutex {
  public:
