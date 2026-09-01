@@ -157,8 +157,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
 
   // Returns `true` if `*this` is the only owner of the object.
   //
-  // This can be used to check if the object may be modified (in contrast to
-  // `std::shared_ptr::unique()`).
+  // This can be used to check if the object may be safely modified (in contrast
+  // to `std::shared_ptr::unique()`).
   //
   // If `*this` is empty, returns `false`.
   bool IsUnique() const {
@@ -167,12 +167,10 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
 
   // Returns the current reference count.
   //
-  // If the `SharedPtr` is accessed by multiple threads, this is a snapshot of
-  // the count which may change asynchronously, hence usage of `GetRefCount()`
-  // should be limited to cases not important for correctness, like producing
-  // debugging output.
-  //
-  // The reference count can be reliably compared against 1 with `IsUnique()`.
+  // This can be used to check if the object may be safely modified (in contrast
+  // to `std::shared_ptr::use_count()`): if the result is equal to the number of
+  // references managed by the calling thread, then there are no references
+  // elsewhere.
   size_t GetRefCount() const {
     if (ptr_ == nullptr) return 0;
     return ref_count(ptr_.get()).GetCount();

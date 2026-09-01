@@ -55,17 +55,16 @@ class SharedBuffer {
 
   // Returns `true` if `*this` is the only owner of the data.
   //
+  // This can be used to check if the buffer may be safely modified.
+  //
   // If `capacity() == 0`, returns `false`.
   bool IsUnique() const { return buffer_.IsUnique(); }
 
   // Returns the current reference count.
   //
-  // If the `SharedBuffer` is accessed by multiple threads, this is a snapshot
-  // of the count which may change asynchronously, hence usage of
-  // `GetRefCount()` should be limited to cases not important for correctness,
-  // like producing debugging output.
-  //
-  // The reference count can be reliably compared against 1 with `IsUnique()`.
+  // This can be used to check if the buffer may be safely modified: if the
+  // result is equal to the number of references managed by the calling thread,
+  // then there are no references elsewhere.
   size_t GetRefCount() const { return buffer_.GetRefCount(); }
 
   // Returns the mutable data pointer.

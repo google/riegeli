@@ -82,20 +82,15 @@ class RefCount {
 
   // Returns `true` if there is only one owner of the object.
   //
-  // This can be used to check if the object may be modified.
-  bool HasUniqueOwner() const {
-    return ref_count_.load(std::memory_order_acquire) == 1;
-  }
+  // This can be used to check if the object may be safely modified.
+  bool HasUniqueOwner() const { return GetCount() == 1; }
 
   // Returns the current count.
   //
-  // If the `RefCount` is accessed by multiple threads, this is a snapshot of
-  // the count which may change asynchronously, hence usage of `GetCount()`
-  // should be limited to cases not important for correctness, like producing
-  // debugging output.
-  //
-  // The count can be reliably compared against 1 with `HasUniqueOwner()`.
-  size_t GetCount() const { return ref_count_.load(std::memory_order_relaxed); }
+  // This can be used to check if the object may be safely modified: if the
+  // result is equal to the number of references managed by the calling thread,
+  // then there are no references elsewhere.
+  size_t GetCount() const { return ref_count_.load(std::memory_order_acquire); }
 
  private:
   mutable std::atomic<size_t> ref_count_ = 1;

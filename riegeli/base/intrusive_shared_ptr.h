@@ -76,10 +76,19 @@ struct HasGetCount<T,
 //
 //   // Returns `true` if there is only one owner of the object.
 //   //
-//   // This can be used to check if the object may be modified.
+//   // This can be used to check if the object may be safely modified.
 //   //
 //   // Optional. Needed for `IntrusiveSharedPtr::IsUnique()`.
 //   bool HasUniqueOwner() const;
+//
+//   // Returns the current reference count.
+//   //
+//   // This can be used to check if the object may be safely modified: if the
+//   // result is equal to the number of references managed by the calling
+//   // thread, then there are no references elsewhere.
+//   //
+//   // Optional. Needed for `IntrusiveSharedPtr::GetRefCount()`.
+//   size_t GetCount() const;
 // ```
 //
 // Compared to `std::shared_ptr`, `IntrusiveSharedPtr` supports `IsUnique()`,
@@ -229,12 +238,10 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE IntrusiveSharedPtr
 
   // Returns the current reference count.
   //
-  // If the `IntrusiveSharedPtr` is accessed by multiple threads, this is a
-  // snapshot of the count which may change asynchronously, hence usage of
-  // `GetRefCount()` should be limited to cases not important for correctness,
-  // like producing debugging output.
-  //
-  // The reference count can be reliably compared against 1 with `IsUnique()`.
+  // This can be used to check if the object may be safely modified (in contrast
+  // to `std::shared_ptr::use_count()`): if the result is equal to the number of
+  // references managed by the calling thread, then there are no references
+  // elsewhere.
   //
   // Supported if `T` supports `GetCount()`.
   template <typename DependentT = T,
