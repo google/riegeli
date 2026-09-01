@@ -524,6 +524,8 @@ class OptionalInterned
 // operations are undefined. See `Interned::Optional` for a variant that can
 // be null. `Interned` is generally preferred over `Interned::Optional`.
 //
+// See `InternedString` for a variant optimized for strings.
+//
 // `Interned` objects are created by an interner, which maintains a set of
 // objects to share. An interner can be global (represented by a stateless type)
 // or local (managed explicitly). The default is global.
