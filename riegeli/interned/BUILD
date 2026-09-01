@@ -52,6 +52,7 @@ cc_library(
     ],
     hdrs = ["string_arena.h"],
     deps = [
+        ":concurrent_vector_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:compare",

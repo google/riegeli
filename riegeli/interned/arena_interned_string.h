@@ -350,7 +350,7 @@ class OptionalArenaInternedString
 // index. An index can be more compact than a pointer and indices are allocated
 // consecutively, which allows representing dense maps as vectors, but the
 // interner is needed to resolve an index to the string, which is slightly
-// slower, the numeric index space can be exhausted, and the interner needs an
+// slower, the numeric index space or address space can be exhausted, and the
 // additional internal dictionary, so memory is saved only if the number of
 // string handles is large relatively to the number of distinct strings.
 //

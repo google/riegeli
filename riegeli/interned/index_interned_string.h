@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -52,6 +53,7 @@ using interned_internal::kDefaultInternerNumShards;
 
 // Default template parameters for `IndexInternedString::Interner` and
 // `IndexInternedString::Archive`.
+using interned_internal::kDefaultArenaFixedBlockSize;
 using interned_internal::kDefaultArenaMaxBlockSize;
 using interned_internal::kDefaultArenaMinBlockSize;
 
@@ -60,13 +62,13 @@ class IndexInternedString;
 
 namespace interned_internal {
 
-template <typename Numeric, typename Tag, size_t alignment,
+template <typename Numeric, typename Tag, typename Address, size_t alignment,
           size_t static_min_block_size, size_t static_max_block_size>
 class IndexStringArchive;
 
-template <typename Numeric, typename Encoder, typename Tag, typename Mutex,
-          size_t num_shards, size_t alignment, size_t static_min_block_size,
-          size_t static_max_block_size>
+template <typename Numeric, typename Encoder, typename Tag, typename Address,
+          typename Mutex, size_t num_shards, size_t alignment,
+          size_t static_min_block_size, size_t static_max_block_size>
 class IndexStringInterner;
 
 // The public name of `OptionalIndexInternedString<Numeric>` is
@@ -98,17 +100,30 @@ class OptionalIndexInternedString
   using Resolved = BasicArenaInternedString<Encoder, Tag, alignment>;
 
   // The default interner type. See `IndexInternedString::Interner` for details.
-  using Interner =
-      interned_internal::IndexStringInterner<Numeric, Encoder, Tag, NullMutex,
-                                             /*num_shards=*/1, alignment,
-                                             kDefaultArenaMinBlockSize,
-                                             kDefaultArenaMaxBlockSize>;
+  using Interner = interned_internal::IndexStringInterner<
+      Numeric, Encoder, Tag, void, NullMutex, /*num_shards=*/1, alignment,
+      kDefaultArenaMinBlockSize, kDefaultArenaMaxBlockSize>;
 
   // The default archive type. See `IndexInternedString::Archive` for details.
   using Archive =
-      interned_internal::IndexStringArchive<Numeric, Tag, alignment,
+      interned_internal::IndexStringArchive<Numeric, Tag, void, alignment,
                                             kDefaultArenaMinBlockSize,
                                             kDefaultArenaMaxBlockSize>;
+
+  // An interner type using a numeric address rather than pointers in the
+  // directory. See `IndexInternedString::InternerWithAddress` for details.
+  template <typename Address>
+  using InternerWithAddress = interned_internal::IndexStringInterner<
+      Numeric, Encoder, Tag, Address, NullMutex, /*num_shards=*/1, alignment,
+      kDefaultArenaFixedBlockSize, kDefaultArenaFixedBlockSize>;
+
+  // An archive type using a numeric address rather than pointers in the
+  // directory. See `IndexInternedString::ArchiveWithAddress` for details.
+  template <typename Address>
+  using ArchiveWithAddress =
+      interned_internal::IndexStringArchive<Numeric, Tag, Address, alignment,
+                                            kDefaultArenaFixedBlockSize,
+                                            kDefaultArenaFixedBlockSize>;
 
   // Maximum supported string size.
   static constexpr size_t kMaxSize = Resolved::kMaxSize;
@@ -212,8 +227,9 @@ class OptionalIndexInternedString
   friend NotOptional;  // For `ordered_numeric()`.
   // For `Optional(Numeric)`.
   template <typename NumericParam, typename EncoderParam, typename TagParam,
-            typename MutexParam, size_t num_shards, size_t alignment_param,
-            size_t static_min_block_size, size_t static_max_block_size>
+            typename Address, typename MutexParam, size_t num_shards,
+            size_t alignment_param, size_t static_min_block_size,
+            size_t static_max_block_size>
   friend class IndexStringInterner;
 
   Numeric numeric_ = kNullNumeric<Numeric>;
@@ -238,15 +254,17 @@ class OptionalIndexInternedString
 // destroyed.
 //
 // Since strings are owned by the interner, using an arena interner risks
-// exhausting the numeric space or running out of memory unless the number
-// of distinct strings ever interned by the given interner is limited.
+// exhausting the numeric space or address space, or running out of memory
+// unless the number of distinct strings ever interned by the given interner is
+// limited.
 //
 // See `ArenaInternedString` for a variant that refers to strings by a
 // pointer-like handle. An index can be more compact than a pointer and indices
 // are allocated consecutively, which allows representing dense maps as vectors,
 // but the interner is needed to resolve an index to the string and the numeric
-// space can be exhausted. In contrast to `ArenaInternedString::GlobalInterner`,
-// a global version of `IndexInternedString::Interner` is not provided.
+// space or address space can be exhausted. In contrast to
+// `ArenaInternedString::GlobalInterner`, a global version of
+// `IndexInternedString::Interner` is not provided.
 //
 // By default, interning a string supports heterogeneous lookup against
 // `absl::Cord`. To extend this to other types, provide `Encoder` which provides
@@ -260,17 +278,30 @@ class OptionalIndexInternedString
 // ```
 //
 // Asymptotic memory usage per interned string, assuming length up to 127:
-//   non-concurrent: length + 1.65 * sizeof(Numeric) + 12.5
-//   concurrent: length + 1.65 * sizeof(Numeric) + 24.5
-//   archived: length + 9
+//   for `Interner`:
+//     non-concurrent: length + 1.65 * sizeof(Numeric) + 12.5
+//     concurrent: length + 1.65 * sizeof(Numeric) + 24.5
+//     archived: length + 9
+//   for `InternerWithAddress`:
+//     non-concurrent:
+//       length + 1.65 * sizeof(Numeric) + 1.23 * sizeof(Address) + 2.65
+//     concurrent:
+//       length + 1.65 * sizeof(Numeric) + 2.73 * sizeof(Address) + 2.65
+//     archived: length + sizeof(Address) + 1
 //
 // Breakdown:
 //  + entry in `absl::flat_hash_set<Numeric>`:
 //      8 / (7 * ln(2)) * (sizeof(Numeric) + 1) unless archived
-//  + entry in `riegeli::ConcurrentVector<const char*>`:
-//      non-concurrent: (1.5 - 1) / ln(1.5) * 8
-//      concurrent: 3 / ln(3) * 8
-//      archived: 8
+//  for `Interner`:
+//    + entry in `riegeli::ConcurrentVector<ArenaString>`:
+//        non-concurrent: (1.5 - 1) / ln(1.5) * 8
+//        concurrent: 3 / ln(3) * 8
+//        archived: 8
+//  for `InternerWithAddress`:
+//    + entry in `riegeli::ConcurrentVector<Address>`:
+//        non-concurrent: (1.5 - 1) / ln(1.5) * sizeof(Address)
+//        concurrent: 3 / ln(3) * sizeof(Address)
+//        archived: sizeof(Address)
 //  + arena-allocated {
 //    + length: 1, 2, or 8
 //    + contents: length
@@ -281,7 +312,7 @@ class OptionalIndexInternedString
 // Among the template parameters, only `Numeric` and optionally `Encoder` should
 // be specified explicitly. Other parameters should be specified by nested types
 // `WithTag` and `WithAlignment`. Further parameters are applied to `Interner`
-// or `Archive`.
+// (or `InternerWithAddress`), or `Archive` (or `ArchiveWithAddress`).
 //
 // `IndexInternedString` derives from `IndexInternedString::Optional`.
 // See `IndexInternedString::Optional` for inherited operations.
@@ -308,7 +339,8 @@ class IndexInternedString
 
   // Configures the alignment of string data.
   //
-  // If the strings encode another type (supported by custom `Encoder`),
+  // This guarantees that the string data begins at a memory address that is a
+  // multiple of `alignment`, which must be a power of 2. This is useful when
   // they can be `reinterpret_cast` to a type with the required alignment.
   template <size_t new_alignment>
   using WithAlignment =
@@ -316,7 +348,7 @@ class IndexInternedString
 
   // Navigates between `IndexInternedString` and
   // `IndexInternedString::Optional`.
-  using NotOptional = typename IndexInternedString::NotOptional;
+  using NotOptional = IndexInternedString;
   using Optional = typename IndexInternedString::Optional;
 
   // The type of the arena-interned string resolved from an index.
@@ -339,6 +371,35 @@ class IndexInternedString
   // Further parameters should be specified by `Archive` nested type
   // `WithBlockSize`.
   using Archive = typename IndexInternedString::Archive;
+
+  // An interner type using a numeric address rather than pointers in the
+  // directory.
+  //
+  // An internal directory stores numeric addresses to the string arena rather
+  // than pointers. This uses less memory, but resolving an index is slightly
+  // slower.
+  //
+  // `Address` must be an unsigned integer type.
+  //
+  // An address consists of the block index and the offset within the block.
+  // The address type should be wide enough to address all string contents,
+  // together with lengths stored before the contents, and unused space at the
+  // end of a block. This is an estimation; there is no guarantee exactly how
+  // much address space is needed for a particular set of strings.
+  //
+  // `AddressSpaceUsed()` on the interner or archive can be used to inspect the
+  // current address space usage against `AddressSpaceLimit()`.
+  template <typename Address>
+  using InternerWithAddress =
+      typename IndexInternedString::template InternerWithAddress<Address>;
+
+  // An archive type using a numeric address rather than pointers in the
+  // directory.
+  //
+  // `Address` must be an unsigned integer type.
+  template <typename Address>
+  using ArchiveWithAddress =
+      typename IndexInternedString::template ArchiveWithAddress<Address>;
 
   // The default constructor is present in `IndexInternedString::Optional`
   // but deleted in `IndexInternedString`.
@@ -423,8 +484,9 @@ class IndexInternedString
   friend Optional;  // For `IndexInternedString(Numeric)`.
   // For `IndexInternedString(Numeric)`.
   template <typename NumericParam, typename EncoderParam, typename TagParam,
-            typename MutexParam, size_t num_shards, size_t alignment_param,
-            size_t static_min_block_size, size_t static_max_block_size>
+            typename AddressParam, typename MutexParam, size_t num_shards,
+            size_t alignment_param, size_t static_min_block_size,
+            size_t static_max_block_size>
   friend class interned_internal::IndexStringInterner;
 
   explicit IndexInternedString(Numeric numeric) : Optional(numeric) {}
@@ -444,24 +506,30 @@ namespace interned_internal {
 //
 // This saves memory by releasing the lookup structures of the `Interner`
 // once they are no longer needed.
-template <typename Numeric, typename Tag, size_t alignment,
+template <typename Numeric, typename Tag, typename Address, size_t alignment,
           size_t static_min_block_size, size_t static_max_block_size>
 class IndexStringArchive {
  public:
   static_assert(absl::has_single_bit(alignment));
+  static_assert(std::is_void_v<Address> ||
+                    (static_min_block_size > 0 &&
+                     static_min_block_size == static_max_block_size),
+                "IndexInternedString::ArchiveWithAddress requires "
+                "a static fixed block size");
 
   // Configures the block size of the arena, in bytes. See
   // `IndexInternedString::Interner::WithBlockSize` for details.
   template <size_t new_static_min_block_size,
             size_t new_static_max_block_size = new_static_min_block_size>
   using WithBlockSize =
-      IndexStringArchive<Numeric, Tag, alignment, new_static_min_block_size,
-                         new_static_max_block_size>;
+      IndexStringArchive<Numeric, Tag, Address, alignment,
+                         new_static_min_block_size, new_static_max_block_size>;
 
   // Configures the block size of the arena to be dynamic. See
   // `IndexInternedString::Interner::WithDynamicBlockSize` for details.
   using WithDynamicBlockSize =
-      IndexStringArchive<Numeric, Tag, alignment, /*static_min_block_size=*/0,
+      IndexStringArchive<Numeric, Tag, Address, alignment,
+                         /*static_min_block_size=*/0,
                          /*static_max_block_size=*/0>;
 
   // Creates an empty `Archive`.
@@ -501,12 +569,48 @@ class IndexStringArchive {
         << "Failed precondition of "
            "IndexInternedString::Archive::operator[]: "
            "index out of bounds";
-    return BasicArenaInternedString<Encoder, Tag, alignment>::BackFromData(
-        directory_[IntCast<size_t>(index.numeric())].data());
+    if constexpr (std::is_void_v<Address>) {
+      return BasicArenaInternedString<Encoder, Tag, alignment>::BackFromData(
+          directory_[IntCast<size_t>(index.numeric())].data());
+    } else {
+      return BasicArenaInternedString<Encoder, Tag, alignment>::BackFromData(
+          arena_
+              .template ResolveAddress<alignment>(
+                  IntCast<size_t>(directory_[IntCast<size_t>(index.numeric())]))
+              .data());
+    }
   }
 
   // Returns the number of strings in the archive. It does not change.
   size_t NumObjects() const { return size(); }
+
+  // Returns an estimate of the usage of the address space. Comparing that
+  // against `AddressSpaceLimit()` can be used to check how close the address
+  // space is to exhaustion, or whether applying `InternerWithAddress` with a
+  // particular address type would be safe.
+  //
+  // If the address space approaches exhaustion, widen the `Address` type, or
+  // omit `InternerWithAddress` altogether to use pointers, at the cost of
+  // increasing memory usage.
+  size_t AddressSpaceUsed() const {
+    return arena_.template AddressSpaceUsed<alignment>();
+  }
+
+  // Returns the approximate upper bound of `AddressSpaceUsed()`.
+  //
+  // Because the address limit applies to the start address of a string and
+  // string contents extend past that, `AddressSpaceUsed()` can slightly exceed
+  // `AddressSpaceLimit()` after the last successful allocation.
+  template <typename TargetAddress = Address>
+  static constexpr size_t AddressSpaceLimit() {
+    if constexpr (std::is_void_v<TargetAddress>) {
+      return std::numeric_limits<size_t>::max();
+    } else {
+      return SaturatingAdd(
+          SaturatingIntCast<size_t>(std::numeric_limits<TargetAddress>::max()),
+          size_t{1});
+    }
+  }
 
   // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
@@ -519,15 +623,18 @@ class IndexStringArchive {
  private:
   // For `IndexStringArchive(Arena&&, Directory&&)`.
   template <typename NumericParam, typename Encoder, typename TagParam,
-            typename MutexParam, size_t num_shards, size_t alignment_param,
-            size_t other_static_min_block_size,
+            typename AddressParam, typename MutexParam, size_t num_shards,
+            size_t alignment_param, size_t other_static_min_block_size,
             size_t other_static_max_block_size>
   friend class IndexStringInterner;
 
   using Element = ArenaString::WithAlignment<alignment>;
   using Arena =
       StringArena::WithBlockSize<static_min_block_size, static_max_block_size>;
-  using Directory = StringDirectory<Element, /*concurrent_reads=*/false>;
+  using DirectoryElement =
+      std::conditional_t<std::is_void_v<Address>, Element, Address>;
+  using Directory =
+      StringDirectory<DirectoryElement, /*concurrent_reads=*/false>;
 
   explicit IndexStringArchive(Arena&& arena, Directory&& directory)
       : arena_(std::move(arena)), directory_(std::move(directory)) {
@@ -545,12 +652,17 @@ class IndexStringArchive {
 // interner. It arena-allocates and manages a set of interned strings. The
 // strings are owned by the interner and are destroyed when the interner is
 // destroyed.
-template <typename Numeric, typename Encoder, typename Tag, typename Mutex,
-          size_t num_shards, size_t alignment, size_t static_min_block_size,
-          size_t static_max_block_size>
+template <typename Numeric, typename Encoder, typename Tag, typename Address,
+          typename Mutex, size_t num_shards, size_t alignment,
+          size_t static_min_block_size, size_t static_max_block_size>
 class IndexStringInterner {
  public:
   static_assert(absl::has_single_bit(alignment));
+  static_assert(std::is_void_v<Address> ||
+                    (static_min_block_size > 0 &&
+                     static_min_block_size == static_max_block_size),
+                "IndexInternedString::InternerWithAddress requires "
+                "a static fixed block size");
 
   // Makes the interner thread-safe and tunes it for concurrency.
   //
@@ -564,16 +676,8 @@ class IndexStringInterner {
   template <typename NewMutex = absl::Mutex,
             size_t new_num_shards = kDefaultInternerNumShards<NewMutex>>
   using Concurrent =
-      IndexStringInterner<Numeric, Encoder, Tag, NewMutex, new_num_shards,
-                          alignment, static_min_block_size,
-                          static_max_block_size>;
-
-  // Configures the alignment of allocations in the arena. See
-  // `IndexInternedString::WithAlignment` for details.
-  template <size_t new_alignment>
-  using WithAlignment =
-      IndexStringInterner<Numeric, Encoder, Tag, Mutex, num_shards,
-                          new_alignment, static_min_block_size,
+      IndexStringInterner<Numeric, Encoder, Tag, Address, NewMutex,
+                          new_num_shards, alignment, static_min_block_size,
                           static_max_block_size>;
 
   // Configures the block size of the arena, in bytes.
@@ -584,14 +688,15 @@ class IndexStringInterner {
   template <size_t new_static_min_block_size,
             size_t new_static_max_block_size = new_static_min_block_size>
   using WithBlockSize =
-      IndexStringInterner<Numeric, Encoder, Tag, Mutex, num_shards, alignment,
-                          new_static_min_block_size, new_static_max_block_size>;
+      IndexStringInterner<Numeric, Encoder, Tag, Address, Mutex, num_shards,
+                          alignment, new_static_min_block_size,
+                          new_static_max_block_size>;
 
   // Configures the block size of the arena to be specified dynamically in the
   // constructor.
   using WithDynamicBlockSize =
-      IndexStringInterner<Numeric, Encoder, Tag, Mutex, num_shards, alignment,
-                          /*static_min_block_size=*/0,
+      IndexStringInterner<Numeric, Encoder, Tag, Address, Mutex, num_shards,
+                          alignment, /*static_min_block_size=*/0,
                           /*static_max_block_size=*/0>;
 
   // References to interned strings. See `IndexInternedString` and
@@ -606,8 +711,8 @@ class IndexStringInterner {
 
   // The archive type. See `IndexInternedString::Archive` for details.
   using Archive =
-      IndexStringArchive<Numeric, Tag, alignment, static_min_block_size,
-                         static_max_block_size>;
+      IndexStringArchive<Numeric, Tag, Address, alignment,
+                         static_min_block_size, static_max_block_size>;
 
   // Creates an empty `Interner` with a static block size.
   IndexStringInterner() noexcept {
@@ -708,8 +813,16 @@ class IndexStringInterner {
         << "Failed precondition of "
            "IndexInternedString::Interner::operator[]: "
            "index out of bounds";
-    return Resolved::BackFromData(
-        directory_[IntCast<size_t>(index.numeric())].data());
+    if constexpr (std::is_void_v<Address>) {
+      return Resolved::BackFromData(
+          directory_[IntCast<size_t>(index.numeric())].data());
+    } else {
+      return Resolved::BackFromData(
+          arena_
+              .template ResolveAddress<alignment>(
+                  IntCast<size_t>(directory_[IntCast<size_t>(index.numeric())]))
+              .data());
+    }
   }
 
   // Optimized overload for an empty string.
@@ -718,7 +831,8 @@ class IndexStringInterner {
   // Creates an `IndexInternedString` referring to the constructed string,
   // or sharing an existing string if an equal string already exists.
   //
-  // `Intern()` returns null if the numeric space for a new index is exhausted.
+  // `Intern()` returns null if the numeric space or address space for a new
+  // index is exhausted.
   //
   // If `likely_new` is `true`, `Intern()` is optimized for the case where an
   // equal string does not exist yet.
@@ -747,7 +861,8 @@ class IndexStringInterner {
 
   // Const `Intern()` overload enabled only when thread-safe.
   //
-  // `Intern()` returns null if the numeric space for a new index is exhausted.
+  // `Intern()` returns null if the numeric space or address space for a new
+  // index is exhausted.
   //
   // If `likely_new` is `true`, `Intern()` is optimized for the case where an
   // equal string does not exist yet.
@@ -837,6 +952,35 @@ class IndexStringInterner {
   // Returns the number of strings managed by the interner.
   size_t NumObjects() const { return size(); }
 
+  // Returns an estimate of the usage of the address space. Comparing that
+  // against `AddressSpaceLimit()` can be used to check how close the address
+  // space is to exhaustion, or whether applying `InternerWithAddress` with a
+  // particular address type would be safe.
+  //
+  // If the address space approaches exhaustion, widen the `Address` type, or
+  // omit `InternerWithAddress` altogether to use pointers, at the cost of
+  // increasing memory usage.
+  size_t AddressSpaceUsed() const {
+    ReaderMutexLock<ArenaMutex> arena_lock(arena_mutex_);
+    return arena_.template AddressSpaceUsed<alignment>();
+  }
+
+  // Returns the approximate upper bound of `AddressSpaceUsed()`.
+  //
+  // Because the address limit applies to the start address of a string and
+  // string contents extend past that, `AddressSpaceUsed()` can slightly exceed
+  // `AddressSpaceLimit()` after the last successful allocation.
+  template <typename TargetAddress = Address>
+  static constexpr size_t AddressSpaceLimit() {
+    if constexpr (std::is_void_v<TargetAddress>) {
+      return std::numeric_limits<size_t>::max();
+    } else {
+      return SaturatingAdd(
+          SaturatingIntCast<size_t>(std::numeric_limits<TargetAddress>::max()),
+          size_t{1});
+    }
+  }
+
   // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const IndexStringInterner* self,
@@ -888,15 +1032,21 @@ class IndexStringInterner {
 
  private:
   static constexpr bool kConcurrent = !std::is_same_v<Mutex, NullMutex>;
+  static constexpr bool kArenaConcurrentReads =
+      kConcurrent && !std::is_void_v<Address>;
 
   using ArenaMutex = std::conditional_t<kConcurrent, absl::Mutex, NullMutex>;
   using Element = ArenaString::WithAlignment<alignment>;
+  using DirectoryElement =
+      std::conditional_t<std::is_void_v<Address>, Element, Address>;
   using Arena =
-      StringArena::WithBlockSize<static_min_block_size, static_max_block_size>;
-  using Directory = StringDirectory<Element, kConcurrent>;
+      typename StringArena::WithConcurrentReads<kArenaConcurrentReads>::
+          template WithBlockSize<static_min_block_size, static_max_block_size>;
+  using Directory = StringDirectory<DirectoryElement, kConcurrent>;
   using Shard =
-      IndexStringInternerShard<Numeric, Encoder, Mutex, ArenaMutex, alignment,
-                               static_min_block_size, static_max_block_size>;
+      IndexStringInternerShard<Numeric, Encoder, Address, Mutex, ArenaMutex,
+                               alignment, static_min_block_size,
+                               static_max_block_size>;
 
   void ResetShards() ABSL_NO_THREAD_SAFETY_ANALYSIS {
     for (Shard& shard : shards_) {
@@ -926,7 +1076,7 @@ class IndexStringInterner {
 
   template <size_t... indices>
   std::array<Shard, num_shards> MakeShards(std::index_sequence<indices...>) {
-    return {((void)indices, Shard(&directory_))...};
+    return {((void)indices, Shard(&arena_, &directory_))...};
   }
 
   Shard& GetShard(size_t hash) const {

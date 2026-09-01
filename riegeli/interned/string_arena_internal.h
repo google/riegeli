@@ -17,8 +17,6 @@
 
 #include <stddef.h>
 
-#include <utility>
-
 #include "absl/base/nullability.h"
 #include "riegeli/base/new_aligned.h"
 
@@ -31,16 +29,19 @@ class StringArenaBlock {
  public:
   static constexpr size_t kMinAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
 
-  explicit StringArenaBlock(size_t min_size)
-      : data_(static_cast<char*>(
-            SizeReturningNewAligned<void, kMinAlignment>(min_size, &size_))) {}
+  constexpr StringArenaBlock() = default;
 
-  StringArenaBlock(StringArenaBlock&& that) noexcept
-      : data_(std::exchange(that.data_, nullptr)),
-        size_(std::exchange(that.size_, 0)) {}
-  StringArenaBlock& operator=(StringArenaBlock&&) = delete;
+  explicit StringArenaBlock(size_t min_size) {
+    data_ = static_cast<char*>(
+        SizeReturningNewAligned<void, kMinAlignment>(min_size, &size_));
+  }
 
-  ~StringArenaBlock() { DeleteAligned<void, kMinAlignment>(data_, size_); }
+  StringArenaBlock(const StringArenaBlock& that) = default;
+  StringArenaBlock& operator=(const StringArenaBlock& that) = default;
+
+  void Delete() { DeleteAligned<void, kMinAlignment>(data_, size_); }
+
+  bool is_allocated() const { return data_ != nullptr; }
 
   char* data() const { return data_; }
   size_t size() const { return size_; }
@@ -53,8 +54,8 @@ class StringArenaBlock {
   }
 
  private:
-  char* data_;
-  size_t size_;
+  char* absl_nullable data_ = nullptr;
+  size_t size_ = 0;
 };
 
 }  // namespace riegeli::interned_internal

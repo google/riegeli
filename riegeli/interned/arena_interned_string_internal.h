@@ -106,10 +106,11 @@ class ABSL_CACHELINE_ALIGNED StringArenaShard {
 
   template <typename Arg, typename ArenaMutex, size_t static_min_block_size,
             size_t static_max_block_size>
-  Element Intern(const Arg& value, size_t hash,
-                 BasicStringArena<ArenaMutex, static_min_block_size,
-                                  static_max_block_size>& arena,
-                 bool& is_new) ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  Element Intern(
+      const Arg& value, size_t hash,
+      BasicStringArena<ArenaMutex, /*concurrent_reads=*/false,
+                       static_min_block_size, static_max_block_size>& arena,
+      bool& is_new) ABSL_ATTRIBUTE_LIFETIME_BOUND {
     RIEGELI_ASSERT(!Encoder::EncodedEmpty(value))
         << "Failed precondition of StringArenaShard::Intern(): value is empty";
     {
@@ -125,10 +126,11 @@ class ABSL_CACHELINE_ALIGNED StringArenaShard {
 
   template <bool verified_new, typename Arg, typename ArenaMutex,
             size_t static_min_block_size, size_t static_max_block_size>
-  Element InternNew(const Arg& value, size_t hash,
-                    BasicStringArena<ArenaMutex, static_min_block_size,
-                                     static_max_block_size>& arena,
-                    bool& is_new) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+  Element InternNew(
+      const Arg& value, size_t hash,
+      BasicStringArena<ArenaMutex, /*concurrent_reads=*/false,
+                       static_min_block_size, static_max_block_size>& arena,
+      bool& is_new) ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
   template <typename Arg>
   typename Element::Optional Find(const Arg& value, size_t hash) const
@@ -159,11 +161,11 @@ class ABSL_CACHELINE_ALIGNED StringArenaShard {
  private:
   template <typename Arg, typename ArenaMutex, size_t static_min_block_size,
             size_t static_max_block_size>
-  ABSL_ATTRIBUTE_NOINLINE Element
-  InternSlow(const Arg& value, size_t hash,
-             BasicStringArena<ArenaMutex, static_min_block_size,
-                              static_max_block_size>& arena,
-             bool& is_new);
+  ABSL_ATTRIBUTE_NOINLINE Element InternSlow(
+      const Arg& value, size_t hash,
+      BasicStringArena<ArenaMutex, /*concurrent_reads=*/false,
+                       static_min_block_size, static_max_block_size>& arena,
+      bool& is_new);
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS mutable SetMutex set_mutex_;
   absl::flat_hash_set<Element,
@@ -177,8 +179,8 @@ template <typename Arg, typename ArenaMutex, size_t static_min_block_size,
           size_t static_max_block_size>
 auto StringArenaShard<Encoder, SetMutex, alignment>::InternSlow(
     const Arg& value, size_t hash,
-    BasicStringArena<ArenaMutex, static_min_block_size, static_max_block_size>&
-        arena,
+    BasicStringArena<ArenaMutex, /*concurrent_reads=*/false,
+                     static_min_block_size, static_max_block_size>& arena,
     bool& is_new) -> Element {
   return InternNew</*verified_new=*/true>(value, hash, arena, is_new);
 }
@@ -188,8 +190,8 @@ template <bool verified_new, typename Arg, typename ArenaMutex,
           size_t static_min_block_size, size_t static_max_block_size>
 inline auto StringArenaShard<Encoder, SetMutex, alignment>::InternNew(
     const Arg& value, size_t hash,
-    BasicStringArena<ArenaMutex, static_min_block_size, static_max_block_size>&
-        arena,
+    BasicStringArena<ArenaMutex, /*concurrent_reads=*/false,
+                     static_min_block_size, static_max_block_size>& arena,
     bool& is_new) -> Element {
   RIEGELI_ASSERT(!Encoder::EncodedEmpty(value))
       << "Failed precondition of StringArenaShard::InternNew(): "
