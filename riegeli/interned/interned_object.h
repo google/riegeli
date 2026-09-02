@@ -687,7 +687,7 @@ class Interned
 
   // Dereferences the pointer.
   const T& value() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(this->repr() != nullptr) << "Moved-from Interned";
+    RIEGELI_CHECK(this->repr() != nullptr) << "Moved-from Interned";
     return this->repr()->value();
   }
 

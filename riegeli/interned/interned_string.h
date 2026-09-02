@@ -582,7 +582,7 @@ class BasicInternedString
     return this->shared_repr().value();
   }
   absl::string_view value() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(this->repr() != nullptr) << "Moved-from InternedString";
+    RIEGELI_CHECK(this->repr() != nullptr) << "Moved-from InternedString";
     return this->shared_repr().value();
   }
 
