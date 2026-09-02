@@ -387,6 +387,11 @@ class IndexInternedString
   // end of a block. This is an estimation; there is no guarantee exactly how
   // much address space is needed for a particular set of strings.
   //
+  // By default a fixed block size is used. If overridden using
+  // `WithBlockSize<min_block_size, max_block_size>` with
+  // `min_block_size < max_block_size`, initial blocks smaller than the maximum
+  // waste address space while saving overall memory.
+  //
   // `AddressSpaceUsed()` on the interner or archive can be used to inspect the
   // current address space usage against `AddressSpaceLimit()`.
   template <typename Address>
@@ -397,6 +402,8 @@ class IndexInternedString
   // directory.
   //
   // `Address` must be an unsigned integer type.
+  //
+  // See `InternerWithAddress` for details.
   template <typename Address>
   using ArchiveWithAddress =
       typename IndexInternedString::template ArchiveWithAddress<Address>;
@@ -512,10 +519,9 @@ class IndexStringArchive {
  public:
   static_assert(absl::has_single_bit(alignment));
   static_assert(std::is_void_v<Address> ||
-                    (static_min_block_size > 0 &&
-                     static_min_block_size == static_max_block_size),
+                    (static_min_block_size > 0 && static_max_block_size > 0),
                 "IndexInternedString::ArchiveWithAddress requires "
-                "a static fixed block size");
+                "a static block size");
 
   // Configures the block size of the arena, in bytes. See
   // `IndexInternedString::Interner::WithBlockSize` for details.
@@ -659,10 +665,9 @@ class IndexStringInterner {
  public:
   static_assert(absl::has_single_bit(alignment));
   static_assert(std::is_void_v<Address> ||
-                    (static_min_block_size > 0 &&
-                     static_min_block_size == static_max_block_size),
+                    (static_min_block_size > 0 && static_max_block_size > 0),
                 "IndexInternedString::InternerWithAddress requires "
-                "a static fixed block size");
+                "a static block size");
 
   // Makes the interner thread-safe and tunes it for concurrency.
   //
@@ -682,9 +687,13 @@ class IndexStringInterner {
 
   // Configures the block size of the arena, in bytes.
   //
-  // Strings are allocated in blocks of this size. A larger block size improves
-  // memory locality and reduces the number of allocations, but increases wasted
-  // memory if only a small number of strings is interned.
+  // Strings are allocated in blocks of sizes within this range. A larger block
+  // size improves memory locality and reduces the number of allocations, but
+  // increases wasted memory if only a small number of strings is interned.
+  //
+  // For `InternerWithAddress`, if `min_block_size < max_block_size`, initial
+  // blocks smaller than the maximum waste address space while saving overall
+  // memory.
   template <size_t new_static_min_block_size,
             size_t new_static_max_block_size = new_static_min_block_size>
   using WithBlockSize =

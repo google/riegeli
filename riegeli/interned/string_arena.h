@@ -447,15 +447,15 @@ struct PointerWithAddress {
   size_t address;
 };
 
-template <size_t static_block_size, size_t alignment>
+template <size_t static_max_block_size, size_t alignment>
 struct WithAddressPolicy {
-  static_assert(static_block_size > 0);
+  static_assert(static_max_block_size > 0);
   static_assert(absl::has_single_bit(alignment));
 
   // Returns the maximum offset where a string can start. Strings must start
   // strictly before `limit` for their address to fit in `kScaledBlockCapacity`.
   static constexpr size_t limit(size_t current_block_size) {
-    return current_block_size == 0 ? 0 : static_block_size;
+    return UnsignedMin(current_block_size, static_max_block_size);
   }
 
   static PointerWithAddress ToAddress(char* repr, size_t block_index,
@@ -469,11 +469,12 @@ struct WithAddressPolicy {
   static constexpr size_t kScaledBlockCapacity = [] {
     constexpr size_t kMinAlignment = StringArenaBlock::kMinAlignment;
     if constexpr (alignment <= kMinAlignment) {
-      return UnsignedMax(RoundUp<alignment>(static_block_size) / alignment,
+      return UnsignedMax(RoundUp<alignment>(static_max_block_size) / alignment,
                          RoundUp<alignment>(sizeof(size_t)) / alignment + 1);
     } else {
       return UnsignedMax(
-          RoundUp<alignment>(static_block_size + (alignment - kMinAlignment)) /
+          RoundUp<alignment>(static_max_block_size +
+                             (alignment - kMinAlignment)) /
               alignment,
           RoundUp<alignment>(sizeof(size_t) + (alignment - kMinAlignment)) /
                   alignment +
@@ -774,160 +775,6 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
   mutable Blocks blocks_ ABSL_GUARDED_BY(mutex_);
 };
 
-// Specialization of `BasicStringArena` with a static fixed block size.
-template <typename Mutex, bool concurrent_reads, size_t static_block_size>
-class BasicStringArena<Mutex, concurrent_reads, static_block_size,
-                       static_block_size>
-    : public BasicStringArena<Mutex, concurrent_reads,
-                              /*static_min_block_size=*/0,
-                              /*static_max_block_size=*/0> {
- public:
-  // Enables concurrency for `BasicStringArena`.
-  //
-  // `Mutex` specifies the mutex type, which can be `absl::Mutex` (default)
-  // or another type with `lock()`, `unlock()`, `lock_shared()`, and
-  // `unlock_shared()`, analogously to `absl::Mutex`.
-  template <typename NewMutex = absl::Mutex>
-  using Concurrent = BasicStringArena<NewMutex, concurrent_reads,
-                                      static_block_size, static_block_size>;
-
-  // Allows `ResolveAddress()` to be called concurrently with allocation without
-  // locking.
-  template <bool new_concurrent_reads = true>
-  using WithConcurrentReads =
-      BasicStringArena<Mutex, new_concurrent_reads, static_block_size,
-                       static_block_size>;
-
-  // Configures the block size of the arena, in bytes.
-  //
-  // Strings are allocated in blocks of sizes within this range. A larger block
-  // size improves memory locality and reduces the number of allocations, but
-  // increases wasted memory if only a small number of strings is allocated.
-  template <size_t new_static_min_block_size,
-            size_t new_static_max_block_size = new_static_min_block_size>
-  using WithBlockSize =
-      BasicStringArena<Mutex, concurrent_reads, new_static_min_block_size,
-                       new_static_max_block_size>;
-
-  // Configures the block size of the arena to be specified dynamically in the
-  // constructor.
-  using WithDynamicBlockSize =
-      BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
-                       /*static_max_block_size=*/0>;
-
-  // The archive type. See `BasicStringArena::ExtractArchive()` for details.
-  using Archive = BasicStringArena<NullMutex, /*concurrent_reads=*/false,
-                                   static_block_size, static_block_size>;
-
-  // Creates an empty `BasicStringArena` with a static block size in bytes.
-  BasicStringArena() noexcept
-      : BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
-                         /*static_max_block_size=*/0>(static_block_size) {}
-
-  // A moved-from `BasicStringArena` is left empty.
-  BasicStringArena(BasicStringArena&& that) = default;
-  BasicStringArena& operator=(BasicStringArena&& that) = default;
-
-  // Resets the arena to the empty state.
-  ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
-    this->BasicStringArena<
-        Mutex, concurrent_reads, /*static_min_block_size=*/0,
-        /*static_max_block_size=*/0>::Reset(static_block_size);
-  }
-
-  // Allocates a string from `value` in the arena using `Encoder`.
-  //
-  // Returns the address of the allocated string. An address consists of the
-  // block index and the offset within the block.
-  //
-  // Heterogeneous lookup against `value` is supported by `ResolveAddress()`.
-  template <size_t alignment = 1, typename Encoder = DefaultStringEncoder,
-            typename Arg>
-  size_t AllocateWithAddress(const Arg& value) ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return AllocateWithAddressImpl<alignment, Encoder>(value);
-  }
-
-  // Const `AllocateWithAddress()` overload enabled only when thread-safe.
-  template <
-      size_t alignment = 1, typename Encoder = DefaultStringEncoder,
-      typename Arg, typename DependentMutex = Mutex,
-      std::enable_if_t<!std::is_same_v<DependentMutex, NullMutex>, int> = 0>
-  size_t AllocateWithAddress(const Arg& value) const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return AllocateWithAddressImpl<alignment, Encoder>(value);
-  }
-
-  // Resolves an address returned by `AllocateWithAddress()` to the string.
-  //
-  // If `concurrent_reads` is `true`, this can be called concurrently with
-  // allocation without locking.
-  template <size_t alignment = 1>
-  BasicArenaString<alignment> ResolveAddress(size_t address) const
-      ABSL_NO_THREAD_SAFETY_ANALYSIS {
-    static_assert(absl::has_single_bit(alignment));
-    constexpr size_t kScaledBlockCapacity =
-        WithAddressPolicy<static_block_size, alignment>::kScaledBlockCapacity;
-    const size_t block_index = address / kScaledBlockCapacity;
-    const size_t scaled_offset = address % kScaledBlockCapacity;
-    RIEGELI_ASSERT_LT(block_index, this->blocks_.size())
-        << "Failed precondition of StringArena::ResolveAddress(): "
-           "address out of bounds";
-    const char* const block_data = this->blocks_[block_index].data();
-    constexpr size_t kMinAlignment = StringArenaBlock::kMinAlignment;
-    if constexpr (alignment <= kMinAlignment) {
-      return BasicArenaString<alignment>::BackFromData(
-          block_data + scaled_offset * alignment);
-    } else {
-      const char* const repr = reinterpret_cast<char*>(
-          (reinterpret_cast<uintptr_t>(block_data) & ~(alignment - 1)) +
-          scaled_offset * alignment);
-      return BasicArenaString<alignment>::BackFromData(repr);
-    }
-  }
-
-  // Returns an estimate of the usage of the address space.
-  template <size_t alignment = 1>
-  size_t AddressSpaceUsed() const {
-    static_assert(absl::has_single_bit(alignment));
-    MutexLock<Mutex> lock(this->mutex_);
-    if (this->blocks_.empty()) return 0;
-    constexpr size_t kScaledBlockCapacity =
-        WithAddressPolicy<static_block_size, alignment>::kScaledBlockCapacity;
-    const size_t last_block_index = this->blocks_.size() - 1;
-    const size_t last_block_used =
-        last_block_index == this->current_block_index_
-            ? this->current_block_used_
-            : this->blocks_.back().size();
-    return last_block_index * kScaledBlockCapacity +
-           UnsignedMin(RoundUp<alignment>(last_block_used) / alignment,
-                       kScaledBlockCapacity);
-  }
-
-  // Extracts the storage of the strings as an archive, which holds the same
-  // strings as `BasicStringArena`, but does not support concurrency.
-  // The `BasicStringArena` is left empty.
-  Archive ExtractArchive() && { return Archive(std::move(*this)); }
-
- private:
-  // For `BasicStringArena(BasicStringArena<OtherMutex, other_concurrent_reads,
-  //                                        static_block_size,
-  //                                        static_block_size>&&)`.
-  template <typename OtherMutex, bool other_concurrent_reads,
-            size_t static_min_block_size_param,
-            size_t static_max_block_size_param>
-  friend class BasicStringArena;
-
-  template <typename OtherMutex, bool other_concurrent_reads>
-  explicit BasicStringArena(
-      BasicStringArena<OtherMutex, other_concurrent_reads, static_block_size,
-                       static_block_size>&& that)
-      : BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
-                         /*static_max_block_size=*/0>(std::move(that)) {}
-
-  template <size_t alignment, typename Encoder, typename Arg>
-  size_t AllocateWithAddressImpl(const Arg& value) const;
-};
-
 // Specialization of `BasicStringArena` with a static block size.
 template <typename Mutex, bool concurrent_reads, size_t static_min_block_size,
           size_t static_max_block_size>
@@ -996,6 +843,76 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
                                             static_max_block_size);
   }
 
+  // Allocates a string from `value` in the arena using `Encoder`.
+  //
+  // Returns the address of the allocated string. An address consists of the
+  // block index and the offset within the block.
+  //
+  // Heterogeneous lookup against `value` is supported by `ResolveAddress()`.
+  template <size_t alignment = 1, typename Encoder = DefaultStringEncoder,
+            typename Arg>
+  size_t AllocateWithAddress(const Arg& value) ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return AllocateWithAddressImpl<alignment, Encoder>(value);
+  }
+
+  // Const `AllocateWithAddress()` overload enabled only when thread-safe.
+  template <
+      size_t alignment = 1, typename Encoder = DefaultStringEncoder,
+      typename Arg, typename DependentMutex = Mutex,
+      std::enable_if_t<!std::is_same_v<DependentMutex, NullMutex>, int> = 0>
+  size_t AllocateWithAddress(const Arg& value) const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return AllocateWithAddressImpl<alignment, Encoder>(value);
+  }
+
+  // Resolves an address returned by `AllocateWithAddress()` to the string.
+  //
+  // If `concurrent_reads` is `true`, this can be called concurrently with
+  // allocation without locking.
+  template <size_t alignment = 1>
+  BasicArenaString<alignment> ResolveAddress(size_t address) const
+      ABSL_NO_THREAD_SAFETY_ANALYSIS {
+    static_assert(absl::has_single_bit(alignment));
+    constexpr size_t kScaledBlockCapacity =
+        WithAddressPolicy<static_max_block_size,
+                          alignment>::kScaledBlockCapacity;
+    const size_t block_index = address / kScaledBlockCapacity;
+    const size_t scaled_offset = address % kScaledBlockCapacity;
+    RIEGELI_ASSERT_LT(block_index, this->blocks_.size())
+        << "Failed precondition of StringArena::ResolveAddress(): "
+           "address out of bounds";
+    const char* const block_data = this->blocks_[block_index].data();
+    constexpr size_t kMinAlignment = StringArenaBlock::kMinAlignment;
+    if constexpr (alignment <= kMinAlignment) {
+      return BasicArenaString<alignment>::BackFromData(
+          block_data + scaled_offset * alignment);
+    } else {
+      const char* const repr = reinterpret_cast<char*>(
+          (reinterpret_cast<uintptr_t>(block_data) & ~(alignment - 1)) +
+          scaled_offset * alignment);
+      return BasicArenaString<alignment>::BackFromData(repr);
+    }
+  }
+
+  // Returns an estimate of the usage of the address space.
+  template <size_t alignment = 1>
+  size_t AddressSpaceUsed() const {
+    static_assert(absl::has_single_bit(alignment));
+    MutexLock<Mutex> lock(this->mutex_);
+    if (this->blocks_.empty()) return 0;
+    constexpr size_t kScaledBlockCapacity =
+        WithAddressPolicy<static_max_block_size,
+                          alignment>::kScaledBlockCapacity;
+    const size_t last_block_index = this->blocks_.size() - 1;
+    const size_t last_block_used =
+        last_block_index == this->current_block_index_
+            ? this->current_block_used_
+            : this->blocks_.back().size();
+    return last_block_index * kScaledBlockCapacity +
+           UnsignedMin(RoundUp<alignment>(last_block_used) / alignment,
+                       kScaledBlockCapacity);
+  }
+
   // Extracts the storage of the strings as an archive, which holds the same
   // strings as `BasicStringArena`, but does not support concurrency.
   // The `BasicStringArena` is left empty.
@@ -1016,6 +933,9 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
                        static_min_block_size, static_max_block_size>&& that)
       : BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
                          /*static_max_block_size=*/0>(std::move(that)) {}
+
+  template <size_t alignment, typename Encoder, typename Arg>
+  size_t AllocateWithAddressImpl(const Arg& value) const;
 };
 
 }  // namespace interned_internal
@@ -1319,15 +1239,16 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::UndoAllocateImpl(
                         BasicArenaString<alignment>::HeaderSize(size));
 }
 
-template <typename Mutex, bool concurrent_reads, size_t static_block_size>
+template <typename Mutex, bool concurrent_reads, size_t static_min_block_size,
+          size_t static_max_block_size>
 template <size_t alignment, typename Encoder, typename Arg>
 inline size_t BasicStringArena<
-    Mutex, concurrent_reads, static_block_size,
-    static_block_size>::AllocateWithAddressImpl(const Arg& value) const {
+    Mutex, concurrent_reads, static_min_block_size,
+    static_max_block_size>::AllocateWithAddressImpl(const Arg& value) const {
   static_assert(absl::has_single_bit(alignment));
   const size_t size = Encoder::EncodedSize(value);
   const PointerWithAddress allocated = this->template AllocateBytesImpl<
-      WithAddressPolicy<static_block_size, alignment>, alignment>(
+      WithAddressPolicy<static_max_block_size, alignment>, alignment>(
       size, BasicArenaString<alignment>::HeaderSize(size));
   BasicArenaString<alignment>::template Encode<Encoder>(allocated.ptr, value,
                                                         size);
