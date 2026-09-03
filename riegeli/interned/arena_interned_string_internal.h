@@ -80,7 +80,7 @@ struct ArenaStringEq {
 };
 
 template <typename Encoder, typename SetMutex, size_t alignment>
-class ABSL_CACHELINE_ALIGNED StringArenaShard {
+class alignas(kInternerShardAlignment<SetMutex>) StringArenaShard {
  public:
   using Element = ArenaString::WithAlignment<alignment>;
 

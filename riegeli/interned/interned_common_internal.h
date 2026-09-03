@@ -27,6 +27,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/hash_container_defaults.h"
 #include "absl/numeric/bits.h"
@@ -149,6 +150,12 @@ class ABSL_SCOPED_LOCKABLE ReaderMutexLock<NullMutex> {
 
   ~ReaderMutexLock() ABSL_UNLOCK_FUNCTION() {}
 };
+
+// Cacheline alignment is applied to shards when concurrency is used, to avoid
+// false sharing between shards.
+template <typename Mutex>
+inline constexpr size_t kInternerShardAlignment =
+    std::is_same_v<Mutex, NullMutex> ? 0 : ABSL_CACHELINE_SIZE;
 
 template <typename Arg, typename T, typename Hash, typename Eq,
           typename Enable = void>

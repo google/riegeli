@@ -277,7 +277,7 @@ struct IndexStringEq<Numeric, Encoder, /*Address=*/void, concurrent_reads,
 template <typename Numeric, typename Encoder, typename Address,
           typename SetMutex, typename ArenaMutex, size_t alignment,
           size_t static_min_block_size, size_t static_max_block_size>
-class ABSL_CACHELINE_ALIGNED IndexStringInternerShard {
+class alignas(kInternerShardAlignment<SetMutex>) IndexStringInternerShard {
  private:
   static constexpr bool kDirectoryConcurrentReads =
       !std::is_same_v<ArenaMutex, NullMutex>;

@@ -322,7 +322,7 @@ struct IndexEq {
 
 template <typename Numeric, typename T, typename Hash, typename Eq,
           typename SetMutex, typename ArenaMutex, size_t block_size>
-class ABSL_CACHELINE_ALIGNED IndexInternerShard {
+class alignas(kInternerShardAlignment<SetMutex>) IndexInternerShard {
  private:
   static constexpr bool kConcurrentReads =
       !std::is_same_v<ArenaMutex, NullMutex>;

@@ -119,7 +119,7 @@ struct ElementEq {
 // `IntrusiveSharedPtr<const Repr>` or a similar type.
 template <typename Repr, typename SharedRepr, typename Hash, typename Eq,
           typename Interner>
-class ABSL_CACHELINE_ALIGNED Shard {
+class alignas(kInternerShardAlignment<typename Interner::Mutex>) Shard {
  public:
   static constexpr size_t kImmortal = ~size_t{0};
 

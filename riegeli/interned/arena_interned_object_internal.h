@@ -78,7 +78,7 @@ struct ObjectArenaElementEq {
 // A single shard of the set of interned objects. The set is sharded by a part
 // of the hash.
 template <typename T, typename Hash, typename Eq, typename SetMutex>
-class ABSL_CACHELINE_ALIGNED ObjectArenaShard {
+class alignas(kInternerShardAlignment<SetMutex>) ObjectArenaShard {
  public:
   ObjectArenaShard() = default;
 
