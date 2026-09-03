@@ -363,9 +363,9 @@ inline void ObjectArena<T, Mutex, 0, 0>::Reset(size_t min_block_size,
     if (last_block_.size() <= max_block_objects_) {
       last_block_.Clear(last_block_used_objects_);
       last_block_used_objects_ = 0;
-      next_block_objects_ = UnsignedClamp(
-          last_block_.size() + UnsignedMax(last_block_.size() / 2, size_t{1}),
-          min_block_objects, max_block_objects_);
+      next_block_objects_ =
+          UnsignedClamp(last_block_.size() + (last_block_.size() + 1) / 2,
+                        min_block_objects, max_block_objects_);
       return;
     }
     last_block_.DeletePartial(last_block_used_objects_);
@@ -420,9 +420,8 @@ void ObjectArena<T, Mutex, 0, 0>::AllocateSlow() const {
   if (last_block_.is_allocated()) {
     previous_blocks_.push_back(std::move(last_block_));
   }
-  next_block_objects_ =
-      UnsignedClamp(block_objects + UnsignedMax(block_objects / 2, size_t{1}),
-                    next_block_objects_, max_block_objects_);
+  next_block_objects_ = UnsignedClamp(block_objects + (block_objects + 1) / 2,
+                                      next_block_objects_, max_block_objects_);
   last_block_ = interned_internal::ObjectArenaBlock<T>(block_objects);
   last_block_used_objects_ = 0;
 }

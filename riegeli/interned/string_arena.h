@@ -1033,9 +1033,9 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     current_block_data_ = blocks_[0].data();
     current_block_size_ = blocks_[0].size();
     current_block_used_ = 0;
-    next_block_size_ = UnsignedClamp(
-        current_block_size_ + UnsignedMax(current_block_size_ / 2, size_t{1}),
-        min_block_size, max_block_size_);
+    next_block_size_ =
+        UnsignedClamp(current_block_size_ + (current_block_size_ + 1) / 2,
+                      min_block_size, max_block_size_);
     return;
   }
   for (size_t i = blocks_.size(); i > 0;) {
@@ -1162,9 +1162,8 @@ BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesSlow(
     allocated_size = max_repr_offset + UnsignedMax(size, size_t{1});
     make_regular_block = false;
   }
-  next_block_size_ =
-      UnsignedClamp(allocated_size + UnsignedMax(allocated_size / 2, size_t{1}),
-                    next_block_size_, max_block_size_);
+  next_block_size_ = UnsignedClamp(allocated_size + (allocated_size + 1) / 2,
+                                   next_block_size_, max_block_size_);
 
   const StringArenaBlock& block = blocks_.emplace_back(allocated_size);
   char* const block_data = block.data();
