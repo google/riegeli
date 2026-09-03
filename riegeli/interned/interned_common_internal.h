@@ -67,7 +67,7 @@ struct HasRiegeliHasScalableSharedLocks<
 // Also, a default template parameter for `Concurrent` nested types.
 template <typename Mutex>
 inline constexpr size_t kDefaultInternerNumShards =
-    HasRiegeliHasScalableSharedLocks<Mutex>::value ? 1 : 64;
+    HasRiegeliHasScalableSharedLocks<Mutex>::value ? 1 : 16;
 
 // Default template parameters for arena blocks, in bytes.
 constexpr size_t kDefaultArenaMinBlockSize = 256;
