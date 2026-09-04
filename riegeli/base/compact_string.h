@@ -26,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
+#include "absl/container/hash_container_defaults.h"
 #include "absl/hash/hash.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
@@ -77,7 +78,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
     : public WithCompare<CompactString, absl::string_view> {
  public:
   // Supports heterogeneous lookup against `absl::string_view`.
-  struct absl_container_hash;
+  using absl_container_hash = absl::DefaultHashContainerHash<absl::string_view>;
   struct absl_container_eq;
 
   static constexpr size_t max_size() {
@@ -550,16 +551,6 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI CompactString
 };
 
 // Implementation details follow.
-
-struct CompactString::absl_container_hash {
-  using is_transparent = void;
-  size_t operator()(const CompactString& value) const {
-    return absl::Hash<CompactString>()(value);
-  }
-  size_t operator()(absl::string_view value) const {
-    return absl::Hash<absl::string_view>()(value);
-  }
-};
 
 struct CompactString::absl_container_eq {
   using is_transparent = void;

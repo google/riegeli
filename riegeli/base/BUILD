@@ -623,6 +623,7 @@ cc_library(
         ":null_safe_memcpy",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:hash_container_defaults",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings:string_view",
     ],
