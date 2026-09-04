@@ -433,11 +433,8 @@ using ArenaString = interned_internal::BasicArenaString</*alignment=*/1>;
 namespace interned_internal {
 
 struct PointerPolicy {
-  // Returns the maximum offset where a string can start in the fast path.
-  static size_t limit(size_t current_block_size) { return current_block_size; }
-
   static char* ToAddress(char* repr, size_t /*block_index*/,
-                         size_t /*scaled_offset*/) {
+                         const char* /*block_data*/) {
     return repr;
   }
 };
@@ -452,14 +449,15 @@ struct WithAddressPolicy {
   static_assert(static_max_block_size > 0);
   static_assert(absl::has_single_bit(alignment));
 
-  // Returns the maximum offset where a string can start. Strings must start
-  // strictly before `limit` for their address to fit in `kScaledBlockCapacity`.
-  static constexpr size_t limit(size_t current_block_size) {
-    return UnsignedMin(current_block_size, static_max_block_size);
-  }
-
   static PointerWithAddress ToAddress(char* repr, size_t block_index,
-                                      size_t scaled_offset) {
+                                      const char* block_data) {
+    size_t base_misalignment = 0;
+    if constexpr (alignment > StringArenaBlock::kMinAlignment) {
+      base_misalignment =
+          reinterpret_cast<uintptr_t>(block_data) & (alignment - 1);
+    }
+    const size_t scaled_offset =
+        (PtrDistance(block_data, repr) + base_misalignment) / alignment;
     RIEGELI_ASSERT_LT(scaled_offset, kScaledBlockCapacity)
         << "Failed invariant of StringArena: scaled offset overflow";
     return PointerWithAddress{
@@ -467,19 +465,14 @@ struct WithAddressPolicy {
   }
 
   static constexpr size_t kScaledBlockCapacity = [] {
-    constexpr size_t kMinAlignment = StringArenaBlock::kMinAlignment;
-    if constexpr (alignment <= kMinAlignment) {
-      return UnsignedMax(RoundUp<alignment>(static_max_block_size) / alignment,
-                         RoundUp<alignment>(sizeof(size_t)) / alignment + 1);
-    } else {
-      return UnsignedMax(
-          RoundUp<alignment>(static_max_block_size +
-                             (alignment - kMinAlignment)) /
-              alignment,
-          RoundUp<alignment>(sizeof(size_t) + (alignment - kMinAlignment)) /
-                  alignment +
-              1);
-    }
+    constexpr size_t kMaxHeaderSize = sizeof(size_t);
+    constexpr size_t kMaxBaseMisalignment =
+        SaturatingSub(alignment, StringArenaBlock::kMinAlignment);
+    return UnsignedMax(
+        RoundUp<alignment>(static_max_block_size + kMaxBaseMisalignment) /
+            alignment,
+        RoundUp<alignment>(kMaxHeaderSize + kMaxBaseMisalignment) / alignment +
+            1);
   }();
 };
 
@@ -551,8 +544,8 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
         next_block_size_(that.next_block_size_),
         current_block_index_(std::exchange(that.current_block_index_, 0)),
         current_block_data_(std::exchange(that.current_block_data_, nullptr)),
-        current_block_size_(std::exchange(that.current_block_size_, 0)),
-        current_block_used_(std::exchange(that.current_block_used_, 0)),
+        cursor_(std::exchange(that.cursor_, nullptr)),
+        limit_(std::exchange(that.limit_, nullptr)),
         blocks_(std::move(that.blocks_)) {}
   BasicStringArena& operator=(BasicStringArena&& that) noexcept
       ABSL_NO_THREAD_SAFETY_ANALYSIS {
@@ -560,8 +553,8 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
     next_block_size_ = that.next_block_size_;
     current_block_index_ = std::exchange(that.current_block_index_, 0);
     current_block_data_ = std::exchange(that.current_block_data_, nullptr);
-    current_block_size_ = std::exchange(that.current_block_size_, 0);
-    current_block_used_ = std::exchange(that.current_block_used_, 0);
+    cursor_ = std::exchange(that.cursor_, nullptr);
+    limit_ = std::exchange(that.limit_, nullptr);
     DeleteBlocks(std::exchange(blocks_, std::exchange(that.blocks_, {})));
     return *this;
   }
@@ -738,8 +731,8 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
         next_block_size_(that.next_block_size_),
         current_block_index_(std::exchange(that.current_block_index_, 0)),
         current_block_data_(std::exchange(that.current_block_data_, nullptr)),
-        current_block_size_(std::exchange(that.current_block_size_, 0)),
-        current_block_used_(std::exchange(that.current_block_used_, 0)),
+        cursor_(std::exchange(that.cursor_, nullptr)),
+        limit_(std::exchange(that.limit_, nullptr)),
         blocks_(std::move(that.blocks_)) {}
 
   template <typename Policy, size_t alignment>
@@ -765,13 +758,14 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
   mutable size_t current_block_index_ ABSL_GUARDED_BY(mutex_) = 0;
   // If `!blocks_.empty()`, `blocks_[current_block_index_].data()`.
   // Otherwise `nullptr`.
-  mutable char* current_block_data_ ABSL_GUARDED_BY(mutex_) = nullptr;
-  // If `!blocks_.empty()`, the capacity of `blocks_[current_block_index_]`.
-  // Otherwise 0.
-  mutable size_t current_block_size_ ABSL_GUARDED_BY(mutex_) = 0;
-  // If `!blocks_.empty()`, the number of used bytes in
-  // `blocks_[current_block_index_]`. Otherwise 0.
-  mutable size_t current_block_used_ ABSL_GUARDED_BY(mutex_) = 0;
+  mutable char* absl_nullable current_block_data_ ABSL_GUARDED_BY(mutex_) =
+      nullptr;
+  // If `!blocks_.empty()`, points to the next byte in
+  // `blocks_[current_block_index_]` to allocate. Otherwise `nullptr`.
+  mutable char* absl_nullable cursor_ ABSL_GUARDED_BY(mutex_) = nullptr;
+  // If `!blocks_.empty()`, points to the end of
+  // `blocks_[current_block_index_]`. Otherwise `nullptr`.
+  mutable char* absl_nullable limit_ ABSL_GUARDED_BY(mutex_) = nullptr;
   mutable Blocks blocks_ ABSL_GUARDED_BY(mutex_);
 };
 
@@ -882,16 +876,14 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
         << "Failed precondition of StringArena::ResolveAddress(): "
            "address out of bounds";
     const char* const block_data = this->blocks_[block_index].data();
-    constexpr size_t kMinAlignment = StringArenaBlock::kMinAlignment;
-    if constexpr (alignment <= kMinAlignment) {
-      return BasicArenaString<alignment>::BackFromData(
-          block_data + scaled_offset * alignment);
-    } else {
-      const char* const repr = reinterpret_cast<char*>(
-          (reinterpret_cast<uintptr_t>(block_data) & ~(alignment - 1)) +
-          scaled_offset * alignment);
-      return BasicArenaString<alignment>::BackFromData(repr);
+    size_t base_misalignment = 0;
+    if constexpr (alignment > StringArenaBlock::kMinAlignment) {
+      base_misalignment =
+          reinterpret_cast<uintptr_t>(block_data) & (alignment - 1);
     }
+    const char* const repr =
+        block_data - base_misalignment + scaled_offset * alignment;
+    return BasicArenaString<alignment>::BackFromData(repr);
   }
 
   // Returns an estimate of the usage of the address space.
@@ -906,7 +898,7 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
     const size_t last_block_index = this->blocks_.size() - 1;
     const size_t last_block_used =
         last_block_index == this->current_block_index_
-            ? this->current_block_used_
+            ? PtrDistance(this->current_block_data_, this->cursor_)
             : this->blocks_.back().size();
     return last_block_index * kScaledBlockCapacity +
            UnsignedMin(RoundUp<alignment>(last_block_used) / alignment,
@@ -1021,7 +1013,7 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     size_t min_block_size, size_t max_block_size) {
   max_block_size_ = UnsignedMax(min_block_size, max_block_size);
   if (current_block_data_ != nullptr &&
-      current_block_size_ <= max_block_size_) {
+      PtrDistance(current_block_data_, limit_) <= max_block_size_) {
     for (size_t i = blocks_.size(); i > 0;) {
       --i;
       if (i != current_block_index_) blocks_[i].Delete();
@@ -1029,13 +1021,13 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     const StringArenaBlock retained_block = blocks_[current_block_index_];
     blocks_.clear();
     blocks_.push_back(retained_block);
-    current_block_index_ = 0;
-    current_block_data_ = blocks_[0].data();
-    current_block_size_ = blocks_[0].size();
-    current_block_used_ = 0;
     next_block_size_ =
-        UnsignedClamp(current_block_size_ + (current_block_size_ + 1) / 2,
+        UnsignedClamp(retained_block.size() + (retained_block.size() + 1) / 2,
                       min_block_size, max_block_size_);
+    current_block_index_ = 0;
+    cursor_ = current_block_data_;
+    limit_ = current_block_data_ +
+             UnsignedMin(retained_block.size(), max_block_size_);
     return;
   }
   for (size_t i = blocks_.size(); i > 0;) {
@@ -1043,11 +1035,11 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     blocks_[i].Delete();
   }
   blocks_.clear();
+  next_block_size_ = min_block_size;
   current_block_index_ = 0;
   current_block_data_ = nullptr;
-  current_block_size_ = 0;
-  current_block_used_ = 0;
-  next_block_size_ = min_block_size;
+  cursor_ = nullptr;
+  limit_ = nullptr;
 }
 
 template <typename Mutex, bool concurrent_reads>
@@ -1077,34 +1069,23 @@ template <typename Policy, size_t alignment>
 inline auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesImpl(
     size_t size, size_t header_size) const {
   static_assert(absl::has_single_bit(alignment));
-  constexpr size_t kMinAlignment = StringArenaBlock::kMinAlignment;
   MutexLock<Mutex> lock(mutex_);
-  size_t repr_offset;
-  size_t base_misalignment = 0;
-  if constexpr (alignment <= kMinAlignment) {
-    repr_offset = RoundUp<alignment>(current_block_used_ + header_size);
-  } else {
-    base_misalignment =
-        reinterpret_cast<uintptr_t>(current_block_data_) & (alignment - 1);
-    repr_offset = RoundUp<alignment>(current_block_used_ + header_size +
-                                     base_misalignment) -
-                  base_misalignment;
-  }
-
-  const size_t limit = Policy::limit(current_block_size_);
-  // The assumptions optimize the code if `alignment == 1 && header_size == 0`.
-  RIEGELI_ASSUME_LE(current_block_used_, current_block_size_);
-  RIEGELI_ASSUME_LE(limit, current_block_size_);
-  // Force the slow path if the returned pointer would fall at the end of the
-  // block. We are comparing the end pointer, so if the end pointer is strictly
-  // before the end of the block then the fast path is safe.
-  if (ABSL_PREDICT_TRUE(size < limit - repr_offset && repr_offset < limit)) {
+  const size_t max_overhead = header_size + (alignment - 1);
+  // The assumptions optimize the code if `max_overhead == 0`.
+  RIEGELI_ASSUME_LE(current_block_data_, cursor_);
+  RIEGELI_ASSUME_LE(cursor_, limit_);
+  const size_t available = PtrDistance(cursor_, limit_);
+  if (ABSL_PREDICT_TRUE(size < available - max_overhead &&
+                        available > max_overhead)) {
     // Allocate from the current regular block.
-    char* const repr = current_block_data_ + repr_offset;
-    current_block_used_ = repr_offset + size;
+    char* repr = cursor_ + header_size;
+    if constexpr (alignment > 1) {
+      repr = reinterpret_cast<char*>(
+          RoundUp<alignment>(reinterpret_cast<uintptr_t>(repr)));
+    }
+    cursor_ = repr + size;
     return AssumeAligned<alignment>(
-        Policy::ToAddress(repr, current_block_index_,
-                          (repr_offset + base_misalignment) / alignment));
+        Policy::ToAddress(repr, current_block_index_, current_block_data_));
   }
   return AssumeAligned<alignment>(
       AllocateBytesSlow<Policy, alignment>(size, header_size));
@@ -1112,41 +1093,30 @@ inline auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesImpl(
 
 template <typename Mutex, bool concurrent_reads>
 template <typename Policy, size_t alignment>
-ABSL_ATTRIBUTE_NOINLINE auto
-BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesSlow(
+auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesSlow(
     size_t size, size_t header_size) const {
   RIEGELI_CHECK_LE(size, BasicArenaString<alignment>::kMaxSize)
       << "Failed precondition of StringArena: string size overflow";
-  constexpr size_t kMinAlignment = StringArenaBlock::kMinAlignment;
-  size_t repr_offset;
-  size_t base_misalignment = 0;
-  if constexpr (alignment <= kMinAlignment) {
-    repr_offset = RoundUp<alignment>(current_block_used_ + header_size);
-  } else {
-    base_misalignment =
-        reinterpret_cast<uintptr_t>(current_block_data_) & (alignment - 1);
-    repr_offset = RoundUp<alignment>(current_block_used_ + header_size +
-                                     base_misalignment) -
-                  base_misalignment;
+  const size_t max_overhead = header_size + (alignment - 1);
+  const size_t available = PtrDistance(cursor_, limit_);
+  if (available > max_overhead) {
+    char* repr = cursor_ + header_size;
+    if constexpr (alignment > 1) {
+      repr = reinterpret_cast<char*>(
+          RoundUp<alignment>(reinterpret_cast<uintptr_t>(repr)));
+    }
+    if (size <= PtrDistance(repr, limit_)) {
+      // The allocation fits in the current regular block. This case was not
+      // handled in `AllocateBytesImpl()` to avoid extra branches on the fast
+      // path.
+      cursor_ = repr + size;
+      return AssumeAligned<alignment>(
+          Policy::ToAddress(repr, current_block_index_, current_block_data_));
+    }
   }
 
-  const size_t limit = Policy::limit(current_block_size_);
-  RIEGELI_ASSUME_LE(current_block_used_, current_block_size_);
-  RIEGELI_ASSUME_LE(limit, current_block_size_);
-  if (size <= current_block_size_ - repr_offset && repr_offset < limit) {
-    // For the address to be representable by `Policy::ToAddress()`, the string
-    // must start before the limit. Its end can extend beyond the limit though,
-    // up to and including the end of the allocated block. This case was not
-    // handled in `AllocateBytesImpl()` because it would need an extra branch.
-    char* const repr = current_block_data_ + repr_offset;
-    current_block_used_ = repr_offset + size;
-    return AssumeAligned<alignment>(
-        Policy::ToAddress(repr, current_block_index_,
-                          (repr_offset + base_misalignment) / alignment));
-  }
-
-  const size_t max_repr_offset =
-      RoundUp<alignment>(header_size + SaturatingSub(alignment, kMinAlignment));
+  const size_t max_repr_offset = RoundUp<alignment>(
+      header_size + SaturatingSub(alignment, StringArenaBlock::kMinAlignment));
   const size_t required = max_repr_offset + size;
   size_t allocated_size;
   bool make_regular_block;
@@ -1167,22 +1137,19 @@ BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesSlow(
 
   const StringArenaBlock& block = blocks_.emplace_back(allocated_size);
   char* const block_data = block.data();
-  if constexpr (alignment <= kMinAlignment) {
-    repr_offset = max_repr_offset;
-  } else {
-    base_misalignment =
-        reinterpret_cast<uintptr_t>(block_data) & (alignment - 1);
-    repr_offset =
-        RoundUp<alignment>(header_size + base_misalignment) - base_misalignment;
+  char* repr = block_data + header_size;
+  if constexpr (alignment > 1) {
+    repr = reinterpret_cast<char*>(
+        RoundUp<alignment>(reinterpret_cast<uintptr_t>(repr)));
   }
   if (make_regular_block) {
     current_block_index_ = blocks_.size() - 1;
     current_block_data_ = block_data;
-    current_block_size_ = block.size();
-    current_block_used_ = repr_offset + size;
+    cursor_ = repr + size;
+    limit_ = block_data + UnsignedMin(block.size(), max_block_size_);
   }
-  return Policy::ToAddress(block_data + repr_offset, blocks_.size() - 1,
-                           (repr_offset + base_misalignment) / alignment);
+  return AssumeAligned<alignment>(
+      Policy::ToAddress(repr, blocks_.size() - 1, block_data));
 }
 
 template <typename Mutex, bool concurrent_reads>
@@ -1203,12 +1170,10 @@ inline void
 BasicStringArena<Mutex, concurrent_reads, 0, 0>::UndoAllocateBytesImpl(
     const char* allocated, size_t size, size_t header_size) const {
   MutexLock<Mutex> lock(mutex_);
-  if (ABSL_PREDICT_TRUE(current_block_data_ != nullptr &&
-                        allocated + size ==
-                            current_block_data_ + current_block_used_)) {
+  if (ABSL_PREDICT_TRUE(allocated + size == cursor_)) {
     // This was the most recent allocation in the current block. Undo it
     // even if a dedicated block is more recent.
-    current_block_used_ -= header_size + size;
+    cursor_ -= header_size + size;
     return;
   }
 

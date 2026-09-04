@@ -18,7 +18,6 @@
 #include <stddef.h>
 
 #include <new>  // IWYU pragma: keep
-#include <utility>
 
 #include "absl/base/nullability.h"
 #include "riegeli/base/new_aligned.h"
@@ -35,56 +34,51 @@ class ObjectArenaBlock {
 
   explicit ObjectArenaBlock(size_t min_size) {
     size_t size_bytes;
-    data_ = static_cast<T*>(SizeReturningNewAligned<void, alignof(T)>(
+    T* const data = static_cast<T*>(SizeReturningNewAligned<void, alignof(T)>(
         min_size * sizeof(T), &size_bytes));
     size_ = size_bytes / sizeof(T);
+    limit_ = data + size_;
   }
 
   ObjectArenaBlock(ObjectArenaBlock&& that) = default;
   ObjectArenaBlock& operator=(ObjectArenaBlock&& that) = default;
 
-  void DeleteFull() { DeletePartial(size_); }
+  void DeleteFull() { DeletePartial(limit_); }
 
-  void DeletePartial(size_t used) {
-    Clear(used);
-    DeleteAligned<void, alignof(T)>(data_, size_ * sizeof(T));
+  void DeletePartial(T* absl_nullable cursor) {
+    Clear(cursor);
+    DeleteAligned<void, alignof(T)>(data(), size_ * sizeof(T));
   }
 
-  void Clear(size_t used) {
-    for (size_t i = used; i > 0;) {
-      --i;
-      data_[i].~T();
+  void Clear(T* absl_nullable cursor) {
+    T* const data = this->data();
+    while (cursor != data) {
+      --cursor;
+      cursor->~T();
     }
   }
 
-  bool is_allocated() const { return data_ != nullptr; }
+  bool is_allocated() const { return limit_ != nullptr; }
 
+  T* absl_nullable data() const { return limit_ - size_; }
+  T* absl_nullable limit() const { return limit_; }
   size_t size() const { return size_; }
-
-  template <typename... Args>
-  T& emplace_back(size_t size, Args&&... args) {
-    new (data_ + size) T(std::forward<Args>(args)...);
-    return data_[size];
-  }
-
-  const T& operator[](size_t index) const { return data_[index]; }
-
-  void pop_back(size_t index) { data_[index].~T(); }
 
   template <typename MemoryEstimator>
   void RegisterSubobjectsFull(MemoryEstimator& memory_estimator) const {
-    RegisterSubobjectsPartial(size_, memory_estimator);
+    RegisterSubobjectsPartial(limit_, memory_estimator);
   }
 
   template <typename MemoryEstimator>
-  void RegisterSubobjectsPartial(size_t used,
+  void RegisterSubobjectsPartial(const T* absl_nullable cursor,
                                  MemoryEstimator& memory_estimator) const {
-    memory_estimator.RegisterDynamicMemory(data_, size_ * sizeof(T));
-    memory_estimator.RegisterSubobjects(data_, data_ + used);
+    const T* const data = this->data();
+    memory_estimator.RegisterDynamicMemory(data, size_ * sizeof(T));
+    memory_estimator.RegisterSubobjects(static_cast<const T*>(data), cursor);
   }
 
  private:
-  T* absl_nullable data_ = nullptr;
+  T* absl_nullable limit_ = nullptr;
   size_t size_ = 0;
 };
 

@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include <new>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -108,8 +109,7 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
   ObjectArena(ObjectArena&& that) noexcept ABSL_NO_THREAD_SAFETY_ANALYSIS
       : max_block_objects_(that.max_block_objects_),
         next_block_objects_(that.next_block_objects_),
-        last_block_used_objects_(std::exchange(that.last_block_used_objects_,
-                                               0)),
+        cursor_(std::exchange(that.cursor_, nullptr)),
         last_block_(std::exchange(that.last_block_, {})),
         previous_blocks_(std::move(that.previous_blocks_)) {}
   ObjectArena& operator=(ObjectArena&& that) noexcept
@@ -120,14 +120,12 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
         std::exchange(last_block_, std::exchange(that.last_block_, {})),
         std::exchange(previous_blocks_,
                       std::exchange(that.previous_blocks_, {})),
-        std::exchange(last_block_used_objects_,
-                      std::exchange(that.last_block_used_objects_, 0)));
+        std::exchange(cursor_, std::exchange(that.cursor_, nullptr)));
     return *this;
   }
 
   ~ObjectArena() {
-    DeleteBlocks(std::move(last_block_), std::move(previous_blocks_),
-                 last_block_used_objects_);
+    DeleteBlocks(std::move(last_block_), std::move(previous_blocks_), cursor_);
   }
 
   // Resets the arena to the empty state, with a fixed block size in bytes.
@@ -208,10 +206,8 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
     for (const auto& block : self->previous_blocks_) {
       block.RegisterSubobjectsFull(memory_estimator);
     }
-    if (self->last_block_.is_allocated()) {
-      self->last_block_.RegisterSubobjectsPartial(
-          self->last_block_used_objects_, memory_estimator);
-    }
+    self->last_block_.RegisterSubobjectsPartial(self->cursor_,
+                                                memory_estimator);
   }
 
   // Extracts the storage of the objects as an archive, which holds the same
@@ -230,18 +226,18 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
   template <typename OtherMutex>
   explicit ObjectArena(ObjectArena<T, OtherMutex, /*static_min_block_size=*/0,
                                    /*static_max_block_size=*/0>&& that)
+      ABSL_NO_THREAD_SAFETY_ANALYSIS
       : max_block_objects_(that.max_block_objects_),
         next_block_objects_(that.next_block_objects_),
-        last_block_used_objects_(
-            std::exchange(that.last_block_used_objects_, 0)),
+        cursor_(std::exchange(that.cursor_, nullptr)),
         last_block_(std::exchange(that.last_block_, {})),
         previous_blocks_(std::move(that.previous_blocks_)) {}
 
   static void DeleteBlocks(
       interned_internal::ObjectArenaBlock<T> last_block,
       std::vector<interned_internal::ObjectArenaBlock<T>> previous_blocks,
-      size_t last_block_used_objects) ABSL_NO_THREAD_SAFETY_ANALYSIS {
-    last_block.DeletePartial(last_block_used_objects);
+      T* absl_nullable cursor) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+    last_block.DeletePartial(cursor);
     for (size_t i = previous_blocks.size(); i > 0;) {
       --i;
       previous_blocks[i].DeleteFull();
@@ -259,9 +255,9 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
   size_t max_block_objects_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS mutable Mutex mutex_;
   mutable size_t next_block_objects_ ABSL_GUARDED_BY(mutex_);
-  // If `last_block_.is_allocated()`, the number of used elements in
-  // `last_block_`. Otherwise 0.
-  mutable size_t last_block_used_objects_ ABSL_GUARDED_BY(mutex_) = 0;
+  // If `last_block_.is_allocated()`, points to the next object in `last_block_`
+  // to allocate. Otherwise `nullptr`.
+  mutable T* absl_nullable cursor_ ABSL_GUARDED_BY(mutex_) = nullptr;
   mutable interned_internal::ObjectArenaBlock<T> last_block_
       ABSL_GUARDED_BY(mutex_);
   mutable std::vector<interned_internal::ObjectArenaBlock<T>> previous_blocks_
@@ -361,18 +357,18 @@ inline void ObjectArena<T, Mutex, 0, 0>::Reset(size_t min_block_size,
   previous_blocks_.clear();
   if (last_block_.is_allocated()) {
     if (last_block_.size() <= max_block_objects_) {
-      last_block_.Clear(last_block_used_objects_);
-      last_block_used_objects_ = 0;
+      last_block_.Clear(cursor_);
+      cursor_ = last_block_.data();
       next_block_objects_ =
           UnsignedClamp(last_block_.size() + (last_block_.size() + 1) / 2,
                         min_block_objects, max_block_objects_);
       return;
     }
-    last_block_.DeletePartial(last_block_used_objects_);
+    last_block_.DeletePartial(cursor_);
     last_block_ = {};
-    last_block_used_objects_ = 0;
   }
   next_block_objects_ = min_block_objects;
+  cursor_ = nullptr;
 }
 
 template <typename T, typename Mutex>
@@ -404,14 +400,11 @@ template <typename T, typename Mutex>
 template <typename... Args>
 inline T* ObjectArena<T, Mutex, 0, 0>::AllocateImpl(Args&&... args) const {
   interned_internal::MutexLock<Mutex> lock(mutex_);
-  if (ABSL_PREDICT_FALSE(last_block_used_objects_ == last_block_.size())) {
-    AllocateSlow();
-  }
-
-  T& result = last_block_.emplace_back(last_block_used_objects_,
-                                       std::forward<Args>(args)...);
-  ++last_block_used_objects_;
-  return &result;
+  if (ABSL_PREDICT_FALSE(cursor_ == last_block_.limit())) AllocateSlow();
+  T* const ptr = cursor_;
+  new (ptr) T(std::forward<Args>(args)...);
+  ++cursor_;
+  return ptr;
 }
 
 template <typename T, typename Mutex>
@@ -423,16 +416,16 @@ void ObjectArena<T, Mutex, 0, 0>::AllocateSlow() const {
   next_block_objects_ = UnsignedClamp(block_objects + (block_objects + 1) / 2,
                                       next_block_objects_, max_block_objects_);
   last_block_ = interned_internal::ObjectArenaBlock<T>(block_objects);
-  last_block_used_objects_ = 0;
+  cursor_ = last_block_.data();
 }
 
 template <typename T, typename Mutex>
 inline void ObjectArena<T, Mutex, 0, 0>::UndoAllocateImpl(T* ptr) const {
   interned_internal::MutexLock<Mutex> lock(mutex_);
-  if (ABSL_PREDICT_TRUE(last_block_used_objects_ > 0 &&
-                        ptr == &last_block_[last_block_used_objects_ - 1])) {
+  if (ABSL_PREDICT_TRUE(cursor_ > last_block_.data() && ptr == cursor_ - 1)) {
     // This was the most recent allocation. Undo it.
-    last_block_.pop_back(--last_block_used_objects_);
+    --cursor_;
+    ptr->~T();
     return;
   }
 

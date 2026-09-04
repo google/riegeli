@@ -51,39 +51,34 @@ class DirectoryBlock {
   }
 
   DirectoryBlock(const DirectoryBlock& that) = default;
-  DirectoryBlock& operator=(const DirectoryBlock& that) = default;
+  DirectoryBlock& operator=(const DirectoryBlock&) = delete;
 
-  DirectoryBlock(DirectoryBlock&& that) = default;
-  DirectoryBlock& operator=(DirectoryBlock&& that) = default;
+  void DeleteFull() { DeletePartial(limit()); }
 
-  void DeleteFull() { DeletePartial(size); }
-
-  void DeletePartial(size_t used) {
-    for (size_t i = used; i > 0;) {
-      --i;
-      data_[i].~T();
+  void DeletePartial(T* cursor) {
+    T* const data = data_;
+    while (cursor != data) {
+      --cursor;
+      cursor->~T();
     }
     DeleteAligned<void, alignof(T)>(data_, size * sizeof(T));
   }
 
-  template <typename... Args>
-  T& emplace_back(size_t used, Args&&... args) {
-    new (data_ + used) T(std::forward<Args>(args)...);
-    return data_[used];
-  }
+  T* data() const { return data_; }
+  T* limit() const { return data_ + size; }
 
   const T& operator[](size_t index) const { return data_[index]; }
 
   template <typename MemoryEstimator>
   void RegisterSubobjectsFull(MemoryEstimator& memory_estimator) const {
-    RegisterSubobjectsPartial(size, memory_estimator);
+    RegisterSubobjectsPartial(limit(), memory_estimator);
   }
 
   template <typename MemoryEstimator>
-  void RegisterSubobjectsPartial(size_t used,
+  void RegisterSubobjectsPartial(const T* cursor,
                                  MemoryEstimator& memory_estimator) const {
     memory_estimator.RegisterDynamicMemory(data_, size * sizeof(T));
-    memory_estimator.RegisterSubobjects(data_, data_ + used);
+    memory_estimator.RegisterSubobjects(static_cast<const T*>(data_), cursor);
   }
 
  private:
@@ -112,7 +107,8 @@ class Directory {
 
   Directory(Directory&& that) noexcept
       : blocks_(std::move(that.blocks_)),
-        last_block_used_(std::exchange(that.last_block_used_, kBlockCapacity)),
+        cursor_(std::exchange(that.cursor_, nullptr)),
+        limit_(std::exchange(that.limit_, nullptr)),
         size_([&] {
           if constexpr (concurrent_reads) {
             return that.size_.exchange(0, std::memory_order_relaxed);
@@ -122,10 +118,9 @@ class Directory {
         }()) {}
 
   Directory& operator=(Directory&& that) noexcept {
-    DeleteBlocks(
-        std::exchange(blocks_, std::exchange(that.blocks_, {})),
-        std::exchange(last_block_used_,
-                      std::exchange(that.last_block_used_, kBlockCapacity)));
+    DeleteBlocks(std::exchange(blocks_, std::exchange(that.blocks_, {})),
+                 std::exchange(cursor_, std::exchange(that.cursor_, nullptr)));
+    limit_ = std::exchange(that.limit_, nullptr);
     if constexpr (concurrent_reads) {
       size_.store(that.size_.exchange(0, std::memory_order_relaxed),
                   std::memory_order_relaxed);
@@ -135,11 +130,11 @@ class Directory {
     return *this;
   }
 
-  ~Directory() { DeleteBlocks(std::move(blocks_), last_block_used_); }
+  ~Directory() { DeleteBlocks(std::move(blocks_), cursor_); }
 
   void Reset() {
-    DeleteBlocks(std::exchange(blocks_, {}),
-                 std::exchange(last_block_used_, kBlockCapacity));
+    DeleteBlocks(std::exchange(blocks_, {}), std::exchange(cursor_, nullptr));
+    limit_ = nullptr;
     if constexpr (concurrent_reads) {
       size_.store(0, std::memory_order_relaxed);
     } else {
@@ -180,7 +175,7 @@ class Directory {
       for (size_t i = 0; i < self->blocks_.size() - 1; ++i) {
         self->blocks_[i].RegisterSubobjectsFull(memory_estimator);
       }
-      self->blocks_.back().RegisterSubobjectsPartial(self->last_block_used_,
+      self->blocks_.back().RegisterSubobjectsPartial(self->cursor_,
                                                      memory_estimator);
     }
   }
@@ -189,7 +184,8 @@ class Directory {
 
   Archive ExtractArchive() && {
     return Archive(typename Archive::Blocks(std::move(blocks_)),
-                   std::exchange(last_block_used_, kBlockCapacity), [&] {
+                   std::exchange(cursor_, nullptr),
+                   std::exchange(limit_, nullptr), [&] {
                      if constexpr (concurrent_reads) {
                        return size_.exchange(0, std::memory_order_relaxed);
                      } else {
@@ -199,7 +195,7 @@ class Directory {
   }
 
  private:
-  // For `Blocks` and `Directory(Blocks&&, size_t, size_t)`.
+  // For `Blocks` and `Directory(Blocks&&, T*, T*, size_t)`.
   friend class Directory<T, /*concurrent_reads=*/true, block_size>;
 
   static constexpr size_t kBlockCapacity =
@@ -208,15 +204,16 @@ class Directory {
   using Blocks =
       ConcurrentVector<DirectoryBlock<T, kBlockCapacity>, concurrent_reads>;
 
-  explicit Directory(typename Archive::Blocks&& blocks, size_t last_block_used,
-                     size_t size)
+  explicit Directory(typename Archive::Blocks&& blocks, T* absl_nullable cursor,
+                     T* absl_nullable limit, size_t size)
       : blocks_(std::move(blocks)),
-        last_block_used_(last_block_used),
+        cursor_(cursor),
+        limit_(limit),
         size_(size) {}
 
-  static void DeleteBlocks(Blocks blocks, size_t last_block_used) {
+  static void DeleteBlocks(Blocks blocks, T* absl_nullable cursor) {
     if (!blocks.empty()) {
-      blocks.back().DeletePartial(last_block_used);
+      blocks.back().DeletePartial(cursor);
       for (size_t i = blocks.size() - 1; i > 0;) {
         --i;
         blocks[i].DeleteFull();
@@ -224,34 +221,43 @@ class Directory {
     }
   }
 
+  ABSL_ATTRIBUTE_NOINLINE void AllocateSlow();
+
   Blocks blocks_;
-  // If `!blocks_.empty()`, the number of used elements in `blocks_.back()`.
-  // Otherwise `kBlockCapacity`, to make conditions simpler.
-  size_t last_block_used_ = kBlockCapacity;
-  // The number of objects.
-  // Equal to `return (blocks_.size() - 1) * kBlockCapacity + last_block_used_`
+  // If `!blocks_.empty()`, points to the next object in `blocks_.back()`
+  // to allocate. Otherwise `nullptr`.
+  T* absl_nullable cursor_ = nullptr;
+  // If `!blocks_.empty()`, points to the end of `blocks_.back()`.
+  // Otherwise `nullptr`.
+  T* absl_nullable limit_ = nullptr;
+  // The number of objects. Equal to
+  // `blocks_.size() * kBlockCapacity - PtrDistance(cursor_, limit_)`.
   // but stored separately for efficient and concurrent access.
   std::conditional_t<concurrent_reads, std::atomic<size_t>, size_t> size_{0};
 };
 
 template <typename T, bool concurrent_reads, size_t block_size>
+void Directory<T, concurrent_reads, block_size>::AllocateSlow() {
+  DirectoryBlock<T, kBlockCapacity>& block = blocks_.emplace_back();
+  cursor_ = block.data();
+  limit_ = block.limit();
+}
+
+template <typename T, bool concurrent_reads, size_t block_size>
 template <typename... Args>
 inline T& Directory<T, concurrent_reads, block_size>::Allocate(Args&&... args)
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  if (ABSL_PREDICT_FALSE(last_block_used_ == kBlockCapacity)) {
-    blocks_.emplace_back();
-    last_block_used_ = 0;
-  }
-  T& result = blocks_.back().emplace_back(last_block_used_,
-                                          std::forward<Args>(args)...);
-  ++last_block_used_;
+  if (ABSL_PREDICT_FALSE(cursor_ == limit_)) AllocateSlow();
+  T* const ptr = cursor_;
+  new (ptr) T(std::forward<Args>(args)...);
+  ++cursor_;
   if constexpr (concurrent_reads) {
     size_.store(size_.load(std::memory_order_relaxed) + 1,
                 std::memory_order_release);
   } else {
     ++size_;
   }
-  return result;
+  return *ptr;
 }
 
 // Supports heterogeneous lookup for resolved object being searched.

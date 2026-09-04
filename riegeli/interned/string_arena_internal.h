@@ -29,19 +29,14 @@ class StringArenaBlock {
  public:
   static constexpr size_t kMinAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
 
-  constexpr StringArenaBlock() = default;
-
-  explicit StringArenaBlock(size_t min_size) {
-    data_ = static_cast<char*>(
-        SizeReturningNewAligned<void, kMinAlignment>(min_size, &size_));
-  }
+  explicit StringArenaBlock(size_t min_size)
+      : data_(static_cast<char*>(
+            SizeReturningNewAligned<void, kMinAlignment>(min_size, &size_))) {}
 
   StringArenaBlock(const StringArenaBlock& that) = default;
-  StringArenaBlock& operator=(const StringArenaBlock& that) = default;
+  StringArenaBlock& operator=(const StringArenaBlock&) = delete;
 
   void Delete() { DeleteAligned<void, kMinAlignment>(data_, size_); }
-
-  bool is_allocated() const { return data_ != nullptr; }
 
   char* data() const { return data_; }
   size_t size() const { return size_; }
@@ -54,8 +49,8 @@ class StringArenaBlock {
   }
 
  private:
-  char* absl_nullable data_ = nullptr;
-  size_t size_ = 0;
+  char* data_;
+  size_t size_;
 };
 
 }  // namespace riegeli::interned_internal

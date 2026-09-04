@@ -877,9 +877,7 @@ class LocalArenaStringInterner {
         }
       }
     }
-    if (bytes_capacity > 0) {
-      arena_.ReserveBytes(bytes_capacity);
-    }
+    if (bytes_capacity > 0) arena_.ReserveBytes(bytes_capacity);
   }
 
   Interned Intern() ABSL_ATTRIBUTE_LIFETIME_BOUND {
