@@ -28,6 +28,7 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/new_aligned.h"
@@ -199,7 +200,7 @@ class Directory {
   friend class Directory<T, /*concurrent_reads=*/true, block_size>;
 
   static constexpr size_t kBlockCapacity =
-      UnsignedMax(block_size / sizeof(T), size_t{1});
+      UnsignedMax(absl::bit_floor(block_size / sizeof(T)), size_t{1});
 
   using Blocks =
       ConcurrentVector<DirectoryBlock<T, kBlockCapacity>, concurrent_reads>;
