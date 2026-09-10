@@ -545,19 +545,22 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
       : max_block_size_(that.max_block_size_),
         next_block_size_(that.next_block_size_),
         current_block_index_(std::exchange(that.current_block_index_, 0)),
-        current_block_data_(std::exchange(that.current_block_data_, nullptr)),
+        current_block_(std::exchange(that.current_block_, StringArenaBlock())),
         cursor_(std::exchange(that.cursor_, nullptr)),
-        limit_(std::exchange(that.limit_, nullptr)),
-        blocks_(std::move(that.blocks_)) {}
+        blocks_(InitBlocks(std::move(that.blocks_), &current_block_,
+                           &that.current_block_)) {}
   BasicStringArena& operator=(BasicStringArena&& that) noexcept
       ABSL_NO_THREAD_SAFETY_ANALYSIS {
+    const StringArenaBlock current_block =
+        std::exchange(that.current_block_, StringArenaBlock());
+    DeleteBlocks(std::exchange(
+        blocks_, InitBlocks(std::move(that.blocks_), &current_block_,
+                            &that.current_block_)));
     max_block_size_ = that.max_block_size_;
     next_block_size_ = that.next_block_size_;
     current_block_index_ = std::exchange(that.current_block_index_, 0);
-    current_block_data_ = std::exchange(that.current_block_data_, nullptr);
+    current_block_ = current_block;
     cursor_ = std::exchange(that.cursor_, nullptr);
-    limit_ = std::exchange(that.limit_, nullptr);
-    DeleteBlocks(std::exchange(blocks_, std::exchange(that.blocks_, {})));
     return *this;
   }
 
@@ -715,7 +718,22 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
             size_t static_max_block_size_param>
   friend class BasicStringArena;
 
-  using Blocks = ConcurrentVector<StringArenaBlock, concurrent_reads, 16>;
+  using Blocks = ConcurrentVector<StringArenaBlock, concurrent_reads>;
+
+  template <bool other_concurrent_reads>
+  static Blocks InitBlocks(
+      ConcurrentVector<StringArenaBlock, other_concurrent_reads>&& that_blocks,
+      StringArenaBlock* current_block,
+      const StringArenaBlock* that_current_block) {
+    if constexpr (!other_concurrent_reads) {
+      static_assert(!concurrent_reads);
+      if (that_blocks.data() == that_current_block) {
+        that_blocks = {};
+        return Blocks(current_block);
+      }
+    }
+    return Blocks(std::move(that_blocks));
+  }
 
   static void DeleteBlocks(Blocks blocks) ABSL_NO_THREAD_SAFETY_ANALYSIS {
     for (size_t i = blocks.size(); i > 0;) {
@@ -732,10 +750,10 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
       : max_block_size_(that.max_block_size_),
         next_block_size_(that.next_block_size_),
         current_block_index_(std::exchange(that.current_block_index_, 0)),
-        current_block_data_(std::exchange(that.current_block_data_, nullptr)),
+        current_block_(std::exchange(that.current_block_, StringArenaBlock())),
         cursor_(std::exchange(that.cursor_, nullptr)),
-        limit_(std::exchange(that.limit_, nullptr)),
-        blocks_(std::move(that.blocks_)) {}
+        blocks_(InitBlocks(std::move(that.blocks_), &current_block_,
+                           &that.current_block_)) {}
 
   template <typename Policy, size_t alignment>
   auto AllocateBytesImpl(size_t size, size_t header_size) const;
@@ -758,16 +776,12 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS mutable Mutex mutex_;
   mutable size_t next_block_size_ ABSL_GUARDED_BY(mutex_);
   mutable size_t current_block_index_ ABSL_GUARDED_BY(mutex_) = 0;
-  // If `!blocks_.empty()`, `blocks_[current_block_index_].data()`.
-  // Otherwise `nullptr`.
-  mutable char* absl_nullable current_block_data_ ABSL_GUARDED_BY(mutex_) =
-      nullptr;
+  // If `!blocks_.empty()`, `blocks_[current_block_index_]`.
+  // Otherwise default-constructed.
+  mutable StringArenaBlock current_block_ ABSL_GUARDED_BY(mutex_);
   // If `!blocks_.empty()`, points to the next byte in
   // `blocks_[current_block_index_]` to allocate. Otherwise `nullptr`.
   mutable char* absl_nullable cursor_ ABSL_GUARDED_BY(mutex_) = nullptr;
-  // If `!blocks_.empty()`, points to the end of
-  // `blocks_[current_block_index_]`. Otherwise `nullptr`.
-  mutable char* absl_nullable limit_ ABSL_GUARDED_BY(mutex_) = nullptr;
   mutable Blocks blocks_ ABSL_GUARDED_BY(mutex_);
 };
 
@@ -900,7 +914,7 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
     const size_t last_block_index = this->blocks_.size() - 1;
     const size_t last_block_used =
         last_block_index == this->current_block_index_
-            ? PtrDistance(this->current_block_data_, this->cursor_)
+            ? PtrDistance(this->current_block_.data(), this->cursor_)
             : this->blocks_.back().size();
     return last_block_index * kScaledBlockCapacity +
            UnsignedMin(RoundUp<alignment>(last_block_used) / alignment,
@@ -1014,22 +1028,25 @@ template <typename Mutex, bool concurrent_reads>
 inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     size_t min_block_size, size_t max_block_size) {
   max_block_size_ = UnsignedMax(min_block_size, max_block_size);
-  if (current_block_data_ != nullptr &&
-      PtrDistance(current_block_data_, limit_) <= max_block_size_) {
+  if (current_block_.data() != nullptr &&
+      current_block_.size() <= max_block_size_) {
     for (size_t i = blocks_.size(); i > 0;) {
       --i;
       if (i != current_block_index_) blocks_[i].Delete();
     }
     const StringArenaBlock retained_block = blocks_[current_block_index_];
-    blocks_.clear();
-    blocks_.push_back(retained_block);
+    current_block_ = retained_block;
+    if constexpr (!concurrent_reads) {
+      blocks_ = Blocks(&current_block_);
+    } else {
+      blocks_.clear();
+      blocks_.push_back(retained_block);
+    }
     next_block_size_ =
         UnsignedClamp(retained_block.size() + (retained_block.size() + 1) / 2,
                       min_block_size, max_block_size_);
     current_block_index_ = 0;
-    cursor_ = current_block_data_;
-    limit_ = current_block_data_ +
-             UnsignedMin(retained_block.size(), max_block_size_);
+    cursor_ = current_block_.data();
     return;
   }
   for (size_t i = blocks_.size(); i > 0;) {
@@ -1039,9 +1056,8 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
   blocks_.clear();
   next_block_size_ = min_block_size;
   current_block_index_ = 0;
-  current_block_data_ = nullptr;
+  current_block_ = StringArenaBlock();
   cursor_ = nullptr;
-  limit_ = nullptr;
 }
 
 template <typename Mutex, bool concurrent_reads>
@@ -1074,9 +1090,9 @@ inline auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesImpl(
   MutexLock<Mutex> lock(mutex_);
   const size_t max_overhead = header_size + (alignment - 1);
   // The assumptions optimize the code if `max_overhead == 0`.
-  RIEGELI_ASSUME_LE(current_block_data_, cursor_);
-  RIEGELI_ASSUME_LE(cursor_, limit_);
-  const size_t available = PtrDistance(cursor_, limit_);
+  RIEGELI_ASSUME_LE(current_block_.data(), cursor_);
+  RIEGELI_ASSUME_LE(cursor_, current_block_.limit());
+  const size_t available = PtrDistance(cursor_, current_block_.limit());
   if (ABSL_PREDICT_TRUE(size < available - max_overhead &&
                         available > max_overhead)) {
     // Allocate from the current regular block.
@@ -1087,7 +1103,7 @@ inline auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesImpl(
     }
     cursor_ = repr + size;
     return AssumeAligned<alignment>(
-        Policy::ToAddress(repr, current_block_index_, current_block_data_));
+        Policy::ToAddress(repr, current_block_index_, current_block_.data()));
   }
   return AssumeAligned<alignment>(
       AllocateBytesSlow<Policy, alignment>(size, header_size));
@@ -1100,20 +1116,20 @@ auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesSlow(
   RIEGELI_CHECK_LE(size, BasicArenaString<alignment>::kMaxSize)
       << "Failed precondition of StringArena: string size overflow";
   const size_t max_overhead = header_size + (alignment - 1);
-  const size_t available = PtrDistance(cursor_, limit_);
+  const size_t available = PtrDistance(cursor_, current_block_.limit());
   if (available > max_overhead) {
     char* repr = cursor_ + header_size;
     if constexpr (alignment > 1) {
       repr = reinterpret_cast<char*>(
           RoundUp<alignment>(reinterpret_cast<uintptr_t>(repr)));
     }
-    if (size <= PtrDistance(repr, limit_)) {
+    if (size <= PtrDistance(repr, current_block_.limit())) {
       // The allocation fits in the current regular block. This case was not
       // handled in `AllocateBytesImpl()` to avoid extra branches on the fast
       // path.
       cursor_ = repr + size;
       return AssumeAligned<alignment>(
-          Policy::ToAddress(repr, current_block_index_, current_block_data_));
+          Policy::ToAddress(repr, current_block_index_, current_block_.data()));
     }
   }
 
@@ -1137,8 +1153,23 @@ auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesSlow(
   next_block_size_ = UnsignedClamp(allocated_size + (allocated_size + 1) / 2,
                                    next_block_size_, max_block_size_);
 
-  const StringArenaBlock& block = blocks_.emplace_back(allocated_size);
-  char* const block_data = block.data();
+  const StringArenaBlock* block;
+  if (make_regular_block) {
+    if constexpr (!concurrent_reads) {
+      if (blocks_.capacity() == 0) {
+        current_block_ = StringArenaBlock(allocated_size, max_block_size_);
+        blocks_ = Blocks(&current_block_);
+        block = &current_block_;
+      } else {
+        block = &blocks_.emplace_back(allocated_size, max_block_size_);
+      }
+    } else {
+      block = &blocks_.emplace_back(allocated_size, max_block_size_);
+    }
+  } else {
+    block = &blocks_.emplace_back(allocated_size);
+  }
+  char* const block_data = block->data();
   char* repr = block_data + header_size;
   if constexpr (alignment > 1) {
     repr = reinterpret_cast<char*>(
@@ -1146,9 +1177,8 @@ auto BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateBytesSlow(
   }
   if (make_regular_block) {
     current_block_index_ = blocks_.size() - 1;
-    current_block_data_ = block_data;
+    current_block_ = *block;
     cursor_ = repr + size;
-    limit_ = block_data + UnsignedMin(block.size(), max_block_size_);
   }
   return AssumeAligned<alignment>(
       Policy::ToAddress(repr, blocks_.size() - 1, block_data));
@@ -1175,14 +1205,14 @@ BasicStringArena<Mutex, concurrent_reads, 0, 0>::UndoAllocateBytesImpl(
   if (ABSL_PREDICT_TRUE(allocated + size == cursor_ &&
                         // Exclude an allocation in another block, adjacent in
                         // memory to the current empty block.
-                        cursor_ != current_block_data_)) {
+                        cursor_ != current_block_.data())) {
     // This was the most recent allocation in the current block. Undo it
     // even if a dedicated block is more recent.
     cursor_ -= header_size + size;
     return;
   }
 
-  if (!blocks_.empty() && (current_block_data_ == nullptr ||
+  if (!blocks_.empty() && (current_block_.data() == nullptr ||
                            current_block_index_ != blocks_.size() - 1)) {
     StringArenaBlock& last_block = blocks_.back();
     // `last_block` is a dedicated block.

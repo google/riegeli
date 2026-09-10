@@ -29,6 +29,7 @@ cc_library(
     ],
     hdrs = ["object_arena.h"],
     deps = [
+        ":concurrent_vector_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:cord_utils",
         "//riegeli/base:new_aligned",

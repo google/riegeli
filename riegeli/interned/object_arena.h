@@ -20,7 +20,6 @@
 #include <new>  // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
@@ -29,6 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/interned/concurrent_vector_internal.h"
 #include "riegeli/interned/interned_common_internal.h"
 #include "riegeli/interned/object_arena_internal.h"
 
@@ -203,8 +203,8 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
                                         MemoryEstimator& memory_estimator) {
     interned_internal::ReaderMutexLock<Mutex> lock(self->mutex_);
     memory_estimator.RegisterSubobjects(&self->previous_blocks_);
-    for (const auto& block : self->previous_blocks_) {
-      block.RegisterSubobjectsFull(memory_estimator);
+    for (size_t i = 0; i < self->previous_blocks_.size(); ++i) {
+      self->previous_blocks_[i].RegisterSubobjectsFull(memory_estimator);
     }
     self->last_block_.RegisterSubobjectsPartial(self->cursor_,
                                                 memory_estimator);
@@ -223,6 +223,9 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
             size_t static_max_block_size_param>
   friend class ObjectArena;
 
+  using PreviousBlocks = interned_internal::ConcurrentVector<
+      interned_internal::ObjectArenaBlock<T>, /*concurrent_reads=*/false>;
+
   template <typename OtherMutex>
   explicit ObjectArena(ObjectArena<T, OtherMutex, /*static_min_block_size=*/0,
                                    /*static_max_block_size=*/0>&& that)
@@ -233,10 +236,10 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
         last_block_(std::exchange(that.last_block_, {})),
         previous_blocks_(std::move(that.previous_blocks_)) {}
 
-  static void DeleteBlocks(
-      interned_internal::ObjectArenaBlock<T> last_block,
-      std::vector<interned_internal::ObjectArenaBlock<T>> previous_blocks,
-      T* absl_nullable cursor) ABSL_NO_THREAD_SAFETY_ANALYSIS {
+  static void DeleteBlocks(interned_internal::ObjectArenaBlock<T> last_block,
+                           PreviousBlocks previous_blocks,
+                           T* absl_nullable cursor)
+      ABSL_NO_THREAD_SAFETY_ANALYSIS {
     last_block.DeletePartial(cursor);
     for (size_t i = previous_blocks.size(); i > 0;) {
       --i;
@@ -260,8 +263,7 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
   mutable T* absl_nullable cursor_ ABSL_GUARDED_BY(mutex_) = nullptr;
   mutable interned_internal::ObjectArenaBlock<T> last_block_
       ABSL_GUARDED_BY(mutex_);
-  mutable std::vector<interned_internal::ObjectArenaBlock<T>> previous_blocks_
-      ABSL_GUARDED_BY(mutex_);
+  mutable PreviousBlocks previous_blocks_ ABSL_GUARDED_BY(mutex_);
 };
 
 // Specialization of `ObjectArena` with a static block size.
@@ -376,8 +378,8 @@ inline void ObjectArena<T, Mutex, 0, 0>::Reserve(size_t capacity) {
   if (capacity == 0) return;
   interned_internal::MutexLock<Mutex> lock(mutex_);
   size_t existing_capacity = last_block_.size();
-  for (const interned_internal::ObjectArenaBlock<T>& block : previous_blocks_) {
-    existing_capacity += block.size();
+  for (size_t i = 0; i < previous_blocks_.size(); ++i) {
+    existing_capacity += previous_blocks_[i].size();
   }
   if (capacity <= existing_capacity) return;
   const size_t remaining_to_reserve = capacity - existing_capacity;

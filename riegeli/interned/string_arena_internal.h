@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include "absl/base/nullability.h"
+#include "riegeli/base/arithmetic.h"
 #include "riegeli/base/new_aligned.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -29,28 +30,43 @@ class StringArenaBlock {
  public:
   static constexpr size_t kMinAlignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
 
-  explicit StringArenaBlock(size_t min_size)
-      : data_(static_cast<char*>(
-            SizeReturningNewAligned<void, kMinAlignment>(min_size, &size_))) {}
+  StringArenaBlock() = default;
+
+  // Used for regular blocks.
+  explicit StringArenaBlock(size_t min_size, size_t max_size) {
+    size_t size;
+    data_ = static_cast<char*>(
+        SizeReturningNewAligned<void, kMinAlignment>(min_size, &size));
+    limit_ = data_ + UnsignedMin(size, max_size);
+  }
+
+  // Used for dedicated blocks.
+  explicit StringArenaBlock(size_t size) {
+    data_ = static_cast<char*>(NewAligned<void, kMinAlignment>(size));
+    limit_ = data_ + size;
+  }
 
   StringArenaBlock(const StringArenaBlock& that) = default;
-  StringArenaBlock& operator=(const StringArenaBlock&) = delete;
+  StringArenaBlock& operator=(const StringArenaBlock&) = default;
 
-  void Delete() { DeleteAligned<void, kMinAlignment>(data_, size_); }
+  void Delete() {
+    DeleteAligned<void, kMinAlignment>(data_, PtrDistance(data_, limit_));
+  }
 
-  char* data() const { return data_; }
-  size_t size() const { return size_; }
+  char* absl_nullable data() const { return data_; }
+  char* absl_nullable limit() const { return limit_; }
+  size_t size() const { return PtrDistance(data_, limit_); }
 
   // Supports `MemoryEstimator`.
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const StringArenaBlock* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterDynamicMemory(self->data_, self->size_);
+    memory_estimator.RegisterDynamicMemory(self->data_, self->size());
   }
 
  private:
-  char* data_;
-  size_t size_;
+  char* absl_nullable data_ = nullptr;
+  char* absl_nullable limit_ = nullptr;
 };
 
 }  // namespace riegeli::interned_internal

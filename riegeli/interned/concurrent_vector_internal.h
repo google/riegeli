@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/arithmetic.h"
@@ -41,6 +42,7 @@ namespace riegeli::interned_internal {
 template <typename T>
 class ConcurrentVectorBuffer {
  public:
+  // Creates an empty `ConcurrentVectorBuffer`.
   ConcurrentVectorBuffer() = default;
 
   explicit ConcurrentVectorBuffer(size_t min_capacity) {
@@ -51,6 +53,13 @@ class ConcurrentVectorBuffer {
         min_capacity * sizeof(T), &capacity_bytes));
     capacity_ = capacity_bytes / sizeof(T);
   }
+
+  // Stores a pointer to one unowned element.
+  //
+  // See the corresponding `ConcurrentVector` constructor for details.
+  explicit ConcurrentVectorBuffer(
+      T* unowned_element ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : data_(unowned_element), size_(1), capacity_(0) {}
 
   ConcurrentVectorBuffer(const ConcurrentVectorBuffer&) = delete;
   ConcurrentVectorBuffer& operator=(const ConcurrentVectorBuffer&) = delete;
@@ -75,6 +84,7 @@ class ConcurrentVectorBuffer {
       data_[i].~T();
     }
     size_ = 0;
+    if (capacity_ == 0) data_ = nullptr;
   }
 
   template <typename... Args>
@@ -96,9 +106,12 @@ class ConcurrentVectorBuffer {
     size_ = size;
   }
 
-  size_t size() const { return size_; }
-  size_t capacity() const { return capacity_; }
   bool empty() const { return size_ == 0; }
+  size_t size() const { return size_; }
+
+  // `capacity()` is 0, with `size()` being 1, when the `ConcurrentVectorBuffer`
+  // holds one unowned element.
+  size_t capacity() const { return capacity_; }
 
   const T& operator[](size_t index) const {
     RIEGELI_ASSERT_LT(index, size_)
@@ -111,6 +124,19 @@ class ConcurrentVectorBuffer {
         << "Failed precondition of ConcurrentVectorBuffer::operator[]: "
            "index out of bounds";
     return data_[index];
+  }
+
+  const T& front() const {
+    RIEGELI_ASSERT_GT(size_, 0u)
+        << "Failed precondition of ConcurrentVectorBuffer::front(): "
+           "buffer empty";
+    return data_[0];
+  }
+  T& front() {
+    RIEGELI_ASSERT_GT(size_, 0u)
+        << "Failed precondition of ConcurrentVectorBuffer::front(): "
+           "buffer empty";
+    return data_[0];
   }
 
   const T& back() const {
@@ -132,8 +158,10 @@ class ConcurrentVectorBuffer {
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const ConcurrentVectorBuffer* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterDynamicMemory(self->data_,
-                                           self->capacity_ * sizeof(T));
+    if (self->capacity_ > 0) {
+      memory_estimator.RegisterDynamicMemory(self->data_,
+                                             self->capacity_ * sizeof(T));
+    }
     memory_estimator.RegisterSubobjects(self->data_, self->data_ + self->size_);
   }
 
@@ -143,10 +171,14 @@ class ConcurrentVectorBuffer {
       --i;
       data[i].~T();
     }
-    DeleteAligned<void, alignof(T)>(data, capacity * sizeof(T));
+    if (capacity > 0) {
+      DeleteAligned<void, alignof(T)>(data, capacity * sizeof(T));
+    }
   }
 
   T* absl_nullable data_ = nullptr;
+  // If `size_ == 1 && capacity_ == 0`, then the `ConcurrentVectorBuffer` holds
+  // one unowned element.
   size_t size_ = 0;
   size_t capacity_ = 0;
 };
@@ -163,7 +195,16 @@ class ConcurrentVector;
 template <typename T, size_t initial_capacity>
 class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
  public:
+  // Creates an empty `ConcurrentVector`.
   ConcurrentVector() = default;
+
+  // Stores a pointer to one unowned element.
+  //
+  // This is useful for keeping a `ConcurrentVector` together with a cache of
+  // one of its elements. If that is the only element, the cache serves as the
+  // storage for the `ConcurrentVector`, which avoids heap allocation.
+  explicit ConcurrentVector(T* unowned_element ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : buffer_(unowned_element) {}
 
   explicit ConcurrentVector(
       ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity>&& that)
@@ -179,14 +220,14 @@ class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
   void clear() { buffer_.clear(); }
 
   void reserve(size_t min_capacity) {
-    if (min_capacity > buffer_.capacity()) Reallocate(min_capacity);
+    if (min_capacity > capacity()) Reallocate(min_capacity);
   }
 
   template <typename... Args>
   T& emplace_back(Args&&... args) {
-    if (ABSL_PREDICT_FALSE(buffer_.size() == buffer_.capacity())) {
+    if (ABSL_PREDICT_FALSE(buffer_.size() >= buffer_.capacity())) {
       Reallocate(buffer_.capacity() == 0
-                     ? UnsignedMax(initial_capacity, size_t{1})
+                     ? UnsignedMax(initial_capacity, size_t{2})
                      : buffer_.capacity() + (buffer_.capacity() + 1) / 2);
     }
     return buffer_.emplace_back(std::forward<Args>(args)...);
@@ -196,14 +237,22 @@ class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
   void push_back(T&& value) { emplace_back(std::move(value)); }
 
   size_t size() const { return buffer_.size(); }
-  size_t capacity() const { return buffer_.capacity(); }
+  size_t capacity() const {
+    return UnsignedMax(buffer_.capacity(), buffer_.size());
+  }
   bool empty() const { return buffer_.empty(); }
 
   const T& operator[](size_t index) const { return buffer_[index]; }
   T& operator[](size_t index) { return buffer_[index]; }
 
+  const T& front() const { return buffer_.front(); }
+  T& front() { return buffer_.front(); }
+
   const T& back() const { return buffer_.back(); }
   T& back() { return buffer_.back(); }
+
+  const T* data() const { return buffer_.data(); }
+  T* data() { return buffer_.data(); }
 
   void pop_back() {
     RIEGELI_ASSERT_GT(size(), 0u)
@@ -291,10 +340,10 @@ class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
   T& emplace_back(Args&&... args) {
     if (ABSL_PREDICT_FALSE(current_buffer_.size() ==
                            current_buffer_.capacity())) {
-      const size_t old_capacity = capacity();
-      // This reaches the minimum at Euler's number; 3 is close enough.
-      Reallocate(old_capacity == 0 ? UnsignedMax(initial_capacity, size_t{1})
-                                   : old_capacity * 3);
+      // For `concurrent_reads`, memory usage is the lowest when the growth
+      // factor is at Euler's number; 3 is close enough.
+      Reallocate(capacity() == 0 ? UnsignedMax(initial_capacity, size_t{1})
+                                 : capacity() * 3);
     }
     T* const data = data_.load(std::memory_order_relaxed);
     T* const ptr =
@@ -330,6 +379,18 @@ class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
            "index out of bounds";
     T* const data = data_.load(std::memory_order_acquire);
     return data[index];
+  }
+
+  // Can be called concurrently with appending without locking.
+  const T& front() const {
+    RIEGELI_ASSERT_GT(size(), 0u)
+        << "Failed precondition of ConcurrentVector::front(): empty vector";
+    return (*this)[0];
+  }
+  T& front() {
+    RIEGELI_ASSERT_GT(size(), 0u)
+        << "Failed precondition of ConcurrentVector::front(): empty vector";
+    return (*this)[0];
   }
 
   const T& back() const { return (*this)[size() - 1]; }
