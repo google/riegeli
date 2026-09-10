@@ -199,6 +199,8 @@ class OptionalArenaString
   const char* absl_nullable repr() const { return repr_; }
 
  private:
+  friend NotOptional;  // For `repr()`.
+
   // The data are stored at `repr_`. The size is encoded before the data in
   // 1 byte, 2 bytes, or as `size_t`.
   //
@@ -1170,7 +1172,10 @@ inline void
 BasicStringArena<Mutex, concurrent_reads, 0, 0>::UndoAllocateBytesImpl(
     const char* allocated, size_t size, size_t header_size) const {
   MutexLock<Mutex> lock(mutex_);
-  if (ABSL_PREDICT_TRUE(allocated + size == cursor_)) {
+  if (ABSL_PREDICT_TRUE(allocated + size == cursor_ &&
+                        // Exclude an allocation in another block, adjacent in
+                        // memory to the current empty block.
+                        cursor_ != current_block_data_)) {
     // This was the most recent allocation in the current block. Undo it
     // even if a dedicated block is more recent.
     cursor_ -= header_size + size;

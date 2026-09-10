@@ -760,8 +760,8 @@ class BasicInternedString
   }
 
  private:
-  friend Optional;  // For `Optional(SharedRepr)`.
-  friend Interner;  // For `InternedString(SharedRepr)`.
+  friend Optional;  // For `BasicInternedString(SharedRepr)`.
+  friend Interner;  // For `BasicInternedString(SharedRepr)`.
 
   explicit BasicInternedString(typename Optional::SharedRepr repr)
       : Optional(std::move(repr)) {}

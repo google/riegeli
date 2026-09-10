@@ -834,8 +834,9 @@ class Interned
   }
 
  private:
-  friend Optional;  // For `Optional(SharedRepr)`.
-  friend Interner;  // For `Interned(..., const Interner&)`.
+  friend Optional;  // For `Interned(SharedRepr)`.
+  // For `Interned(SharedRepr)` and `Interned(..., const Interner&)`.
+  friend Interner;
 
   explicit Interned(typename Interned::SharedRepr repr)
       : Optional(std::move(repr)) {}
