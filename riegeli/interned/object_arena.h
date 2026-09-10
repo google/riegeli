@@ -16,6 +16,7 @@
 #define RIEGELI_INTERNED_OBJECT_ARENA_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <new>  // IWYU pragma: keep
 #include <type_traits>
@@ -39,20 +40,26 @@ namespace riegeli {
 // Mutex type that does not lock.
 using interned_internal::NullMutex;
 
-// Default block sizes for `ObjectArena`.
+// Default template parameters for `ObjectArena`.
 using interned_internal::kDefaultArenaMaxBlockSize;
 using interned_internal::kDefaultArenaMinBlockSize;
 
-// Allocates objects of type `T`.
+// `ObjectArena` allocates objects of type `T`.
 //
 // The objects are never moved. They are destroyed when the arena is destroyed.
 // Individual deallocation is not supported, except for best-effort undoing of
 // the most recent allocation.
 //
+// See `StringArena` for a variant optimized for strings.
+//
 // Objects are allocated in blocks whose size in bytes is specified statically
 // or dynamically, and can adaptively grow between `min_block_size` and
 // `max_block_size`. The default is a static size range between 256 bytes and
 // 64K.
+//
+// Among the template parameters, only `T` should be specified explicitly. Other
+// parameters should be specified by nested types `Concurrent`, `WithBlockSize`,
+// and `WithDynamicBlockSize`.
 template <typename T, typename Mutex = NullMutex,
           size_t static_min_block_size = kDefaultArenaMinBlockSize,
           size_t static_max_block_size = kDefaultArenaMaxBlockSize>
@@ -93,17 +100,18 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
 
   // Creates an empty `ObjectArena` with a fixed block size in bytes.
   explicit ObjectArena(size_t block_size)
-      : max_block_objects_(UnsignedMax(block_size / sizeof(T), size_t{1})),
+      : max_block_objects_(UnsignedClamp(block_size / sizeof(T), uint32_t{1},
+                                         uint32_t{1} << 31)),
         next_block_objects_(max_block_objects_) {}
 
   // Creates an empty `ObjectArena` with an adaptive block size between
   // `min_block_size` and `max_block_size` in bytes.
   explicit ObjectArena(size_t min_block_size, size_t max_block_size)
-      : max_block_objects_(
-            UnsignedMax(UnsignedMax(min_block_size, max_block_size) / sizeof(T),
-                        size_t{1})),
-        next_block_objects_(
-            UnsignedMax(min_block_size / sizeof(T), size_t{1})) {}
+      : max_block_objects_(UnsignedClamp(
+            UnsignedMax(min_block_size, max_block_size) / sizeof(T),
+            uint32_t{1}, uint32_t{1} << 31)),
+        next_block_objects_(UnsignedClamp(min_block_size / sizeof(T),
+                                          uint32_t{1}, max_block_objects_)) {}
 
   // A moved-from `ObjectArena` is left empty.
   ObjectArena(ObjectArena&& that) noexcept ABSL_NO_THREAD_SAFETY_ANALYSIS
@@ -216,8 +224,7 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
   Archive ExtractArchive() && { return Archive(std::move(*this)); }
 
  private:
-  // For `ObjectArena(ObjectArena<T, OtherMutex, static_min_block_size,
-  //                              static_max_block_size>&&)`.
+  // For `ObjectArena(ObjectArena<...>&&)`.
   template <typename TParam, typename OtherMutex,
             size_t static_min_block_size_param,
             size_t static_max_block_size_param>
@@ -255,9 +262,10 @@ class ObjectArena<T, Mutex, /*static_min_block_size=*/0,
 
   void UndoAllocateImpl(T* ptr) const;
 
-  size_t max_block_objects_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS mutable Mutex mutex_;
-  mutable size_t next_block_objects_ ABSL_GUARDED_BY(mutex_);
+  // Use `uint32_t` instead of `size_t` to reduce the object size.
+  uint32_t max_block_objects_;
+  mutable uint32_t next_block_objects_ ABSL_GUARDED_BY(mutex_);
   // If `last_block_.is_allocated()`, points to the next object in `last_block_`
   // to allocate. Otherwise `nullptr`.
   mutable T* absl_nullable cursor_ ABSL_GUARDED_BY(mutex_) = nullptr;
@@ -329,8 +337,7 @@ class ObjectArena : public ObjectArena<T, Mutex, /*static_min_block_size=*/0,
   Archive ExtractArchive() && { return Archive(std::move(*this)); }
 
  private:
-  // For `ObjectArena(ObjectArena<T, OtherMutex, static_min_block_size,
-  //                              static_max_block_size>&&)`.
+  // For `ObjectArena(ObjectArena<...>&&)`.
   template <typename TParam, typename OtherMutex,
             size_t static_min_block_size_param,
             size_t static_max_block_size_param>
@@ -348,10 +355,11 @@ class ObjectArena : public ObjectArena<T, Mutex, /*static_min_block_size=*/0,
 template <typename T, typename Mutex>
 inline void ObjectArena<T, Mutex, 0, 0>::Reset(size_t min_block_size,
                                                size_t max_block_size) {
-  max_block_objects_ = UnsignedMax(
-      UnsignedMax(min_block_size, max_block_size) / sizeof(T), size_t{1});
-  const size_t min_block_objects =
-      UnsignedMax(min_block_size / sizeof(T), size_t{1});
+  max_block_objects_ =
+      UnsignedClamp(UnsignedMax(min_block_size, max_block_size) / sizeof(T),
+                    uint32_t{1}, uint32_t{1} << 31);
+  const uint32_t min_block_objects = UnsignedClamp(
+      min_block_size / sizeof(T), uint32_t{1}, max_block_objects_);
   for (size_t i = previous_blocks_.size(); i > 0;) {
     --i;
     previous_blocks_[i].DeleteFull();
@@ -384,16 +392,19 @@ inline void ObjectArena<T, Mutex, 0, 0>::Reserve(size_t capacity) {
   if (capacity <= existing_capacity) return;
   const size_t remaining_to_reserve = capacity - existing_capacity;
   if (remaining_to_reserve <= max_block_objects_) {
-    next_block_objects_ =
-        UnsignedMax(next_block_objects_, remaining_to_reserve);
+    next_block_objects_ = UnsignedMax(next_block_objects_,
+                                      IntCast<uint32_t>(remaining_to_reserve));
   } else {
     next_block_objects_ = max_block_objects_;
     const size_t num_additional_blocks =
         (remaining_to_reserve - 1) / max_block_objects_ + 1;
     if (last_block_.is_allocated()) {
-      previous_blocks_.reserve(previous_blocks_.size() + num_additional_blocks);
+      previous_blocks_.reserve(UnsignedMin(
+          SaturatingAdd(previous_blocks_.size(), num_additional_blocks),
+          PreviousBlocks::kMaxSize));
     } else if (num_additional_blocks > 1) {
-      previous_blocks_.reserve(num_additional_blocks - 1);
+      previous_blocks_.reserve(
+          UnsignedMin(num_additional_blocks - 1, PreviousBlocks::kMaxSize));
     }
   }
 }

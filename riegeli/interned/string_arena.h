@@ -47,7 +47,7 @@ namespace riegeli {
 // Mutex type that does not lock.
 using interned_internal::NullMutex;
 
-// Default block sizes for `StringArena`.
+// Default template parameters for `StringArena`.
 using interned_internal::kDefaultArenaMaxBlockSize;
 using interned_internal::kDefaultArenaMinBlockSize;
 
@@ -220,6 +220,8 @@ class OptionalArenaString
 // `ArenaString` is never null. See `ArenaString::Optional` for a variant that
 // can be null. `ArenaString` is generally preferred over
 // `ArenaString::Optional`.
+//
+// Parameters should be specified by nested type `WithAlignment`.
 template <size_t alignment>
 class BasicArenaString : public OptionalArenaString<alignment>,
                          public WithCompare<BasicArenaString<alignment>,
@@ -423,13 +425,13 @@ class BasicArenaString : public OptionalArenaString<alignment>,
 
 }  // namespace interned_internal
 
-// The string type stored in `StringArena`.
+// `ArenaString` refers to a string stored in `StringArena`.
 //
 // `ArenaString` is never null. See `ArenaString::Optional` for a variant that
 // can be null. `ArenaString` is generally preferred over
 // `ArenaString::Optional`.
 //
-// `ArenaString` can be parameterized with `WithAlignment`.
+// Parameters should be specified by nested type `WithAlignment`.
 using ArenaString = interned_internal::BasicArenaString</*alignment=*/1>;
 
 namespace interned_internal {
@@ -486,13 +488,13 @@ inline PointerWithAddress AssumeAligned(PointerWithAddress allocated) {
 
 // The public name of `BasicStringArena` is `StringArena`.
 //
-// Specialization of `BasicStringArena` with a dynamic block size. It is also a
-// base class of the specialization with a static block size.
+// Specialization of `StringArena` with a dynamic block size. It is also a base
+// class of the specialization with a static block size.
 template <typename Mutex, bool concurrent_reads>
 class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
                        /*static_max_block_size=*/0> {
  public:
-  // Enables concurrency for `BasicStringArena`.
+  // Enables concurrency for `StringArena`.
   //
   // `Mutex` specifies the mutex type, which can be `absl::Mutex` (default)
   // or another type with `lock()`, `unlock()`, `lock_shared()`, and
@@ -524,22 +526,24 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
   // constructor.
   using WithDynamicBlockSize = BasicStringArena;
 
-  // The archive type. See `BasicStringArena::ExtractArchive()` for details.
+  // The archive type. See `StringArena::ExtractArchive()` for details.
   using Archive = BasicStringArena<NullMutex, /*concurrent_reads=*/false,
                                    /*static_min_block_size=*/0,
                                    /*static_max_block_size=*/0>;
 
-  // Creates an empty `BasicStringArena` with a fixed block size in bytes.
+  // Creates an empty `StringArena` with a fixed block size in bytes.
   explicit BasicStringArena(size_t block_size)
-      : max_block_size_(block_size), next_block_size_(block_size) {}
+      : max_block_size_(UnsignedMin(block_size, uint32_t{1} << 31)),
+        next_block_size_(max_block_size_) {}
 
-  // Creates an empty `BasicStringArena` with an adaptive block size between
+  // Creates an empty `StringArena` with an adaptive block size between
   // `min_block_size` and `max_block_size` in bytes.
   explicit BasicStringArena(size_t min_block_size, size_t max_block_size)
-      : max_block_size_(UnsignedMax(min_block_size, max_block_size)),
-        next_block_size_(min_block_size) {}
+      : max_block_size_(UnsignedMin(UnsignedMax(min_block_size, max_block_size),
+                                    uint32_t{1} << 31)),
+        next_block_size_(UnsignedMin(min_block_size, max_block_size_)) {}
 
-  // A moved-from `BasicStringArena` is left empty.
+  // A moved-from `StringArena` is left empty.
   BasicStringArena(BasicStringArena&& that) noexcept
       ABSL_NO_THREAD_SAFETY_ANALYSIS
       : max_block_size_(that.max_block_size_),
@@ -705,14 +709,12 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
   }
 
   // Extracts the storage of the strings as an archive, which holds the same
-  // strings as `BasicStringArena`, but does not support concurrency.
-  // The `BasicStringArena` is left empty.
+  // strings as `StringArena`, but does not support concurrency.
+  // The `StringArena` is left empty.
   Archive ExtractArchive() && { return Archive(std::move(*this)); }
 
  private:
-  // For `BasicStringArena(BasicStringArena<OtherMutex, other_concurrent_reads,
-  //                                        static_min_block_size,
-  //                                        static_max_block_size>&&)`.
+  // For `BasicStringArena(BasicStringArena<...>&&)`.
   template <typename OtherMutex, bool other_concurrent_reads,
             size_t static_min_block_size_param,
             size_t static_max_block_size_param>
@@ -772,9 +774,10 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
   template <size_t alignment>
   void UndoAllocateImpl(BasicArenaString<alignment> allocated) const;
 
-  size_t max_block_size_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS mutable Mutex mutex_;
-  mutable size_t next_block_size_ ABSL_GUARDED_BY(mutex_);
+  // Use `uint32_t` instead of `size_t` to reduce the object size.
+  uint32_t max_block_size_;
+  mutable uint32_t next_block_size_ ABSL_GUARDED_BY(mutex_);
   mutable size_t current_block_index_ ABSL_GUARDED_BY(mutex_) = 0;
   // If `!blocks_.empty()`, `blocks_[current_block_index_]`.
   // Otherwise default-constructed.
@@ -785,7 +788,7 @@ class BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
   mutable Blocks blocks_ ABSL_GUARDED_BY(mutex_);
 };
 
-// Specialization of `BasicStringArena` with a static block size.
+// Specialization of `StringArena` with a static block size.
 template <typename Mutex, bool concurrent_reads, size_t static_min_block_size,
           size_t static_max_block_size>
 class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
@@ -796,7 +799,7 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
                 "static_min_block_size and static_max_block_size "
                 "must be both zero or both positive");
 
-  // Enables concurrency for `BasicStringArena`.
+  // Enables concurrency for `StringArena`.
   //
   // `Mutex` specifies the mutex type, which can be `absl::Mutex` (default)
   // or another type with `lock()`, `unlock()`, `lock_shared()`, and
@@ -830,18 +833,18 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
       BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
                        /*static_max_block_size=*/0>;
 
-  // The archive type. See `BasicStringArena::ExtractArchive()` for details.
+  // The archive type. See `StringArena::ExtractArchive()` for details.
   using Archive =
       BasicStringArena<NullMutex, /*concurrent_reads=*/false,
                        static_min_block_size, static_max_block_size>;
 
-  // Creates an empty `BasicStringArena` with a static block size in bytes.
+  // Creates an empty `StringArena` with a static block size in bytes.
   BasicStringArena() noexcept
       : BasicStringArena<Mutex, concurrent_reads, /*static_min_block_size=*/0,
                          /*static_max_block_size=*/0>(static_min_block_size,
                                                       static_max_block_size) {}
 
-  // A moved-from `BasicStringArena` is left empty.
+  // A moved-from `StringArena` is left empty.
   BasicStringArena(BasicStringArena&& that) = default;
   BasicStringArena& operator=(BasicStringArena&& that) = default;
 
@@ -922,14 +925,12 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
   }
 
   // Extracts the storage of the strings as an archive, which holds the same
-  // strings as `BasicStringArena`, but does not support concurrency.
-  // The `BasicStringArena` is left empty.
+  // strings as `StringArena`, but does not support concurrency.
+  // The `StringArena` is left empty.
   Archive ExtractArchive() && { return Archive(std::move(*this)); }
 
  private:
-  // For `BasicStringArena(BasicStringArena<OtherMutex, other_concurrent_reads,
-  //                                        static_min_block_size,
-  //                                        static_max_block_size>&&)`.
+  // For `BasicStringArena(BasicStringArena<...>&&)`.
   template <typename OtherMutex, bool other_concurrent_reads,
             size_t static_min_block_size_param,
             size_t static_max_block_size_param>
@@ -948,11 +949,13 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
 
 }  // namespace interned_internal
 
-// Allocates variable-length strings.
+// `StringArena` allocates variable-length strings.
 //
 // The strings are never moved. They are destroyed when the arena is destroyed.
 // Individual deallocation is not supported, except for best-effort undoing of
 // the most recent allocation.
+//
+// See `ObjectArena` for a general variant supporting other types of objects.
 //
 // Strings are allocated in blocks whose size in bytes is specified statically
 // or dynamically, and can adaptively grow between `min_block_size` and
@@ -962,8 +965,8 @@ class BasicStringArena : public BasicStringArena<Mutex, concurrent_reads,
 // If `concurrent_reads` is `true`, `ResolveAddress()` can be called
 // concurrently with allocation without locking.
 //
-// `StringArena` can be parameterized with `Concurrent`, `WithConcurrentReads`,
-// `WithBlockSize`, and `WithDynamicBlockSize`.
+// Parameters should be specified by nested types `Concurrent`,
+// `WithConcurrentReads`, `WithBlockSize`, and `WithDynamicBlockSize`.
 using StringArena =
     interned_internal::BasicStringArena<NullMutex, /*concurrent_reads=*/false,
                                         kDefaultArenaMinBlockSize,
@@ -1027,7 +1030,10 @@ struct OptionalArenaString<alignment>::absl_container_eq {
 template <typename Mutex, bool concurrent_reads>
 inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     size_t min_block_size, size_t max_block_size) {
-  max_block_size_ = UnsignedMax(min_block_size, max_block_size);
+  max_block_size_ = UnsignedMin(UnsignedMax(min_block_size, max_block_size),
+                                uint32_t{1} << 31);
+  const uint32_t min_block_size_u32 =
+      UnsignedMin(min_block_size, max_block_size_);
   if (current_block_.data() != nullptr &&
       current_block_.size() <= max_block_size_) {
     for (size_t i = blocks_.size(); i > 0;) {
@@ -1044,7 +1050,7 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     }
     next_block_size_ =
         UnsignedClamp(retained_block.size() + (retained_block.size() + 1) / 2,
-                      min_block_size, max_block_size_);
+                      min_block_size_u32, max_block_size_);
     current_block_index_ = 0;
     cursor_ = current_block_.data();
     return;
@@ -1054,7 +1060,7 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::Reset(
     blocks_[i].Delete();
   }
   blocks_.clear();
-  next_block_size_ = min_block_size;
+  next_block_size_ = min_block_size_u32;
   current_block_index_ = 0;
   current_block_ = StringArenaBlock();
   cursor_ = nullptr;
@@ -1073,12 +1079,14 @@ inline void BasicStringArena<Mutex, concurrent_reads, 0, 0>::ReserveBytes(
   if (capacity <= existing_capacity) return;
   const size_t remaining_to_reserve = capacity - existing_capacity;
   if (remaining_to_reserve <= max_block_size_) {
-    next_block_size_ = UnsignedMax(next_block_size_, remaining_to_reserve);
+    next_block_size_ =
+        UnsignedMax(next_block_size_, IntCast<uint32_t>(remaining_to_reserve));
   } else {
     next_block_size_ = max_block_size_;
     const size_t num_additional_blocks =
         (remaining_to_reserve - 1) / max_block_size_ + 1;
-    blocks_.reserve(num_blocks + num_additional_blocks);
+    blocks_.reserve(UnsignedMin(
+        SaturatingAdd(num_blocks, num_additional_blocks), Blocks::kMaxSize));
   }
 }
 

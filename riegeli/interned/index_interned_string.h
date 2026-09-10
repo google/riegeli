@@ -16,6 +16,7 @@
 #define RIEGELI_INTERNED_INDEX_INTERNED_STRING_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <array>
 #include <cstddef>

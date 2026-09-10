@@ -16,8 +16,10 @@
 #define RIEGELI_INTERNED_CONCURRENT_VECTOR_INTERNAL_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <atomic>
+#include <limits>
 #include <memory>
 #include <new>  // IWYU pragma: keep
 #include <utility>
@@ -39,19 +41,27 @@ namespace riegeli::interned_internal {
 // In contrast to `std::vector`, the capacity of `ConcurrentVectorBuffer` is
 // fixed upon creation and managed by its caller. Reallocation is handled by
 // `ConcurrentVector`.
-template <typename T>
+template <typename T, typename Size>
 class ConcurrentVectorBuffer {
  public:
+  // Maximum supported number of elements.
+  static constexpr size_t kMaxSize =
+      UnsignedMin(size_t{std::numeric_limits<Size>::max()},
+                  std::numeric_limits<size_t>::max() / sizeof(T));
+
   // Creates an empty `ConcurrentVectorBuffer`.
   ConcurrentVectorBuffer() = default;
 
   explicit ConcurrentVectorBuffer(size_t min_capacity) {
     RIEGELI_ASSERT_GT(min_capacity, 0u)
         << "Failed precondition of ConcurrentVectorBuffer: zero capacity";
+    RIEGELI_ASSERT_LE(min_capacity, kMaxSize)
+        << "Failed precondition of ConcurrentVectorBuffer: capacity overflow";
     size_t capacity_bytes;
     data_ = static_cast<T*>(SizeReturningNewAligned<void, alignof(T)>(
         min_capacity * sizeof(T), &capacity_bytes));
-    capacity_ = capacity_bytes / sizeof(T);
+    capacity_ =
+        IntCast<Size>(UnsignedMin(capacity_bytes / sizeof(T), kMaxSize));
   }
 
   // Stores a pointer to one unowned element.
@@ -103,7 +113,7 @@ class ConcurrentVectorBuffer {
     RIEGELI_ASSERT_LE(size, capacity_)
         << "Failed precondition of ConcurrentVectorBuffer::set_size(): "
            "size exceeds capacity";
-    size_ = size;
+    size_ = IntCast<Size>(size);
   }
 
   bool empty() const { return size_ == 0; }
@@ -179,12 +189,15 @@ class ConcurrentVectorBuffer {
   T* absl_nullable data_ = nullptr;
   // If `size_ == 1 && capacity_ == 0`, then the `ConcurrentVectorBuffer` holds
   // one unowned element.
-  size_t size_ = 0;
-  size_t capacity_ = 0;
+  //
+  // Use `uint32_t` instead of `size_t` to reduce the object size when possible.
+  Size size_ = 0;
+  Size capacity_ = 0;
 };
 
 // An append-only vector optionally supporting lock-free random access.
-template <typename T, bool concurrent_reads, size_t initial_capacity = 4>
+template <typename T, bool concurrent_reads, typename Size = uint32_t,
+          size_t initial_capacity = 4>
 class ConcurrentVector;
 
 // Non-concurrent specialization of `ConcurrentVector`.
@@ -192,9 +205,14 @@ class ConcurrentVector;
 // Asymptotic memory usage per element:
 //   active: (1.5 - 1) / ln(1.5) = 1.2
 //   after `shrink_to_fit()`: 1
-template <typename T, size_t initial_capacity>
-class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
+template <typename T, typename Size, size_t initial_capacity>
+class ConcurrentVector<T, /*concurrent_reads=*/false, Size, initial_capacity> {
  public:
+  // Maximum supported number of elements.
+  static constexpr size_t kMaxSize = ConcurrentVectorBuffer<T, Size>::kMaxSize;
+
+  static_assert(initial_capacity <= kMaxSize, "initial_capacity out of range");
+
   // Creates an empty `ConcurrentVector`.
   ConcurrentVector() = default;
 
@@ -206,8 +224,8 @@ class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
   explicit ConcurrentVector(T* unowned_element ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : buffer_(unowned_element) {}
 
-  explicit ConcurrentVector(
-      ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity>&& that)
+  explicit ConcurrentVector(ConcurrentVector<T, /*concurrent_reads=*/true, Size,
+                                             initial_capacity>&& that)
       : buffer_(std::move(that.current_buffer_)) {
     that.retired_buffers_.reset();
     that.data_.store(nullptr, std::memory_order_relaxed);
@@ -220,15 +238,24 @@ class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
   void clear() { buffer_.clear(); }
 
   void reserve(size_t min_capacity) {
-    if (min_capacity > capacity()) Reallocate(min_capacity);
+    RIEGELI_ASSERT_LE(min_capacity, kMaxSize)
+        << "Failed precondition of ConcurrentVector::reserve(): "
+           "capacity overflow";
+    if (min_capacity <= capacity()) return;
+    Reallocate(min_capacity);
   }
 
   template <typename... Args>
   T& emplace_back(Args&&... args) {
     if (ABSL_PREDICT_FALSE(buffer_.size() >= buffer_.capacity())) {
+      RIEGELI_ASSERT_LT(buffer_.size(), kMaxSize)
+          << "Failed precondition of ConcurrentVector::emplace_back(): "
+             "vector full";
       Reallocate(buffer_.capacity() == 0
                      ? UnsignedMax(initial_capacity, size_t{2})
-                     : buffer_.capacity() + (buffer_.capacity() + 1) / 2);
+                 : ABSL_PREDICT_TRUE(buffer_.capacity() <= kMaxSize / 3 * 2)
+                     ? buffer_.capacity() + (buffer_.capacity() + 1) / 2
+                     : kMaxSize);
     }
     return buffer_.emplace_back(std::forward<Args>(args)...);
   }
@@ -271,7 +298,7 @@ class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
   void shrink_to_fit() {
     if (buffer_.capacity() <= buffer_.size()) return;
     if (buffer_.empty()) {
-      buffer_ = ConcurrentVectorBuffer<T>();
+      buffer_ = ConcurrentVectorBuffer<T, Size>();
     } else {
       Reallocate(buffer_.size());
     }
@@ -280,13 +307,16 @@ class ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity> {
  private:
   void Reallocate(size_t min_capacity);
 
-  ConcurrentVectorBuffer<T> buffer_;
+  ConcurrentVectorBuffer<T, Size> buffer_;
 };
 
-template <typename T, size_t initial_capacity>
-void ConcurrentVector<T, /*concurrent_reads=*/false,
+template <typename T, typename Size, size_t initial_capacity>
+void ConcurrentVector<T, /*concurrent_reads=*/false, Size,
                       initial_capacity>::Reallocate(size_t min_capacity) {
-  ConcurrentVectorBuffer<T> new_buffer(min_capacity);
+  RIEGELI_ASSERT_LE(min_capacity, kMaxSize)
+      << "Failed precondition of ConcurrentVector::Reallocate(): "
+         "capacity overflow";
+  ConcurrentVectorBuffer<T, Size> new_buffer(min_capacity);
   std::uninitialized_move_n(buffer_.data(), buffer_.size(), new_buffer.data());
   new_buffer.set_size(buffer_.size());
   buffer_ = std::move(new_buffer);
@@ -300,9 +330,15 @@ void ConcurrentVector<T, /*concurrent_reads=*/false,
 // Asymptotic memory usage per element:
 //   active: 3 / ln(3) = 2.7
 //   after `shrink_to_fit()`: 1
-template <typename T, size_t initial_capacity>
-class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
+template <typename T, typename Size, size_t initial_capacity>
+class ConcurrentVector<T, /*concurrent_reads=*/true, Size, initial_capacity> {
  public:
+  // Maximum supported number of elements.
+  static constexpr size_t kMaxSize = ConcurrentVectorBuffer<T, Size>::kMaxSize;
+
+  static_assert(initial_capacity <= kMaxSize, "initial_capacity out of range");
+
+  // Creates an empty `ConcurrentVector`.
   ConcurrentVector() = default;
 
   ConcurrentVector(const ConcurrentVector&) = delete;
@@ -333,23 +369,32 @@ class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
   }
 
   void reserve(size_t min_capacity) {
-    if (min_capacity > capacity()) Reallocate(min_capacity);
+    RIEGELI_ASSERT_LE(min_capacity, kMaxSize)
+        << "Failed precondition of ConcurrentVector::reserve(): "
+           "capacity overflow";
+    if (min_capacity <= capacity()) return;
+    Reallocate(min_capacity);
   }
 
   template <typename... Args>
   T& emplace_back(Args&&... args) {
     if (ABSL_PREDICT_FALSE(current_buffer_.size() ==
                            current_buffer_.capacity())) {
+      RIEGELI_ASSERT_LT(current_buffer_.size(), kMaxSize)
+          << "Failed precondition of ConcurrentVector::emplace_back(): "
+             "vector full";
       // For `concurrent_reads`, memory usage is the lowest when the growth
       // factor is at Euler's number; 3 is close enough.
       Reallocate(capacity() == 0 ? UnsignedMax(initial_capacity, size_t{1})
-                                 : capacity() * 3);
+                 : ABSL_PREDICT_TRUE(capacity() <= kMaxSize / 3)
+                     ? capacity() * 3
+                     : kMaxSize);
     }
     T* const data = data_.load(std::memory_order_relaxed);
     T* const ptr =
         new (data + current_buffer_.size()) T(std::forward<Args>(args)...);
     current_buffer_.set_size(current_buffer_.size() + 1);
-    size_.store(size_.load(std::memory_order_relaxed) + 1,
+    size_.store(IntCast<Size>(size_.load(std::memory_order_relaxed) + 1),
                 std::memory_order_release);
     return *ptr;
   }
@@ -359,7 +404,6 @@ class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
 
   // Can be called concurrently with appending without locking.
   size_t size() const { return size_.load(std::memory_order_acquire); }
-
   size_t capacity() const { return current_buffer_.capacity(); }
 
   // Can be called concurrently with appending without locking.
@@ -393,13 +437,21 @@ class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
     return (*this)[0];
   }
 
-  const T& back() const { return (*this)[size() - 1]; }
-  T& back() { return (*this)[size() - 1]; }
+  const T& back() const {
+    RIEGELI_ASSERT_GT(size(), 0u)
+        << "Failed precondition of ConcurrentVector::back(): empty vector";
+    return (*this)[size() - 1];
+  }
+  T& back() {
+    RIEGELI_ASSERT_GT(size(), 0u)
+        << "Failed precondition of ConcurrentVector::back(): empty vector";
+    return (*this)[size() - 1];
+  }
 
   void pop_back() {
     RIEGELI_ASSERT_GT(size(), 0u)
         << "Failed precondition of ConcurrentVector::pop_back(): empty vector";
-    size_.store(size_.load(std::memory_order_relaxed) - 1,
+    size_.store(IntCast<Size>(size_.load(std::memory_order_relaxed) - 1),
                 std::memory_order_release);
     current_buffer_.set_size(current_buffer_.size() - 1);
     (current_buffer_.data() + current_buffer_.size())->~T();
@@ -418,7 +470,7 @@ class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
     retired_buffers_.reset();
     if (capacity() <= size()) return;
     if (empty()) {
-      current_buffer_ = ConcurrentVectorBuffer<T>();
+      current_buffer_ = ConcurrentVectorBuffer<T, Size>();
       data_.store(nullptr, std::memory_order_relaxed);
     } else {
       Reallocate(size());
@@ -427,33 +479,38 @@ class ConcurrentVector<T, /*concurrent_reads=*/true, initial_capacity> {
 
  private:
   // For member variables.
-  friend ConcurrentVector<T, /*concurrent_reads=*/false, initial_capacity>;
+  friend ConcurrentVector<T, /*concurrent_reads=*/false, Size,
+                          initial_capacity>;
 
   void Reallocate(size_t min_capacity);
 
   // Current buffer.
-  ConcurrentVectorBuffer<T> current_buffer_;
+  ConcurrentVectorBuffer<T, Size> current_buffer_;
   // Retired buffers, kept alive to preserve pointer validity for concurrent
   // readers.
-  std::unique_ptr<std::vector<ConcurrentVectorBuffer<T>>> retired_buffers_;
+  std::unique_ptr<std::vector<ConcurrentVectorBuffer<T, Size>>>
+      retired_buffers_;
   // Pointer to the data array of the current buffer (`current_buffer_.data()`).
   // Read lock-free by `operator[]`.
   std::atomic<T* absl_nullable> data_{nullptr};
   // Number of elements (`current_buffer_.size()`). Read lock-free by `size()`.
-  std::atomic<size_t> size_{0};
+  std::atomic<Size> size_{0};
 };
 
-template <typename T, size_t initial_capacity>
-void ConcurrentVector<T, /*concurrent_reads=*/true,
+template <typename T, typename Size, size_t initial_capacity>
+void ConcurrentVector<T, /*concurrent_reads=*/true, Size,
                       initial_capacity>::Reallocate(size_t min_capacity) {
-  ConcurrentVectorBuffer<T> new_buffer(min_capacity);
+  RIEGELI_ASSERT_LE(min_capacity, kMaxSize)
+      << "Failed precondition of ConcurrentVector::Reallocate(): "
+         "capacity overflow";
+  ConcurrentVectorBuffer<T, Size> new_buffer(min_capacity);
   T* const old_data = data_.load(std::memory_order_relaxed);
   if (old_data != nullptr) {
     std::uninitialized_copy_n(old_data, size(), new_buffer.data());
     new_buffer.set_size(size());
     if (retired_buffers_ == nullptr) {
       retired_buffers_ =
-          std::make_unique<std::vector<ConcurrentVectorBuffer<T>>>();
+          std::make_unique<std::vector<ConcurrentVectorBuffer<T, Size>>>();
     }
     retired_buffers_->push_back(std::move(current_buffer_));
   }

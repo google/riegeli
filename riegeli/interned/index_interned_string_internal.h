@@ -16,6 +16,7 @@
 #define RIEGELI_INTERNED_INDEX_INTERNED_STRING_INTERNAL_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <limits>
 #include <type_traits>
@@ -49,8 +50,14 @@ namespace riegeli::interned_internal {
 // concurrently with allocation without locking.
 template <typename T, bool concurrent_reads>
 class StringDirectory {
+ private:
+  using Addresses = ConcurrentVector<T, concurrent_reads, size_t, 16>;
+
  public:
   using Archive = StringDirectory<T, /*concurrent_reads=*/false>;
+
+  // Maximum supported number of strings.
+  static constexpr size_t kMaxSize = Addresses::kMaxSize;
 
   StringDirectory() = default;
 
@@ -63,12 +70,15 @@ class StringDirectory {
     RIEGELI_ASSERT_GT(capacity, 0u)
         << "Failed precondition of StringDirectory::Reserve(): "
            "capacity is zero";
-    addresses_.reserve(capacity);
+    addresses_.reserve(UnsignedMin(capacity, kMaxSize));
   }
 
   template <typename... Args>
-  T& Allocate(Args&&... args) {
-    return addresses_.emplace_back(std::forward<Args>(args)...);
+  void Allocate(Args&&... args) {
+    RIEGELI_ASSERT_LT(addresses_.size(), kMaxSize)
+        << "Failed precondition of StringDirectory::Allocate(): "
+           "directory full";
+    addresses_.emplace_back(std::forward<Args>(args)...);
   }
 
   size_t size() const { return addresses_.size(); }
@@ -96,8 +106,6 @@ class StringDirectory {
  private:
   // For `StringDirectory(Addresses&&)`.
   friend class StringDirectory<T, /*concurrent_reads=*/true>;
-
-  using Addresses = ConcurrentVector<T, concurrent_reads, 16>;
 
   explicit StringDirectory(typename Archive::Addresses&& addresses)
       : addresses_(std::move(addresses)) {}
@@ -294,6 +302,10 @@ class alignas(kInternerShardAlignment<SetMutex>) IndexStringInternerShard {
   using Directory =
       StringDirectory<DirectoryElement, kDirectoryConcurrentReads>;
 
+  // Maximum supported number of distinct strings.
+  static constexpr size_t kMaxIndices = UnsignedMin(
+      Directory::kMaxSize, SaturatingIntCast<size_t>(kNullNumeric<Numeric>));
+
   explicit IndexStringInternerShard(const Arena* arena,
                                     const Directory* directory)
       : indices_(0, IndexHash(arena, directory), IndexEq(arena, directory)) {}
@@ -410,11 +422,11 @@ inline Numeric IndexStringInternerShard<
     Numeric next_index;
     {
       MutexLock<ArenaMutex> arena_lock(arena_mutex);
-      next_index = IntCast<Numeric>(directory.size());
-      if (ABSL_PREDICT_FALSE(next_index == kNullNumeric<Numeric>)) {
+      if (ABSL_PREDICT_FALSE(directory.size() == kMaxIndices)) {
         is_new = false;
         return kNullNumeric<Numeric>;
       }
+      next_index = IntCast<Numeric>(directory.size());
       if constexpr (std::is_void_v<Address>) {
         Element allocated;
         if (!Encoder::EncodedEmpty(value)) {
@@ -472,8 +484,10 @@ inline Numeric IndexStringInternerShard<
             Numeric next_index;
             {
               MutexLock<ArenaMutex> lock(arena_mutex);
-              next_index = IntCast<Numeric>(directory.size());
-              if (ABSL_PREDICT_TRUE(next_index != kNullNumeric<Numeric>)) {
+              if (ABSL_PREDICT_FALSE(directory.size() == kMaxIndices)) {
+                next_index = kNullNumeric<Numeric>;
+              } else {
+                next_index = IntCast<Numeric>(directory.size());
                 directory.Allocate(allocated);
               }
             }
