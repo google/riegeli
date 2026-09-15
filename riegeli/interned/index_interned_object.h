@@ -36,6 +36,7 @@
 #include "riegeli/base/type_traits.h"
 #include "riegeli/interned/arena_interned_object.h"
 #include "riegeli/interned/index_interned_object_internal.h"
+#include "riegeli/interned/index_object_arena.h"
 #include "riegeli/interned/interned_common_internal.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -414,7 +415,7 @@ class IndexArchive {
 
   // `size()` is the same as `NumObjects()`. The name `size()` indicates that
   // it is efficient, not involving locking.
-  size_t size() const { return directory_.size(); }
+  size_t size() const { return arena_.size(); }
 
   // Resolves an `IndexInterned` to the object.
   //
@@ -424,12 +425,8 @@ class IndexArchive {
   ArenaInterned<T, Hash, Eq, Tag> operator[](
       IndexInterned<Numeric, T, Hash, Eq, Tag> index) const
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_CHECK_LT(IntCast<size_t>(index.numeric()), size())
-        << "Failed precondition of "
-           "IndexInterned::Archive::operator[]: "
-           "index out of bounds";
     return ArenaInterned<T, Hash, Eq, Tag>::BackFromData(
-        &directory_[IntCast<size_t>(index.numeric())]);
+        &arena_.at(IntCast<size_t>(index.numeric())));
   }
 
   // Returns the number of objects in the archive. It does not change.
@@ -439,24 +436,24 @@ class IndexArchive {
   template <typename MemoryEstimator>
   friend void RiegeliRegisterSubobjects(const IndexArchive* self,
                                         MemoryEstimator& memory_estimator) {
-    memory_estimator.RegisterSubobjects(&self->directory_);
+    memory_estimator.RegisterSubobjects(&self->arena_);
   }
 
  private:
-  // For `IndexArchive(Directory&&)`.
+  // For `IndexArchive(Arena&&)`.
   template <typename NumericParam, typename TParam, typename Hash, typename Eq,
             typename TagParam, typename MutexParam, size_t num_shards,
             size_t block_size_param>
   friend class IndexInterner;
 
-  using Directory = Directory<T, /*concurrent_reads=*/false, block_size>;
+  using Arena =
+      typename IndexObjectArena<T>::template WithBlockSize<block_size>;
 
-  explicit IndexArchive(Directory&& directory)
-      : directory_(std::move(directory)) {
-    directory_.ShrinkToFit();
+  explicit IndexArchive(Arena&& arena) : arena_(std::move(arena)) {
+    arena_.ShrinkToFit();
   }
 
-  Directory directory_;
+  Arena arena_;
 };
 
 // The public name of `IndexInterner<Numeric, T>` is
@@ -515,7 +512,7 @@ class IndexInterner {
 
   // Resets the interner to the empty state.
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() {
-    directory_.Reset();
+    arena_.Reset();
     ResetShards();
   }
 
@@ -528,7 +525,7 @@ class IndexInterner {
     if (capacity == 0) return;
     {
       MutexLock<ArenaMutex> arena_lock(arena_mutex_);
-      directory_.Reserve(capacity);
+      arena_.Reserve(capacity);
     }
     const size_t capacity_per_shard = capacity / num_shards;
     if (capacity_per_shard > 0) {
@@ -540,17 +537,13 @@ class IndexInterner {
 
   // `size()` is the same as `NumObjects()`. The name `size()` indicates that
   // it is efficient, not involving locking.
-  size_t size() const { return directory_.size(); }
+  size_t size() const { return arena_.size(); }
 
   // Resolves an `IndexInterned` to the object.
   //
   // `index` must have been provided by this `Interner`.
   Resolved operator[](Index index) const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_CHECK_LT(IntCast<size_t>(index.numeric()), size())
-        << "Failed precondition of IndexInterned::Interner::operator[]: "
-           "index out of bounds";
-    return Resolved::BackFromData(
-        &directory_[IntCast<size_t>(index.numeric())]);
+    return Resolved::BackFromData(&arena_.at(IntCast<size_t>(index.numeric())));
   }
 
   // Creates an `IndexInterned` referring to the constructed object, or
@@ -846,7 +839,7 @@ class IndexInterner {
                                         MemoryEstimator& memory_estimator) {
     {
       ReaderMutexLock<ArenaMutex> arena_lock(self->arena_mutex_);
-      memory_estimator.RegisterSubobjects(&self->directory_);
+      memory_estimator.RegisterSubobjects(&self->arena_);
     }
     memory_estimator.RegisterSubobjects(&self->shards_);
   }
@@ -854,7 +847,7 @@ class IndexInterner {
   // Shrinks capacity of internal data structures to fit their current sizes.
   void ShrinkToFit() {
     MutexLock<ArenaMutex> arena_lock(arena_mutex_);
-    directory_.ShrinkToFit();
+    arena_.ShrinkToFit();
   }
 
   // Extracts the storage of the objects as an `Archive`. The `Interner` is left
@@ -865,7 +858,7 @@ class IndexInterner {
     for (Shard& shard : shards_) {
       shard.Archive();
     }
-    return Archive(std::move(directory_).ExtractArchive());
+    return Archive(std::move(arena_).ExtractArchive());
   }
 
   // Archives the storage of the objects in place, releasing the lookup
@@ -884,14 +877,15 @@ class IndexInterner {
       shard.Archive();
     }
     MutexLock<ArenaMutex> arena_lock(arena_mutex_);
-    directory_.ShrinkToFit();
+    arena_.ShrinkToFit();
   }
 
  private:
   static constexpr bool kConcurrent = !std::is_same_v<Mutex, NullMutex>;
 
   using ArenaMutex = std::conditional_t<kConcurrent, absl::Mutex, NullMutex>;
-  using Directory = Directory<T, kConcurrent, block_size>;
+  using Arena = typename IndexObjectArena<T>::template WithConcurrentReads<
+      kConcurrent>::template WithBlockSize<block_size>;
   using Shard =
       IndexInternerShard<Numeric, T, Hash, Eq, Mutex, ArenaMutex, block_size>;
 
@@ -905,10 +899,9 @@ class IndexInterner {
     Numeric result;
     if constexpr (likely_new) {
       result = GetShard(hash).template InternNew</*verified_new=*/false>(
-          std::forward<Arg>(arg), hash, directory_, arena_mutex_,
-          is_new_internal);
+          std::forward<Arg>(arg), hash, arena_, arena_mutex_, is_new_internal);
     } else {
-      result = GetShard(hash).Intern(std::forward<Arg>(arg), hash, directory_,
+      result = GetShard(hash).Intern(std::forward<Arg>(arg), hash, arena_,
                                      arena_mutex_, is_new_internal);
     }
     if (is_new != nullptr) *is_new = is_new_internal;
@@ -926,7 +919,7 @@ class IndexInterner {
 
   template <size_t... indices>
   std::array<Shard, num_shards> MakeShards(std::index_sequence<indices...>) {
-    return {((void)indices, Shard(&directory_))...};
+    return {((void)indices, Shard(&arena_))...};
   }
 
   Shard& GetShard(size_t hash) const {
@@ -941,7 +934,7 @@ class IndexInterner {
   }
 
   mutable ArenaMutex arena_mutex_;
-  mutable Directory directory_;
+  mutable Arena arena_;
   mutable std::array<Shard, num_shards> shards_{
       MakeShards(std::make_index_sequence<num_shards>())};
   bool is_archived_in_place_ = false;

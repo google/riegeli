@@ -52,6 +52,8 @@ using interned_internal::kDefaultArenaMinBlockSize;
 //
 // See `StringArena` for a variant optimized for strings.
 //
+// See `IndexObjectArena` for a variant which supports random access by index.
+//
 // Objects are allocated in blocks whose size in bytes is specified statically
 // or dynamically, and can adaptively grow between `min_block_size` and
 // `max_block_size`. The default is a static size range between 256 bytes and
