@@ -395,26 +395,21 @@ class BasicArenaString : public OptionalArenaString<alignment>,
   static constexpr size_t kMaxMediumSize = 0x3fff;
 
   static constexpr size_t HeaderSize(size_t size) {
-    if (ABSL_PREDICT_TRUE(size <= kMaxSmallSize)) {
-      return 1;
-    } else if (size <= kMaxMediumSize) {
-      return 2;
-    } else {
-      return sizeof(size_t);
-    }
+    if (ABSL_PREDICT_TRUE(size <= kMaxSmallSize)) return 1;
+    return HeaderSizeSlow(size);
   }
 
-  template <typename Encoder, typename Arg>
-  static void Encode(char* repr, const Arg& value, size_t size) {
-    if (ABSL_PREDICT_TRUE(size <= kMaxSmallSize)) {
-      repr[-1] = static_cast<char>(size);
-    } else if (size <= kMaxMediumSize) {
+  static constexpr size_t HeaderSizeSlow(size_t size) {
+    return size <= kMaxMediumSize ? 2 : sizeof(size_t);
+  }
+
+  static void EncodeHeaderSlow(char* repr, size_t size) {
+    if (size <= kMaxMediumSize) {
       WriteLittleEndian16(IntCast<uint16_t>(size | 0x8000), repr - 2);
     } else {
       WriteLittleEndianSize(size | (size_t{3} << (sizeof(size_t) * 8 - 2)),
                             repr - sizeof(size_t));
     }
-    Encoder::Encode(value, repr);
   }
 
   static const char* EmptyRepr() {
@@ -1199,9 +1194,16 @@ BasicStringArena<Mutex, concurrent_reads, 0, 0>::AllocateImpl(
     const Arg& value) const {
   static_assert(absl::has_single_bit(alignment));
   const size_t size = Encoder::EncodedSize(value);
-  char* const repr = AllocateBytesImpl<PointerPolicy, alignment>(
-      size, BasicArenaString<alignment>::HeaderSize(size));
-  BasicArenaString<alignment>::template Encode<Encoder>(repr, value, size);
+  char* repr;
+  if (ABSL_PREDICT_TRUE(size <= BasicArenaString<alignment>::kMaxSmallSize)) {
+    repr = AllocateBytesImpl<PointerPolicy, alignment>(size, 1);
+    repr[-1] = static_cast<char>(size);
+  } else {
+    repr = AllocateBytesImpl<PointerPolicy, alignment>(
+        size, BasicArenaString<alignment>::HeaderSizeSlow(size));
+    BasicArenaString<alignment>::EncodeHeaderSlow(repr, size);
+  }
+  Encoder::Encode(value, repr);
   return BasicArenaString<alignment>::BackFromData(repr);
 }
 
@@ -1254,11 +1256,19 @@ inline size_t BasicStringArena<
     static_max_block_size>::AllocateWithAddressImpl(const Arg& value) const {
   static_assert(absl::has_single_bit(alignment));
   const size_t size = Encoder::EncodedSize(value);
-  const PointerWithAddress allocated = this->template AllocateBytesImpl<
-      WithAddressPolicy<static_max_block_size, alignment>, alignment>(
-      size, BasicArenaString<alignment>::HeaderSize(size));
-  BasicArenaString<alignment>::template Encode<Encoder>(allocated.ptr, value,
-                                                        size);
+  PointerWithAddress allocated;
+  if (ABSL_PREDICT_TRUE(size <= BasicArenaString<alignment>::kMaxSmallSize)) {
+    allocated = this->template AllocateBytesImpl<
+        WithAddressPolicy<static_max_block_size, alignment>, alignment>(size,
+                                                                        1);
+    allocated.ptr[-1] = static_cast<char>(size);
+  } else {
+    allocated = this->template AllocateBytesImpl<
+        WithAddressPolicy<static_max_block_size, alignment>, alignment>(
+        size, BasicArenaString<alignment>::HeaderSizeSlow(size));
+    BasicArenaString<alignment>::EncodeHeaderSlow(allocated.ptr, size);
+  }
+  Encoder::Encode(value, allocated.ptr);
   return allocated.address;
 }
 
