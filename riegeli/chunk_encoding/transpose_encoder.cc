@@ -187,10 +187,10 @@ inline TransposeEncoder::DestInfo::DestInfo() : pos(kInvalidPos) {}
 inline TransposeEncoder::EncodedTagInfo::EncodedTagInfo(
     NodeId node_id, chunk_encoding_internal::Subtype subtype)
     : node_id(node_id),
-      subtype(subtype),
       state_machine_pos(kInvalidPos),
       public_list_noop_pos(kInvalidPos),
-      base(kInvalidPos) {}
+      base(kInvalidPos),
+      subtype(subtype) {}
 
 inline TransposeEncoder::BufferWithMetadata::BufferWithMetadata(NodeId node_id)
     : buffer(std::make_unique<Chain>()), node_id(node_id) {}

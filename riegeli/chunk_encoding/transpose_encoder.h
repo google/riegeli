@@ -304,12 +304,11 @@ class TransposeEncoder : public ChunkEncoder {
   struct EncodedTagInfo {
     explicit EncodedTagInfo(NodeId node_id,
                             chunk_encoding_internal::Subtype subtype);
-    NodeId node_id;
-    chunk_encoding_internal::Subtype subtype;
     // Maps all destinations reachable from this encoded tag to `DestInfo`.
     absl::flat_hash_map<uint32_t, DestInfo> dest_info;
     // Number of incoming tranitions into this state.
     size_t num_incoming_transitions = 0;
+    NodeId node_id;
     // Index of this state in the state machine.
     uint32_t state_machine_pos;
     // Position of `kNoOp` node in the private list that has base in public
@@ -321,6 +320,7 @@ class TransposeEncoder : public ChunkEncoder {
     // states in the range [`base`..`base + kMaxTransition`].
     // `kInvalidPos` if no outgoing transition.
     uint32_t base;
+    chunk_encoding_internal::Subtype subtype;
   };
 
   // Information about the data buffer.
