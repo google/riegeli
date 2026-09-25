@@ -45,16 +45,18 @@ GcsReader::GcsReader(
     NewReaderTag, const google::cloud::storage::Client& client,
     const GcsObject& object,
     const std::function<google::cloud::storage::ObjectReadStream(
-        GcsReader&, int64_t)>& read_object,
-    BufferOptions buffer_options, Position read_from_offset)
+        GcsReader&, int64_t, std::optional<int64_t>)>& read_object,
+    BufferOptions buffer_options, Position read_from_offset,
+    std::optional<int64_t> read_limit)
     : IStreamReader(kClosed),
       client_(client),
       object_(object),
       read_object_(read_object) {
-  IStreamReader::Reset(read_object(*this, IntCast<int64_t>(read_from_offset)),
-                       IStreamReaderBase::Options()
-                           .set_assumed_pos(read_from_offset)
-                           .set_buffer_options(buffer_options));
+  IStreamReader::Reset(
+      read_object(*this, IntCast<int64_t>(read_from_offset), read_limit),
+      IStreamReaderBase::Options()
+          .set_assumed_pos(read_from_offset)
+          .set_buffer_options(buffer_options));
   PropagateStatus();
   set_limit_pos(read_from_offset);
 }
@@ -157,7 +159,7 @@ bool GcsReader::SeekBehindBuffer(Position new_pos) {
   // `ObjectReadStream` does not support seeking to the very end.
   const Position read_from_offset =
       UnsignedMin(new_pos, SaturatingSub(*exact_size(), Position{1}));
-  src() = read_object_(*this, IntCast<int64_t>(read_from_offset));
+  src() = read_object_(*this, IntCast<int64_t>(read_from_offset), std::nullopt);
   PropagateStatus();
   set_limit_pos(read_from_offset);
   if (new_pos > read_from_offset) {
@@ -171,7 +173,8 @@ bool GcsReader::SeekBehindBuffer(Position new_pos) {
 
 bool GcsReader::SupportsNewReader() { return exact_size() != std::nullopt; }
 
-std::unique_ptr<Reader> GcsReader::NewReaderImpl(Position initial_pos) {
+std::unique_ptr<Reader> GcsReader::NewReaderInternal(
+    Position initial_pos, std::optional<int64_t> read_limit) {
   if (ABSL_PREDICT_FALSE(!GcsReader::SupportsNewReader())) {
     // Delegate to the base class to avoid repeating the error message.
     return IStreamReader::NewReaderImpl(initial_pos);
@@ -184,12 +187,28 @@ std::unique_ptr<Reader> GcsReader::NewReaderImpl(Position initial_pos) {
       UnsignedMin(initial_pos, SaturatingSub(*exact_size(), Position{1}));
   std::unique_ptr<GcsReader> reader(
       new GcsReader(NewReaderTag(), client(), object(), read_object_,
-                    buffer_options(), read_from_offset));
+                    buffer_options(), read_from_offset, read_limit));
   reader->set_exact_size(exact_size());
   if (initial_pos > read_from_offset) {
     if (ABSL_PREDICT_TRUE(reader->Pull())) reader->move_cursor(1);
   }
   return reader;
+}
+
+std::unique_ptr<Reader> GcsReader::NewReaderImpl(Position initial_pos) {
+  return NewReaderInternal(initial_pos, std::nullopt);
+}
+
+std::unique_ptr<Reader> GcsReader::NewReaderImpl(Position initial_pos,
+                                                 Position max_length) {
+  if (ABSL_PREDICT_FALSE(!GcsReader::SupportsNewReader() || !ok())) {
+    return NewReaderInternal(initial_pos, std::nullopt);
+  }
+  // Bound the fetched range to what the caller will read:
+  // `[initial_pos, initial_pos + max_length)`, clamped to the object size.
+  const Position end = UnsignedMin(SaturatingAdd(initial_pos, max_length),
+                                   *exact_size());
+  return NewReaderInternal(initial_pos, IntCast<int64_t>(end));
 }
 
 }  // namespace riegeli
