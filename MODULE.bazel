@@ -23,7 +23,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "brotli",
-    version = "1.2.0.bcr.1",
+    version = "1.2.0.bcr.3",
     repo_name = "org_brotli",
 )
 bazel_dep(
@@ -44,7 +44,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "protobuf",
-    version = "34.1",
+    version = "35.0",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(

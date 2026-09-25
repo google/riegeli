@@ -801,7 +801,7 @@ class OnLengthDelimitedType {
                                              Context&...>) {
       return HandleString<absl::Cord>(std::move(repr), context...);
     } else {
-      static_assert(false, "No string-like type accepted");
+      static_assert(sizeof(Action) == 0, "No string-like type accepted");
     }
   }
 
@@ -836,7 +836,7 @@ class OnLengthDelimitedType {
                                              Context&...>) {
       return action_(std::move(repr).ToCord(), context...);
     } else {
-      static_assert(false, "No string-like type accepted");
+      static_assert(sizeof(Action) == 0, "No string-like type accepted");
     }
   }
 
@@ -864,7 +864,7 @@ class OnLengthDelimitedType {
                                              Context&...>) {
       return action_(absl::Cord(repr), context...);
     } else {
-      static_assert(false, "No string-like type accepted");
+      static_assert(sizeof(Action) == 0, "No string-like type accepted");
     }
   }
 
