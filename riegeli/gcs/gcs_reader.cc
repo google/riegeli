@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -46,12 +47,14 @@ GcsReader::GcsReader(
     const GcsObject& object,
     const std::function<google::cloud::storage::ObjectReadStream(
         GcsReader&, int64_t)>& read_object,
-    BufferOptions buffer_options, Position read_from_offset)
+    BufferOptions buffer_options, Position read_from_offset,
+    std::optional<int64_t> max_size)
     : IStreamReader(kClosed),
       client_(client),
       object_(object),
+      max_size_(max_size),
       read_object_(read_object) {
-  IStreamReader::Reset(read_object(*this, IntCast<int64_t>(read_from_offset)),
+  IStreamReader::Reset(read_object_(*this, IntCast<int64_t>(read_from_offset)),
                        IStreamReaderBase::Options()
                            .set_assumed_pos(read_from_offset)
                            .set_buffer_options(buffer_options));
@@ -63,6 +66,7 @@ void GcsReader::Reset(Closed) {
   IStreamReader::Reset(kClosed);
   client_ = std::nullopt;
   object_ = GcsObject();
+  max_size_ = std::nullopt;
   read_object_ = nullptr;
 }
 
@@ -105,6 +109,7 @@ void GcsReader::Done() {
   src().Close();
   PropagateStatus();
   client_ = std::nullopt;
+  max_size_ = std::nullopt;
   read_object_ = nullptr;
 }
 
@@ -172,20 +177,33 @@ bool GcsReader::SeekBehindBuffer(Position new_pos) {
 bool GcsReader::SupportsNewReader() { return exact_size() != std::nullopt; }
 
 std::unique_ptr<Reader> GcsReader::NewReaderImpl(Position initial_pos) {
+  return GcsReader::NewReaderWithMaxLengthImpl(
+      initial_pos, std::numeric_limits<Position>::max());
+}
+
+std::unique_ptr<Reader> GcsReader::NewReaderWithMaxLengthImpl(
+    Position initial_pos, Position max_length) {
   if (ABSL_PREDICT_FALSE(!GcsReader::SupportsNewReader())) {
     // Delegate to the base class to avoid repeating the error message.
     return IStreamReader::NewReaderImpl(initial_pos);
   }
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
-  // `NewReaderImpl()` is thread-safe from this point.
+  // `NewReaderWithMaxLengthImpl()` is thread-safe from this point.
 
-  // `ObjectReadStream` does not support seeking to the very end.
+  const Position end =
+      UnsignedMin(SaturatingAdd(initial_pos, max_length), *exact_size());
+  // `ObjectReadStream` does not support seeking to the very end, nor an empty
+  // `ReadRange`.
   const Position read_from_offset =
-      UnsignedMin(initial_pos, SaturatingSub(*exact_size(), Position{1}));
+      UnsignedMin(initial_pos, SaturatingSub(end, Position{1}));
+  const std::optional<int64_t> max_size =
+      end < *exact_size() ? std::optional<int64_t>(IntCast<int64_t>(
+                                UnsignedMax(end, read_from_offset + 1)))
+                          : max_size_;
   std::unique_ptr<GcsReader> reader(
       new GcsReader(NewReaderTag(), client(), object(), read_object_,
-                    buffer_options(), read_from_offset));
-  reader->set_exact_size(exact_size());
+                    buffer_options(), read_from_offset, max_size));
+  reader->set_exact_size(end);
   if (initial_pos > read_from_offset) {
     if (ABSL_PREDICT_TRUE(reader->Pull())) reader->move_cursor(1);
   }

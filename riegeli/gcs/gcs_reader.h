@@ -124,6 +124,8 @@ class GcsReader
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
+  std::unique_ptr<Reader> NewReaderWithMaxLengthImpl(
+      Position initial_pos, Position max_length) override;
 
  private:
   static constexpr uint64_t kMaxPosition = std::numeric_limits<int64_t>::max();
@@ -146,7 +148,8 @@ class GcsReader
       const GcsObject& object,
       const std::function<google::cloud::storage::ObjectReadStream(
           GcsReader&, int64_t)>& read_object,
-      BufferOptions buffer_options, Position read_from_offset);
+      BufferOptions buffer_options, Position read_from_offset,
+      std::optional<int64_t> max_size);
 
   template <typename... ReadObjectOptions>
   static RangeOptions GetRangeOptions(
@@ -185,13 +188,13 @@ class GcsReader
                   BufferOptions buffer_options,
                   const RangeOptions& range_options);
   template <typename... ReadObjectOptions>
-  void SetReadObject(const RangeOptions& range_options,
-                     const ReadObjectOptions&... read_object_options);
+  void SetReadObject(const ReadObjectOptions&... read_object_options);
   void PropagateStatus();
   ABSL_ATTRIBUTE_COLD void PropagateStatusSlow();
 
   std::optional<google::cloud::storage::Client> client_;
   GcsObject object_;
+  std::optional<int64_t> max_size_;
   std::function<google::cloud::storage::ObjectReadStream(GcsReader&, int64_t)>
       read_object_;
 };
@@ -217,12 +220,14 @@ inline GcsReader::GcsReader(GcsReader&& that) noexcept
     : IStreamReader(static_cast<IStreamReader&&>(that)),
       client_(std::move(that.client_)),
       object_(std::move(that.object_)),
+      max_size_(std::move(that.max_size_)),
       read_object_(std::move(that.read_object_)) {}
 
 inline GcsReader& GcsReader::operator=(GcsReader&& that) noexcept {
   IStreamReader::operator=(static_cast<IStreamReader&&>(that));
   client_ = std::move(that.client_);
   object_ = std::move(that.object_);
+  max_size_ = std::move(that.max_size_);
   read_object_ = std::move(that.read_object_);
   return *this;
 }
@@ -248,11 +253,13 @@ template <typename... ReadObjectOptions>
 inline void GcsReader::Initialize(Options options,
                                   ReadObjectOptions&&... read_object_options) {
   if (ABSL_PREDICT_FALSE(!object_.ok())) {
+    max_size_ = std::nullopt;
     Fail(object_.status());
     return;
   }
   const RangeOptions range_options = GetRangeOptions(read_object_options...);
-  SetReadObject(range_options, read_object_options...);
+  max_size_ = range_options.max_size;
+  SetReadObject(read_object_options...);
   Initialize(
       object_.generation() == std::nullopt
           ? client_->ReadObject(
@@ -294,32 +301,23 @@ inline GcsReader::RangeOptions GcsReader::GetRangeOptions(
 
 template <typename... ReadObjectOptions>
 inline void GcsReader::SetReadObject(
-    const RangeOptions& range_options,
     const ReadObjectOptions&... read_object_options) {
-  if (range_options.max_size == std::nullopt) {
-    read_object_ =
-        [new_read_object_options = DecayTuple(
-             Filter<NewReadObjectOptionPredicate>(read_object_options...))](
-            GcsReader& self, int64_t read_from_offset) mutable {
-          return self.ApplyReadObject(
-              new_read_object_options,
-              std::make_index_sequence<
-                  std::tuple_size_v<decltype(new_read_object_options)>>(),
-              google::cloud::storage::ReadFromOffset(read_from_offset));
-        };
-  } else {
-    read_object_ =
-        [new_read_object_options = DecayTuple(
-             Filter<NewReadObjectOptionPredicate>(read_object_options...)),
-         max_size = *range_options.max_size](GcsReader& self,
-                                             int64_t read_from_offset) mutable {
-          return self.ApplyReadObject(
-              new_read_object_options,
-              std::make_index_sequence<
-                  std::tuple_size_v<decltype(new_read_object_options)>>(),
-              google::cloud::storage::ReadRange(read_from_offset, max_size));
-        };
-  }
+  read_object_ = [new_read_object_options =
+                      DecayTuple(Filter<NewReadObjectOptionPredicate>(
+                          read_object_options...))](GcsReader& self,
+                                                    int64_t read_from_offset) {
+    constexpr size_t kNumOptions =
+        std::tuple_size_v<decltype(new_read_object_options)>;
+    if (self.max_size_ == std::nullopt) {
+      return self.ApplyReadObject(
+          new_read_object_options, std::make_index_sequence<kNumOptions>(),
+          google::cloud::storage::ReadFromOffset(read_from_offset));
+    } else {
+      return self.ApplyReadObject(
+          new_read_object_options, std::make_index_sequence<kNumOptions>(),
+          google::cloud::storage::ReadRange(read_from_offset, *self.max_size_));
+    }
+  };
 }
 
 }  // namespace riegeli

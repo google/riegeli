@@ -459,6 +459,15 @@ class Reader : public Object {
     return NewReaderImpl(initial_pos);
   }
 
+  // Like `NewReader(initial_pos)`, but hints that the new `Reader` will not
+  // read more than `max_length` bytes from `initial_pos`.
+  //
+  // Implementations that bound the read operation may treat
+  // `initial_pos + max_length` as the end of the source for the new `Reader`.
+  std::unique_ptr<Reader> NewReader(Position initial_pos, Position max_length) {
+    return NewReaderWithMaxLengthImpl(initial_pos, max_length);
+  }
+
   // Like `NewReader(pos())`. It can be more efficient because for some classes
   // the current buffer can be shared. It offers fewer thread safety guarantees.
   //
@@ -630,6 +639,8 @@ class Reader : public Object {
   virtual std::optional<Position> SizeImpl();
 
   virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos);
+  virtual std::unique_ptr<Reader> NewReaderWithMaxLengthImpl(
+      Position initial_pos, Position max_length);
   virtual std::unique_ptr<Reader> NewReaderCurrentPosImpl();
 
  private:
