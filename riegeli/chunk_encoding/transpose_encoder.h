@@ -124,7 +124,7 @@ class TransposeEncoder : public ChunkEncoder {
   explicit TransposeEncoder(CompressorOptions options,
                             TuningOptions tuning_options = TuningOptions());
 
-  ~TransposeEncoder();
+  ~TransposeEncoder() override;
 
   void Clear() override;
 
