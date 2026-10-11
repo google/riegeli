@@ -396,7 +396,7 @@ inline void RegisterSubobjects(const T* object,
                                MemoryEstimator& memory_estimator) {
   if constexpr (HasRiegeliRegisterSubobjects<T>::value) {
     RiegeliRegisterSubobjects(object, memory_estimator);
-  } else if constexpr (!std::is_trivially_destructible<T>::value) {
+  } else if constexpr (!std::is_trivially_destructible_v<T>) {
     memory_estimator.RegisterUnknownType<T>();
   }
 }
