@@ -513,7 +513,7 @@ class RecordWriterBase : public Object {
   // `get()` returns the resolved value. Can block.
   using FutureStatus = std::shared_future<absl::Status>;
 
-  ~RecordWriterBase();
+  ~RecordWriterBase() override;
 
   // Returns the Riegeli/records file being written to. Unchanged by `Close()`.
   virtual ChunkWriter* DestChunkWriter() const
