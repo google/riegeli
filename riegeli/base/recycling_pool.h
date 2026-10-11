@@ -145,7 +145,7 @@ class RecyclingPool : public BackgroundCleanee {
   RecyclingPool(const RecyclingPool&) = delete;
   RecyclingPool& operator=(const RecyclingPool&) = delete;
 
-  ~RecyclingPool();
+  ~RecyclingPool() override;
 
   // Returns a default global pool specific to template parameters of
   // `RecyclingPool` and `options`.
@@ -254,7 +254,7 @@ class KeyedRecyclingPool : public BackgroundCleanee {
   KeyedRecyclingPool(const KeyedRecyclingPool&) = delete;
   KeyedRecyclingPool& operator=(const KeyedRecyclingPool&) = delete;
 
-  ~KeyedRecyclingPool();
+  ~KeyedRecyclingPool() override;
 
   // Returns a default global pool specific to template parameters of
   // `KeyedRecyclingPool` and `options`.

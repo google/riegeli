@@ -1564,7 +1564,7 @@ class ExternalRef {
     StorageWholeWithCallOperator& operator=(
         const StorageWholeWithCallOperator&) = delete;
 
-    ~StorageWholeWithCallOperator() {
+    ~StorageWholeWithCallOperator() override {
       if (object_ != nullptr) {
         ExternalRef::CallOperatorSubstr(std::forward<T>(*object_), substr());
       }
@@ -1684,7 +1684,7 @@ class ExternalRef {
     StorageSubstrWithCallOperator& operator=(
         const StorageSubstrWithCallOperator&) = delete;
 
-    ~StorageSubstrWithCallOperator() {
+    ~StorageSubstrWithCallOperator() override {
       if (object_ != nullptr) {
         ExternalRef::CallOperatorSubstr(std::forward<T>(*object_), substr());
       }
