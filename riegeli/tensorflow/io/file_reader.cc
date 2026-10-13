@@ -48,7 +48,6 @@
 #include "riegeli/bytes/writer.h"
 #include "tensorflow/compiler/xla/tsl/platform/env.h"
 #include "tensorflow/compiler/xla/tsl/platform/file_system.h"
-#include "tensorflow/core/public/version.h"
 
 namespace riegeli::tensorflow {
 
@@ -110,12 +109,7 @@ inline bool FileReaderBase::FailOperation(const absl::Status& status,
          "status not failed";
   return Fail(
       Annotate(absl::Status(static_cast<absl::StatusCode>(status.code()),
-#if TF_GRAPH_DEF_VERSION < 1467
-                            status.error_message()
-#else
-                            status.message()
-#endif
-                                ),
+                            status.message()),
                absl::StrCat(operation, " failed")));
 }
 
