@@ -39,7 +39,7 @@ setuptools.setup(
     license='Apache License, Version 2.0',
     python_requires='>=3.5,<4',
     install_requires=[
-        'protobuf>=3.8.0,<4',
+        'protobuf>=3.8.0,<7',
     ],
     extras_require={
         'tensorflow': ['tensorflow>=1.15,<3'],
