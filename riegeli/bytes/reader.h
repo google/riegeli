@@ -459,6 +459,19 @@ class Reader : public Object {
     return NewReaderImpl(initial_pos);
   }
 
+  // Like `NewReader(initial_pos)`, but hints that the returned `Reader` will be
+  // used to read at most `max_length` bytes starting from `initial_pos`.
+  //
+  // A `Reader` backed by a remote source (e.g. `GcsReader`) can use this to
+  // bound the byte range it fetches to
+  // `[initial_pos, initial_pos + max_length)` instead of reading to the end of
+  // the source, which avoids over-fetching and the associated wasted egress
+  // when only a small span is needed. Backends that do not benefit from the
+  // hint ignore it and behave like `NewReader(initial_pos)`.
+  std::unique_ptr<Reader> NewReader(Position initial_pos, Position max_length) {
+    return NewReaderImpl(initial_pos, max_length);
+  }
+
   // Like `NewReader(pos())`. It can be more efficient because for some classes
   // the current buffer can be shared. It offers fewer thread safety guarantees.
   //
@@ -630,6 +643,15 @@ class Reader : public Object {
   virtual std::optional<Position> SizeImpl();
 
   virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos);
+
+  // Implementation of `NewReader(initial_pos, max_length)`.
+  //
+  // By default ignores `max_length` and delegates to
+  // `NewReaderImpl(initial_pos)`. Overridden by backends (e.g. `GcsReader`)
+  // that can bound the fetched byte range to `max_length`.
+  virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos,
+                                                Position max_length);
+
   virtual std::unique_ptr<Reader> NewReaderCurrentPosImpl();
 
  private:
