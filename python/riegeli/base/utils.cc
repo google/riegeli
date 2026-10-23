@@ -26,6 +26,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <atomic>
 #include <limits>
 #include <optional>
 #include <string>
@@ -158,13 +159,36 @@ namespace {
 // on Python interpreter shutdown.
 const StaticObject* all_static_objects = nullptr;
 
+#ifdef Py_GIL_DISABLED
+constinit PyMutex static_objects_mutex = {};
+
+class StaticObjectsLock {
+ public:
+  StaticObjectsLock() { PyMutex_Lock(&static_objects_mutex); }
+  StaticObjectsLock(const StaticObjectsLock&) = delete;
+  StaticObjectsLock& operator=(const StaticObjectsLock&) = delete;
+  ~StaticObjectsLock() { PyMutex_Unlock(&static_objects_mutex); }
+};
+#else
+class StaticObjectsLock {
+ public:
+  StaticObjectsLock() {}
+  StaticObjectsLock(const StaticObjectsLock&) = delete;
+  StaticObjectsLock& operator=(const StaticObjectsLock&) = delete;
+  ~StaticObjectsLock() {}
+};
+#endif
+
 }  // namespace
 
 void FreeStaticObjectsImpl() {
-  const StaticObject* static_object =
-      std::exchange(all_static_objects, nullptr);
+  const StaticObject* static_object;
+  {
+    StaticObjectsLock lock;
+    static_object = std::exchange(all_static_objects, nullptr);
+  }
   while (static_object != nullptr) {
-    static_object->value_ = nullptr;
+    static_object->value_.store(nullptr, std::memory_order_relaxed);
     static_object = std::exchange(static_object->next_, nullptr);
   }
 }
@@ -176,8 +200,16 @@ extern "C" {
 static void FreeStaticObjects() { FreeStaticObjectsImpl(); }
 }  // extern "C"
 
-void StaticObject::RegisterThis() const {
+void StaticObject::RegisterThis(PyObject* value) const {
   PythonLock::AssertHeld();
+  PyObject* expected = nullptr;
+  if (!value_.compare_exchange_strong(expected, value,
+                                      std::memory_order_acq_rel)) {
+    // Another thread published first; its value stays.
+    Py_DECREF(value);
+    return;
+  }
+  StaticObjectsLock lock;
   if (all_static_objects == nullptr) {
     // This is the first registered `StaticObject` since `Py_Initialize()`.
     Py_AtExit(FreeStaticObjects);
@@ -194,17 +226,20 @@ bool ImportedCapsuleBase::ImportValue() const {
   RIEGELI_CHECK(
       PyImport_ImportModule(std::string(capsule_name_, dot).c_str()) != nullptr)
       << Exception::Fetch().message();
-  value_ = PyCapsule_Import(capsule_name_, false);
-  return value_ != nullptr;
+  void* const value = PyCapsule_Import(capsule_name_, /*no_block=*/0);
+  if (ABSL_PREDICT_FALSE(value == nullptr)) return false;
+  // Every importer gets the same pointer, so there is nothing to race on.
+  value_.store(value, std::memory_order_release);
+  return true;
 }
 
 }  // namespace py_internal
 
 bool Identifier::AllocateValue() const {
-  value_ = StringToPython(name_).release();
-  if (ABSL_PREDICT_FALSE(value_ == nullptr)) return false;
-  PyUnicode_InternInPlace(&value_);
-  RegisterThis();
+  PyObject* value = StringToPython(name_).release();
+  if (ABSL_PREDICT_FALSE(value == nullptr)) return false;
+  PyUnicode_InternInPlace(&value);
+  RegisterThis(value);
   return true;
 }
 
@@ -215,9 +250,9 @@ bool ImportedConstant::AllocateValue() const {
   if (ABSL_PREDICT_FALSE(module == nullptr)) return false;
   const PythonPtr attr_name = StringToPython(attr_name_);
   if (ABSL_PREDICT_FALSE(attr_name == nullptr)) return false;
-  value_ = PyObject_GetAttr(module.get(), attr_name.get());
-  if (ABSL_PREDICT_FALSE(value_ == nullptr)) return false;
-  RegisterThis();
+  PyObject* const value = PyObject_GetAttr(module.get(), attr_name.get());
+  if (ABSL_PREDICT_FALSE(value == nullptr)) return false;
+  RegisterThis(value);
   return true;
 }
 

@@ -24,6 +24,7 @@
 
 #include <stddef.h>
 
+#include <atomic>
 #include <memory>
 #include <new>
 #include <optional>
@@ -225,12 +226,15 @@ namespace py_internal {
 // shutdown.
 class StaticObject {
  protected:
-  mutable PyObject* value_ = nullptr;
+  mutable std::atomic<PyObject*> value_ = nullptr;
   mutable const StaticObject* next_ = nullptr;
 
-  // Register this object in a global list of static objects. This must be
-  // called when `value_` is allocated.
-  void RegisterThis() const;
+  PyObject* value() const { return value_.load(std::memory_order_acquire); }
+
+  // Publishes `value` and registers this object in a global list of static
+  // objects. If another thread published first, drops `value` and keeps the
+  // already published one; `value()` returns the winner either way.
+  void RegisterThis(PyObject* value) const;
 
  private:
   friend void FreeStaticObjectsImpl();
@@ -245,7 +249,7 @@ class ImportedCapsuleBase {
   // If `Verify()` returns `true`, `get()` does not die.
   bool Verify() const {
     PythonLock::AssertHeld();
-    if (ABSL_PREDICT_FALSE(value_ == nullptr)) return ImportValue();
+    if (ABSL_PREDICT_FALSE(value() == nullptr)) return ImportValue();
     return true;
   }
 
@@ -255,9 +259,11 @@ class ImportedCapsuleBase {
 
   ~ImportedCapsuleBase() = default;
 
+  void* value() const { return value_.load(std::memory_order_acquire); }
+
   bool ImportValue() const;
 
-  mutable void* value_ = nullptr;
+  mutable std::atomic<void*> value_ = nullptr;
 
  private:
   const char* capsule_name_;
@@ -285,7 +291,7 @@ class Identifier : public py_internal::StaticObject {
   // If `Verify()` returns `true`, `get()` does not die.
   bool Verify() const {
     PythonLock::AssertHeld();
-    if (ABSL_PREDICT_FALSE(value_ == nullptr)) return AllocateValue();
+    if (ABSL_PREDICT_FALSE(value() == nullptr)) return AllocateValue();
     return true;
   }
 
@@ -293,10 +299,12 @@ class Identifier : public py_internal::StaticObject {
   // (use `Verify()` to prevent this).
   PyObject* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     PythonLock::AssertHeld();
-    if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
+    PyObject* result = value();
+    if (ABSL_PREDICT_FALSE(result == nullptr)) {
       RIEGELI_CHECK(AllocateValue()) << Exception::Fetch().message();
+      result = value();
     }
-    return value_;
+    return result;
   }
 
  private:
@@ -327,7 +335,7 @@ class ImportedConstant : public py_internal::StaticObject {
   // If `Verify()` returns `true`, `get()` does not die.
   bool Verify() const {
     PythonLock::AssertHeld();
-    if (ABSL_PREDICT_FALSE(value_ == nullptr)) return AllocateValue();
+    if (ABSL_PREDICT_FALSE(value() == nullptr)) return AllocateValue();
     return true;
   }
 
@@ -335,10 +343,12 @@ class ImportedConstant : public py_internal::StaticObject {
   // (use `Verify()` to prevent this).
   PyObject* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     PythonLock::AssertHeld();
-    if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
+    PyObject* result = value();
+    if (ABSL_PREDICT_FALSE(result == nullptr)) {
       RIEGELI_CHECK(AllocateValue()) << Exception::Fetch().message();
+      result = value();
     }
-    return value_;
+    return result;
   }
 
  private:
@@ -378,10 +388,12 @@ class ImportedCapsule : public py_internal::ImportedCapsuleBase {
   // (use `Verify()` to prevent this).
   const T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
     PythonLock::AssertHeld();
-    if (ABSL_PREDICT_FALSE(value_ == nullptr)) {
+    void* result = value();
+    if (ABSL_PREDICT_FALSE(result == nullptr)) {
       RIEGELI_CHECK(ImportValue()) << Exception::Fetch().message();
+      result = value();
     }
-    return static_cast<const T*>(value_);
+    return static_cast<const T*>(result);
   }
 
   const T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND { return *get(); }

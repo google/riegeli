@@ -24,6 +24,15 @@ py_test(
     ],
 )
 
+py_test(
+    name = "records_threading_test",
+    srcs = ["records_threading_test.py"],
+    deps = [
+        "//python/riegeli",
+        "@absl_py//absl/testing:absltest",
+    ],
+)
+
 proto_library(
     name = "records_test_proto",
     srcs = ["records_test.proto"],
