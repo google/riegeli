@@ -21,6 +21,7 @@ meant to run under ThreadSanitizer with free-threaded Python, but passes as a
 plain round-trip test otherwise.
 """
 
+import gc
 import io
 import threading
 
@@ -30,6 +31,7 @@ import riegeli
 _NUM_THREADS = 8
 _NUM_RECORDS = 10
 _BARRIER_TIMEOUT_SECONDS = 60
+_NUM_CONSTRUCTIONS = 50
 
 
 def _records(thread_index):
@@ -66,6 +68,46 @@ class RecordsThreadingTest(absltest.TestCase):
       thread.start()
     for thread in threads:
       thread.join()
+
+    self.assertEmpty(errors)
+    self.assertEqual(results, {i: _records(i) for i in range(_NUM_THREADS)})
+
+  def test_construct_during_gc(self):
+    barrier = threading.Barrier(_NUM_THREADS + 1)
+    stop_gc = threading.Event()
+    results: dict[int, list[bytes]] = {}
+    errors: dict[int, Exception] = {}
+
+    def collect():
+      barrier.wait(_BARRIER_TIMEOUT_SECONDS)
+      while not stop_gc.is_set():
+        gc.collect()
+
+    def run(thread_index):
+      try:
+        barrier.wait(_BARRIER_TIMEOUT_SECONDS)
+        for _ in range(_NUM_CONSTRUCTIONS):
+          dest = io.BytesIO()
+          with riegeli.RecordWriter(dest, owns_dest=False) as writer:
+            writer.write_records(_records(thread_index))
+          with riegeli.RecordReader(
+              io.BytesIO(dest.getvalue()), owns_src=False
+          ) as reader:
+            results[thread_index] = list(reader.read_records())
+      except Exception as e:  # pylint: disable=broad-exception-caught
+        errors[thread_index] = e
+
+    gc_thread = threading.Thread(target=collect)
+    threads = [
+        threading.Thread(target=run, args=(i,)) for i in range(_NUM_THREADS)
+    ]
+    gc_thread.start()
+    for thread in threads:
+      thread.start()
+    for thread in threads:
+      thread.join()
+    stop_gc.set()
+    gc_thread.join()
 
     self.assertEmpty(errors)
     self.assertEqual(results, {i: _records(i) for i in range(_NUM_THREADS)})

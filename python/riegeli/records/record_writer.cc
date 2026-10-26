@@ -332,10 +332,26 @@ static int RecordWriterInit(PyRecordWriterObject* self, PyObject* args,
   }
 
   PythonWriter python_writer(dest_arg, python_writer_options);
+  // Build the writer with the thread detached under `PythonUnlocked`, since
+  // that can do I/O, and only move it into `self` once the thread is attached
+  // again. Under free threading, the GC can traverse `self` concurrently
+  // without waiting for detached threads, so writing `self` while detached
+  // would be a data race.
+  std::optional<RecordWriter<PythonWriter>> record_writer;
   PythonUnlocked([&] {
-    self->record_writer.emplace(std::move(python_writer),
-                                std::move(record_writer_options));
+    record_writer.emplace(std::move(python_writer),
+                          std::move(record_writer_options));
   });
+  std::optional<RecordWriter<PythonWriter>> old_record_writer;
+  if (self->record_writer.has_value()) {
+    old_record_writer.emplace(std::move(*self->record_writer));
+  }
+  self->record_writer.emplace(*std::move(record_writer));
+  // Destroy the old writer detached. Closing it can wait on its worker thread,
+  // and that thread may need to attach to call into Python.
+  if (old_record_writer.has_value()) {
+    PythonUnlocked([&] { old_record_writer.reset(); });
+  }
   if (ABSL_PREDICT_FALSE(!self->record_writer->ok())) {
     self->record_writer->dest().Close();
     SetExceptionFromRecordWriter(self);

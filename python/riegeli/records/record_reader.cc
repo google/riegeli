@@ -367,10 +367,24 @@ static int RecordReaderInit(PyRecordReaderObject* self, PyObject* args,
   }
 
   PythonReader python_reader(src_arg, python_reader_options);
+  // Build the reader with the thread detached under `PythonUnlocked`, since
+  // that can do I/O, and only move it into `self` once the thread is attached
+  // again. Under free threading, the GC can traverse `self` concurrently
+  // without waiting for detached threads, so writing `self` while detached
+  // would be a data race.
+  std::optional<RecordReader<PythonReader>> record_reader;
   PythonUnlocked([&] {
-    self->record_reader.emplace(std::move(python_reader),
-                                std::move(record_reader_options));
+    record_reader.emplace(std::move(python_reader),
+                          std::move(record_reader_options));
   });
+  std::optional<RecordReader<PythonReader>> old_record_reader;
+  if (self->record_reader.has_value()) {
+    old_record_reader.emplace(std::move(*self->record_reader));
+  }
+  self->record_reader.emplace(*std::move(record_reader));
+  if (old_record_reader.has_value()) {
+    PythonUnlocked([&] { old_record_reader.reset(); });
+  }
   if (ABSL_PREDICT_FALSE(!self->record_reader->ok())) {
     self->record_reader->src().Close();
     SetExceptionFromRecordReader(self);
