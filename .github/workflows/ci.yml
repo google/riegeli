@@ -1,0 +1,82 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name }}-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            extra_excludes: ""
+          - os: macos-latest
+            # reader_cfile and writer_cfile require glibc's fopencookie().
+            # py_extension links a shared library without -Wl,-undefined,dynamic_lookup.
+            extra_excludes: >-
+              -//riegeli/bytes:reader_cfile -//riegeli/bytes:writer_cfile -//python/riegeli/...
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-cache: true
+          cache-save: true
+          external-cache: true
+          repository-cache: true
+
+      - name: Build and test targets
+        run: |
+          # Exit code 4 (NO_TESTS_FOUND) occurs on macOS when -//python/riegeli/... is excluded.
+          bazel test -- //riegeli/... //python/riegeli/... \
+            -//riegeli/tensorflow/... \
+            -//python/riegeli/tensorflow/... \
+            -//riegeli/records/tools:records_benchmark \
+            -//riegeli/records/tools:tfrecord_recognizer \
+            ${{ matrix.extra_excludes }} || [ $? -eq 4 ]
+
+  all-blocking-builds:
+    name: All Blocking Builds
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check for cancellations
+        if: ${{ contains(join(needs.*.result, ' '), 'cancelled') }}
+        run: echo "One or more builds were cancelled." && exit 1
+      - name: Check for failures
+        if: ${{ contains(join(needs.*.result, ' '), 'failure') }}
+        run: echo "One or more builds failed." && exit 1
