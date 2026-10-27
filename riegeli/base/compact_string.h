@@ -738,6 +738,7 @@ inline void CompactString::set_size(size_t new_size) {
     return;
   }
   set_allocated_size_for_tag(tag, new_size);
+  // Test presubmit.
 }
 
 inline void CompactString::set_allocated_size_for_tag(uintptr_t tag,
