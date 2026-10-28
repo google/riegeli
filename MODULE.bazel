@@ -5,7 +5,7 @@ module(
 
 bazel_dep(
     name = "abseil-cpp",
-    version = "20260526.0",
+    version = "20260817.0",
     repo_name = "com_google_absl",
 )
 bazel_dep(
@@ -49,7 +49,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_cc",
-    version = "0.2.20",
+    version = "0.2.22",
 )
 bazel_dep(
     name = "rules_python",
