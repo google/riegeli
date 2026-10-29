@@ -50,6 +50,10 @@
 namespace riegeli {
 
 // A `Reader` which reads from a Google Cloud Storage object.
+//
+// `NewReader(initial_pos, length_hint)` requests only the hinted range if it
+// ends before the end of the object (or of the range given to the
+// constructor). Reading beyond it continues with a request for the rest.
 class GcsReader
     : public IStreamReader<google::cloud::storage::ObjectReadStream> {
  public:
@@ -124,6 +128,8 @@ class GcsReader
   bool ReadInternal(size_t min_length, size_t max_length, char* dest) override;
   bool SeekBehindBuffer(Position new_pos) override;
   std::unique_ptr<Reader> NewReaderImpl(Position initial_pos) override;
+  std::unique_ptr<Reader> NewReaderWithLengthHintImpl(
+      Position initial_pos, Position length_hint) override;
 
  private:
   static constexpr uint64_t kMaxPosition = std::numeric_limits<int64_t>::max();
@@ -145,8 +151,9 @@ class GcsReader
       NewReaderTag, const google::cloud::storage::Client& client,
       const GcsObject& object,
       const std::function<google::cloud::storage::ObjectReadStream(
-          GcsReader&, int64_t)>& read_object,
-      BufferOptions buffer_options, Position read_from_offset);
+          GcsReader&, int64_t, std::optional<int64_t>)>& read_object,
+      BufferOptions buffer_options, Position read_from_offset,
+      std::optional<Position> read_to_offset);
 
   template <typename... ReadObjectOptions>
   static RangeOptions GetRangeOptions(
@@ -192,8 +199,14 @@ class GcsReader
 
   std::optional<google::cloud::storage::Client> client_;
   GcsObject object_;
-  std::function<google::cloud::storage::ObjectReadStream(GcsReader&, int64_t)>
+  // Opens a stream from the first argument to the second argument (exclusive)
+  // if given, otherwise to the end of the range specified in the constructor.
+  std::function<google::cloud::storage::ObjectReadStream(
+      GcsReader&, int64_t, std::optional<int64_t>)>
       read_object_;
+  // Exclusive end of the range requested by the current stream, if it ends
+  // before the end of the object.
+  std::optional<Position> stream_limit_;
 };
 
 // Implementation details follow.
@@ -217,13 +230,15 @@ inline GcsReader::GcsReader(GcsReader&& that) noexcept
     : IStreamReader(static_cast<IStreamReader&&>(that)),
       client_(std::move(that.client_)),
       object_(std::move(that.object_)),
-      read_object_(std::move(that.read_object_)) {}
+      read_object_(std::move(that.read_object_)),
+      stream_limit_(std::exchange(that.stream_limit_, std::nullopt)) {}
 
 inline GcsReader& GcsReader::operator=(GcsReader&& that) noexcept {
   IStreamReader::operator=(static_cast<IStreamReader&&>(that));
   client_ = std::move(that.client_);
   object_ = std::move(that.object_);
   read_object_ = std::move(that.read_object_);
+  stream_limit_ = std::exchange(that.stream_limit_, std::nullopt);
   return *this;
 }
 
@@ -300,7 +315,16 @@ inline void GcsReader::SetReadObject(
     read_object_ =
         [new_read_object_options = DecayTuple(
              Filter<NewReadObjectOptionPredicate>(read_object_options...))](
-            GcsReader& self, int64_t read_from_offset) mutable {
+            GcsReader& self, int64_t read_from_offset,
+            std::optional<int64_t> read_to_offset) mutable {
+          if (read_to_offset != std::nullopt) {
+            return self.ApplyReadObject(
+                new_read_object_options,
+                std::make_index_sequence<
+                    std::tuple_size_v<decltype(new_read_object_options)>>(),
+                google::cloud::storage::ReadRange(read_from_offset,
+                                                  *read_to_offset));
+          }
           return self.ApplyReadObject(
               new_read_object_options,
               std::make_index_sequence<
@@ -311,13 +335,15 @@ inline void GcsReader::SetReadObject(
     read_object_ =
         [new_read_object_options = DecayTuple(
              Filter<NewReadObjectOptionPredicate>(read_object_options...)),
-         max_size = *range_options.max_size](GcsReader& self,
-                                             int64_t read_from_offset) mutable {
+         max_size = *range_options.max_size](
+            GcsReader& self, int64_t read_from_offset,
+            std::optional<int64_t> read_to_offset) mutable {
           return self.ApplyReadObject(
               new_read_object_options,
               std::make_index_sequence<
                   std::tuple_size_v<decltype(new_read_object_options)>>(),
-              google::cloud::storage::ReadRange(read_from_offset, max_size));
+              google::cloud::storage::ReadRange(
+                  read_from_offset, read_to_offset.value_or(max_size)));
         };
   }
 }
