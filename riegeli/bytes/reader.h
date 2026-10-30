@@ -459,6 +459,20 @@ class Reader : public Object {
     return NewReaderImpl(initial_pos);
   }
 
+  // Like `NewReader(initial_pos)`, but hints that about `length_hint` bytes
+  // will be read from `initial_pos`.
+  //
+  // This lets a source for which reading more than needed is costly, e.g. a
+  // remote object, request only this range. Reading beyond it is supported,
+  // possibly less efficiently. By default the hint is ignored.
+  //
+  // The same thread safety guarantees and return value as for
+  // `NewReader(initial_pos)` apply.
+  std::unique_ptr<Reader> NewReader(Position initial_pos,
+                                    Position length_hint) {
+    return NewReaderWithLengthHintImpl(initial_pos, length_hint);
+  }
+
   // Like `NewReader(pos())`. It can be more efficient because for some classes
   // the current buffer can be shared. It offers fewer thread safety guarantees.
   //
@@ -630,6 +644,11 @@ class Reader : public Object {
   virtual std::optional<Position> SizeImpl();
 
   virtual std::unique_ptr<Reader> NewReaderImpl(Position initial_pos);
+  // Implementation of `NewReader(initial_pos, length_hint)`.
+  //
+  // By default calls `NewReaderImpl(initial_pos)`.
+  virtual std::unique_ptr<Reader> NewReaderWithLengthHintImpl(
+      Position initial_pos, Position length_hint);
   virtual std::unique_ptr<Reader> NewReaderCurrentPosImpl();
 
  private:
