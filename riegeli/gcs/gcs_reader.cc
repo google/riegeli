@@ -45,16 +45,22 @@ GcsReader::GcsReader(
     NewReaderTag, const google::cloud::storage::Client& client,
     const GcsObject& object,
     const std::function<google::cloud::storage::ObjectReadStream(
-        GcsReader&, int64_t)>& read_object,
-    BufferOptions buffer_options, Position read_from_offset)
+        GcsReader&, int64_t, std::optional<int64_t>)>& read_object,
+    BufferOptions buffer_options, Position read_from_offset,
+    std::optional<Position> read_to_offset)
     : IStreamReader(kClosed),
       client_(client),
       object_(object),
-      read_object_(read_object) {
-  IStreamReader::Reset(read_object(*this, IntCast<int64_t>(read_from_offset)),
-                       IStreamReaderBase::Options()
-                           .set_assumed_pos(read_from_offset)
-                           .set_buffer_options(buffer_options));
+      read_object_(read_object),
+      stream_limit_(read_to_offset) {
+  IStreamReader::Reset(
+      read_object(*this, IntCast<int64_t>(read_from_offset),
+                  read_to_offset == std::nullopt
+                      ? std::nullopt
+                      : std::make_optional(IntCast<int64_t>(*read_to_offset))),
+      IStreamReaderBase::Options()
+          .set_assumed_pos(read_from_offset)
+          .set_buffer_options(buffer_options));
   PropagateStatus();
   set_limit_pos(read_from_offset);
 }
@@ -64,11 +70,13 @@ void GcsReader::Reset(Closed) {
   client_ = std::nullopt;
   object_ = GcsObject();
   read_object_ = nullptr;
+  stream_limit_ = std::nullopt;
 }
 
 void GcsReader::Initialize(google::cloud::storage::ObjectReadStream stream,
                            BufferOptions buffer_options,
                            const RangeOptions& range_options) {
+  stream_limit_ = std::nullopt;
   uint64_t initial_pos = 0;
   if (ABSL_PREDICT_TRUE(range_options.initial_pos >= 0)) {
     switch (range_options.origin) {
@@ -136,6 +144,32 @@ bool GcsReader::ReadInternal(size_t min_length, size_t max_length, char* dest) {
          "max_length < min_length";
   RIEGELI_ASSERT_OK(*this)
       << "Failed precondition of BufferedReader::ReadInternal()";
+  if (stream_limit_ != std::nullopt) {
+    RIEGELI_ASSERT_LE(limit_pos(), *stream_limit_)
+        << "Failed invariant of GcsReader: "
+           "position exceeds the end of the requested range";
+    const Position remaining = *stream_limit_ - limit_pos();
+    if (remaining < min_length) {
+      // The requested range cannot satisfy this read. Read the rest of it, and
+      // continue with a request for the rest of the object.
+      if (remaining > 0) {
+        const size_t remaining_length = IntCast<size_t>(remaining);
+        const bool read_ok = IStreamReader::ReadInternal(
+            remaining_length, remaining_length, dest);
+        PropagateStatus();
+        if (ABSL_PREDICT_FALSE(!read_ok)) return false;
+        dest += remaining_length;
+        min_length -= remaining_length;
+        max_length -= remaining_length;
+      }
+      src() = read_object_(*this, IntCast<int64_t>(limit_pos()), std::nullopt);
+      stream_limit_ = std::nullopt;
+      PropagateStatus();
+      if (ABSL_PREDICT_FALSE(!ok())) return false;
+    } else {
+      max_length = UnsignedMin(max_length, remaining);
+    }
+  }
   const bool result = IStreamReader::ReadInternal(min_length, max_length, dest);
   PropagateStatus();
   return result;
@@ -157,7 +191,8 @@ bool GcsReader::SeekBehindBuffer(Position new_pos) {
   // `ObjectReadStream` does not support seeking to the very end.
   const Position read_from_offset =
       UnsignedMin(new_pos, SaturatingSub(*exact_size(), Position{1}));
-  src() = read_object_(*this, IntCast<int64_t>(read_from_offset));
+  src() = read_object_(*this, IntCast<int64_t>(read_from_offset), std::nullopt);
+  stream_limit_ = std::nullopt;
   PropagateStatus();
   set_limit_pos(read_from_offset);
   if (new_pos > read_from_offset) {
@@ -184,11 +219,35 @@ std::unique_ptr<Reader> GcsReader::NewReaderImpl(Position initial_pos) {
       UnsignedMin(initial_pos, SaturatingSub(*exact_size(), Position{1}));
   std::unique_ptr<GcsReader> reader(
       new GcsReader(NewReaderTag(), client(), object(), read_object_,
-                    buffer_options(), read_from_offset));
+                    buffer_options(), read_from_offset, std::nullopt));
   reader->set_exact_size(exact_size());
   if (initial_pos > read_from_offset) {
     if (ABSL_PREDICT_TRUE(reader->Pull())) reader->move_cursor(1);
   }
+  return reader;
+}
+
+std::unique_ptr<Reader> GcsReader::NewReaderWithLengthHintImpl(
+    Position initial_pos, Position length_hint) {
+  if (ABSL_PREDICT_FALSE(!GcsReader::SupportsNewReader())) {
+    // Delegate to the base class to avoid repeating the error message.
+    return IStreamReader::NewReaderWithLengthHintImpl(initial_pos, length_hint);
+  }
+  if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
+  // `NewReaderWithLengthHintImpl()` is thread-safe from this point.
+
+  // Request only the hinted range if it ends before the object does. Otherwise
+  // request the rest of the object like `NewReader(initial_pos)`: in particular
+  // a read of the whole object then sends no `Range` header and keeps checksum
+  // validation.
+  if (length_hint == 0 || initial_pos >= *exact_size() ||
+      length_hint >= *exact_size() - initial_pos) {
+    return GcsReader::NewReaderImpl(initial_pos);
+  }
+  std::unique_ptr<GcsReader> reader(
+      new GcsReader(NewReaderTag(), client(), object(), read_object_,
+                    buffer_options(), initial_pos, initial_pos + length_hint));
+  reader->set_exact_size(exact_size());
   return reader;
 }
 
