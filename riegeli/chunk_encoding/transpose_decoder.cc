@@ -392,6 +392,18 @@ struct TransposeDecoder::StateMachineNode {
 struct TransposeDecoder::Context {
   static_assert(sizeof(StateMachineNode) == 8 + 2 * sizeof(void*),
                 "Unexpected padding in StateMachineNode.");
+  static constexpr size_t kInlineActiveNodes = 64;
+  // Maximum step offset encoded in a transition byte is `0xff >> 2 == 63`.
+  static constexpr size_t kNumFailureSentinelNodes = 64;
+  static_assert((std::numeric_limits<uint8_t>::max() >> 2) <
+                    kNumFailureSentinelNodes,
+                "Maximum transition offset must fit in sentinel nodes.");
+
+  Context() = default;
+  // Not copyable or movable: pointers target `inline_nodes`.
+  Context(const Context&) = delete;
+  Context& operator=(const Context&) = delete;
+
   // Compression type of the input.
   CompressionType compression_type = CompressionType::kNone;
   // Buffer containing all the data.
@@ -400,7 +412,10 @@ struct TransposeDecoder::Context {
   // Buffer for lengths of nonproto messages.
   Reader* nonproto_lengths = nullptr;
   // State machine read from the input.
-  std::vector<StateMachineNode> state_machine_nodes;
+  alignas(64) StateMachineNode
+      inline_nodes[kInlineActiveNodes + kNumFailureSentinelNodes];
+  std::unique_ptr<StateMachineNode[]> heap_nodes;
+  StateMachineNode* state_machine_nodes = inline_nodes;
   // Node to start decoding from.
   uint32_t first_node = 0;
   // State machine transitions. One byte = one transition.
@@ -554,13 +569,22 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(header_decompressor.reader().StatusOrAnnotate(
         absl::InvalidArgumentError("Reading state machine size failed")));
   }
-  // Additional `0xff` nodes to correctly handle invalid/malicious inputs.
-  context.state_machine_nodes.resize(size_t{state_machine_size} + 0xff);
+  // Additional failure nodes to correctly handle invalid/malicious inputs.
+  if (ABSL_PREDICT_FALSE(state_machine_size > Context::kInlineActiveNodes)) {
+    if (ABSL_PREDICT_FALSE(size_t{state_machine_size} >
+                           std::numeric_limits<ptrdiff_t>::max() /
+                                   sizeof(StateMachineNode) -
+                               Context::kNumFailureSentinelNodes)) {
+      return Fail(absl::ResourceExhaustedError("Too many state machine nodes"));
+    }
+    context.heap_nodes = std::make_unique<StateMachineNode[]>(
+        size_t{state_machine_size} + Context::kNumFailureSentinelNodes);
+    context.state_machine_nodes = context.heap_nodes.get();
+  }
   if (projection_enabled) {
     context.node_templates.resize(size_t{state_machine_size});
   }
-  std::vector<StateMachineNode>& state_machine_nodes =
-      context.state_machine_nodes;
+  StateMachineNode* const state_machine_nodes = context.state_machine_nodes;
   bool has_nonproto_op = false;
   size_t num_subtypes = 0;
   absl::FixedArray<uint32_t> tags(size_t{state_machine_size});
@@ -595,6 +619,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t tag = tags[i];
     StateMachineNode& state_machine_node = state_machine_nodes[i];
+    state_machine_node.tag_data_size = 0;
     state_machine_node.buffer = nullptr;
     switch (static_cast<chunk_encoding_internal::MessageId>(tag)) {
       case chunk_encoding_internal::MessageId::kNoOp:
@@ -759,13 +784,17 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(absl::InvalidArgumentError("First node index too large"));
   }
 
-  // Add `0xff` failure nodes so we never overflow this array.
+  // Add failure nodes so we never overflow this array.
   for (size_t i = size_t{state_machine_size};
-       i < size_t{state_machine_size} + 0xff; ++i) {
+       i < size_t{state_machine_size} + Context::kNumFailureSentinelNodes;
+       ++i) {
+    state_machine_nodes[i].tag_data_size = 0;
+    state_machine_nodes[i].is_implicit = false;
     state_machine_nodes[i].callback_type = CallbackType::kFailure;
   }
 
-  if (ABSL_PREDICT_FALSE(ContainsImplicitLoop(&state_machine_nodes))) {
+  if (ABSL_PREDICT_FALSE(ContainsImplicitLoop(
+          absl::MakeConstSpan(state_machine_nodes, state_machine_size)))) {
     return Fail(absl::InvalidArgumentError("Nodes contain an implicit loop"));
   }
 
@@ -1016,16 +1045,17 @@ inline Reader* TransposeDecoder::GetBuffer(Context& context,
 }
 
 inline bool TransposeDecoder::ContainsImplicitLoop(
-    std::vector<StateMachineNode>* state_machine_nodes) {
-  std::vector<size_t> implicit_loop_ids(state_machine_nodes->size(), 0);
-  size_t next_loop_id = 1;
-  for (size_t i = 0; i < state_machine_nodes->size(); ++i) {
+    absl::Span<const StateMachineNode> state_machine_nodes) {
+  absl::FixedArray<uint32_t, Context::kInlineActiveNodes> implicit_loop_ids(
+      state_machine_nodes.size(), 0);
+  uint32_t next_loop_id = 1;
+  for (size_t i = 0; i < state_machine_nodes.size(); ++i) {
     if (implicit_loop_ids[i] != 0) continue;
-    StateMachineNode* node = &(*state_machine_nodes)[i];
+    const StateMachineNode* node = &state_machine_nodes[i];
     implicit_loop_ids[i] = next_loop_id;
     while (node->is_implicit) {
       node = node->next_node;
-      const size_t j = node - state_machine_nodes->data();
+      const size_t j = static_cast<size_t>(node - state_machine_nodes.data());
       if (implicit_loop_ids[j] == next_loop_id) return true;
       if (implicit_loop_ids[j] != 0) break;
       implicit_loop_ids[j] = next_loop_id;
