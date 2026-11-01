@@ -117,8 +117,8 @@ class TransposeDecoder : public Object {
   Reader* GetBuffer(Context& context, uint32_t bucket_index,
                     uint32_t index_within_bucket);
 
-  static bool ContainsImplicitLoop(
-      std::vector<StateMachineNode>* state_machine_nodes);
+  static bool ContainsImplicitLoop(const StateMachineNode* state_machine_nodes,
+                                   size_t state_machine_size);
 
   bool Decode(Context& context, uint64_t num_records, BackwardWriter& dest,
               std::vector<size_t>& limits);

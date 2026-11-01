@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -364,20 +365,59 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
       << "Unknown FieldIncluded: " << static_cast<int>(field_included);
 }
 
+#if (ABSL_HAVE_CPP_ATTRIBUTE(clang::musttail) || \
+     ABSL_HAVE_CPP_ATTRIBUTE(gnu::musttail)) &&  \
+    (defined(__aarch64__) || defined(__x86_64__) || defined(_M_X64))
+#define RIEGELI_TAILCALL 1
+#if ABSL_HAVE_CPP_ATTRIBUTE(clang::musttail)
+#define RIEGELI_MUSTTAIL [[clang::musttail]]
+#else
+#define RIEGELI_MUSTTAIL [[gnu::musttail]]
+#endif
+#if ABSL_HAVE_ATTRIBUTE(preserve_none) &&                                \
+    (defined(__x86_64__) ||                                              \
+     (defined(__aarch64__) && !defined(ABSL_HAVE_ADDRESS_SANITIZER))) && \
+    defined(__linux__)
+#define RIEGELI_PRESERVE_NONE __attribute__((preserve_none))
+#else
+#define RIEGELI_PRESERVE_NONE
+#endif
+#define RIEGELI_DISPATCH_CALLBACK(state, node, num_iters, cursor, limit)   \
+  RIEGELI_MUSTTAIL return (node)->callback(state, node, num_iters, cursor, \
+                                           limit)
+#else
+#define RIEGELI_TAILCALL 0
+#define RIEGELI_MUSTTAIL
+#define RIEGELI_PRESERVE_NONE
+#define RIEGELI_DISPATCH_CALLBACK(state, node, num_iters, cursor, limit) \
+  return (state)->SaveState(node, num_iters, cursor, limit)
+#endif
+
 }  // namespace
 
 // Node of the state machine read from input.
-struct TransposeDecoder::StateMachineNode {
+//
+// Aligned to 32 bytes, so transition indexing uses a power-of-two stride (a
+// single shift) and a node never straddles a 64-byte cache line. Full byte
+// fields for `tag_data_size` and `is_implicit` avoid bitfield extract and
+// partial-register stalls in the dispatch loop.
+struct alignas(32) TransposeDecoder::StateMachineNode {
+  using Callback = RIEGELI_PRESERVE_NONE bool (*)(
+      DecodingState* state, StateMachineNode* node, uint32_t num_iters,
+      const char* transitions_cursor, const char* transitions_limit);
+
+  static Callback ResolveCallback(CallbackType callback_type);
+
   // Tag for the field decoded by this node, may benefit from being aligned.
   //
   // `tag_data` contains varint encoded tag (1 to 5 bytes) followed by inline
   // numeric (if any) or zero otherwise.
   char tag_data[kMaxLengthVarint32 + 1];
   // Size of the tag data. Must be in the range [1..5].
-  uint8_t tag_data_size : 7;
-  // Whether the callback is implicit.
-  bool is_implicit : 1;
-  CallbackType callback_type;
+  uint8_t tag_data_size;
+  // Whether the callback is implicit (1 if implicit, 0 otherwise).
+  uint8_t is_implicit;
+  Callback callback;
   union {
     // Buffer to read data from.
     Reader* buffer;
@@ -390,8 +430,18 @@ struct TransposeDecoder::StateMachineNode {
 };
 
 struct TransposeDecoder::Context {
-  static_assert(sizeof(StateMachineNode) == 8 + 2 * sizeof(void*),
-                "Unexpected padding in StateMachineNode.");
+  static_assert(sizeof(StateMachineNode) == 32,
+                "Unexpected size in StateMachineNode.");
+
+  // Maximum step offset encoded in a transition byte is `0xff >> 2 == 63`.
+  static constexpr size_t kInlineActiveNodes = 64;
+  static constexpr size_t kNumFailureSentinelNodes = 64;
+  static_assert((std::numeric_limits<uint8_t>::max() >> 2) <
+                    kNumFailureSentinelNodes,
+                "Maximum transition offset must fit in sentinel nodes.");
+  static constexpr size_t kInlineStateMachineNodes =
+      kInlineActiveNodes + kNumFailureSentinelNodes;
+
   // Compression type of the input.
   CompressionType compression_type = CompressionType::kNone;
   // Buffer containing all the data.
@@ -399,12 +449,32 @@ struct TransposeDecoder::Context {
   std::vector<ChainReader<Chain>> buffers;
   // Buffer for lengths of nonproto messages.
   Reader* nonproto_lengths = nullptr;
-  // State machine read from the input.
-  std::vector<StateMachineNode> state_machine_nodes;
+  // State machine read from the input. Uses inline cache-line-aligned storage
+  // for schemas up to 64 active nodes, falling back to heap storage for larger
+  // schemas.
+  alignas(64) StateMachineNode inline_nodes_storage[kInlineStateMachineNodes];
+  std::unique_ptr<StateMachineNode[]> heap_nodes_storage;
+  StateMachineNode* state_machine_nodes = inline_nodes_storage;
   // Node to start decoding from.
   uint32_t first_node = 0;
   // State machine transitions. One byte = one transition.
   chunk_encoding_internal::Decompressor<> transitions{kClosed};
+
+  StateMachineNode* AllocateStateMachineNodes(size_t active_node_count) {
+    if (ABSL_PREDICT_FALSE(active_node_count >
+                           std::numeric_limits<size_t>::max() /
+                                   sizeof(StateMachineNode) -
+                               kNumFailureSentinelNodes)) {
+      return nullptr;
+    }
+    const size_t total_nodes = active_node_count + kNumFailureSentinelNodes;
+    if (ABSL_PREDICT_FALSE(total_nodes > kInlineStateMachineNodes)) {
+      // Default-initialize (C++17) without zeroing; Parse() writes all slots.
+      heap_nodes_storage.reset(new StateMachineNode[total_nodes]);
+      state_machine_nodes = heap_nodes_storage.get();
+    }
+    return state_machine_nodes;
+  }
 
   enum class IncludeType : uint8_t {
     // Field is included.
@@ -438,6 +508,8 @@ bool TransposeDecoder::Decode(uint64_t num_records, uint64_t decoded_data_size,
                               const FieldProjection& field_projection,
                               Reader& src, BackwardWriter& dest,
                               std::vector<size_t>& limits) {
+  static_assert(sizeof(Context) <= 8192,
+                "Keep Context bounded for small-stack fibers.");
   RIEGELI_ASSERT_EQ(dest.pos(), 0u)
       << "Failed precondition of TransposeDecoder::Reset(): "
          "non-zero destination position";
@@ -554,13 +626,16 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(header_decompressor.reader().StatusOrAnnotate(
         absl::InvalidArgumentError("Reading state machine size failed")));
   }
-  // Additional `0xff` nodes to correctly handle invalid/malicious inputs.
-  context.state_machine_nodes.resize(size_t{state_machine_size} + 0xff);
+  // Additional `kNumFailureSentinelNodes` nodes to correctly handle
+  // invalid/malicious inputs.
+  StateMachineNode* const state_machine_nodes =
+      context.AllocateStateMachineNodes(size_t{state_machine_size});
+  if (ABSL_PREDICT_FALSE(state_machine_nodes == nullptr)) {
+    return Fail(absl::ResourceExhaustedError("Too many state machine nodes"));
+  }
   if (projection_enabled) {
     context.node_templates.resize(size_t{state_machine_size});
   }
-  std::vector<StateMachineNode>& state_machine_nodes =
-      context.state_machine_nodes;
   bool has_nonproto_op = false;
   size_t num_subtypes = 0;
   absl::FixedArray<uint32_t> tags(size_t{state_machine_size});
@@ -595,13 +670,14 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
   for (size_t i = 0; i < state_machine_size; ++i) {
     uint32_t tag = tags[i];
     StateMachineNode& state_machine_node = state_machine_nodes[i];
-    state_machine_node.buffer = nullptr;
+    state_machine_node = StateMachineNode{};
+    CallbackType callback_type = CallbackType::kUnknown;
     switch (static_cast<chunk_encoding_internal::MessageId>(tag)) {
       case chunk_encoding_internal::MessageId::kNoOp:
-        state_machine_node.callback_type = CallbackType::kNoOp;
+        callback_type = CallbackType::kNoOp;
         break;
       case chunk_encoding_internal::MessageId::kNonProto: {
-        state_machine_node.callback_type = CallbackType::kNonProto;
+        callback_type = CallbackType::kNonProto;
         uint32_t buffer_index;
         if (ABSL_PREDICT_FALSE(
                 !ReadVarint32(header_decompressor.reader(), buffer_index))) {
@@ -624,16 +700,16 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         has_nonproto_op = true;
       } break;
       case chunk_encoding_internal::MessageId::kStartOfMessage:
-        state_machine_node.callback_type = CallbackType::kMessageStart;
+        callback_type = CallbackType::kMessageStart;
         break;
       case chunk_encoding_internal::MessageId::kStartOfSubmessage:
         if (projection_enabled) {
           context.node_templates[i].tag = static_cast<uint32_t>(
               chunk_encoding_internal::MessageId::kStartOfSubmessage);
           state_machine_node.node_template = &context.node_templates[i];
-          state_machine_node.callback_type = CallbackType::kSelectCallback;
+          callback_type = CallbackType::kSelectCallback;
         } else {
-          state_machine_node.callback_type = CallbackType::kSubmessageStart;
+          callback_type = CallbackType::kSubmessageStart;
         }
         break;
       default: {
@@ -685,7 +761,7 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
           context.node_templates[i].subtype = subtype;
           context.node_templates[i].tag_length = IntCast<uint8_t>(tag_length);
           state_machine_node.node_template = &context.node_templates[i];
-          state_machine_node.callback_type = CallbackType::kSelectCallback;
+          callback_type = CallbackType::kSelectCallback;
         } else {
           if (chunk_encoding_internal::HasDataBuffer(tag, subtype)) {
             uint32_t buffer_index;
@@ -699,11 +775,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
             }
             state_machine_node.buffer = &context.buffers[buffer_index];
           }
-          state_machine_node.callback_type =
-              GetCallbackType(FieldIncluded::kYes, tag, subtype, tag_length,
-                              projection_enabled);
-          if (ABSL_PREDICT_FALSE(state_machine_node.callback_type ==
-                                 CallbackType::kUnknown)) {
+          callback_type = GetCallbackType(FieldIncluded::kYes, tag, subtype,
+                                          tag_length, projection_enabled);
+          if (ABSL_PREDICT_FALSE(callback_type == CallbackType::kUnknown)) {
             return Fail(absl::InvalidArgumentError("Invalid node"));
           }
         }
@@ -718,13 +792,15 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
         state_machine_node.tag_data_size = IntCast<uint8_t>(tag_length);
       }
     }
+    state_machine_node.callback =
+        StateMachineNode::ResolveCallback(callback_type);
     uint32_t next_node_id = next_node_indices[i];
     if (next_node_id >= state_machine_size) {
       // Callback is implicit.
       next_node_id -= state_machine_size;
-      state_machine_node.is_implicit = true;
+      state_machine_node.is_implicit = 1;
     } else {
-      state_machine_node.is_implicit = false;
+      state_machine_node.is_implicit = 0;
     }
     if (ABSL_PREDICT_FALSE(next_node_id >= state_machine_size)) {
       return Fail(absl::InvalidArgumentError("Node index too large"));
@@ -759,13 +835,18 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(absl::InvalidArgumentError("First node index too large"));
   }
 
-  // Add `0xff` failure nodes so we never overflow this array.
+  // Add `kNumFailureSentinelNodes` failure nodes so we never overflow this
+  // array.
   for (size_t i = size_t{state_machine_size};
-       i < size_t{state_machine_size} + 0xff; ++i) {
-    state_machine_nodes[i].callback_type = CallbackType::kFailure;
+       i < size_t{state_machine_size} + Context::kNumFailureSentinelNodes;
+       ++i) {
+    state_machine_nodes[i] = StateMachineNode{};
+    state_machine_nodes[i].callback =
+        StateMachineNode::ResolveCallback(CallbackType::kFailure);
   }
 
-  if (ABSL_PREDICT_FALSE(ContainsImplicitLoop(&state_machine_nodes))) {
+  if (ABSL_PREDICT_FALSE(ContainsImplicitLoop(state_machine_nodes,
+                                              size_t{state_machine_size}))) {
     return Fail(absl::InvalidArgumentError("Nodes contain an implicit loop"));
   }
 
@@ -1016,19 +1097,20 @@ inline Reader* TransposeDecoder::GetBuffer(Context& context,
 }
 
 inline bool TransposeDecoder::ContainsImplicitLoop(
-    std::vector<StateMachineNode>* state_machine_nodes) {
-  std::vector<size_t> implicit_loop_ids(state_machine_nodes->size(), 0);
+    const StateMachineNode* state_machine_nodes, size_t state_machine_size) {
+  std::vector<size_t> implicit_loop_ids(state_machine_size, 0);
   size_t next_loop_id = 1;
-  for (size_t i = 0; i < state_machine_nodes->size(); ++i) {
+  for (size_t i = 0; i < state_machine_size; ++i) {
     if (implicit_loop_ids[i] != 0) continue;
-    StateMachineNode* node = &(*state_machine_nodes)[i];
+    const StateMachineNode* node = &state_machine_nodes[i];
     implicit_loop_ids[i] = next_loop_id;
-    while (node->is_implicit) {
+    while (node->is_implicit != 0) {
       node = node->next_node;
-      const size_t j = node - state_machine_nodes->data();
-      if (implicit_loop_ids[j] == next_loop_id) return true;
-      if (implicit_loop_ids[j] != 0) break;
-      implicit_loop_ids[j] = next_loop_id;
+      const size_t node_offset =
+          static_cast<size_t>(node - state_machine_nodes);
+      if (implicit_loop_ids[node_offset] == next_loop_id) return true;
+      if (implicit_loop_ids[node_offset] != 0) break;
+      implicit_loop_ids[node_offset] = next_loop_id;
     }
     ++next_loop_id;
   }
@@ -1344,113 +1426,105 @@ struct TransposeDecoder::DecodingState {
     return MessageStartCallback();
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool HandleNode() {
-    // Use a loop instead of recursion to avoid unbounded stack growth.
-    // for loop is only executed more than once in the case of kSelectCallback.
-    for (;;) {
-      switch (node->callback_type) {
-        case CallbackType::kSelectCallback:
-          if (ABSL_PREDICT_FALSE(!SetCallbackType())) return false;
-          continue;
+#if !RIEGELI_TAILCALL
+  bool SaveState(StateMachineNode* next_node, uint32_t next_iters,
+                 const char* next_cursor, const char* next_limit) {
+    node = next_node;
+    num_iters = next_iters;
+    transitions_cursor = next_cursor;
+    transitions_limit = next_limit;
+    return true;
+  }
+#endif
 
-        case CallbackType::kSkippedSubmessageEnd:
-          ++skipped_submessage_level;
-          return true;
-
-        case CallbackType::kSkippedSubmessageStart:
-          if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
-            return decoder->Fail(
-                InvalidArgumentError("Skipped submessage stack underflow"));
-          }
-          --skipped_submessage_level;
-          return true;
-
-        case CallbackType::kSubmessageEnd:
-          submessage_stack.Push(IntCast<size_t>(dest->pos()), node);
-          return true;
-
-        case CallbackType::kSubmessageStart:
-          return SubmessageStartCallback();
-
-#define ACTIONS_FOR_TAG_LEN(tag_length)                  \
-  case CallbackType::kCopyTag_##tag_length:              \
-    return CopyTagCallback<tag_length>();                \
-  case CallbackType::kVarint_1_##tag_length:             \
-    return VarintCallback<tag_length, 1>();              \
-  case CallbackType::kVarint_2_##tag_length:             \
-    return VarintCallback<tag_length, 2>();              \
-  case CallbackType::kVarint_3_##tag_length:             \
-    return VarintCallback<tag_length, 3>();              \
-  case CallbackType::kVarint_4_##tag_length:             \
-    return VarintCallback<tag_length, 4>();              \
-  case CallbackType::kVarint_5_##tag_length:             \
-    return VarintCallback<tag_length, 5>();              \
-  case CallbackType::kVarint_6_##tag_length:             \
-    return VarintCallback<tag_length, 6>();              \
-  case CallbackType::kVarint_7_##tag_length:             \
-    return VarintCallback<tag_length, 7>();              \
-  case CallbackType::kVarint_8_##tag_length:             \
-    return VarintCallback<tag_length, 8>();              \
-  case CallbackType::kVarint_9_##tag_length:             \
-    return VarintCallback<tag_length, 9>();              \
-  case CallbackType::kVarint_10_##tag_length:            \
-    return VarintCallback<tag_length, 10>();             \
-  case CallbackType::kFixed32_##tag_length:              \
-    return FixedCallback<tag_length, 4>();               \
-  case CallbackType::kFixed64_##tag_length:              \
-    return FixedCallback<tag_length, 8>();               \
-  case CallbackType::kFixed32Existence_##tag_length:     \
-    return FixedExistenceCallback<tag_length, 4>();      \
-  case CallbackType::kFixed64Existence_##tag_length:     \
-    return FixedExistenceCallback<tag_length, 8>();      \
-  case CallbackType::kString_##tag_length:               \
-    return StringCallback<tag_length>();                 \
-  case CallbackType::kStartProjectionGroup_##tag_length: \
-    return StartProjectionGroupCallback<tag_length>();   \
-  case CallbackType::kEndProjectionGroup_##tag_length:   \
-    return EndProjectionGroupCallback<tag_length>()
-
-          ACTIONS_FOR_TAG_LEN(1);
-          ACTIONS_FOR_TAG_LEN(2);
-          ACTIONS_FOR_TAG_LEN(3);
-          ACTIONS_FOR_TAG_LEN(4);
-          ACTIONS_FOR_TAG_LEN(5);
-#undef ACTIONS_FOR_TAG_LEN
-
-        case CallbackType::kCopyTag_6:
-          return CopyTagCallback<6>();
-
-        case CallbackType::kUnknown:
-        case CallbackType::kFailure:
-          return decoder->Fail(InvalidArgumentError("Invalid node index"));
-
-        case CallbackType::kNonProto:
-          return NonprotoCallback();
-
-        case CallbackType::kMessageStart:
-          return MessageStartCallback();
-
-        case CallbackType::kNoOp:
-          return true;
-      }
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Unknown callback type: " << static_cast<int>(node->callback_type);
+  ABSL_ATTRIBUTE_NOINLINE static RIEGELI_PRESERVE_NONE bool
+  RefillTransitionsAndDispatch(DecodingState* state, StateMachineNode* node,
+                               uint32_t /*num_iters*/,
+                               const char* transitions_cursor,
+                               const char* /*transitions_limit*/) {
+    state->transitions_reader->set_cursor(transitions_cursor);
+    if (ABSL_PREDICT_FALSE(!state->transitions_reader->Pull())) {
+#if !RIEGELI_TAILCALL
+      state->finished = true;
+#endif
+      return state->Finish();
     }
+    transitions_cursor = state->transitions_reader->cursor();
+    const char* const transitions_limit = state->transitions_reader->limit();
+    const uint8_t transition_byte = static_cast<uint8_t>(*transitions_cursor++);
+    node += (transition_byte >> 2);
+    const uint32_t num_iters = (transition_byte & 3) + node->is_implicit;
+    RIEGELI_DISPATCH_CALLBACK(state, node, num_iters, transitions_cursor,
+                              transitions_limit);
   }
 
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool TransitionNode() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE static RIEGELI_PRESERVE_NONE bool DispatchNext(
+      DecodingState* state, StateMachineNode* node, uint32_t num_iters,
+      const char* transitions_cursor, const char* transitions_limit) {
     node = node->next_node;
-    if (num_iters == 0) {
-      uint8_t transition_byte;
-      if (ABSL_PREDICT_FALSE(!transitions_reader->ReadByte(transition_byte))) {
-        return false;
-      }
-      node += (transition_byte >> 2);
-      num_iters = (transition_byte & 3) + (node->is_implicit ? 1 : 0);
-    } else {
-      num_iters -= node->is_implicit ? 0 : 1;
+    if (num_iters != 0) {
+      num_iters = num_iters + node->is_implicit - 1;
+      RIEGELI_DISPATCH_CALLBACK(state, node, num_iters, transitions_cursor,
+                                transitions_limit);
     }
+    if (ABSL_PREDICT_TRUE(transitions_cursor != transitions_limit)) {
+      const uint8_t transition_byte =
+          static_cast<uint8_t>(*transitions_cursor++);
+      node += (transition_byte >> 2);
+      num_iters = (transition_byte & 3) + node->is_implicit;
+      RIEGELI_DISPATCH_CALLBACK(state, node, num_iters, transitions_cursor,
+                                transitions_limit);
+    }
+    RIEGELI_MUSTTAIL return RefillTransitionsAndDispatch(
+        state, node, num_iters, transitions_cursor, transitions_limit);
+  }
+
+  template <bool (DecodingState::*Method)()>
+  static RIEGELI_PRESERVE_NONE bool InvokeCallback(
+      DecodingState* state, StateMachineNode* node, uint32_t num_iters,
+      const char* transitions_cursor, const char* transitions_limit) {
+    state->node = node;
+    if (ABSL_PREDICT_FALSE(!(state->*Method)())) return false;
+    RIEGELI_MUSTTAIL return DispatchNext(state, node, num_iters,
+                                         transitions_cursor, transitions_limit);
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool NoOpCallback() { return true; }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool SkippedSubmessageEndCallback() {
+    ++skipped_submessage_level;
     return true;
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool SkippedSubmessageStartCallback() {
+    if (ABSL_PREDICT_FALSE(skipped_submessage_level == 0)) {
+      return decoder->Fail(
+          InvalidArgumentError("Skipped submessage stack underflow"));
+    }
+    --skipped_submessage_level;
+    return true;
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool SubmessageEndCallback() {
+    submessage_stack.Push(IntCast<size_t>(dest->pos()), node);
+    return true;
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool FailureCallback() {
+    return decoder->Fail(InvalidArgumentError("Invalid node index"));
+  }
+
+  ABSL_ATTRIBUTE_NOINLINE static RIEGELI_PRESERVE_NONE bool SelectCallback(
+      DecodingState* state, StateMachineNode* node, uint32_t num_iters,
+      const char* transitions_cursor, const char* transitions_limit) {
+    state->node = node;
+    for (;;) {
+      if (ABSL_PREDICT_FALSE(!state->SetCallbackType())) return false;
+      if (ABSL_PREDICT_TRUE(node->callback != &SelectCallback)) {
+        RIEGELI_DISPATCH_CALLBACK(state, node, num_iters, transitions_cursor,
+                                  transitions_limit);
+      }
+    }
   }
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool Finish() {
@@ -1490,6 +1564,51 @@ struct TransposeDecoder::DecodingState {
     return true;
   }
 
+#define RIEGELI_CB(...) &InvokeCallback<&DecodingState::__VA_ARGS__>
+  static constexpr StateMachineNode::Callback kCallbackTable[] = {
+      RIEGELI_CB(NoOpCallback),
+      RIEGELI_CB(MessageStartCallback),
+      RIEGELI_CB(SubmessageStartCallback),
+      RIEGELI_CB(SubmessageEndCallback),
+      &SelectCallback,
+      RIEGELI_CB(SkippedSubmessageStartCallback),
+      RIEGELI_CB(SkippedSubmessageEndCallback),
+      RIEGELI_CB(NonprotoCallback),
+      RIEGELI_CB(FailureCallback),
+#define CALLBACKS_FOR_TAG_LEN(tag_length)                   \
+  RIEGELI_CB(CopyTagCallback<tag_length>),                  \
+      RIEGELI_CB(VarintCallback<tag_length, 1>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 2>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 3>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 4>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 5>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 6>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 7>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 8>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 9>),            \
+      RIEGELI_CB(VarintCallback<tag_length, 10>),           \
+      RIEGELI_CB(FixedCallback<tag_length, 4>),             \
+      RIEGELI_CB(FixedCallback<tag_length, 8>),             \
+      RIEGELI_CB(FixedExistenceCallback<tag_length, 4>),    \
+      RIEGELI_CB(FixedExistenceCallback<tag_length, 8>),    \
+      RIEGELI_CB(StringCallback<tag_length>),               \
+      RIEGELI_CB(StartProjectionGroupCallback<tag_length>), \
+      RIEGELI_CB(EndProjectionGroupCallback<tag_length>)
+      CALLBACKS_FOR_TAG_LEN(1),
+      CALLBACKS_FOR_TAG_LEN(2),
+      CALLBACKS_FOR_TAG_LEN(3),
+      CALLBACKS_FOR_TAG_LEN(4),
+      CALLBACKS_FOR_TAG_LEN(5),
+#undef CALLBACKS_FOR_TAG_LEN
+      RIEGELI_CB(CopyTagCallback<6>),
+      RIEGELI_CB(FailureCallback),
+  };
+#undef RIEGELI_CB
+
+  static_assert(std::size(kCallbackTable) ==
+                    static_cast<size_t>(CallbackType::kUnknown) + 1,
+                "kCallbackTable must match CallbackType enum size.");
+
   // Initial state
   TransposeDecoder* decoder;
   Context* context;
@@ -1509,17 +1628,40 @@ struct TransposeDecoder::DecodingState {
   SubmessageStack submessage_stack;
   // Number of following iteration that go directly to `node->next_node`
   // without reading transition byte. Maximum value is 4.
-  int8_t num_iters;
+  uint32_t num_iters;
+#if !RIEGELI_TAILCALL
+  const char* transitions_cursor = nullptr;
+  const char* transitions_limit = nullptr;
+  bool finished = false;
+#endif
 };
+
+inline TransposeDecoder::StateMachineNode::Callback
+TransposeDecoder::StateMachineNode::ResolveCallback(
+    CallbackType callback_type) {
+  return DecodingState::kCallbackTable[static_cast<size_t>(callback_type)];
+}
 
 inline bool TransposeDecoder::Decode(Context& context, uint64_t num_records,
                                      BackwardWriter& dest,
                                      std::vector<size_t>& limits) {
   DecodingState state(this, &context, num_records, &dest, &limits);
-  do {
-    if (ABSL_PREDICT_FALSE(!state.HandleNode())) return false;
-  } while (ABSL_PREDICT_TRUE(state.TransitionNode()));
-  return state.Finish();
+#if RIEGELI_TAILCALL
+  return state.node->callback(&state, state.node, state.num_iters,
+                              state.transitions_reader->cursor(),
+                              state.transitions_reader->limit());
+#else
+  state.transitions_cursor = state.transitions_reader->cursor();
+  state.transitions_limit = state.transitions_reader->limit();
+  while (!state.finished) {
+    if (ABSL_PREDICT_FALSE(!state.node->callback(
+            &state, state.node, state.num_iters, state.transitions_cursor,
+            state.transitions_limit))) {
+      return false;
+    }
+  }
+  return true;
+#endif
 }
 
 // Do not inline this function. This helps Clang to generate better code for
@@ -1529,13 +1671,14 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     absl::Span<const StateMachineNode* const> submessage_stack,
     StateMachineNode& node) {
   StateMachineNodeTemplate* node_template = node.node_template;
+  CallbackType callback_type = CallbackType::kUnknown;
   if (node_template->tag ==
       static_cast<uint32_t>(
           chunk_encoding_internal::MessageId::kStartOfSubmessage)) {
     if (skipped_submessage_level > 0) {
-      node.callback_type = CallbackType::kSkippedSubmessageStart;
+      callback_type = CallbackType::kSkippedSubmessageStart;
     } else {
-      node.callback_type = CallbackType::kSubmessageStart;
+      callback_type = CallbackType::kSubmessageStart;
     }
   } else {
     FieldIncluded field_included = FieldIncluded::kNo;
@@ -1604,9 +1747,9 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
     } else {
       node.buffer = kEmptyReader();
     }
-    node.callback_type = GetCallbackType(field_included, node_template->tag,
-                                         node_template->subtype,
-                                         node_template->tag_length, true);
+    callback_type = GetCallbackType(field_included, node_template->tag,
+                                    node_template->subtype,
+                                    node_template->tag_length, true);
     if (field_included == FieldIncluded::kExistenceOnly &&
         GetTagWireType(node_template->tag) == WireType::kVarint) {
       // The tag in `tag_data` was followed by a subtype but must be followed by
@@ -1614,6 +1757,7 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       node.tag_data[node_template->tag_length] = 0;
     }
   }
+  node.callback = StateMachineNode::ResolveCallback(callback_type);
   return true;
 }
 
