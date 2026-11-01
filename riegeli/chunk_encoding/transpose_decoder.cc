@@ -367,16 +367,21 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
 }  // namespace
 
 // Node of the state machine read from input.
-struct TransposeDecoder::StateMachineNode {
+//
+// Aligned to 32 bytes, so transition indexing uses a power-of-two stride (a
+// single shift) and a node never straddles a 64-byte cache line. Full byte
+// fields for `tag_data_size` and `is_implicit` avoid bitfield extract and
+// partial-register stalls in the dispatch loop.
+struct alignas(32) TransposeDecoder::StateMachineNode {
   // Tag for the field decoded by this node, may benefit from being aligned.
   //
   // `tag_data` contains varint encoded tag (1 to 5 bytes) followed by inline
   // numeric (if any) or zero otherwise.
   char tag_data[kMaxLengthVarint32 + 1];
   // Size of the tag data. Must be in the range [1..5].
-  uint8_t tag_data_size : 7;
-  // Whether the callback is implicit.
-  bool is_implicit : 1;
+  uint8_t tag_data_size;
+  // Whether the callback is implicit (1 if implicit, 0 otherwise).
+  uint8_t is_implicit;
   CallbackType callback_type;
   union {
     // Buffer to read data from.
@@ -390,8 +395,15 @@ struct TransposeDecoder::StateMachineNode {
 };
 
 struct TransposeDecoder::Context {
-  static_assert(sizeof(StateMachineNode) == 8 + 2 * sizeof(void*),
-                "Unexpected padding in StateMachineNode.");
+  static_assert(sizeof(StateMachineNode) == 32,
+                "Unexpected size in StateMachineNode.");
+
+  // Maximum step offset encoded in a transition byte is `0xff >> 2 == 63`.
+  static constexpr size_t kNumFailureSentinelNodes = 64;
+  static_assert((std::numeric_limits<uint8_t>::max() >> 2) <
+                    kNumFailureSentinelNodes,
+                "Maximum transition offset must fit in sentinel nodes.");
+
   // Compression type of the input.
   CompressionType compression_type = CompressionType::kNone;
   // Buffer containing all the data.
@@ -554,8 +566,10 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(header_decompressor.reader().StatusOrAnnotate(
         absl::InvalidArgumentError("Reading state machine size failed")));
   }
-  // Additional `0xff` nodes to correctly handle invalid/malicious inputs.
-  context.state_machine_nodes.resize(size_t{state_machine_size} + 0xff);
+  // Additional `kNumFailureSentinelNodes` nodes to correctly handle
+  // invalid/malicious inputs.
+  context.state_machine_nodes.resize(size_t{state_machine_size} +
+                                     Context::kNumFailureSentinelNodes);
   if (projection_enabled) {
     context.node_templates.resize(size_t{state_machine_size});
   }
@@ -722,9 +736,9 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     if (next_node_id >= state_machine_size) {
       // Callback is implicit.
       next_node_id -= state_machine_size;
-      state_machine_node.is_implicit = true;
+      state_machine_node.is_implicit = 1;
     } else {
-      state_machine_node.is_implicit = false;
+      state_machine_node.is_implicit = 0;
     }
     if (ABSL_PREDICT_FALSE(next_node_id >= state_machine_size)) {
       return Fail(absl::InvalidArgumentError("Node index too large"));
@@ -759,9 +773,11 @@ inline bool TransposeDecoder::Parse(Context& context, Reader& src,
     return Fail(absl::InvalidArgumentError("First node index too large"));
   }
 
-  // Add `0xff` failure nodes so we never overflow this array.
+  // Add `kNumFailureSentinelNodes` failure nodes so we never overflow this
+  // array.
   for (size_t i = size_t{state_machine_size};
-       i < size_t{state_machine_size} + 0xff; ++i) {
+       i < size_t{state_machine_size} + Context::kNumFailureSentinelNodes;
+       ++i) {
     state_machine_nodes[i].callback_type = CallbackType::kFailure;
   }
 
@@ -1023,7 +1039,7 @@ inline bool TransposeDecoder::ContainsImplicitLoop(
     if (implicit_loop_ids[i] != 0) continue;
     StateMachineNode* node = &(*state_machine_nodes)[i];
     implicit_loop_ids[i] = next_loop_id;
-    while (node->is_implicit) {
+    while (node->is_implicit != 0) {
       node = node->next_node;
       const size_t j = node - state_machine_nodes->data();
       if (implicit_loop_ids[j] == next_loop_id) return true;
