@@ -10,6 +10,7 @@ licenses(["notice"])
 cc_library(
     name = "type_traits",
     hdrs = ["type_traits.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:string_view",
@@ -21,12 +22,14 @@ cc_library(
     name = "constexpr",
     srcs = ["port.h"],
     hdrs = ["constexpr.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 cc_library(
     name = "null_safe_memcpy",
     hdrs = ["null_safe_memcpy.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
@@ -36,6 +39,10 @@ cc_library(
 cc_library(
     name = "compare",
     hdrs = ["compare.h"],
+    visibility = [
+        "//python/riegeli:__subpackages__",
+        "//riegeli:__subpackages__",
+    ],
     deps = [
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:string_view",
@@ -46,6 +53,7 @@ cc_library(
 cc_library(
     name = "iterable",
     hdrs = ["iterable.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
@@ -57,6 +65,7 @@ cc_library(
     name = "stream_utils",
     srcs = ["stream_utils.cc"],
     hdrs = ["stream_utils.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":types",
         "@com_google_absl//absl/base:core_headers",
@@ -69,6 +78,7 @@ cc_library(
     name = "debug",
     srcs = ["debug.cc"],
     hdrs = ["debug.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":stream_utils",
         "@com_google_absl//absl/base:core_headers",
@@ -87,6 +97,10 @@ cc_library(
         "port.h",
     ],
     hdrs = ["assert.h"],
+    visibility = [
+        "//python/riegeli:__subpackages__",
+        "//riegeli:__subpackages__",
+    ],
     deps = [
         ":debug",
         ":stream_utils",
@@ -99,6 +113,7 @@ cc_library(
 cc_library(
     name = "memory_annotations",
     hdrs = ["memory_annotations.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = ["@com_google_absl//absl/base:nullability"],
 )
 
@@ -108,6 +123,7 @@ cc_library(
     deps = ["@com_google_absl//absl/base:nullability"],
 )
 
+# TODO: Make private to Riegeli.
 cc_library(
     name = "arithmetic",
     hdrs = ["arithmetic.h"],
@@ -124,6 +140,7 @@ cc_library(
 cc_library(
     name = "buffering",
     hdrs = ["buffering.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":types",
@@ -135,6 +152,7 @@ cc_library(
 cc_library(
     name = "estimated_allocated_size",
     hdrs = ["estimated_allocated_size.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         "@com_google_absl//absl/base:core_headers",
@@ -145,6 +163,7 @@ cc_library(
 cc_library(
     name = "new_aligned",
     hdrs = ["new_aligned.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -159,6 +178,7 @@ cc_library(
     name = "string_utils",
     srcs = ["string_utils.cc"],
     hdrs = ["string_utils.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -171,6 +191,7 @@ cc_library(
     name = "cord_utils",
     srcs = ["cord_utils.cc"],
     hdrs = ["cord_utils.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -193,6 +214,7 @@ cc_library(
         "@platforms//os:windows": ["-use_header_modules"],
         "//conditions:default": [],
     }),
+    visibility = ["//riegeli:__subpackages__"],
     deps = select({
         "@platforms//os:windows": [
             ":arithmetic",
@@ -209,6 +231,7 @@ cc_library(
 cc_library(
     name = "type_id",
     hdrs = ["type_id.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":compare",
         "@com_google_absl//absl/base:nullability",
@@ -218,6 +241,7 @@ cc_library(
 cc_library(
     name = "reset",
     hdrs = ["reset.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:cord",
@@ -227,6 +251,7 @@ cc_library(
 cc_library(
     name = "type_erased_ref",
     hdrs = ["type_erased_ref.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":assert",
         ":type_traits",
@@ -259,12 +284,17 @@ cc_library(
 cc_library(
     name = "global",
     hdrs = ["global.h"],
+    visibility = [
+        "//python/riegeli:__subpackages__",
+        "//riegeli:__subpackages__",
+    ],
     deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 cc_library(
     name = "string_ref",
     hdrs = ["string_ref.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":assert",
         ":compare",
@@ -279,6 +309,7 @@ cc_library(
 cc_library(
     name = "bytes_ref",
     hdrs = ["bytes_ref.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":compare",
         ":initializer",
@@ -294,6 +325,7 @@ cc_library(
 cc_library(
     name = "c_string_ref",
     hdrs = ["c_string_ref.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":compare",
         ":initializer",
@@ -309,6 +341,7 @@ cc_library(
     name = "memory_estimator",
     srcs = ["memory_estimator.cc"],
     hdrs = ["memory_estimator.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":estimated_allocated_size",
@@ -401,6 +434,7 @@ cc_library(
     name = "cord_iterator_span",
     srcs = ["cord_iterator_span.cc"],
     hdrs = ["cord_iterator_span.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -414,6 +448,7 @@ cc_library(
     ],
 )
 
+# TODO: Make private to Riegeli.
 cc_library(
     name = "status",
     srcs = ["status.cc"],
@@ -429,6 +464,7 @@ cc_library(
 cc_library(
     name = "status_or_maker",
     hdrs = ["status_or_maker.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -445,6 +481,7 @@ cc_library(
         "@platforms//os:windows": ["-use_header_modules"],
         "//conditions:default": [],
     }),
+    visibility = ["//riegeli:__subpackages__"],
     deps = ["@com_google_absl//absl/status"] + select({
         "@platforms//os:windows": [
             ":arithmetic",
@@ -480,12 +517,14 @@ cc_library(
 cc_library(
     name = "ownership",
     hdrs = ["ownership.h"],
+    visibility = ["//visibility:private"],
     deps = ["@com_google_absl//absl/base:nullability"],
 )
 
 cc_library(
     name = "ref_count",
     hdrs = ["ref_count.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":ownership",
         "@com_google_absl//absl/base:core_headers",
@@ -496,6 +535,7 @@ cc_library(
 cc_library(
     name = "intrusive_shared_ptr",
     hdrs = ["intrusive_shared_ptr.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":assert",
         ":compare",
@@ -507,6 +547,7 @@ cc_library(
     ],
 )
 
+# TODO: Make private to Riegeli.
 cc_library(
     name = "shared_ptr",
     hdrs = ["shared_ptr.h"],
@@ -527,6 +568,7 @@ cc_library(
     name = "buffer",
     srcs = ["buffer.cc"],
     hdrs = ["buffer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -542,6 +584,7 @@ cc_library(
     name = "shared_buffer",
     srcs = ["shared_buffer.cc"],
     hdrs = ["shared_buffer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -558,6 +601,7 @@ cc_library(
     name = "sized_shared_buffer",
     srcs = ["sized_shared_buffer.cc"],
     hdrs = ["sized_shared_buffer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -608,6 +652,7 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to absl::Cord.
 cc_library(
     name = "chain",
     hdrs = ["chain.h"],
@@ -647,6 +692,7 @@ cc_library(
 cc_library(
     name = "uninitialized_vector",
     hdrs = ["uninitialized_vector.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:inlined_vector",
@@ -657,6 +703,10 @@ cc_library(
     name = "compact_string",
     srcs = ["compact_string.cc"],
     hdrs = ["compact_string.h"],
+    visibility = [
+        "//python/riegeli:__subpackages__",
+        "//riegeli:__subpackages__",
+    ],
     deps = [
         ":arithmetic",
         ":assert",
@@ -677,6 +727,7 @@ cc_library(
 cc_library(
     name = "optional_compact_string",
     hdrs = ["optional_compact_string.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":assert",
         ":bytes_ref",
@@ -696,6 +747,7 @@ cc_library(
         "hybrid_direct_internal.h",
     ],
     hdrs = ["hybrid_direct_map.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -717,6 +769,7 @@ cc_library(
         "hybrid_direct_internal.h",
     ],
     hdrs = ["hybrid_direct_set.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
         ":assert",
@@ -732,6 +785,7 @@ cc_library(
 cc_library(
     name = "binary_search",
     hdrs = ["binary_search.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":compare",
         "@com_google_absl//absl/base:core_headers",
@@ -759,6 +813,7 @@ cc_library(
     name = "background_cleaning",
     srcs = ["background_cleaning.cc"],
     hdrs = ["background_cleaning.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":assert",
         ":global",
@@ -787,6 +842,7 @@ cc_library(
     ],
 )
 
+# TODO: Make private to Riegeli.
 cc_library(
     name = "options_parser",
     srcs = ["options_parser.cc"],
