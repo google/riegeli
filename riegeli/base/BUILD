@@ -509,9 +509,7 @@ cc_library(
 
 cc_library(
     name = "shared_ptr",
-    hdrs = [
-        "shared_ptr.h",
-    ],
+    hdrs = ["shared_ptr.h"],
     deps = [
         ":arithmetic",
         ":assert",
