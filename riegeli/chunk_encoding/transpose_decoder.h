@@ -118,7 +118,7 @@ class TransposeDecoder : public Object {
                     uint32_t index_within_bucket);
 
   static bool ContainsImplicitLoop(
-      std::vector<StateMachineNode>* state_machine_nodes);
+      absl::Span<const StateMachineNode> state_machine_nodes);
 
   bool Decode(Context& context, uint64_t num_records, BackwardWriter& dest,
               std::vector<size_t>& limits);
