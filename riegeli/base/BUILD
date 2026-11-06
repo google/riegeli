@@ -97,6 +97,12 @@ cc_library(
 )
 
 cc_library(
+    name = "memory_annotations",
+    hdrs = ["memory_annotations.h"],
+    deps = ["@com_google_absl//absl/base:nullability"],
+)
+
+cc_library(
     name = "types",
     hdrs = ["types.h"],
     deps = ["@com_google_absl//absl/base:nullability"],
@@ -410,30 +416,41 @@ cc_library(
 
 cc_library(
     name = "status",
-    srcs = [
-        "errno_mapping.cc",
-        "status.cc",
+    srcs = ["status.cc"],
+    hdrs = ["status.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:string_view",
     ],
-    hdrs = [
-        "errno_mapping.h",
-        "status.h",
+)
+
+cc_library(
+    name = "status_or_maker",
+    hdrs = ["status_or_maker.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
+)
+
+cc_library(
+    name = "errno_mapping",
+    srcs = ["errno_mapping.cc"],
+    hdrs = ["errno_mapping.h"],
     features = select({
         # errno_mapping.cc has #define before #include to influence what the
         # included files provide.
         "@platforms//os:windows": ["-use_header_modules"],
         "//conditions:default": [],
     }),
-    deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/strings:string_view",
-    ] + select({
+    deps = ["@com_google_absl//absl/status"] + select({
         "@platforms//os:windows": [
             ":arithmetic",
             ":unicode",
+            "@com_google_absl//absl/strings",
+            "@com_google_absl//absl/strings:string_view",
             "@com_google_absl//absl/types:span",
         ],
         "//conditions:default": [],
@@ -461,11 +478,38 @@ cc_library(
 )
 
 cc_library(
+    name = "ownership",
+    hdrs = ["ownership.h"],
+    deps = ["@com_google_absl//absl/base:nullability"],
+)
+
+cc_library(
+    name = "ref_count",
+    hdrs = ["ref_count.h"],
+    deps = [
+        ":ownership",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+    ],
+)
+
+cc_library(
+    name = "intrusive_shared_ptr",
+    hdrs = ["intrusive_shared_ptr.h"],
+    deps = [
+        ":assert",
+        ":compare",
+        ":external_data",
+        ":initializer",
+        ":ownership",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+    ],
+)
+
+cc_library(
     name = "shared_ptr",
     hdrs = [
-        "intrusive_shared_ptr.h",
-        "ownership.h",
-        "ref_count.h",
         "shared_ptr.h",
     ],
     deps = [
@@ -475,6 +519,7 @@ cc_library(
         ":external_data",
         ":initializer",
         ":new_aligned",
+        ":ref_count",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
     ],
@@ -545,11 +590,13 @@ cc_library(
         ":cord_utils",
         ":external_data",
         ":initializer",
+        ":intrusive_shared_ptr",
         ":iterable",
         ":memory_estimator",
         ":new_aligned",
         ":null_safe_memcpy",
-        ":shared_ptr",
+        ":ownership",
+        ":ref_count",
         ":stream_utils",
         ":string_utils",
         ":type_traits",
@@ -619,12 +666,12 @@ cc_library(
         ":compare",
         ":estimated_allocated_size",
         ":external_data",
+        ":memory_annotations",
         ":new_aligned",
         ":null_safe_memcpy",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:hash_container_defaults",
-        "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings:string_view",
     ],
 )

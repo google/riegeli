@@ -76,7 +76,7 @@ cc_library(
         "//riegeli/base:initializer",
         "//riegeli/base:moving_dependency",
         "//riegeli/base:object",
-        "//riegeli/base:status",
+        "//riegeli/base:status_or_maker",
         "//riegeli/base:types",
         "//riegeli/bytes:reader",
         "@com_google_absl//absl/base:core_headers",

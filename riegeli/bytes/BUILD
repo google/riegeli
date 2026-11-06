@@ -49,6 +49,7 @@ cc_library(
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
         "//riegeli/base:external_ref",
+        "//riegeli/base:memory_annotations",
         "//riegeli/base:null_safe_memcpy",
         "//riegeli/base:object",
         "//riegeli/base:reset",
@@ -75,6 +76,7 @@ cc_library(
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
         "//riegeli/base:external_ref",
+        "//riegeli/base:memory_annotations",
         "//riegeli/base:null_safe_memcpy",
         "//riegeli/base:object",
         "//riegeli/base:types",
@@ -113,6 +115,7 @@ cc_library(
         "//riegeli/base:chain",
         "//riegeli/base:cord_utils",
         "//riegeli/base:external_ref",
+        "//riegeli/base:memory_annotations",
         "//riegeli/base:null_safe_memcpy",
         "//riegeli/base:object",
         "//riegeli/base:reset",
@@ -140,7 +143,7 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:dependency",
-        "//riegeli/base:status",
+        "//riegeli/base:status_or_maker",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
@@ -861,6 +864,7 @@ cc_library(
         "//riegeli/base:dependency",
         "//riegeli/base:external_ref",
         "//riegeli/base:initializer",
+        "//riegeli/base:memory_annotations",
         "//riegeli/base:moving_dependency",
         "//riegeli/base:object",
         "//riegeli/base:string_utils",
@@ -1184,7 +1188,9 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
     ] + select({
-        "@platforms//os:windows": [],
+        "@platforms//os:windows": [
+            "//riegeli/base:errno_mapping",
+        ],
         "//conditions:default": [
             ":buffered_writer",
             ":writer",
@@ -1221,7 +1227,9 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
     ] + select({
-        "@platforms//os:windows": [],
+        "@platforms//os:windows": [
+            "//riegeli/base:errno_mapping",
+        ],
         "//conditions:default": [
             "//riegeli/base:global",
             "@com_google_absl//absl/status:statusor",
@@ -1262,7 +1270,12 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "//riegeli/base:errno_mapping",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
@@ -1529,9 +1542,9 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
+        "//riegeli/base:errno_mapping",
         "//riegeli/base:initializer",
         "//riegeli/base:reset",
-        "//riegeli/base:status",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
@@ -1555,9 +1568,9 @@ cc_library(
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
+        "//riegeli/base:errno_mapping",
         "//riegeli/base:initializer",
         "//riegeli/base:reset",
-        "//riegeli/base:status",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",

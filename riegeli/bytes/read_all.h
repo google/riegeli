@@ -28,7 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/status.h"
+#include "riegeli/base/status_or_maker.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {

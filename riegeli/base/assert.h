@@ -15,8 +15,6 @@
 #ifndef RIEGELI_BASE_ASSERT_H_
 #define RIEGELI_BASE_ASSERT_H_
 
-#include <stddef.h>
-
 #include <cassert>
 #include <ostream>  // IWYU pragma: export
 #include <type_traits>
@@ -518,24 +516,6 @@ class UnreachableStream {
   ::riegeli::assert_internal::UnreachableStream()
 
 #endif  // !RIEGELI_DEBUG
-
-// Asserts that a region of memory is initialized, which is checked when running
-// under memory sanitizer.
-inline void AssertInitialized([[maybe_unused]] const char* data,
-                              [[maybe_unused]] size_t size) {
-#ifdef MEMORY_SANITIZER
-  __msan_check_mem_is_initialized(data, size);
-#endif
-}
-
-// Marks that a region of memory should be treated as uninitialized, which is
-// checked when running under memory sanitizer.
-inline void MarkPoisoned([[maybe_unused]] const char* data,
-                         [[maybe_unused]] size_t size) {
-#ifdef MEMORY_SANITIZER
-  __msan_poison(data, size);
-#endif
-}
 
 }  // namespace riegeli
 

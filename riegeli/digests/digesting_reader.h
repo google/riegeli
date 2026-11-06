@@ -34,7 +34,7 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/status.h"
+#include "riegeli/base/status_or_maker.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/digests/digest_converter.h"

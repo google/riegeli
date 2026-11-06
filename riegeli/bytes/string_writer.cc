@@ -32,6 +32,7 @@
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/memory_annotations.h"
 #include "riegeli/base/string_utils.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"

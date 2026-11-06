@@ -33,6 +33,7 @@
 #include "riegeli/base/external_ref.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
+#include "riegeli/base/memory_annotations.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"

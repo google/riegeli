@@ -38,6 +38,7 @@
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
+#include "riegeli/base/memory_annotations.h"
 #include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
