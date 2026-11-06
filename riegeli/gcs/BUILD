@@ -66,6 +66,7 @@ cc_library(
         "gcs_writer.cc",
     ],
     hdrs = ["gcs_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":gcs_object",
         ":gcs_reader",

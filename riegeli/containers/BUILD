@@ -11,6 +11,7 @@ cc_library(
     name = "linear_sorted_string_set",
     srcs = ["linear_sorted_string_set.cc"],
     hdrs = ["linear_sorted_string_set.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -40,6 +41,7 @@ cc_library(
     name = "chunked_sorted_string_set",
     srcs = ["chunked_sorted_string_set.cc"],
     hdrs = ["chunked_sorted_string_set.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":linear_sorted_string_set",
         "//riegeli/base:arithmetic",

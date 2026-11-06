@@ -24,6 +24,7 @@ cc_binary(
     # translation units.
     copts = ["-DNDEBUG"],
     linkshared = True,
+    visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/records:record_position",
