@@ -48,6 +48,7 @@ cc_library(
     name = "text_reader",
     srcs = ["text_reader.cc"],
     hdrs = ["text_reader.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":newline",
         "//riegeli/base:any",
@@ -72,6 +73,7 @@ cc_library(
     name = "text_writer",
     srcs = ["text_writer.cc"],
     hdrs = ["text_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":line_writing",
         ":newline",

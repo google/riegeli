@@ -920,6 +920,7 @@ cc_library(
 cc_library(
     name = "compact_string_writer",
     hdrs = ["compact_string_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":resizable_writer",
         "//riegeli/base:assert",
@@ -1112,6 +1113,7 @@ cc_library(
 cc_library(
     name = "path_ref",
     hdrs = ["path_ref.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:compare",
         "//riegeli/base:initializer",
