@@ -14,6 +14,7 @@ cc_library(
         "ordered_varint_reading.cc",
     ],
     hdrs = ["ordered_varint_reading.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:assert",
         "//riegeli/bytes:reader",
@@ -29,6 +30,7 @@ cc_library(
         "ordered_varint_writing.cc",
     ],
     hdrs = ["ordered_varint_writing.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",

@@ -10,6 +10,7 @@ licenses(["notice"])
 cc_library(
     name = "concat",
     hdrs = ["concat.h"],
+    visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:initializer",
         "//riegeli/bytes:ostream_writer",
@@ -24,6 +25,7 @@ cc_library(
     name = "write_int",
     srcs = ["write_int.cc"],
     hdrs = ["write_int.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
@@ -42,6 +44,7 @@ cc_library(
 cc_library(
     name = "ascii_align",
     hdrs = ["ascii_align.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":concat",
         "//riegeli/base:arithmetic",
@@ -63,6 +66,7 @@ cc_library(
 cc_library(
     name = "join",
     hdrs = ["join.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:initializer",
         "//riegeli/base:iterable",

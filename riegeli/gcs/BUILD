@@ -1,3 +1,5 @@
+# TODO: Transfer ownership to the Cloud Team.
+
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 package(
@@ -66,6 +68,7 @@ cc_library(
         "gcs_writer.cc",
     ],
     hdrs = ["gcs_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":gcs_object",
         ":gcs_reader",

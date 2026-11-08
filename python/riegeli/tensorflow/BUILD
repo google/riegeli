@@ -1,3 +1,5 @@
+# TODO: Transfer ownership to the TensorFlow Team.
+
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 load("@rules_python//python:defs.bzl", "py_library", "py_test")
 
@@ -24,6 +26,7 @@ cc_binary(
     # translation units.
     copts = ["-DNDEBUG"],
     linkshared = True,
+    visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/records:record_position",
