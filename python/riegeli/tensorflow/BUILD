@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 load("@rules_python//python:defs.bzl", "py_library", "py_test")
+load("//third_party/bazel_rules/rules_python/python:py_test.bzl", "py_test")
 
 package(
     default_visibility = ["//visibility:public"],
@@ -43,6 +44,7 @@ cc_binary(
 py_test(
     name = "riegeli_dataset_test",
     srcs = ["kernel_tests/riegeli_dataset_test.py"],
+    type_checking = True,
     deps = [
         ":riegeli_dataset_ops",
         "//python/riegeli",

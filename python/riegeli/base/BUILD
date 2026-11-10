@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_python//python:defs.bzl", "py_library")
+load("//third_party/bazel_rules/rules_python/python:py_library.bzl", "py_library")
 
 package(
     default_visibility = ["//python/riegeli:__subpackages__"],
@@ -34,4 +35,5 @@ cc_library(
 py_library(
     name = "riegeli_error",
     srcs = ["riegeli_error.py"],
+    type_checking = True,
 )
