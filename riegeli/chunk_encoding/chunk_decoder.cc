@@ -74,6 +74,8 @@ bool ChunkDecoder::Decode(const Chunk& chunk, bool flatten) {
 
 inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
                                 Chain& dest, bool flatten) {
+  // Do not force flattening with a large untrusted size.
+  constexpr uint64_t kMaxFlatChunkSize = uint64_t{1} << 20;
   switch (header.chunk_type()) {
     case ChunkType::kFileSignature:
       if (ABSL_PREDICT_FALSE(header.data_size() != 0)) {
@@ -121,7 +123,7 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
         return Fail(simple_decoder.status());
       }
       bool read_ok;
-      if (flatten &&
+      if (flatten && header.decoded_data_size() <= kMaxFlatChunkSize &&
           // If all data are already available in a flat buffer, the chunk is
           // likely uncompressed in a `ChainReader`, and reading it to a `Chain`
           // will avoid copying it while preserving flatness.
@@ -150,7 +152,8 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
           TransposeDecoder::Options().set_recycling_pool_options(
               recycling_pool_options_));
       bool decode_ok;
-      if (flatten && field_projection_.includes_all()) {
+      if (flatten && header.decoded_data_size() <= kMaxFlatChunkSize &&
+          field_projection_.includes_all()) {
         ArrayBackwardWriter<> dest_writer(dest.AppendFixedBuffer(
             IntCast<size_t>(header.decoded_data_size())));
         decode_ok = transpose_decoder.Decode(
@@ -170,7 +173,9 @@ inline bool ChunkDecoder::Parse(const ChunkHeader& header, Reader& src,
         if (ABSL_PREDICT_FALSE(!dest_writer.Close())) {
           return Fail(dest_writer.status());
         }
-        if (flatten) dest.Flatten();
+        if (flatten && header.decoded_data_size() <= kMaxFlatChunkSize) {
+          dest.Flatten();
+        }
       }
       if (ABSL_PREDICT_FALSE(!decode_ok)) {
         return Fail(transpose_decoder.status());
