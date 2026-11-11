@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <limits>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -322,6 +323,19 @@ class ZstdWriterBase : public BufferedWriter {
     void operator()(ZSTD_CCtx* ptr) const { ZSTD_freeCCtx(ptr); }
   };
 
+  class ZSTD_CCtxRecycler {
+   public:
+    ZSTD_CCtxRecycler() noexcept : pool_(nullptr) {}
+    explicit ZSTD_CCtxRecycler(RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>* pool)
+        : pool_(pool) {}
+    void operator()(ZSTD_CCtx* ptr) const;
+
+   private:
+    RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>* pool_;
+  };
+
+  using ZSTD_CCtxHandle = std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxRecycler>;
+
   static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   bool WriteInternal(absl::string_view src, Writer& dest,
@@ -335,7 +349,7 @@ class ZstdWriterBase : public BufferedWriter {
   RecyclingPoolOptions recycling_pool_options_;
   // If `ok()` but `compressor_ == nullptr` then `*pledged_size_` has been
   // reached. In this case `ZSTD_compressStream()` must not be called again.
-  RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;
+  ZSTD_CCtxHandle compressor_;
 
   AssociatedReader<ZstdReader<Reader*>> associated_reader_;
 };

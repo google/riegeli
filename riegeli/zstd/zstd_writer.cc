@@ -53,6 +53,26 @@ static_assert(ZstdWriterBase::Options::kMinTargetCBlockSize >=
 static_assert(ZstdWriterBase::Options::kMaxTargetCBlockSize ==
               ZSTD_TARGETCBLOCKSIZE_MAX);
 
+namespace {
+
+// Maximum `ZSTD_CCtx` size to return to `RecyclingPool` (8 MiB). Covers
+// unpledged compression levels up to 8 (`windowLog <= 21`, ~7.7 MiB) and
+// pledged small-block streams, while evicting larger `> 8 MiB` workspaces
+// instead of retaining them in the pool.
+constexpr size_t kMaxRecycledCCtxBytes = size_t{8} << 20;
+
+}  // namespace
+
+void ZstdWriterBase::ZSTD_CCtxRecycler::operator()(ZSTD_CCtx* ptr) const {
+  RIEGELI_ASSERT_NE(pool_, nullptr)
+      << "Failed precondition of ZSTD_CCtxRecycler: "
+         "default-constructed recycler used with an object";
+  RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::RawHandle handle(ptr);
+  if (ZSTD_sizeof_CCtx(ptr) <= kMaxRecycledCCtxBytes) {
+    pool_->RawPut(std::move(handle));
+  }
+}
+
 void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 int window_log_or_0,
                                 int target_cblock_size_or_0,
@@ -64,20 +84,24 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     return;
   }
   initial_compressed_pos_ = dest->pos();
-  compressor_ = RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::global(
-                    recycling_pool_options_)
-                    .Get(
-                        [] {
-                          return std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxDeleter>(
-                              ZSTD_createCCtx());
-                        },
-                        [](ZSTD_CCtx* compressor) {
-                          const size_t result = ZSTD_CCtx_reset(
-                              compressor, ZSTD_reset_session_and_parameters);
-                          RIEGELI_ASSERT(!ZSTD_isError(result))
-                              << "ZSTD_CCtx_reset() failed: "
-                              << ZSTD_getErrorName(result);
-                        });
+  RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>& pool =
+      RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::global(
+          recycling_pool_options_);
+  compressor_ = ZSTD_CCtxHandle(
+      pool.RawGet(
+              [] {
+                return std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxDeleter>(
+                    ZSTD_createCCtx());
+              },
+              [](ZSTD_CCtx* compressor) {
+                const size_t result = ZSTD_CCtx_reset(
+                    compressor, ZSTD_reset_session_and_parameters);
+                RIEGELI_ASSERT(!ZSTD_isError(result))
+                    << "ZSTD_CCtx_reset() failed: "
+                    << ZSTD_getErrorName(result);
+              })
+          .release(),
+      ZSTD_CCtxRecycler(&pool));
   if (ABSL_PREDICT_FALSE(compressor_ == nullptr)) {
     Fail(absl::InternalError("ZSTD_createCCtx() failed"));
     return;
