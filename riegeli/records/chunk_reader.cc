@@ -108,11 +108,14 @@ bool DefaultChunkReaderBase::CheckFileFormat() {
 bool DefaultChunkReaderBase::ReadChunk(Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!PullChunkHeader(nullptr))) return false;
   Reader& src = *SrcReader();
+  // Do not ask for buffering a large untrusted size.
+  constexpr size_t kMaxReadHint = size_t{1} << 20;
   const Position chunk_end = records_internal::ChunkEnd(chunk_.header, pos_);
-  src.ReadHint(SaturatingIntCast<size_t>(chunk_end - src.pos()),
-               SaturatingIntCast<size_t>(records_internal::AddWithOverhead(
-                                             chunk_end, ChunkHeader::size()) -
-                                         src.pos()));
+  src.ReadHint(UnsignedMin(chunk_end - src.pos(), kMaxReadHint),
+               UnsignedMin(records_internal::AddWithOverhead(
+                               chunk_end, ChunkHeader::size()) -
+                               src.pos(),
+                           kMaxReadHint));
 
   while (chunk_.data.size() < chunk_.header.data_size()) {
     if (records_internal::RemainingInBlockHeader(src.pos()) > 0) {
