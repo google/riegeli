@@ -431,6 +431,37 @@ class RecordsTest(parameterized.TestCase):
         )
 
   @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
+  def test_write_read_empty_records_and_messages(
+      self, file_spec, random_access, parallelism
+  ):
+    for options in (
+        f'parallelism:{parallelism}',
+        record_writer_options(parallelism),
+    ):
+      with contextlib.closing(
+          file_spec(self.create_tempfile, random_access)
+      ) as files:
+        with riegeli.RecordWriter(
+            files.writing_open(),
+            owns_dest=files.writing_should_close,
+            assumed_pos=files.writing_assumed_pos,
+            options=options,
+        ) as writer:
+          writer.write_record(b'')
+          writer.write_message(records_test_pb2.SimpleMessage())
+        with riegeli.RecordReader(
+            files.reading_open(),
+            owns_src=files.reading_should_close,
+            assumed_pos=files.reading_assumed_pos,
+        ) as reader:
+          self.assertEqual(reader.read_record(), b'')
+          self.assertEqual(
+              reader.read_message(records_test_pb2.SimpleMessage),
+              records_test_pb2.SimpleMessage(),
+          )
+          self.assertIsNone(reader.read_record())
+
+  @_PARAMETERIZE_BY_FILE_SPEC_AND_RANDOM_ACCESS_AND_PARALLELISM
   def test_write_read_messages_with_field_projection(
       self, file_spec, random_access, parallelism
   ):

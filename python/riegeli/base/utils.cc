@@ -291,9 +291,11 @@ PyObject* MemoryView::ToPython(absl::string_view value) {
   RIEGELI_ASSERT_EQ(object_, nullptr)
       << "Failed precondition of MemoryView::ToPython(): "
          "called more than once";
-  object_.reset(PyMemoryView_FromMemory(const_cast<char*>(value.data()),
-                                        IntCast<Py_ssize_t>(value.size()),
-                                        PyBUF_READ));
+  // `PyMemoryView_FromMemory()` disallows `nullptr` even if the size is zero.
+  static char kEmpty[1] = {};
+  object_.reset(PyMemoryView_FromMemory(
+      value.empty() ? kEmpty : const_cast<char*>(value.data()),
+      IntCast<Py_ssize_t>(value.size()), PyBUF_READ));
   return object_.get();
 }
 
@@ -301,8 +303,11 @@ PyObject* MemoryView::MutableToPython(absl::Span<char> value) {
   RIEGELI_ASSERT_EQ(object_, nullptr)
       << "Failed precondition of MemoryView::MutableToPython(): "
          "called more than once";
-  object_.reset(PyMemoryView_FromMemory(
-      value.data(), IntCast<Py_ssize_t>(value.size()), PyBUF_WRITE));
+  // `PyMemoryView_FromMemory()` disallows `nullptr` even if the size is zero.
+  static char kEmpty[1] = {};
+  object_.reset(PyMemoryView_FromMemory(value.empty() ? kEmpty : value.data(),
+                                        IntCast<Py_ssize_t>(value.size()),
+                                        PyBUF_WRITE));
   return object_.get();
 }
 
