@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -26,7 +27,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/bytes_ref.h"
@@ -184,8 +184,8 @@ class TransposeEncoder : public ChunkEncoder {
     // Unique ID for every instance of this class within `TransposeEncoder`.
     chunk_encoding_internal::MessageId message_id;
     // Position of encoded tag in `tags_list_` per subtype.
-    // Size 14 works well with `kMaxVarintInline == 3`.
-    absl::InlinedVector<uint32_t, 14> encoded_tag_pos;
+    // Indexed by `Subtype` (14 values for `kMaxVarintInline == 3`).
+    std::array<uint32_t, 14> encoded_tag_pos;
   };
 
   // We build a tree structure of protocol buffer tags. `NodeId` uniquely
