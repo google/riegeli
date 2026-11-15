@@ -837,6 +837,11 @@ std::unique_ptr<Reader> Reader::NewReaderImpl(Position initial_pos) {
   return nullptr;
 }
 
+std::unique_ptr<Reader> Reader::NewReaderImpl(Position initial_pos,
+                                              Position /*max_length*/) {
+  return NewReaderImpl(initial_pos);
+}
+
 std::unique_ptr<Reader> Reader::NewReaderCurrentPosImpl() {
   return NewReader(pos());
 }
