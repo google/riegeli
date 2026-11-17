@@ -112,6 +112,10 @@ class IStreamReaderBase : public BufferedReader {
   void Reset(Closed);
   void Reset(BufferOptions buffer_options, bool growing_source);
   void Initialize(std::istream* src, std::optional<Position> assumed_pos);
+  void set_growing_source(bool growing_source) {
+    growing_source_ = growing_source;
+  }
+  bool growing_source() const { return growing_source_; }
   ABSL_ATTRIBUTE_COLD bool FailOperation(absl::string_view operation);
 
   void Done() override;
