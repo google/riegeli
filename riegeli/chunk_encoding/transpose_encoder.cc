@@ -140,11 +140,6 @@ struct PriorityQueueEntry : WithCompare<PriorityQueueEntry> {
   explicit PriorityQueueEntry(uint32_t dest_index, size_t num_transitions)
       : dest_index(dest_index), num_transitions(num_transitions) {}
 
-  friend bool operator==(const PriorityQueueEntry& a,
-                         const PriorityQueueEntry& b) {
-    return a.dest_index == b.dest_index &&
-           a.num_transitions == b.num_transitions;
-  }
   friend StrongOrdering RIEGELI_COMPARE(const PriorityQueueEntry& a,
                                         const PriorityQueueEntry& b) {
     // Sort by `num_transitions`. Largest first.
