@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -28,7 +29,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
@@ -75,6 +75,19 @@ static_assert(kMaxVarintInline < 0x80,
 // Maximum depth of the nested message we break into columns. Submessages with
 // deeper nesting are encoded as strings.
 constexpr int kMaxRecursionDepth = 100;
+
+// Maximum capacity of `encoded_tags_` (256K tags = 1 MiB) retained for reuse
+// across chunks; larger buffers are released once transitions are written or on
+// `Clear()`.
+constexpr size_t kMaxRetainedEncodedTags = size_t{256} << 10;
+
+void ClearEncodedTags(std::vector<uint32_t>& encoded_tags) {
+  if (encoded_tags.capacity() > kMaxRetainedEncodedTags) {
+    encoded_tags = std::vector<uint32_t>();
+  } else {
+    encoded_tags.clear();
+  }
+}
 
 // Returns `true` if `record` is a valid protocol buffer message in the
 // canonical encoding. The purpose of this method is to distinguish a string
@@ -167,7 +180,9 @@ struct PriorityQueueEntry : WithCompare<PriorityQueueEntry> {
 
 inline TransposeEncoder::MessageNode::MessageNode(
     chunk_encoding_internal::MessageId message_id)
-    : message_id(message_id) {}
+    : message_id(message_id) {
+  encoded_tag_pos.fill(kInvalidPos);
+}
 
 inline TransposeEncoder::NodeId::NodeId(
     chunk_encoding_internal::MessageId parent_message_id, uint32_t tag)
@@ -209,7 +224,7 @@ TransposeEncoder::~TransposeEncoder() {}
 void TransposeEncoder::Clear() {
   ChunkEncoder::Clear();
   tags_list_.clear();
-  encoded_tags_.clear();
+  ClearEncodedTags(encoded_tags_);
   for (std::vector<BufferWithMetadata>& buffers : data_) buffers.clear();
   message_stack_.clear();
   group_stack_.clear();
@@ -319,17 +334,24 @@ inline BackwardWriter* TransposeEncoder::GetBuffer(Node* node,
 
 inline uint32_t TransposeEncoder::GetPosInTagsList(
     Node* node, chunk_encoding_internal::Subtype subtype) {
-  size_t pos = static_cast<size_t>(subtype);
-  if (node->second.encoded_tag_pos.size() <= pos) {
-    node->second.encoded_tag_pos.resize(pos + 1,
-                                        std::numeric_limits<uint32_t>::max());
-  }
-  uint32_t* ret = &node->second.encoded_tag_pos[pos];
-  if (*ret == std::numeric_limits<uint32_t>::max()) {
-    *ret = tags_list_.size();
+#if defined(__LP64__) && defined(_LIBCPP_VERSION)
+  static_assert(sizeof(MessageNode) == 72);
+  static_assert(sizeof(Node) == 80);
+#endif
+  static_assert(
+      static_cast<size_t>(chunk_encoding_internal::Subtype::kVarintInline0) +
+              kMaxVarintInline <
+          decltype(MessageNode::encoded_tag_pos)().size(),
+      "encoded_tag_pos must fit all Subtype values");
+  RIEGELI_ASSERT_LT(static_cast<size_t>(subtype),
+                    node->second.encoded_tag_pos.size())
+      << "Subtype out of range";
+  uint32_t& pos = node->second.encoded_tag_pos[static_cast<size_t>(subtype)];
+  if (ABSL_PREDICT_FALSE(pos == kInvalidPos)) {
+    pos = IntCast<uint32_t>(tags_list_.size());
     tags_list_.emplace_back(node->first, subtype);
   }
-  return *ret;
+  return pos;
 }
 
 inline TransposeEncoder::Node* TransposeEncoder::GetNode(NodeId node_id) {
@@ -794,6 +816,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
                                            transitions_compressor.writer()))) {
     return false;
   }
+  ClearEncodedTags(encoded_tags_);
   if (ABSL_PREDICT_FALSE(!transitions_compressor.EncodeAndClose(data_writer))) {
     return Fail(transitions_compressor.status());
   }
