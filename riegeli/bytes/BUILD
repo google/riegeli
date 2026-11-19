@@ -917,9 +917,11 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to StringWriter.
 cc_library(
     name = "compact_string_writer",
     hdrs = ["compact_string_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":resizable_writer",
         "//riegeli/base:assert",
@@ -930,6 +932,8 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to CordReader when Chain gets replaced with
+# absl::Cord.
 cc_library(
     name = "chain_reader",
     srcs = ["chain_reader.cc"],
@@ -955,6 +959,8 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to CordWriter when Chain gets replaced with
+# absl::Cord.
 cc_library(
     name = "chain_writer",
     srcs = ["chain_writer.cc"],
@@ -981,6 +987,8 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to CordBackwardWriter when Chain gets replaced
+# with absl::Cord.
 cc_library(
     name = "chain_backward_writer",
     srcs = ["chain_backward_writer.cc"],
@@ -1005,9 +1013,12 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to a new RestrictedCordWriter when Chain gets
+# replaced with absl::Cord.
 cc_library(
     name = "restricted_chain_writer",
     hdrs = ["restricted_chain_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":reader_and_writer",
         "//riegeli/base:arithmetic",
@@ -1109,9 +1120,11 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to absl::string_view.
 cc_library(
     name = "path_ref",
     hdrs = ["path_ref.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:compare",
         "//riegeli/base:initializer",

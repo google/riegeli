@@ -104,14 +104,18 @@ cc_library(
     ],
 )
 
+# TODO: Move to riegeli/chunk_encoding.
 cc_library(
     name = "message_wire_format",
     hdrs = ["message_wire_format.h"],
+    visibility = ["//riegeli:__subpackages__"],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "map_entry_field",
     hdrs = ["map_entry_field.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = ["@com_google_absl//absl/base:nullability"],
 )
 
@@ -136,6 +140,7 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "serialized_message_reader",
     srcs = ["field_handlers.cc"],
@@ -172,9 +177,11 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "context_projection",
     hdrs = ["context_projection.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":serialized_message_reader_internal",
         "//riegeli/base:cord_iterator_span",
@@ -186,6 +193,7 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "fields_found",
     hdrs = ["fields_found.h"],
@@ -201,9 +209,11 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "dynamic_field_handler",
     hdrs = ["dynamic_field_handler.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":serialized_message_reader",
         ":serialized_message_reader_internal",
@@ -216,9 +226,11 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "field_handler_map",
     hdrs = ["field_handler_map.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":serialized_message_reader",
         ":serialized_message_reader_internal",
@@ -236,6 +248,7 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "field_skipper",
     hdrs = ["field_skipper.h"],
@@ -251,9 +264,11 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "field_copier",
     hdrs = ["field_copier.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":message_wire_format",
         ":serialized_message_reader",
@@ -267,10 +282,12 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "serialized_message_writer",
     srcs = ["serialized_message_writer.cc"],
     hdrs = ["serialized_message_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":message_wire_format",
         ":serialize_message",
@@ -300,10 +317,12 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "serialized_message_backward_writer",
     srcs = ["serialized_message_backward_writer.cc"],
     hdrs = ["serialized_message_backward_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":message_wire_format",
         ":serialize_message",
@@ -329,10 +348,12 @@ cc_library(
     ],
 )
 
+# TODO: Eliminate.
 cc_library(
     name = "serialized_message_assembler",
     srcs = ["serialized_message_assembler.cc"],
     hdrs = ["serialized_message_assembler.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":field_copier",
         ":field_handler_map",

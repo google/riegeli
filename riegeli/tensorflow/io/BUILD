@@ -11,6 +11,10 @@ cc_library(
     name = "file_reader",
     srcs = ["file_reader.cc"],
     hdrs = ["file_reader.h"],
+    visibility = [
+        "//python/riegeli:__subpackages__",
+        "//riegeli:__subpackages__",
+    ],
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
@@ -45,6 +49,7 @@ cc_library(
     name = "file_writer",
     srcs = ["file_writer.cc"],
     hdrs = ["file_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":file_reader",
         "@com_google_absl//absl/base:core_headers",
@@ -77,6 +82,7 @@ cc_library(
 cc_library(
     name = "tstring_writer",
     hdrs = ["tstring_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",

@@ -44,10 +44,13 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to ReadLine() or CsvReader, which handle CR/LF
+# directly.
 cc_library(
     name = "text_reader",
     srcs = ["text_reader.cc"],
     hdrs = ["text_reader.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":newline",
         "//riegeli/base:any",
@@ -68,10 +71,12 @@ cc_library(
     ],
 )
 
+# TODO: Migrate to WriteLine() or direct LF output.
 cc_library(
     name = "text_writer",
     srcs = ["text_writer.cc"],
     hdrs = ["text_writer.h"],
+    visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":line_writing",
         ":newline",
