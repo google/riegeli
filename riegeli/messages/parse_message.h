@@ -31,10 +31,10 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/messages/cord_iterator_span.h"
 
 namespace riegeli {
 

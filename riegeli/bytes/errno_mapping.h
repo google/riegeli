@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_ERRNO_MAPPING_H_
-#define RIEGELI_BASE_ERRNO_MAPPING_H_
+#ifndef RIEGELI_BYTES_ERRNO_MAPPING_H_
+#define RIEGELI_BYTES_ERRNO_MAPPING_H_
 
 #ifdef _WIN32
 #include <stdint.h>
@@ -36,4 +36,4 @@ absl::Status WindowsErrorToStatus(uint32_t error_number,
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_BASE_ERRNO_MAPPING_H_
+#endif  // RIEGELI_BYTES_ERRNO_MAPPING_H_

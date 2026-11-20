@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_ORDERED_VARINT_ORDERED_VARINT_WRITING_H_
-#define RIEGELI_ORDERED_VARINT_ORDERED_VARINT_WRITING_H_
+#ifndef RIEGELI_RECORDS_ORDERED_VARINT_WRITING_H_
+#define RIEGELI_RECORDS_ORDERED_VARINT_WRITING_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -22,7 +22,7 @@
 #include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/bytes/writer.h"
-#include "riegeli/ordered_varint/ordered_varint_internal.h"  // IWYU pragma: export
+#include "riegeli/records/ordered_varint_internal.h"  // IWYU pragma: export
 
 namespace riegeli {
 
@@ -99,4 +99,4 @@ inline size_t LengthOrderedVarint64(uint64_t data) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_ORDERED_VARINT_ORDERED_VARINT_WRITING_H_
+#endif  // RIEGELI_RECORDS_ORDERED_VARINT_WRITING_H_

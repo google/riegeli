@@ -212,31 +212,6 @@ cc_library(
     ],
 )
 
-# TODO: Move to riegeli/bytes.
-cc_library(
-    name = "unicode",
-    srcs = ["unicode.cc"],
-    hdrs = ["unicode.h"],
-    features = select({
-        # unicode.cc has #define before #include to influence what the included
-        # files provide.
-        "@platforms//os:windows": ["-use_header_modules"],
-        "//conditions:default": [],
-    }),
-    visibility = ["//riegeli:__subpackages__"],
-    deps = select({
-        "@platforms//os:windows": [
-            ":arithmetic",
-            "@com_google_absl//absl/base:core_headers",
-            "@com_google_absl//absl/base:nullability",
-            "@com_google_absl//absl/strings:resize_and_overwrite",
-            "@com_google_absl//absl/strings:string_view",
-            "@com_google_absl//absl/types:span",
-        ],
-        "//conditions:default": [],
-    }),
-)
-
 # TODO: Migrate to absl::FastTypeId<T>().
 cc_library(
     name = "type_id",
@@ -445,25 +420,6 @@ cc_library(
     ],
 )
 
-# TODO: Eliminate.
-cc_library(
-    name = "cord_iterator_span",
-    srcs = ["cord_iterator_span.cc"],
-    hdrs = ["cord_iterator_span.h"],
-    visibility = ["//riegeli:__subpackages__"],
-    deps = [
-        ":arithmetic",
-        ":assert",
-        ":dependency",
-        ":string_utils",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/strings:cord",
-        "@com_google_absl//absl/strings:resize_and_overwrite",
-        "@com_google_absl//absl/strings:string_view",
-    ],
-)
-
 # TODO: Make private to Riegeli.
 cc_library(
     name = "status",
@@ -485,30 +441,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
-)
-
-# TODO: Move to riegeli/bytes.
-cc_library(
-    name = "errno_mapping",
-    srcs = ["errno_mapping.cc"],
-    hdrs = ["errno_mapping.h"],
-    features = select({
-        # errno_mapping.cc has #define before #include to influence what the
-        # included files provide.
-        "@platforms//os:windows": ["-use_header_modules"],
-        "//conditions:default": [],
-    }),
-    visibility = ["//riegeli:__subpackages__"],
-    deps = ["@com_google_absl//absl/status"] + select({
-        "@platforms//os:windows": [
-            ":arithmetic",
-            ":unicode",
-            "@com_google_absl//absl/strings",
-            "@com_google_absl//absl/strings:string_view",
-            "@com_google_absl//absl/types:span",
-        ],
-        "//conditions:default": [],
-    }),
 )
 
 cc_library(

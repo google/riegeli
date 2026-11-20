@@ -12,12 +12,12 @@ cc_library(
     srcs = ["parse_message.cc"],
     hdrs = ["parse_message.h"],
     deps = [
+        ":cord_iterator_span",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/base:dependency",
         "//riegeli/base:types",
         "//riegeli/bytes:chain_reader",
@@ -113,6 +113,25 @@ cc_library(
 
 # TODO: Eliminate.
 cc_library(
+    name = "cord_iterator_span",
+    srcs = ["cord_iterator_span.cc"],
+    hdrs = ["cord_iterator_span.h"],
+    visibility = ["//riegeli:__subpackages__"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/base:dependency",
+        "//riegeli/base:string_utils",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/strings:cord",
+        "@com_google_absl//absl/strings:resize_and_overwrite",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+# TODO: Eliminate.
+cc_library(
     name = "map_entry_field",
     hdrs = ["map_entry_field.h"],
     visibility = ["//riegeli:__subpackages__"],
@@ -125,8 +144,8 @@ cc_library(
     hdrs = ["serialized_message_reader_internal.h"],
     visibility = ["//visibility:private"],
     deps = [
+        ":cord_iterator_span",
         ":message_wire_format",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/base:status",
         "//riegeli/base:types",
         "//riegeli/bytes:limiting_reader",
@@ -149,13 +168,13 @@ cc_library(
         "serialized_message_reader.h",
     ],
     deps = [
+        ":cord_iterator_span",
         ":message_wire_format",
         ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:reset",
@@ -183,8 +202,8 @@ cc_library(
     hdrs = ["context_projection.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
+        ":cord_iterator_span",
         ":serialized_message_reader_internal",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
@@ -198,9 +217,9 @@ cc_library(
     name = "fields_found",
     hdrs = ["fields_found.h"],
     deps = [
+        ":cord_iterator_span",
         ":serialized_message_reader",
         ":serialized_message_reader_internal",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
@@ -215,9 +234,9 @@ cc_library(
     hdrs = ["dynamic_field_handler.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
+        ":cord_iterator_span",
         ":serialized_message_reader",
         ":serialized_message_reader_internal",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
@@ -232,10 +251,10 @@ cc_library(
     hdrs = ["field_handler_map.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
+        ":cord_iterator_span",
         ":serialized_message_reader",
         ":serialized_message_reader_internal",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/base:hybrid_direct_map",
         "//riegeli/base:initializer",
         "//riegeli/bytes:limiting_reader",
@@ -253,9 +272,9 @@ cc_library(
     name = "field_skipper",
     hdrs = ["field_skipper.h"],
     deps = [
+        ":cord_iterator_span",
         ":message_wire_format",
         ":serialized_message_reader",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
@@ -270,10 +289,10 @@ cc_library(
     hdrs = ["field_copier.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
+        ":cord_iterator_span",
         ":message_wire_format",
         ":serialized_message_reader",
         ":serialized_message_writer",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/bytes:limiting_reader",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
@@ -289,6 +308,7 @@ cc_library(
     hdrs = ["serialized_message_writer.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
+        ":cord_iterator_span",
         ":message_wire_format",
         ":serialize_message",
         "//riegeli/base:any",
@@ -296,7 +316,6 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
         "//riegeli/base:constexpr",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/base:types",
         "//riegeli/bytes:cord_writer",
         "//riegeli/bytes:limiting_reader",
@@ -324,13 +343,13 @@ cc_library(
     hdrs = ["serialized_message_backward_writer.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
+        ":cord_iterator_span",
         ":message_wire_format",
         ":serialize_message",
         "//riegeli/base:any",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:buffering",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/base:types",
         "//riegeli/bytes:backward_writer",
         "//riegeli/bytes:copy_all",
@@ -355,6 +374,7 @@ cc_library(
     hdrs = ["serialized_message_assembler.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
+        ":cord_iterator_span",
         ":field_copier",
         ":field_handler_map",
         ":serialized_message_reader",
@@ -363,7 +383,6 @@ cc_library(
         "//riegeli/base:assert",
         "//riegeli/base:bytes_ref",
         "//riegeli/base:chain",
-        "//riegeli/base:cord_iterator_span",
         "//riegeli/base:dependency",
         "//riegeli/base:reset",
         "//riegeli/bytes:chain_writer",

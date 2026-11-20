@@ -39,7 +39,6 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
-#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/istream_reader.h"
@@ -303,39 +302,39 @@ inline void GcsReader::SetReadObject(
     const RangeOptions& range_options,
     const ReadObjectOptions&... read_object_options) {
   if (range_options.max_size == std::nullopt) {
-    read_object_ =
-        [new_read_object_options = DecayTuple(
-             Filter<NewReadObjectOptionPredicate>(read_object_options...))](
-            GcsReader& self, int64_t read_from_offset,
-            std::optional<int64_t> read_to_offset) mutable {
-          if (read_to_offset != std::nullopt) {
-            return self.ApplyReadObject(
-                new_read_object_options,
-                std::make_index_sequence<
-                    std::tuple_size_v<decltype(new_read_object_options)>>(),
-                google::cloud::storage::ReadRange(read_from_offset,
-                                                  *read_to_offset));
-          }
-          return self.ApplyReadObject(
-              new_read_object_options,
-              std::make_index_sequence<
-                  std::tuple_size_v<decltype(new_read_object_options)>>(),
-              google::cloud::storage::ReadFromOffset(read_from_offset));
-        };
+    read_object_ = [new_read_object_options = gcs_internal::DecayTuple(
+                        gcs_internal::Filter<NewReadObjectOptionPredicate>(
+                            read_object_options...))](
+                       GcsReader& self, int64_t read_from_offset,
+                       std::optional<int64_t> read_to_offset) mutable {
+      if (read_to_offset != std::nullopt) {
+        return self.ApplyReadObject(
+            new_read_object_options,
+            std::make_index_sequence<
+                std::tuple_size_v<decltype(new_read_object_options)>>(),
+            google::cloud::storage::ReadRange(read_from_offset,
+                                              *read_to_offset));
+      }
+      return self.ApplyReadObject(
+          new_read_object_options,
+          std::make_index_sequence<
+              std::tuple_size_v<decltype(new_read_object_options)>>(),
+          google::cloud::storage::ReadFromOffset(read_from_offset));
+    };
   } else {
-    read_object_ =
-        [new_read_object_options = DecayTuple(
-             Filter<NewReadObjectOptionPredicate>(read_object_options...)),
-         max_size = *range_options.max_size](
-            GcsReader& self, int64_t read_from_offset,
-            std::optional<int64_t> read_to_offset) mutable {
-          return self.ApplyReadObject(
-              new_read_object_options,
-              std::make_index_sequence<
-                  std::tuple_size_v<decltype(new_read_object_options)>>(),
-              google::cloud::storage::ReadRange(
-                  read_from_offset, read_to_offset.value_or(max_size)));
-        };
+    read_object_ = [new_read_object_options = gcs_internal::DecayTuple(
+                        gcs_internal::Filter<NewReadObjectOptionPredicate>(
+                            read_object_options...)),
+                    max_size = *range_options.max_size](
+                       GcsReader& self, int64_t read_from_offset,
+                       std::optional<int64_t> read_to_offset) mutable {
+      return self.ApplyReadObject(
+          new_read_object_options,
+          std::make_index_sequence<
+              std::tuple_size_v<decltype(new_read_object_options)>>(),
+          google::cloud::storage::ReadRange(read_from_offset,
+                                            read_to_offset.value_or(max_size)));
+    };
   }
 }
 

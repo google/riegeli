@@ -16,7 +16,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include "riegeli/base/errno_mapping.h"
+#include "riegeli/bytes/errno_mapping.h"
 
 #ifdef _WIN32
 #include <stdint.h>
@@ -31,7 +31,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/unicode.h"
+#include "riegeli/bytes/unicode.h"
 #endif
 
 namespace riegeli {

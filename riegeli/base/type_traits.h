@@ -167,39 +167,6 @@ struct RemoveTypesFromEndImpl<std::enable_if_t<(num_from_end <= sizeof...(T))>,
                                                  sizeof...(T) - num_from_end>> {
 };
 
-// Concatenates `std::index_sequence` types.
-template <typename... index_sequences>
-struct ConcatIndexSequences;
-
-template <>
-struct ConcatIndexSequences<> {
-  using type = std::index_sequence<>;
-};
-template <typename index_sequence>
-struct ConcatIndexSequences<index_sequence> {
-  using type = index_sequence;
-};
-template <size_t... indices1, size_t... indices2, typename... index_sequences>
-struct ConcatIndexSequences<std::index_sequence<indices1...>,
-                            std::index_sequence<indices2...>,
-                            index_sequences...> {
-  using type = typename ConcatIndexSequences<
-      std::index_sequence<indices1..., indices2...>, index_sequences...>::type;
-};
-
-// Transforms a tuple type to a `std::index_sequence` type of indices of
-// elements satisfying a predicate.
-template <template <typename...> class Predicate, typename Tuple,
-          typename Indices>
-struct FilterTypeImpl;
-
-template <template <typename...> class Predicate, typename Tuple,
-          size_t... indices>
-struct FilterTypeImpl<Predicate, Tuple, std::index_sequence<indices...>>
-    : type_traits_internal::ConcatIndexSequences<std::conditional_t<
-          Predicate<std::tuple_element_t<indices, Tuple>>::value,
-          std::index_sequence<indices>, std::index_sequence<>>...> {};
-
 }  // namespace type_traits_internal
 
 // `GetTypeFromEnd<reverse_index, T...>::type` and
@@ -261,48 +228,6 @@ struct TupleElementsSatisfy;
 template <typename... T, template <typename...> class Predicate>
 struct TupleElementsSatisfy<std::tuple<T...>, Predicate>
     : std::conjunction<Predicate<T>...> {};
-
-// `FilterType<Predicate, T...>::type` and
-// `FilterTypeT<Predicate, T...>` transform a parameter pack to a `std::tuple`
-// type by selecting types satisfying a predicate.
-template <template <typename...> class Predicate, typename... T>
-struct FilterType
-    : type_traits_internal::SelectTypesFromTuple<
-          std::tuple<T...>, typename type_traits_internal::FilterTypeImpl<
-                                Predicate, std::tuple<T...>,
-                                std::index_sequence_for<T...>>::type> {};
-template <template <typename...> class Predicate, typename... T>
-using FilterTypeT = typename FilterType<Predicate, T...>::type;
-
-// `Filter<Predicate>(args...)` transforms a sequence of arguments to a
-// `std::tuple` by selecting types satisfying a predicate.
-template <template <typename...> class Predicate, typename... Args>
-inline FilterTypeT<Predicate, Args&&...> Filter(Args&&... args) {
-  return type_traits_internal::SelectFromTuple(
-      std::tuple<Args&&...>(std::forward<Args>(args)...),
-      typename type_traits_internal::FilterTypeImpl<
-          Predicate, std::tuple<Args&&...>,
-          std::index_sequence_for<Args&&...>>::type());
-}
-
-// `DecayTupleType<Tuple>::type` and `DecayTupleTypeT<Tuple>` transform a
-// `std::tuple` type by decaying all elements from references to values.
-template <typename Tuple>
-struct DecayTupleType;
-
-template <typename... T>
-struct DecayTupleType<std::tuple<T...>> {
-  using type = std::tuple<std::decay_t<T>...>;
-};
-template <typename Tuple>
-using DecayTupleTypeT = typename DecayTupleType<Tuple>::type;
-
-// `DecayTuple(tuple)` transforms a `std::tuple` by decaying all elements from
-// references to values.
-template <typename Tuple>
-inline DecayTupleTypeT<Tuple> DecayTuple(Tuple&& tuple) {
-  return tuple;
-}
 
 // `DeduceClassTemplateArguments<Template, Args...>::type` and
 // `DeduceClassTemplateArgumentsT<Template, Args...>` deduce class template

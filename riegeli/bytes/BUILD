@@ -1120,6 +1120,53 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "unicode",
+    srcs = ["unicode.cc"],
+    hdrs = ["unicode.h"],
+    features = select({
+        # unicode.cc has #define before #include to influence what the included
+        # files provide.
+        "@platforms//os:windows": ["-use_header_modules"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//riegeli:__subpackages__"],
+    deps = select({
+        "@platforms//os:windows": [
+            "//riegeli/base:arithmetic",
+            "@com_google_absl//absl/base:core_headers",
+            "@com_google_absl//absl/base:nullability",
+            "@com_google_absl//absl/strings:resize_and_overwrite",
+            "@com_google_absl//absl/strings:string_view",
+            "@com_google_absl//absl/types:span",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "errno_mapping",
+    srcs = ["errno_mapping.cc"],
+    hdrs = ["errno_mapping.h"],
+    features = select({
+        # errno_mapping.cc has #define before #include to influence what the
+        # included files provide.
+        "@platforms//os:windows": ["-use_header_modules"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//riegeli:__subpackages__"],
+    deps = ["@com_google_absl//absl/status"] + select({
+        "@platforms//os:windows": [
+            ":unicode",
+            "//riegeli/base:arithmetic",
+            "@com_google_absl//absl/strings",
+            "@com_google_absl//absl/strings:string_view",
+            "@com_google_absl//absl/types:span",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
 # TODO: Migrate to absl::string_view.
 cc_library(
     name = "path_ref",
@@ -1157,7 +1204,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ] + select({
-        "@platforms//os:windows": ["//riegeli/base:unicode"],
+        "@platforms//os:windows": [":unicode"],
         "//conditions:default": [],
     }),
 )
@@ -1199,7 +1246,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
     ] + select({
-        "@platforms//os:windows": ["//riegeli/base:errno_mapping"],
+        "@platforms//os:windows": [":errno_mapping"],
         "//conditions:default": [
             ":buffered_writer",
             ":writer",
@@ -1236,7 +1283,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
     ] + select({
-        "@platforms//os:windows": ["//riegeli/base:errno_mapping"],
+        "@platforms//os:windows": [":errno_mapping"],
         "//conditions:default": [
             "//riegeli/base:global",
             "@com_google_absl//absl/status:statusor",
@@ -1278,7 +1325,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
     ] + select({
-        "@platforms//os:windows": ["//riegeli/base:errno_mapping"],
+        "@platforms//os:windows": [":errno_mapping"],
         "//conditions:default": [],
     }),
 )
@@ -1439,7 +1486,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
     ] + select({
-        "@platforms//os:windows": ["//riegeli/base:unicode"],
+        "@platforms//os:windows": [":unicode"],
         "//conditions:default": [],
     }),
 )
@@ -1540,12 +1587,12 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         ":cfile_handle",
+        ":errno_mapping",
         ":path_ref",
         ":reader",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
-        "//riegeli/base:errno_mapping",
         "//riegeli/base:initializer",
         "//riegeli/base:reset",
         "//riegeli/base:types",
@@ -1563,13 +1610,13 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         ":cfile_handle",
+        ":errno_mapping",
         ":path_ref",
         ":reader",
         ":writer",
         "//riegeli/base:arithmetic",
         "//riegeli/base:assert",
         "//riegeli/base:dependency",
-        "//riegeli/base:errno_mapping",
         "//riegeli/base:initializer",
         "//riegeli/base:reset",
         "//riegeli/base:types",

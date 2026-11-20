@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "riegeli/ordered_varint/ordered_varint_reading.h"
+#include "riegeli/records/ordered_varint_reading.h"
 
 #include <stdint.h>
 
