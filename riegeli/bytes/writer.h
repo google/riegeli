@@ -513,9 +513,12 @@ class Writer : public Object {
   virtual Reader* ReadModeImpl(Position initial_pos);
 
  private:
-  char* start_ = nullptr;
-  char* cursor_ = nullptr;
+  // Align `(cursor_, limit_)` to twice pointer size so paired loads of both
+  // pointers (e.g. on AArch64) cannot cross a cache-line boundary.
+  static_assert(sizeof(Object) == 2 * sizeof(void*), "No padding expected");
+  alignas(2 * sizeof(void*)) char* cursor_ = nullptr;
   char* limit_ = nullptr;
+  char* start_ = nullptr;
 
   // Destination position corresponding to `start_`.
   //
@@ -571,33 +574,33 @@ inline void WriterStringifySink::Append(absl::string_view src) {
 
 inline Writer::Writer(Writer&& that) noexcept
     : Object(static_cast<Object&&>(that)),
-      start_(std::exchange(that.start_, nullptr)),
       cursor_(std::exchange(that.cursor_, nullptr)),
       limit_(std::exchange(that.limit_, nullptr)),
+      start_(std::exchange(that.start_, nullptr)),
       start_pos_(std::exchange(that.start_pos_, 0)) {}
 
 inline Writer& Writer::operator=(Writer&& that) noexcept {
   Object::operator=(static_cast<Object&&>(that));
-  start_ = std::exchange(that.start_, nullptr);
   cursor_ = std::exchange(that.cursor_, nullptr);
   limit_ = std::exchange(that.limit_, nullptr);
+  start_ = std::exchange(that.start_, nullptr);
   start_pos_ = std::exchange(that.start_pos_, 0);
   return *this;
 }
 
 inline void Writer::Reset(Closed) {
   Object::Reset(kClosed);
-  start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
+  start_ = nullptr;
   start_pos_ = 0;
 }
 
 inline void Writer::Reset() {
   Object::Reset();
-  start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
+  start_ = nullptr;
   start_pos_ = 0;
 }
 

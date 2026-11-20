@@ -660,9 +660,12 @@ class Reader : public Object {
   virtual std::unique_ptr<Reader> NewReaderCurrentPosImpl();
 
  private:
-  const char* start_ = nullptr;
-  const char* cursor_ = nullptr;
+  // Align `(cursor_, limit_)` to twice pointer size so paired loads of both
+  // pointers (e.g. on AArch64) cannot cross a cache-line boundary.
+  static_assert(sizeof(Object) == 2 * sizeof(void*), "No padding expected");
+  alignas(2 * sizeof(void*)) const char* cursor_ = nullptr;
   const char* limit_ = nullptr;
+  const char* start_ = nullptr;
 
   // Source position corresponding to `limit_`.
   //
@@ -674,33 +677,33 @@ class Reader : public Object {
 
 inline Reader::Reader(Reader&& that) noexcept
     : Object(static_cast<Object&&>(that)),
-      start_(std::exchange(that.start_, nullptr)),
       cursor_(std::exchange(that.cursor_, nullptr)),
       limit_(std::exchange(that.limit_, nullptr)),
+      start_(std::exchange(that.start_, nullptr)),
       limit_pos_(std::exchange(that.limit_pos_, 0)) {}
 
 inline Reader& Reader::operator=(Reader&& that) noexcept {
   Object::operator=(static_cast<Object&&>(that));
-  start_ = std::exchange(that.start_, nullptr);
   cursor_ = std::exchange(that.cursor_, nullptr);
   limit_ = std::exchange(that.limit_, nullptr);
+  start_ = std::exchange(that.start_, nullptr);
   limit_pos_ = std::exchange(that.limit_pos_, 0);
   return *this;
 }
 
 inline void Reader::Reset(Closed) {
   Object::Reset(kClosed);
-  start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
+  start_ = nullptr;
   limit_pos_ = 0;
 }
 
 inline void Reader::Reset() {
   Object::Reset();
-  start_ = nullptr;
   cursor_ = nullptr;
   limit_ = nullptr;
+  start_ = nullptr;
   limit_pos_ = 0;
 }
 
