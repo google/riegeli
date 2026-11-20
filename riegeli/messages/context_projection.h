@@ -27,8 +27,8 @@
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/bytes/limiting_reader.h"
+#include "riegeli/messages/cord_iterator_span.h"
 #include "riegeli/messages/serialized_message_reader_internal.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL

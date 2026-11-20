@@ -40,10 +40,10 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_erased_ref.h"
-#ifdef _WIN32
-#include "riegeli/base/unicode.h"
-#endif
 #include "riegeli/bytes/path_ref.h"
+#ifdef _WIN32
+#include "riegeli/bytes/unicode.h"
+#endif
 
 namespace riegeli {
 

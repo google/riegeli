@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_ORDERED_VARINT_ORDERED_VARINT_INTERNAL_H_
-#define RIEGELI_ORDERED_VARINT_ORDERED_VARINT_INTERNAL_H_
+#ifndef RIEGELI_RECORDS_ORDERED_VARINT_INTERNAL_H_
+#define RIEGELI_RECORDS_ORDERED_VARINT_INTERNAL_H_
 
-// IWYU pragma: private, include "riegeli/ordered_varint/ordered_varint_reading.h"
-// IWYU pragma: private, include "riegeli/ordered_varint/ordered_varint_writing.h"
+// IWYU pragma: private, include "riegeli/records/ordered_varint_reading.h"
+// IWYU pragma: private, include "riegeli/records/ordered_varint_writing.h"
 
 #include <stddef.h>
 
@@ -27,4 +27,4 @@ inline constexpr size_t kMaxLengthOrderedVarint64 = 9;
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_ORDERED_VARINT_ORDERED_VARINT_INTERNAL_H_
+#endif  // RIEGELI_RECORDS_ORDERED_VARINT_INTERNAL_H_

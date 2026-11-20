@@ -26,11 +26,11 @@
 #include "riegeli/base/any.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
-#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/copy_all.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/messages/cord_iterator_span.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 

@@ -101,6 +101,8 @@ cc_library(
     deps = [
         ":block",
         ":chunk_writer",
+        ":ordered_varint_reading",
+        ":ordered_varint_writing",
         "//riegeli/base:assert",
         "//riegeli/base:compare",
         "//riegeli/base:initializer",
@@ -110,8 +112,6 @@ cc_library(
         "//riegeli/bytes:string_writer",
         "//riegeli/chunk_encoding:chunk",
         "//riegeli/endian:endian_reading",
-        "//riegeli/ordered_varint:ordered_varint_reading",
-        "//riegeli/ordered_varint:ordered_varint_writing",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/strings",
@@ -197,6 +197,40 @@ cc_library(
         "//riegeli/endian:endian_reading",
         "//riegeli/endian:endian_writing",
         "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_library(
+    name = "ordered_varint_reading",
+    srcs = [
+        "ordered_varint_internal.h",
+        "ordered_varint_reading.cc",
+    ],
+    hdrs = ["ordered_varint_reading.h"],
+    visibility = ["//riegeli:__subpackages__"],
+    deps = [
+        "//riegeli/base:assert",
+        "//riegeli/bytes:reader",
+        "//riegeli/endian:endian_reading",
+        "@com_google_absl//absl/base:core_headers",
+    ],
+)
+
+cc_library(
+    name = "ordered_varint_writing",
+    srcs = [
+        "ordered_varint_internal.h",
+        "ordered_varint_writing.cc",
+    ],
+    hdrs = ["ordered_varint_writing.h"],
+    visibility = ["//riegeli:__subpackages__"],
+    deps = [
+        "//riegeli/base:arithmetic",
+        "//riegeli/base:assert",
+        "//riegeli/bytes:writer",
+        "//riegeli/endian:endian_writing",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/numeric:bits",
     ],
 )
 

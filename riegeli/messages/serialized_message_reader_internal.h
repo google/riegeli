@@ -28,9 +28,9 @@
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/messages/cord_iterator_span.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 

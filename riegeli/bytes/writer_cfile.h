@@ -28,11 +28,11 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "riegeli/base/dependency.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cfile_handle.h"
+#include "riegeli/bytes/errno_mapping.h"
 #include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/writer.h"
 

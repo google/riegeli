@@ -34,9 +34,9 @@
 #include "absl/status/status.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#include "riegeli/base/errno_mapping.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cfile_handle.h"
+#include "riegeli/bytes/errno_mapping.h"
 #include "riegeli/bytes/path_ref.h"
 #include "riegeli/bytes/reader.h"
 

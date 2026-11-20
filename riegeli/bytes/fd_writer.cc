@@ -59,14 +59,14 @@
 #include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
-#ifdef _WIN32
-#include "riegeli/base/errno_mapping.h"
-#endif
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
+#ifdef _WIN32
+#include "riegeli/bytes/errno_mapping.h"
+#endif
 #include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal_for_cc.h"
 #include "riegeli/bytes/fd_reader.h"

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_BASE_UNICODE_H_
-#define RIEGELI_BASE_UNICODE_H_
+#ifndef RIEGELI_BYTES_UNICODE_H_
+#define RIEGELI_BYTES_UNICODE_H_
 
 #ifdef _WIN32
 
@@ -46,4 +46,4 @@ std::string WideToUtf8Lossy(absl::Span<const wchar_t> src);
 
 #endif  // _WIN32
 
-#endif  // RIEGELI_BASE_UNICODE_H_
+#endif  // RIEGELI_BYTES_UNICODE_H_

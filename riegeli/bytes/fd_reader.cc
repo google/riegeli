@@ -66,13 +66,13 @@
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
-#ifdef _WIN32
-#include "riegeli/base/errno_mapping.h"
-#endif
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
+#ifdef _WIN32
+#include "riegeli/bytes/errno_mapping.h"
+#endif
 #include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal_for_cc.h"
 #ifndef _WIN32
