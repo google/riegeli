@@ -1,6 +1,7 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_python//python:defs.bzl", "py_test")
+load("//third_party/bazel_rules/rules_python/python:py_test.bzl", "py_test")
 
 package(
     default_visibility = ["//python/riegeli:__subpackages__"],
@@ -12,6 +13,7 @@ licenses(["notice"])
 py_test(
     name = "records_test",
     srcs = ["records_test.py"],
+    type_checking = True,
     deps = [
         ":records_test_py_pb2",
         "//python/riegeli",
@@ -25,6 +27,7 @@ py_test(
 py_test(
     name = "records_threading_test",
     srcs = ["records_threading_test.py"],
+    type_checking = True,
     deps = [
         "//python/riegeli",
         "@absl_py//absl/testing:absltest",
