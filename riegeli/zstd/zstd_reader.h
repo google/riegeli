@@ -185,6 +185,17 @@ class ZstdReaderBase : public BufferedReader {
     void operator()(ZSTD_DCtx* ptr) const { ZSTD_freeDCtx(ptr); }
   };
 
+  class ZSTD_DCtxRecycler {
+   public:
+    ZSTD_DCtxRecycler() noexcept : pool_(nullptr) {}
+    explicit ZSTD_DCtxRecycler(RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>* pool)
+        : pool_(pool) {}
+    void operator()(ZSTD_DCtx* ptr) const;
+
+   private:
+    RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>* pool_;
+  };
+
   static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor(Reader& src);
@@ -205,7 +216,7 @@ class ZstdReaderBase : public BufferedReader {
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
-  RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
+  std::unique_ptr<ZSTD_DCtx, ZSTD_DCtxRecycler> decompressor_;
 };
 
 // A `Reader` which decompresses data with Zstd after getting it from another

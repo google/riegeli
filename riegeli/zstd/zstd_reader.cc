@@ -46,6 +46,25 @@
 
 namespace riegeli {
 
+namespace {
+
+// Maximum `ZSTD_DCtx` size to return to `RecyclingPool` (4 MiB). Covers
+// streaming decompression up to `windowLog == 21` (~2.5 MiB), while evicting
+// `windowLog >= 22` (> 4 MiB) workspaces instead of retaining them in the pool.
+constexpr size_t kMaxRecycledDCtxBytes = size_t{4} << 20;
+
+}  // namespace
+
+void ZstdReaderBase::ZSTD_DCtxRecycler::operator()(ZSTD_DCtx* ptr) const {
+  RIEGELI_ASSERT_NE(pool_, nullptr)
+      << "Failed precondition of ZSTD_DCtxRecycler: "
+         "default-constructed recycler used with an object";
+  RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::RawHandle handle(ptr);
+  if (ZSTD_sizeof_DCtx(ptr) <= kMaxRecycledDCtxBytes) {
+    pool_->RawPut(std::move(handle));
+  }
+}
+
 void ZstdReaderBase::Initialize(Reader* src) {
   RIEGELI_ASSERT_NE(src, nullptr)
       << "Failed precondition of ZstdReader: null Reader pointer";
@@ -58,10 +77,11 @@ void ZstdReaderBase::Initialize(Reader* src) {
 }
 
 inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
-  decompressor_ =
+  RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>& pool =
       RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::global(
-          recycling_pool_options_)
-          .Get(
+          recycling_pool_options_);
+  decompressor_ = std::unique_ptr<ZSTD_DCtx, ZSTD_DCtxRecycler>(
+      pool.RawGet(
               [] {
                 return std::unique_ptr<ZSTD_DCtx, ZSTD_DCtxDeleter>(
                     ZSTD_createDCtx());
@@ -85,7 +105,9 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
                       << ZSTD_getErrorName(result);
                 }
 #endif
-              });
+              })
+          .release(),
+      ZSTD_DCtxRecycler(&pool));
   if (ABSL_PREDICT_FALSE(decompressor_ == nullptr)) {
     Fail(absl::InternalError("ZSTD_createDCtx() failed"));
     return;
