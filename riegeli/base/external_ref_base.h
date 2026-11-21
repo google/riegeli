@@ -1181,7 +1181,7 @@ class ExternalRef {
   template <
       typename T,
       std::enable_if_t<
-          std::disjunction_v<std::negation<HasRiegeliToExternalDataSubstr<T>>,
+          std::conjunction_v<std::negation<HasRiegeliToExternalDataSubstr<T>>,
                              HasRiegeliToExternalStorage<T>>,
           int> = 0>
   static ExternalData ToExternalDataSubstr(T&& object,
