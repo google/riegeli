@@ -2,6 +2,7 @@ load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_python//python:defs.bzl", "py_library")
 load("//python/riegeli:py_extension.bzl", "py_extension")
+load("//third_party/bazel_rules/rules_python/python:py_library.bzl", "py_library")
 
 package(
     default_visibility = ["//python/riegeli:__subpackages__"],
@@ -86,6 +87,7 @@ py_extension(
 py_library(
     name = "skipped_region",
     srcs = ["skipped_region.py"],
+    type_checking = True,
 )
 
 proto_library(
