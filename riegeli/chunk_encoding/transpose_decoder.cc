@@ -1120,6 +1120,17 @@ struct TransposeDecoder::DecodingState {
   // Copy tag from `*node` to `dest`.
   template <size_t tag_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CopyTagCallback() {
+    if (ABSL_PREDICT_TRUE(dest->available() >= tag_length)) {
+      dest->move_cursor(tag_length);
+      std::memcpy(dest->cursor(), node->tag_data, tag_length);
+      return true;
+    }
+    return CopyTagCallbackSlow(decoder, dest, node, tag_length);
+  }
+
+  ABSL_ATTRIBUTE_NOINLINE static bool CopyTagCallbackSlow(
+      TransposeDecoder* decoder, BackwardWriter* dest,
+      const StateMachineNode* node, size_t tag_length) {
     if (ABSL_PREDICT_FALSE(
             !dest->Write(absl::string_view(node->tag_data, tag_length)))) {
       return decoder->Fail(dest->status());
@@ -1127,80 +1138,74 @@ struct TransposeDecoder::DecodingState {
     return true;
   }
 
-  template <uint8_t data_length, uint8_t low, uint8_t high>
-  using EnableIfBetween =
-      std::enable_if_t<(data_length >= low && data_length <= high), int>;
-
-  template <uint8_t data_length>
-  using Uint8Constant = std::integral_constant<uint8_t, data_length>;
-
   // Masks the first `data_length - 1` elements in `src` with 0x80, and copies
   // to `dest`.
-  //
-  // TODO: Replace with `if constexpr` in C++17.
-  template <uint8_t data_length, EnableIfBetween<data_length, 9, 10> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
-      const char* src, char* dest,
-      std::integral_constant<uint8_t, data_length>) {
-    uint64_t val;
-    std::memcpy(&val, src, 8);
-    val |= uint64_t{0x8080808080808080};
-    std::memcpy(dest, &val, 8);
-    MaskBuffer(src + 8, dest + 8, Uint8Constant<data_length - 8>());
-  }
-
-  template <uint8_t data_length, EnableIfBetween<data_length, 5, 8> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
-      const char* src, char* dest,
-      std::integral_constant<uint8_t, data_length>) {
-    uint32_t val;
-    std::memcpy(&val, src, 4);
-    val |= uint32_t{0x80808080};
-    std::memcpy(dest, &val, 4);
-    MaskBuffer(src + 4, dest + 4, Uint8Constant<data_length - 4>());
-  }
-
-  template <uint8_t data_length, EnableIfBetween<data_length, 3, 4> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
-      const char* src, char* dest,
-      std::integral_constant<uint8_t, data_length>) {
-    uint16_t val;
-    std::memcpy(&val, src, 2);
-    val |= uint16_t{0x8080};
-    std::memcpy(dest, &val, 2);
-    MaskBuffer(src + 2, dest + 2, Uint8Constant<data_length - 2>());
-  }
-
-  template <uint8_t data_length, EnableIfBetween<data_length, 2, 2> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
-      const char* src, char* dest,
-      std::integral_constant<uint8_t, data_length>) {
-    *dest = static_cast<char>(static_cast<uint8_t>(*src) | uint8_t{0x80});
-    MaskBuffer(src + 1, dest + 1, Uint8Constant<data_length - 1>());
-  }
-
-  template <uint8_t data_length, EnableIfBetween<data_length, 1, 1> = 0>
-  ABSL_ATTRIBUTE_ALWAYS_INLINE void MaskBuffer(
-      const char* src, char* dest,
-      std::integral_constant<uint8_t, data_length>) {
-    *dest = *src;
+  template <uint8_t data_length>
+  ABSL_ATTRIBUTE_ALWAYS_INLINE static void MaskBuffer(const char* src,
+                                                      char* dest) {
+    static_assert(data_length >= 1 && data_length <= 10,
+                  "Invalid MaskBuffer data_length");
+    if constexpr (data_length >= 9) {
+      uint64_t val;
+      std::memcpy(&val, src, 8);
+      val |= uint64_t{0x8080808080808080};
+      std::memcpy(dest, &val, 8);
+      MaskBuffer<data_length - 8>(src + 8, dest + 8);
+    } else if constexpr (data_length >= 5) {
+      uint32_t val;
+      std::memcpy(&val, src, 4);
+      val |= uint32_t{0x80808080};
+      std::memcpy(dest, &val, 4);
+      MaskBuffer<data_length - 4>(src + 4, dest + 4);
+    } else if constexpr (data_length >= 3) {
+      uint16_t val;
+      std::memcpy(&val, src, 2);
+      val |= uint16_t{0x8080};
+      std::memcpy(dest, &val, 2);
+      MaskBuffer<data_length - 2>(src + 2, dest + 2);
+    } else if constexpr (data_length == 2) {
+      *dest = static_cast<char>(static_cast<uint8_t>(*src) | uint8_t{0x80});
+      MaskBuffer<1>(src + 1, dest + 1);
+    } else {
+      *dest = *src;
+    }
   }
 
   // Decode varint value from `*node` to `dest`.
   template <size_t tag_length, uint8_t data_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool VarintCallback() {
+    Reader* const buf = node->buffer;
+    if (ABSL_PREDICT_TRUE(dest->available() >= tag_length + data_length &&
+                          buf->available() >= data_length)) {
+      dest->move_cursor(tag_length + data_length);
+      char* const out = dest->cursor();
+      MaskBuffer<data_length>(buf->cursor(), out + tag_length);
+      buf->move_cursor(data_length);
+      std::memcpy(out, node->tag_data, tag_length);
+      return true;
+    }
+    return VarintCallbackSlow(decoder, dest, node, tag_length, data_length);
+  }
+
+  ABSL_ATTRIBUTE_NOINLINE static bool VarintCallbackSlow(
+      TransposeDecoder* decoder, BackwardWriter* dest,
+      const StateMachineNode* node, size_t tag_length, uint8_t data_length) {
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
       return decoder->Fail(dest->status());
     }
     dest->move_cursor(tag_length + data_length);
-    // Use a temporary buffer to allow it to be in a register for processing.
-    char unmasked[data_length];
+    char unmasked[kMaxLengthVarint64];
     char* const buffer = dest->cursor();
     if (ABSL_PREDICT_FALSE(!node->buffer->Read(data_length, unmasked))) {
       return decoder->Fail(node->buffer->StatusOrAnnotate(
           InvalidArgumentError("Reading varint field failed")));
     }
-    MaskBuffer(unmasked, buffer + tag_length, Uint8Constant<data_length>());
+    char* const out_data = buffer + tag_length;
+    for (size_t i = 0; i < size_t{data_length} - 1; ++i) {
+      out_data[i] =
+          static_cast<char>(static_cast<uint8_t>(unmasked[i]) | uint8_t{0x80});
+    }
+    out_data[data_length - 1] = unmasked[data_length - 1];
     std::memcpy(buffer, node->tag_data, tag_length);
     return true;
   }
@@ -1208,6 +1213,22 @@ struct TransposeDecoder::DecodingState {
   // Decode fixed32 or fixed64 value from `*node` to `dest`.
   template <size_t tag_length, size_t data_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedCallback() {
+    Reader* const buf = node->buffer;
+    if (ABSL_PREDICT_TRUE(dest->available() >= tag_length + data_length &&
+                          buf->available() >= data_length)) {
+      dest->move_cursor(tag_length + data_length);
+      char* const out = dest->cursor();
+      std::memcpy(out + tag_length, buf->cursor(), data_length);
+      buf->move_cursor(data_length);
+      std::memcpy(out, node->tag_data, tag_length);
+      return true;
+    }
+    return FixedCallbackSlow(decoder, dest, node, tag_length, data_length);
+  }
+
+  ABSL_ATTRIBUTE_NOINLINE static bool FixedCallbackSlow(
+      TransposeDecoder* decoder, BackwardWriter* dest,
+      const StateMachineNode* node, size_t tag_length, size_t data_length) {
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
       return decoder->Fail(dest->status());
     }
@@ -1225,6 +1246,20 @@ struct TransposeDecoder::DecodingState {
   // Create zero fixed32 or fixed64 value in `dest`.
   template <size_t tag_length, size_t data_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool FixedExistenceCallback() {
+    if (ABSL_PREDICT_TRUE(dest->available() >= tag_length + data_length)) {
+      dest->move_cursor(tag_length + data_length);
+      char* const buffer = dest->cursor();
+      std::memset(buffer + tag_length, '\0', data_length);
+      std::memcpy(buffer, node->tag_data, tag_length);
+      return true;
+    }
+    return FixedExistenceCallbackSlow(decoder, dest, node, tag_length,
+                                      data_length);
+  }
+
+  ABSL_ATTRIBUTE_NOINLINE static bool FixedExistenceCallbackSlow(
+      TransposeDecoder* decoder, BackwardWriter* dest,
+      const StateMachineNode* node, size_t tag_length, size_t data_length) {
     if (ABSL_PREDICT_FALSE(!dest->Push(tag_length + data_length))) {
       return decoder->Fail(dest->status());
     }
@@ -1238,6 +1273,28 @@ struct TransposeDecoder::DecodingState {
   // Decode string value from `*node` to `dest`.
   template <size_t tag_length>
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool StringCallback() {
+    Reader* const buf = node->buffer;
+    if (ABSL_PREDICT_TRUE(buf->available() > 0)) {
+      const uint8_t first_byte = static_cast<uint8_t>(*buf->cursor());
+      if (ABSL_PREDICT_TRUE(first_byte < 0x80)) {
+        const size_t total_src = 1 + size_t{first_byte};
+        if (ABSL_PREDICT_TRUE(buf->available() >= total_src &&
+                              dest->available() >= tag_length + total_src)) {
+          dest->move_cursor(tag_length + total_src);
+          char* const out = dest->cursor();
+          std::memcpy(out + tag_length, buf->cursor(), total_src);
+          buf->move_cursor(total_src);
+          std::memcpy(out, node->tag_data, tag_length);
+          return true;
+        }
+      }
+    }
+    return StringCallbackSlow(decoder, dest, node, tag_length);
+  }
+
+  ABSL_ATTRIBUTE_NOINLINE static bool StringCallbackSlow(
+      TransposeDecoder* decoder, BackwardWriter* dest,
+      const StateMachineNode* node, size_t tag_length) {
     node->buffer->Pull(kMaxLengthVarint32);
     uint32_t length;
     const size_t length_length =
