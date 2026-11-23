@@ -46,7 +46,6 @@
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/base/string_ref.h"
-#include "riegeli/base/type_traits.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/ostream_writer.h"
@@ -494,41 +493,42 @@ inline void GcsWriter::SetFunctions(
                 std::tuple_size_v<decltype(write_temp_object_options)>>());
       };
   compose_object_ =
-      [compose_object_options = DecayTuple(Filter<ComposeObjectOptionPredicate>(
-           write_object_options...))](GcsWriter& self) mutable {
+      [compose_object_options = gcs_internal::DecayTuple(
+           gcs_internal::Filter<ComposeObjectOptionPredicate>(
+               write_object_options...))](GcsWriter& self) mutable {
         return self.ApplyComposeObject(
             compose_object_options,
             std::make_index_sequence<
                 std::tuple_size_v<decltype(compose_object_options)>>());
       };
   delete_temp_object_ =
-      [delete_temp_object_options = DecayTuple(
-           Filter<DeleteTempObjectOptionPredicate>(write_object_options...))](
-          GcsWriter& self) mutable {
+      [delete_temp_object_options = gcs_internal::DecayTuple(
+           gcs_internal::Filter<DeleteTempObjectOptionPredicate>(
+               write_object_options...))](GcsWriter& self) mutable {
         return self.ApplyDeleteTempObject(
             delete_temp_object_options,
             std::make_index_sequence<
                 std::tuple_size_v<decltype(delete_temp_object_options)>>());
       };
   get_object_size_ =
-      [get_object_size_options = DecayTuple(
-           Filter<GetObjectSizeOptionPredicate>(write_object_options...))](
-          GcsWriter& self) mutable {
+      [get_object_size_options = gcs_internal::DecayTuple(
+           gcs_internal::Filter<GetObjectSizeOptionPredicate>(
+               write_object_options...))](GcsWriter& self) mutable {
         return self.ApplyGetObjectSize(
             get_object_size_options,
             std::make_index_sequence<
                 std::tuple_size_v<decltype(get_object_size_options)>>());
       };
-  make_gcs_reader_ =
-      [gcs_reader_options = DecayTuple(
-           Filter<MakeGcsReaderOptionPredicate>(write_object_options...))](
-          GcsWriter& self, int64_t read_from_offset) mutable {
-        return self.ApplyMakeGcsReader(
-            gcs_reader_options,
-            std::make_index_sequence<
-                std::tuple_size_v<decltype(gcs_reader_options)>>(),
-            read_from_offset);
-      };
+  make_gcs_reader_ = [gcs_reader_options = gcs_internal::DecayTuple(
+                          gcs_internal::Filter<MakeGcsReaderOptionPredicate>(
+                              write_object_options...))](
+                         GcsWriter& self, int64_t read_from_offset) mutable {
+    return self.ApplyMakeGcsReader(
+        gcs_reader_options,
+        std::make_index_sequence<
+            std::tuple_size_v<decltype(gcs_reader_options)>>(),
+        read_from_offset);
+  };
 }
 
 inline const google::cloud::storage::ObjectMetadata& GcsWriter::metadata()

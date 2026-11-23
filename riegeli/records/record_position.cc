@@ -36,10 +36,10 @@
 #include "riegeli/bytes/string_writer.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/endian/endian_reading.h"
-#include "riegeli/ordered_varint/ordered_varint_reading.h"
-#include "riegeli/ordered_varint/ordered_varint_writing.h"
 #include "riegeli/records/block.h"
 #include "riegeli/records/chunk_writer.h"
+#include "riegeli/records/ordered_varint_reading.h"
+#include "riegeli/records/ordered_varint_writing.h"
 
 namespace riegeli {
 

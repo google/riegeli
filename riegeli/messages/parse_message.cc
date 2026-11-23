@@ -36,12 +36,12 @@
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
-#include "riegeli/base/cord_iterator_span.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
 #include "riegeli/bytes/cord_reader.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/bytes/reader.h"
+#include "riegeli/messages/cord_iterator_span.h"
 #include "riegeli/varint/varint_reading.h"
 
 namespace riegeli {

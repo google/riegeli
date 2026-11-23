@@ -71,9 +71,6 @@
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
-#ifdef _WIN32
-#include "riegeli/base/errno_mapping.h"
-#endif
 #include "riegeli/base/external_ref.h"
 #ifndef _WIN32
 #include "riegeli/base/global.h"
@@ -83,6 +80,9 @@
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/chain_reader.h"
+#ifdef _WIN32
+#include "riegeli/bytes/errno_mapping.h"
+#endif
 #include "riegeli/bytes/fd_handle.h"
 #include "riegeli/bytes/fd_internal_for_cc.h"
 #include "riegeli/bytes/reader.h"

@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RIEGELI_ORDERED_VARINT_ORDERED_VARINT_READING_H_
-#define RIEGELI_ORDERED_VARINT_ORDERED_VARINT_READING_H_
+#ifndef RIEGELI_RECORDS_ORDERED_VARINT_READING_H_
+#define RIEGELI_RECORDS_ORDERED_VARINT_READING_H_
 
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
 #include "riegeli/bytes/reader.h"
-#include "riegeli/ordered_varint/ordered_varint_internal.h"  // IWYU pragma: export
+#include "riegeli/records/ordered_varint_internal.h"  // IWYU pragma: export
 
 namespace riegeli {
 
@@ -87,4 +87,4 @@ inline bool ReadOrderedVarint64(Reader& src, uint64_t& dest) {
 
 }  // namespace riegeli
 
-#endif  // RIEGELI_ORDERED_VARINT_ORDERED_VARINT_READING_H_
+#endif  // RIEGELI_RECORDS_ORDERED_VARINT_READING_H_
