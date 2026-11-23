@@ -21,12 +21,12 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/array_backward_writer.h"
 #include "riegeli/bytes/chain_backward_writer.h"
@@ -55,17 +55,17 @@ bool ChunkDecoder::Decode(const Chunk& chunk, bool flatten) {
     limits_.clear();  // Ensure that `index() == num_records()`.
     return false;
   }
-  RIEGELI_ASSERT_EQ(limits_.size(), chunk.header.num_records())
+  ABSL_DCHECK_EQ(limits_.size(), chunk.header.num_records())
       << "Wrong number of record end positions";
-  RIEGELI_ASSERT_EQ(limits_.empty() ? size_t{0} : limits_.back(), values.size())
+  ABSL_DCHECK_EQ(limits_.empty() ? size_t{0} : limits_.back(), values.size())
       << "Wrong last record end position";
   if (chunk.header.num_records() == 0) {
-    RIEGELI_ASSERT_EQ(values.size(), 0u) << "Wrong decoded data size";
+    ABSL_DCHECK_EQ(values.size(), 0u) << "Wrong decoded data size";
   } else if (field_projection_.includes_all()) {
-    RIEGELI_ASSERT_EQ(values.size(), chunk.header.decoded_data_size())
+    ABSL_DCHECK_EQ(values.size(), chunk.header.decoded_data_size())
         << "Wrong decoded data size";
   } else {
-    RIEGELI_ASSERT_LE(values.size(), chunk.header.decoded_data_size())
+    ABSL_DCHECK_LE(values.size(), chunk.header.decoded_data_size())
         << "Wrong decoded data size";
   }
   values_reader_.Reset(std::move(values));
@@ -198,12 +198,13 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
   if (ABSL_PREDICT_FALSE(!ok() || index() == num_records())) return false;
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
-  RIEGELI_ASSERT_LE(start, limit)
+  ABSL_DCHECK_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
   if (absl::Status status =
           ParseMessage(ReaderSpan(&values_reader_, limit - start), record);
       ABSL_PREDICT_FALSE(!status.ok())) {
-    RIEGELI_EVAL_ASSERT(values_reader_.Seek(limit)) << values_reader_.status();
+    const bool seek_ok = values_reader_.Seek(limit);
+    ABSL_DCHECK(seek_ok) << values_reader_.status();
     recoverable_ = true;
     return Fail(std::move(status));
   }
@@ -213,8 +214,8 @@ bool ChunkDecoder::ReadRecord(google::protobuf::MessageLite& record) {
 
 bool ChunkDecoder::Recover() {
   if (!recoverable_) return false;
-  RIEGELI_ASSERT(!ok()) << "Failed invariant of ChunkDecoder: "
-                           "recovery applicable but ChunkDecoder OK";
+  ABSL_DCHECK(!ok()) << "Failed invariant of ChunkDecoder: "
+                        "recovery applicable but ChunkDecoder OK";
   recoverable_ = false;
   MarkNotFailed();
   ++index_;

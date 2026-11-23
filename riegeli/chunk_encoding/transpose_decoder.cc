@@ -31,11 +31,11 @@
 #include "absl/base/optimization.h"
 #include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/maker.h"
@@ -58,7 +58,8 @@ namespace {
 
 Reader* kEmptyReader() {
   Reader* const reader = &Global([] { return riegeli::StringReader<>(); });
-  RIEGELI_ASSERT_OK(*reader) << "kEmptyReader() has been closed";
+  ABSL_DCHECK(reader->ok())
+      << "kEmptyReader() has been closed: " << reader->status();
   return reader;
 }
 
@@ -104,8 +105,7 @@ bool ValidTag(uint32_t tag) {
     case WireType::kInvalid7:
       return false;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
+  ABSL_UNREACHABLE();
 }
 
 // The types of callbacks in state machine states.
@@ -173,9 +173,8 @@ struct StateMachineNodeTemplate {
 
 // Returns copy tag callback type for `tag_length`.
 inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32 + 1)
-      << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32 + 1) << "Tag length too large";
   return CallbackType::kCopyTag_1 +
          (tag_length - 1) *
              (CallbackType::kCopyTag_2 - CallbackType::kCopyTag_1);
@@ -184,8 +183,8 @@ inline CallbackType GetCopyTagCallbackType(size_t tag_length) {
 // Returns varint callback type for `subtype` and `tag_length`.
 inline CallbackType GetVarintCallbackType(
     chunk_encoding_internal::Subtype subtype, size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   if (subtype > chunk_encoding_internal::Subtype::kVarintInlineMax)
     return CallbackType::kUnknown;
   if (subtype >= chunk_encoding_internal::Subtype::kVarintInline0) {
@@ -200,8 +199,8 @@ inline CallbackType GetVarintCallbackType(
 
 // Returns fixed32 callback type for `tag_length`.
 inline CallbackType GetFixed32CallbackType(size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kFixed32_1 +
          (tag_length - 1) *
              (CallbackType::kFixed32_2 - CallbackType::kFixed32_1);
@@ -209,8 +208,8 @@ inline CallbackType GetFixed32CallbackType(size_t tag_length) {
 
 // Returns fixed64 callback type for `tag_length`.
 inline CallbackType GetFixed64CallbackType(size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kFixed64_1 +
          (tag_length - 1) *
              (CallbackType::kFixed64_2 - CallbackType::kFixed64_1);
@@ -218,8 +217,8 @@ inline CallbackType GetFixed64CallbackType(size_t tag_length) {
 
 // Returns fixed32 existence callback type for `tag_length`.
 inline CallbackType GetFixed32ExistenceCallbackType(size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kFixed32Existence_1 +
          (tag_length - 1) * (CallbackType::kFixed32Existence_2 -
                              CallbackType::kFixed32Existence_1);
@@ -227,8 +226,8 @@ inline CallbackType GetFixed32ExistenceCallbackType(size_t tag_length) {
 
 // Returns fixed64 existence callback type for `tag_length`.
 inline CallbackType GetFixed64ExistenceCallbackType(size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kFixed64Existence_1 +
          (tag_length - 1) * (CallbackType::kFixed64Existence_2 -
                              CallbackType::kFixed64Existence_1);
@@ -237,8 +236,8 @@ inline CallbackType GetFixed64ExistenceCallbackType(size_t tag_length) {
 // Returns string callback type for `subtype` and `tag_length`.
 inline CallbackType GetStringCallbackType(
     chunk_encoding_internal::Subtype subtype, size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
     case chunk_encoding_internal::Subtype::kLengthDelimitedString:
       return CallbackType::kString_1 +
@@ -257,8 +256,8 @@ inline CallbackType GetStringCallbackType(
 // Returns string callback type for `subtype` and `tag_length` to exclude field.
 inline CallbackType GetStringExcludeCallbackType(
     chunk_encoding_internal::Subtype subtype, size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
     case chunk_encoding_internal::Subtype::kLengthDelimitedString:
       return CallbackType::kNoOp;
@@ -272,8 +271,8 @@ inline CallbackType GetStringExcludeCallbackType(
 // Returns string existence callback type for `subtype` and `tag_length`.
 inline CallbackType GetStringExistenceCallbackType(
     chunk_encoding_internal::Subtype subtype, size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (subtype) {
     case chunk_encoding_internal::Subtype::kLengthDelimitedString:
       // We use the fact that there is a zero stored in `tag_data`. This decodes
@@ -287,16 +286,16 @@ inline CallbackType GetStringExistenceCallbackType(
 }
 
 inline CallbackType GetStartProjectionGroupCallbackType(size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kStartProjectionGroup_1 +
          (tag_length - 1) * (CallbackType::kStartProjectionGroup_2 -
                              CallbackType::kStartProjectionGroup_1);
 }
 
 inline CallbackType GetEndProjectionGroupCallbackType(size_t tag_length) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   return CallbackType::kEndProjectionGroup_1 +
          (tag_length - 1) * (CallbackType::kEndProjectionGroup_2 -
                              CallbackType::kEndProjectionGroup_1);
@@ -307,8 +306,8 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
                                     chunk_encoding_internal::Subtype subtype,
                                     size_t tag_length,
                                     bool projection_enabled) {
-  RIEGELI_ASSERT_GT(tag_length, 0u) << "Zero tag length";
-  RIEGELI_ASSERT_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
+  ABSL_DCHECK_GT(tag_length, 0u) << "Zero tag length";
+  ABSL_DCHECK_LE(tag_length, kMaxLengthVarint32) << "Tag length too large";
   switch (field_included) {
     case FieldIncluded::kYes:
       switch (GetTagWireType(tag)) {
@@ -364,8 +363,7 @@ inline CallbackType GetCallbackType(FieldIncluded field_included, uint32_t tag,
           return CallbackType::kUnknown;
       }
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown FieldIncluded: " << static_cast<int>(field_included);
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace
@@ -442,7 +440,7 @@ bool TransposeDecoder::Decode(uint64_t num_records, uint64_t decoded_data_size,
                               const FieldProjection& field_projection,
                               Reader& src, BackwardWriter& dest,
                               std::vector<size_t>& limits) {
-  RIEGELI_ASSERT_EQ(dest.pos(), 0u)
+  ABSL_DCHECK_EQ(dest.pos(), 0u)
       << "Failed precondition of TransposeDecoder::Reset(): "
          "non-zero destination position";
   Object::Reset();
@@ -957,12 +955,12 @@ inline bool TransposeDecoder::ParseBuffersForFiltering(
 inline Reader* TransposeDecoder::GetBuffer(Context& context,
                                            uint32_t bucket_index,
                                            uint32_t index_within_bucket) {
-  RIEGELI_ASSERT_LT(bucket_index, context.buckets.size())
+  ABSL_DCHECK_LT(bucket_index, context.buckets.size())
       << "Bucket index out of range";
   DataBucket& bucket = context.buckets[bucket_index];
-  RIEGELI_ASSERT_LT(index_within_bucket, !bucket.buffer_sizes.empty()
-                                             ? bucket.buffer_sizes.size()
-                                             : bucket.buffers.size())
+  ABSL_DCHECK_LT(index_within_bucket, !bucket.buffer_sizes.empty()
+                                          ? bucket.buffer_sizes.size()
+                                          : bucket.buffers.size())
       << "Index within bucket out of range";
   while (index_within_bucket >= bucket.buffers.size()) {
     if (bucket.buffers.empty()) {
@@ -1050,7 +1048,7 @@ struct TransposeDecoder::DecodingState {
     };
 
     ABSL_ATTRIBUTE_ALWAYS_INLINE SubmessageStackElement Pop() {
-      RIEGELI_ASSERT(!Empty());
+      ABSL_DCHECK(!Empty());
       --size_;
       return SubmessageStackElement{positions_[size_], nodes_[size_]};
     }
@@ -1284,7 +1282,7 @@ struct TransposeDecoder::DecodingState {
       return decoder->Fail(InvalidArgumentError("Submessage stack underflow"));
     }
     auto elem = submessage_stack.Pop();
-    RIEGELI_ASSERT_GE(dest->pos(), elem.end_of_submessage)
+    ABSL_DCHECK_GE(dest->pos(), elem.end_of_submessage)
         << "Destination position decreased";
     const size_t length = IntCast<size_t>(dest->pos()) - elem.end_of_submessage;
     if (ABSL_PREDICT_FALSE(length > std::numeric_limits<uint32_t>::max())) {
@@ -1418,8 +1416,7 @@ struct TransposeDecoder::DecodingState {
         case CallbackType::kNoOp:
           return true;
       }
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Unknown callback type: " << static_cast<int>(node->callback_type);
+      ABSL_UNREACHABLE();
     }
   }
 
@@ -1529,9 +1526,9 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
       field_included = FieldIncluded::kExistenceOnly;
       for (const StateMachineNode* elem : submessage_stack) {
         uint32_t tag;
-        RIEGELI_EVAL_ASSERT(
-            ReadVarint32(elem->tag_data, kMaxLengthVarint32, tag) > 0)
-            << "Invalid tag";
+        const size_t tag_length =
+            ReadVarint32(elem->tag_data, kMaxLengthVarint32, tag);
+        ABSL_DCHECK_GT(tag_length, 0u) << "Invalid tag";
         const absl::flat_hash_map<std::pair<uint32_t, int>,
                                   Context::IncludedField>::const_iterator iter =
             context.include_fields.find(
@@ -1558,9 +1555,9 @@ ABSL_ATTRIBUTE_NOINLINE inline bool TransposeDecoder::SetCallbackType(
         GetTagWireType(node_template->tag) == WireType::kStartGroup;
     if (!start_group_tag && field_included == FieldIncluded::kExistenceOnly) {
       uint32_t tag;
-      RIEGELI_EVAL_ASSERT(ReadVarint32(node.tag_data, kMaxLengthVarint32, tag) >
-                          0)
-          << "Invalid tag";
+      const size_t tag_length =
+          ReadVarint32(node.tag_data, kMaxLengthVarint32, tag);
+      ABSL_DCHECK_GT(tag_length, 0u) << "Invalid tag";
       const absl::flat_hash_map<std::pair<uint32_t, int>,
                                 Context::IncludedField>::const_iterator iter =
           context.include_fields.find(

@@ -19,10 +19,10 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/pushable_writer.h"
 #include "riegeli/bytes/reader.h"
@@ -37,21 +37,21 @@ void ArrayWriterBase::Done() {
 }
 
 bool ArrayWriterBase::PushBehindScratch(size_t recommended_length) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
   return ForcePushUsingScratch();
 }
 
 bool ArrayWriterBase::WriteBehindScratch(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of "
          "PushableWriter::WriteBehindScratch(string_view): "
          "enough space available, use Write(string_view) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableWriter::WriteBehindScratch(string_view): "
          "scratch used";
@@ -59,7 +59,7 @@ bool ArrayWriterBase::WriteBehindScratch(absl::string_view src) {
 }
 
 bool ArrayWriterBase::FlushBehindScratch(FlushType flush_type) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -69,10 +69,10 @@ bool ArrayWriterBase::FlushBehindScratch(FlushType flush_type) {
 }
 
 bool ArrayWriterBase::SeekBehindScratch(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of PushableWriter::SeekBehindScratch(): "
          "position unchanged, use Seek() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::SeekBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -87,7 +87,7 @@ bool ArrayWriterBase::SeekBehindScratch(Position new_pos) {
 }
 
 std::optional<Position> ArrayWriterBase::SizeBehindScratch() {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::SizeBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
@@ -95,7 +95,7 @@ std::optional<Position> ArrayWriterBase::SizeBehindScratch() {
 }
 
 bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::TruncateBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -110,7 +110,7 @@ bool ArrayWriterBase::TruncateBehindScratch(Position new_size) {
 }
 
 Reader* ArrayWriterBase::ReadModeBehindScratch(Position initial_pos) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;

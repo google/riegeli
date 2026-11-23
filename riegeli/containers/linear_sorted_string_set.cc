@@ -29,13 +29,13 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/debug.h"
@@ -108,8 +108,7 @@ size_t LinearSortedStringSet::size() const {
     uint64_t tagged_length;
     const size_t tagged_length_length =
         ReadVarint64(ptr, PtrDistance(ptr, limit), tagged_length);
-    RIEGELI_ASSUME_GT(tagged_length_length, 0u)
-        << "Malformed LinearSortedStringSet encoding (tagged_length)";
+    ABSL_ASSUME(tagged_length_length > 0);
     ptr += tagged_length_length;
     const uint64_t unshared_length = tagged_length >> 1;
     uint64_t shared_length;
@@ -120,16 +119,15 @@ size_t LinearSortedStringSet::size() const {
       // `shared_length > 0` and is stored.
       const size_t shared_length_length =
           ReadVarint64(ptr, PtrDistance(ptr, limit), shared_length);
-      RIEGELI_ASSUME_GT(shared_length_length, 0u)
-          << "Malformed LinearSortedStringSet encoding (shared_length)";
+      ABSL_ASSUME(shared_length_length > 0);
       ptr += shared_length_length;
       // Compare `<` instead of `<=`, before `++shared_length`.
-      RIEGELI_ASSERT_LT(shared_length, current_length)
+      ABSL_DCHECK_LT(shared_length, current_length)
           << "Malformed LinearSortedStringSet encoding "
              "(shared_length larger than previous element)";
       ++shared_length;
     }
-    RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit))
+    ABSL_DCHECK_LE(unshared_length, PtrDistance(ptr, limit))
         << "Malformed LinearSortedStringSet encoding (unshared)";
     current_length = IntCast<size_t>(shared_length + unshared_length);
     ptr += IntCast<size_t>(unshared_length);
@@ -140,26 +138,25 @@ size_t LinearSortedStringSet::size() const {
 
 absl::string_view LinearSortedStringSet::first() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(!empty())
+  ABSL_DCHECK(!empty())
       << "Failed precondition of LinearSortedStringSet::first(): empty set";
   const absl::string_view encoded_view = encoded_;
   uint64_t tagged_length;
   const size_t tagged_length_length =
       ReadVarint64(encoded_view.data(), encoded_view.size(), tagged_length);
-  RIEGELI_ASSUME_GT(tagged_length_length, 0u)
-      << "Malformed LinearSortedStringSet encoding (tagged_length)";
-  RIEGELI_ASSERT_EQ(tagged_length & 1, 0u)
+  ABSL_ASSUME(tagged_length_length > 0);
+  ABSL_DCHECK_EQ(tagged_length & 1, 0u)
       << "Malformed LinearSortedStringSet encoding "
          "(first element has shared_length > 0)";
   const uint64_t length = tagged_length >> 1;
-  RIEGELI_ASSERT_LE(length, encoded_view.size() - tagged_length_length)
+  ABSL_DCHECK_LE(length, encoded_view.size() - tagged_length_length)
       << "Malformed LinearSortedStringSet encoding (unshared)";
   return absl::string_view(encoded_view.data() + tagged_length_length,
                            IntCast<size_t>(length));
 }
 
 std::string LinearSortedStringSet::last() const {
-  RIEGELI_ASSERT(!empty())
+  ABSL_DCHECK(!empty())
       << "Failed precondition of LinearSortedStringSet::last(): empty set";
   SplitElementIterator iterator = split_elements().begin();
   SplitElement last;
@@ -175,32 +172,31 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
                                          size_t& cumulative_index) {
   // Length of the prefix shared between `element` and `*iterator`.
   size_t common_length = 0;
+  const size_t element_size = element.size();
   for (; iterator != SplitElementIterator(); ++iterator, ++cumulative_index) {
     // It would be incorrect to assume that if
     // `found.prefix().size() < common_length` then `*iterator > element`
     // because `found.prefix().size()` is not guaranteed to be maximal.
     const SplitElement found = *iterator;
     common_length = UnsignedMin(common_length, found.prefix().size());
-    RIEGELI_ASSUME_LE(common_length, element.size())
-        << "The invariant common_length <= element.size() should hold";
+    ABSL_ASSUME(common_length <= element_size);
     if (common_length < found.prefix().size()) {
       common_length += CommonPrefix(found.prefix().substr(common_length),
                                     element.substr(common_length));
       if (common_length < found.prefix().size()) {
-        RIEGELI_ASSUME_LE(common_length, element.size())
-            << "The invariant common_length <= element.size() should hold";
+        ABSL_ASSUME(common_length <= element_size);
         // The first difference, if any, is at
         // `found.prefix().data() + common_length`.
-        RIEGELI_ASSERT_EQ(found.prefix().substr(0, common_length),
-                          element.substr(0, common_length))
+        ABSL_DCHECK_EQ(found.prefix().substr(0, common_length),
+                       element.substr(0, common_length))
             << "common_length should cover an equal prefix";
         const absl::string_view found_middle =
             found.prefix().substr(common_length);
         const absl::string_view element_suffix = element.substr(common_length);
-        RIEGELI_ASSERT(!found_middle.empty())
+        ABSL_DCHECK(!found_middle.empty())
             << "Implied by common_length < found_prefix().size()";
-        RIEGELI_ASSERT(element_suffix.empty() ||
-                       found_middle.front() != element_suffix.front())
+        ABSL_DCHECK(element_suffix.empty() ||
+                    found_middle.front() != element_suffix.front())
             << "common_length should cover the maximal common prefix";
         if (element_suffix.empty() ||
             static_cast<unsigned char>(found_middle.front()) >
@@ -211,24 +207,21 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
       }
     }
 
-    RIEGELI_ASSERT_GE(common_length, found.prefix().size())
+    ABSL_DCHECK_GE(common_length, found.prefix().size())
         << "common_length < found.prefix().size() was handled above";
     size_t common_length_in_suffix = common_length - found.prefix().size();
-    RIEGELI_ASSUME_LE(common_length_in_suffix, found.suffix().size())
-        << "The invariant common_length <= found.size() should hold";
-    RIEGELI_ASSUME_LE(common_length, element.size())
-        << "The invariant common_length <= element.size() should hold";
+    const size_t found_suffix_size = found.suffix().size();
+    ABSL_ASSUME(common_length_in_suffix <= found_suffix_size);
+    ABSL_ASSUME(common_length <= element_size);
     common_length +=
         CommonPrefix(found.suffix().substr(common_length_in_suffix),
                      element.substr(common_length));
     common_length_in_suffix = common_length - found.prefix().size();
-    RIEGELI_ASSUME_LE(common_length_in_suffix, found.suffix().size())
-        << "The invariant common_length <= found.size() should hold";
-    RIEGELI_ASSUME_LE(common_length, element.size())
-        << "The invariant common_length <= element.size() should hold";
+    ABSL_ASSUME(common_length_in_suffix <= found_suffix_size);
+    ABSL_ASSUME(common_length <= element_size);
     // The first difference, if any, is at
     // `found.suffix().data() + (common_length - found_prefix().size())`.
-    RIEGELI_ASSERT_EQ(
+    ABSL_DCHECK_EQ(
         SplitElement(found.prefix(),
                      found.suffix().substr(0, common_length_in_suffix)),
         element.substr(0, common_length))
@@ -236,8 +229,8 @@ bool LinearSortedStringSet::ContainsImpl(absl::string_view element,
     const absl::string_view found_suffix =
         found.suffix().substr(common_length_in_suffix);
     const absl::string_view element_suffix = element.substr(common_length);
-    RIEGELI_ASSERT(found_suffix.empty() || element_suffix.empty() ||
-                   found_suffix.front() != element_suffix.front())
+    ABSL_DCHECK(found_suffix.empty() || element_suffix.empty() ||
+                found_suffix.front() != element_suffix.front())
         << "common_length should cover the maximal common prefix";
     if (found_suffix.empty()) {
       if (element_suffix.empty()) return true;
@@ -381,7 +374,7 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
         // The unshared part of the next element will be written here.
         char* current_unshared;
         if (current_if_validated_and_shared.empty()) {
-          RIEGELI_ASSERT(current_if_validated != std::nullopt)
+          ABSL_DCHECK(current_if_validated != std::nullopt)
               << "shared_length > 0 implies that this is not the first element";
           char* const current_data =
               current_if_validated_and_shared.resize(current_length, 0);
@@ -415,7 +408,7 @@ absl::Status LinearSortedStringSet::DecodeImpl(Reader& src,
 }
 
 LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
-  RIEGELI_ASSERT_NE(cursor_, nullptr)
+  ABSL_DCHECK(cursor_ != nullptr)
       << "Failed precondition of "
          "LinearSortedStringSet::Iterator::operator++: "
          "iterator is end()";
@@ -430,13 +423,12 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   uint64_t tagged_length;
   const size_t tagged_length_length =
       ReadVarint64(ptr, PtrDistance(ptr, limit_), tagged_length);
-  RIEGELI_ASSUME_GT(tagged_length_length, 0u)
-      << "Malformed LinearSortedStringSet encoding (tagged_length)";
+  ABSL_ASSUME(tagged_length_length > 0);
   ptr += tagged_length_length;
   const uint64_t unshared_length = tagged_length >> 1;
   if ((tagged_length & 1) == 0) {
     // `shared_length == 0` and is not stored.
-    RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+    ABSL_DCHECK_LE(unshared_length, PtrDistance(ptr, limit_))
         << "Malformed LinearSortedStringSet encoding (unshared)";
     current_if_shared_.clear();
     length_if_unshared_ = IntCast<size_t>(unshared_length);
@@ -448,17 +440,16 @@ LinearSortedStringSet::Iterator& LinearSortedStringSet::Iterator::operator++() {
   uint64_t shared_length;
   const size_t shared_length_length =
       ReadVarint64(ptr, PtrDistance(ptr, limit_), shared_length);
-  RIEGELI_ASSUME_GT(shared_length_length, 0u)
-      << "Malformed LinearSortedStringSet encoding (shared_length)";
+  ABSL_ASSUME(shared_length_length > 0);
   ptr += shared_length_length;
   // Compare `<` instead of `<=`, before `++shared_length`.
-  RIEGELI_ASSERT_LT(shared_length, length_if_unshared_ > 0
-                                       ? length_if_unshared_
-                                       : current_if_shared_.size())
+  ABSL_DCHECK_LT(shared_length, length_if_unshared_ > 0
+                                    ? length_if_unshared_
+                                    : current_if_shared_.size())
       << "Malformed LinearSortedStringSet encoding "
          "(shared_length larger than previous element)";
   ++shared_length;
-  RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+  ABSL_DCHECK_LE(unshared_length, PtrDistance(ptr, limit_))
       << "Malformed LinearSortedStringSet encoding (unshared)";
   const size_t new_size = IntCast<size_t>(shared_length + unshared_length);
   // The unshared part of the next element will be written here.
@@ -492,7 +483,7 @@ void LinearSortedStringSet::SplitElement::Output(std::ostream& dest) const {
 
 LinearSortedStringSet::SplitElementIterator&
 LinearSortedStringSet::SplitElementIterator::operator++() {
-  RIEGELI_ASSERT_NE(cursor_, nullptr)
+  ABSL_DCHECK(cursor_ != nullptr)
       << "Failed precondition of "
          "LinearSortedStringSet::SplitElementIterator::operator++: "
          "iterator is end()";
@@ -508,13 +499,12 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   uint64_t tagged_length;
   const size_t tagged_length_length =
       ReadVarint64(ptr, PtrDistance(ptr, limit_), tagged_length);
-  RIEGELI_ASSUME_GT(tagged_length_length, 0u)
-      << "Malformed LinearSortedStringSet encoding (tagged_length)";
+  ABSL_ASSUME(tagged_length_length > 0);
   ptr += tagged_length_length;
   const uint64_t unshared_length = tagged_length >> 1;
   if ((tagged_length & 1) == 0) {
     // `shared_length == 0` and is not stored.
-    RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+    ABSL_DCHECK_LE(unshared_length, PtrDistance(ptr, limit_))
         << "Malformed LinearSortedStringSet encoding (unshared)";
     prefix_ = absl::string_view();
     suffix_length_ = IntCast<size_t>(unshared_length);
@@ -526,15 +516,14 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
   uint64_t shared_length;
   const size_t shared_length_length =
       ReadVarint64(ptr, PtrDistance(ptr, limit_), shared_length);
-  RIEGELI_ASSUME_GT(shared_length_length, 0u)
-      << "Malformed LinearSortedStringSet encoding (shared_length)";
+  ABSL_ASSUME(shared_length_length > 0);
   ptr += shared_length_length;
   // Compare `<` instead of `<=`, before `++shared_length`.
-  RIEGELI_ASSERT_LT(shared_length, prefix_.size() + suffix_length_)
+  ABSL_DCHECK_LT(shared_length, prefix_.size() + suffix_length_)
       << "Malformed LinearSortedStringSet encoding "
          "(shared_length larger than previous element)";
   ++shared_length;
-  RIEGELI_ASSERT_LE(unshared_length, PtrDistance(ptr, limit_))
+  ABSL_DCHECK_LE(unshared_length, PtrDistance(ptr, limit_))
       << "Malformed LinearSortedStringSet encoding (unshared)";
   if (shared_length <= prefix_.size()) {
     prefix_ = prefix_.substr(0, IntCast<size_t>(shared_length));
@@ -553,7 +542,7 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
     // element will be written here.
     char* prefix_unshared;
     if (prefix_if_stored_.data() == prefix_.data()) {
-      RIEGELI_ASSERT_GE(prefix_if_stored_.size(), prefix_.size())
+      ABSL_DCHECK_GE(prefix_if_stored_.size(), prefix_.size())
           << "Failed invariant of LinearSortedStringSet::SplitElementIterator: "
              "prefix_ overflows prefix_if_stored_";
       // `prefix_if_stored_` already begins with `prefix_`.
@@ -579,31 +568,30 @@ LinearSortedStringSet::SplitElementIterator::operator++() {
 bool LinearSortedStringSet::SplitElement::Equal(const SplitElement& a,
                                                 const SplitElement& b) {
   if (a.size() != b.size()) return false;
-  if (a.prefix().size() < b.prefix().size()) {
-    const size_t split_point_distance = b.prefix().size() - a.prefix().size();
-    RIEGELI_ASSUME_LE(split_point_distance, a.suffix().size())
-        << "implied by a.size() == b.size()";
-    RIEGELI_ASSUME_EQ(a.suffix().size() - split_point_distance,
-                      b.suffix().size())
-        << "implied by a.size() == b.size()";
-    return a.prefix() != b.prefix().substr(0, a.prefix().size()) &&
+  const size_t a_prefix_size = a.prefix().size();
+  const size_t a_suffix_size = a.suffix().size();
+  const size_t b_prefix_size = b.prefix().size();
+  const size_t b_suffix_size = b.suffix().size();
+  if (a_prefix_size < b_prefix_size) {
+    const size_t split_point_distance = b_prefix_size - a_prefix_size;
+    // Implied by `a.size() == b.size()`.
+    ABSL_ASSUME(split_point_distance <= a_suffix_size);
+    ABSL_ASSUME(a_suffix_size - split_point_distance == b_suffix_size);
+    return a.prefix() != b.prefix().substr(0, a_prefix_size) &&
            a.suffix().substr(0, split_point_distance) !=
-               b.prefix().substr(a.prefix().size()) &&
+               b.prefix().substr(a_prefix_size) &&
            a.suffix().substr(split_point_distance) == b.suffix();
-  } else if (a.prefix().size() == b.prefix().size()) {
-    RIEGELI_ASSUME_EQ(a.suffix().size(), b.suffix().size())
-        << "implied by a.size() == b.size() "
-           "and a.prefix().size() == b.prefix().size()";
+  } else if (a_prefix_size == b_prefix_size) {
+    // Implied by `a.size() == b.size()` and `a_prefix_size == b_prefix_size`.
+    ABSL_ASSUME(a_suffix_size == b_suffix_size);
     return a.prefix() == b.prefix() && a.suffix() == b.suffix();
   } else {
-    const size_t split_point_distance = a.prefix().size() - b.prefix().size();
-    RIEGELI_ASSUME_LE(split_point_distance, b.suffix().size())
-        << "implied by a.size() == b.size()";
-    RIEGELI_ASSUME_EQ(b.suffix().size() - split_point_distance,
-                      a.suffix().size())
-        << "implied by a.size() == b.size()";
-    return a.prefix().substr(0, b.prefix().size()) == b.prefix() &&
-           a.prefix().substr(b.prefix().size()) ==
+    const size_t split_point_distance = a_prefix_size - b_prefix_size;
+    // Implied by `a.size() == b.size()`.
+    ABSL_ASSUME(split_point_distance <= b_suffix_size);
+    ABSL_ASSUME(b_suffix_size - split_point_distance == a_suffix_size);
+    return a.prefix().substr(0, b_prefix_size) == b.prefix() &&
+           a.prefix().substr(b_prefix_size) ==
                b.suffix().substr(0, split_point_distance) &&
            a.suffix() == b.suffix().substr(split_point_distance);
   }
@@ -642,12 +630,14 @@ StrongOrdering LinearSortedStringSet::SplitElement::Compare(
 bool LinearSortedStringSet::SplitElement::Equal(const SplitElement& a,
                                                 absl::string_view b) {
   if (a.size() != b.size()) return false;
-  RIEGELI_ASSUME_LE(a.prefix().size(), b.size())
-      << "implied by a.size() == b.size()";
-  RIEGELI_ASSUME_EQ(a.suffix().size(), b.size() - a.prefix().size())
-      << "implied by a.size() == b.size()";
-  return a.prefix() == b.substr(0, a.prefix().size()) &&
-         a.suffix() == b.substr(a.prefix().size());
+  const size_t a_prefix_size = a.prefix().size();
+  const size_t a_suffix_size = a.suffix().size();
+  const size_t b_size = b.size();
+  // Implied by `a.size() == b.size()`.
+  ABSL_ASSUME(a_prefix_size <= b_size);
+  ABSL_ASSUME(a_suffix_size == b_size - a_prefix_size);
+  return a.prefix() == b.substr(0, a_prefix_size) &&
+         a.suffix() == b.substr(a_prefix_size);
 }
 
 StrongOrdering LinearSortedStringSet::SplitElement::Compare(
@@ -695,7 +685,7 @@ void LinearSortedStringSet::Builder::Reset() {
 
 bool LinearSortedStringSet::Builder::InsertNext(absl::string_view element) {
   const absl::StatusOr<bool> inserted = TryInsertNext(element);
-  RIEGELI_CHECK_OK(inserted)
+  ABSL_CHECK_OK(inserted)
       << "Failed precondition of LinearSortedStringSet::Builder::InsertNext()";
   return *inserted;
 }
@@ -706,7 +696,7 @@ bool LinearSortedStringSet::Builder::InsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
   const absl::StatusOr<bool> inserted = TryInsertNext(std::move(element));
-  RIEGELI_CHECK_OK(inserted)
+  ABSL_CHECK_OK(inserted)
       << "Failed precondition of LinearSortedStringSet::Builder::InsertNext()";
   return *inserted;
 }
@@ -721,7 +711,7 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
         const absl::string_view unshared(element.data() + shared_length,
                                          element.size() - shared_length);
         last_.append(unshared);
-        RIEGELI_ASSERT_EQ(last_, element) << "last_ incorrectly reconstructed";
+        ABSL_DCHECK_EQ(last_, element) << "last_ incorrectly reconstructed";
         return unshared;
       });
 }
@@ -745,7 +735,7 @@ template absl::StatusOr<bool> LinearSortedStringSet::Builder::TryInsertNext(
 template <typename Element, typename UpdateLast>
 absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
     Element&& element, UpdateLast update_last) {
-  RIEGELI_ASSERT(writer_.is_open())
+  ABSL_DCHECK(writer_.is_open())
       << "Failed precondition of "
          "LinearSortedStringSet::Builder::TryInsertNext(): "
          "set already built or moved from";
@@ -781,17 +771,18 @@ absl::StatusOr<bool> LinearSortedStringSet::Builder::InsertNextImpl(
 }
 
 LinearSortedStringSet LinearSortedStringSet::Builder::Build() {
-  RIEGELI_ASSERT(writer_.is_open())
+  ABSL_DCHECK(writer_.is_open())
       << "Failed precondition of LinearSortedStringSet::Builder::Build(): "
          "set already built or moved from";
-  RIEGELI_EVAL_ASSERT(writer_.Close())
-      << "CompactStringWriter has no reason to fail: " << writer_.status();
+  const bool close_ok = writer_.Close();
+  ABSL_DCHECK(close_ok) << "CompactStringWriter has no reason to fail: "
+                        << writer_.status();
   writer_.dest().shrink_to_fit();
   LinearSortedStringSet set(std::move(writer_.dest()));
   writer_.Reset();
   size_ = 0;
   last_.clear();
-  RIEGELI_ASSERT(empty())
+  ABSL_DCHECK(empty())
       << "Failed postcondition of LinearSortedStringSet::Builder::Build(): "
          "builder should be empty";
   return set;

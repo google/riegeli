@@ -21,12 +21,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "bzlib.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -37,7 +37,7 @@
 namespace riegeli {
 
 void Bzip2WriterBase::Initialize(Writer* dest, int compression_level) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of Bzip2Writer: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -54,7 +54,7 @@ void Bzip2WriterBase::Initialize(Writer* dest, int compression_level) {
 }
 
 void Bzip2WriterBase::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
@@ -69,11 +69,11 @@ void Bzip2WriterBase::Done() {
 
 inline bool Bzip2WriterBase::FailOperation(absl::string_view operation,
                                            int bzlib_code) {
-  RIEGELI_ASSERT(bzlib_code != BZ_OK && bzlib_code != BZ_RUN_OK &&
-                 bzlib_code != BZ_FLUSH_OK && bzlib_code != BZ_FINISH_OK)
+  ABSL_DCHECK(bzlib_code != BZ_OK && bzlib_code != BZ_RUN_OK &&
+              bzlib_code != BZ_FLUSH_OK && bzlib_code != BZ_FINISH_OK)
       << "Failed precondition of Bzip2WriterBase::FailOperation(): "
          "bzlib error code not failed";
-  RIEGELI_ASSERT(is_open())
+  ABSL_DCHECK(is_open())
       << "Failed precondition of Bzip2WriterBase::FailOperation(): "
          "Object closed";
   return Fail(bzip2_internal::Bzip2ErrorToStatus(operation, bzlib_code));
@@ -98,19 +98,20 @@ absl::Status Bzip2WriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 bool Bzip2WriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   Writer& dest = *DestWriter();
   return WriteInternal(src, dest, BZ_RUN);
 }
 
 inline bool Bzip2WriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                            int flush) {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of Bzip2WriterBase::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of Bzip2WriterBase::WriteInternal(): "
+      << status();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
@@ -139,8 +140,7 @@ inline bool Bzip2WriterBase::WriteInternal(absl::string_view src, Writer& dest,
     switch (bzlib_code) {
       case BZ_RUN_OK:
         if (length_written < src.size()) {
-          RIEGELI_ASSERT(compressor_->avail_in == 0 ||
-                         compressor_->avail_out == 0)
+          ABSL_DCHECK(compressor_->avail_in == 0 || compressor_->avail_out == 0)
               << "BZ2_bzCompress() returned but there are still input data "
                  "and output space";
           continue;
@@ -148,7 +148,7 @@ inline bool Bzip2WriterBase::WriteInternal(absl::string_view src, Writer& dest,
         break;
       case BZ_FLUSH_OK:
       case BZ_FINISH_OK:
-        RIEGELI_ASSERT_EQ(compressor_->avail_out, 0u)
+        ABSL_DCHECK_EQ(compressor_->avail_out, 0u)
             << "BZ2_bzCompress() is "
             << (bzlib_code == BZ_FLUSH_OK ? "flushing" : "finishing")
             << " but there is still output space";
@@ -158,7 +158,7 @@ inline bool Bzip2WriterBase::WriteInternal(absl::string_view src, Writer& dest,
       default:
         return FailOperation("BZ2_bzCompress()", bzlib_code);
     }
-    RIEGELI_ASSERT_EQ(length_written, src.size())
+    ABSL_DCHECK_EQ(length_written, src.size())
         << "BZ2_bzCompress() returned but there are still input data";
     move_start_pos(length_written);
     return true;
@@ -167,7 +167,7 @@ inline bool Bzip2WriterBase::WriteInternal(absl::string_view src, Writer& dest,
 
 bool Bzip2WriterBase::FlushBehindBuffer(absl::string_view src,
                                         FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

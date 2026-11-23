@@ -21,10 +21,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/moving_dependency.h"
 #include "riegeli/base/object.h"
@@ -241,7 +241,7 @@ inline bool JoiningReaderBase::shard_is_open(const Reader* shard) const {
 }
 
 inline void JoiningReaderBase::SyncBuffer(Reader& shard) {
-  RIEGELI_ASSERT(shard_is_open(&shard))
+  ABSL_DCHECK(shard_is_open(&shard))
       << "Failed precondition of JoiningReaderBase::SyncBuffer(): "
          "shard is closed";
   shard.set_cursor(cursor());
@@ -250,7 +250,7 @@ inline void JoiningReaderBase::SyncBuffer(Reader& shard) {
 }
 
 inline void JoiningReaderBase::MakeBuffer(Reader& shard) {
-  RIEGELI_ASSERT(shard_is_open(&shard))
+  ABSL_DCHECK(shard_is_open(&shard))
       << "Failed precondition of JoiningReaderBase::MakeBuffer(): "
          "shard is closed";
   set_buffer(shard.cursor(),

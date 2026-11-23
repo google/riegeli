@@ -23,11 +23,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
@@ -72,7 +72,7 @@ absl::Status DigestingReaderBase::AnnotateStatusImpl(absl::Status status) {
 
 bool DigestingReaderBase::PullSlow(size_t min_length,
                                    size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -84,7 +84,7 @@ bool DigestingReaderBase::PullSlow(size_t min_length,
 }
 
 bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
-  RIEGELI_ASSERT_LT(available(), length)
+  ABSL_DCHECK_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -95,7 +95,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
   if (length_read > 0) {
     if (ABSL_PREDICT_FALSE(
             !WriteToDigester(absl::string_view(dest, length_read)))) {
-      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      const bool fail_ok = FailFromDigester();
+      ABSL_DCHECK(!fail_ok);
       read_ok = false;
     }
   }
@@ -104,10 +105,10 @@ bool DigestingReaderBase::ReadSlow(size_t length, char* dest) {
 }
 
 bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -118,7 +119,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
   if (!data.empty()) {
     DigesterBaseHandle digester = GetDigester();
     if (ABSL_PREDICT_FALSE(!digester.Write(data))) {
-      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      const bool fail_ok = FailFromDigester();
+      ABSL_DCHECK(!fail_ok);
       read_ok = false;
     } else {
       dest.Append(std::move(data));
@@ -129,10 +131,10 @@ bool DigestingReaderBase::ReadSlow(size_t length, Chain& dest) {
 }
 
 bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "enough data available, use Read(Cord&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -143,7 +145,8 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
   if (!data.empty()) {
     DigesterBaseHandle digester = GetDigester();
     if (ABSL_PREDICT_FALSE(!digester.Write(data))) {
-      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      const bool fail_ok = FailFromDigester();
+      ABSL_DCHECK(!fail_ok);
       read_ok = false;
     } else {
       dest.Append(std::move(data));
@@ -154,10 +157,10 @@ bool DigestingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
 }
 
 bool DigestingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "nothing to read, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "some data available, use ReadSome(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -168,7 +171,8 @@ bool DigestingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
   if (ABSL_PREDICT_TRUE(read_ok)) {
     if (ABSL_PREDICT_FALSE(
             !WriteToDigester(absl::string_view(dest, length_read)))) {
-      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      const bool fail_ok = FailFromDigester();
+      ABSL_DCHECK(!fail_ok);
       read_ok = false;
     }
   }
@@ -178,7 +182,7 @@ bool DigestingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
 
 void DigestingReaderBase::ReadHintSlow(size_t min_length,
                                        size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return;

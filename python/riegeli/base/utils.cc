@@ -34,12 +34,12 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/types.h"
@@ -85,7 +85,7 @@ PyObject* Exception::Restore() && {
 std::string Exception::message() const {
   if (ok()) return "OK";
   PythonLock lock;
-  RIEGELI_ASSERT(PyExceptionClass_Check(type_.get()))
+  ABSL_DCHECK(PyExceptionClass_Check(type_.get()))
       << "Expected an exception class, not " << Py_TYPE(type_.get())->tp_name;
   std::string message = PyExceptionClass_Name(type_.get());
   if (value_ == nullptr) return message;
@@ -108,7 +108,7 @@ std::string Exception::message() const {
 }
 
 void SetRiegeliError(const absl::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of SetRiegeliError(): status not failed";
   PythonLock::AssertHeld();
   PythonPtr message = StringToPython(status.message());
@@ -221,10 +221,10 @@ bool ImportedCapsuleBase::ImportValue() const {
   // For some reason `PyImport_ImportModule()` is sometimes required before
   // `PyCapsule_Import()` for a module with a nested name.
   const size_t dot = absl::string_view(capsule_name_).rfind('.');
-  RIEGELI_ASSERT_NE(dot, absl::string_view::npos)
+  ABSL_DCHECK_NE(dot, absl::string_view::npos)
       << "Capsule name does not contain a dot: " << capsule_name_;
-  RIEGELI_CHECK(
-      PyImport_ImportModule(std::string(capsule_name_, dot).c_str()) != nullptr)
+  ABSL_CHECK(PyImport_ImportModule(std::string(capsule_name_, dot).c_str()) !=
+             nullptr)
       << Exception::Fetch().message();
   void* const value = PyCapsule_Import(capsule_name_, /*no_block=*/0);
   if (ABSL_PREDICT_FALSE(value == nullptr)) return false;
@@ -262,12 +262,12 @@ bool ExportCapsule(PyObject* module, const char* capsule_name,
       PyCapsule_New(const_cast<void*>(ptr), capsule_name, nullptr));
   if (ABSL_PREDICT_FALSE(capsule == nullptr)) return false;
   const size_t dot = absl::string_view(capsule_name).rfind('.');
-  RIEGELI_ASSERT_NE(dot, absl::string_view::npos)
+  ABSL_DCHECK_NE(dot, absl::string_view::npos)
       << "Capsule name does not contain a dot: " << capsule_name;
-  RIEGELI_ASSERT(PyModule_Check(module))
+  ABSL_DCHECK(PyModule_Check(module))
       << "Expected a module, not " << Py_TYPE(module)->tp_name;
-  RIEGELI_ASSERT_EQ(absl::string_view(PyModule_GetName(module)),
-                    absl::string_view(capsule_name, dot))
+  ABSL_DCHECK_EQ(absl::string_view(PyModule_GetName(module)),
+                 absl::string_view(capsule_name, dot))
       << "Module name mismatch";
   if (ABSL_PREDICT_FALSE(PyModule_AddObject(module, capsule_name + dot + 1,
                                             capsule.release()) < 0)) {
@@ -288,7 +288,7 @@ MemoryView::~MemoryView() {
 }
 
 PyObject* MemoryView::ToPython(absl::string_view value) {
-  RIEGELI_ASSERT_EQ(object_, nullptr)
+  ABSL_DCHECK(object_ == nullptr)
       << "Failed precondition of MemoryView::ToPython(): "
          "called more than once";
   // `PyMemoryView_FromMemory()` disallows `nullptr` even if the size is zero.
@@ -300,7 +300,7 @@ PyObject* MemoryView::ToPython(absl::string_view value) {
 }
 
 PyObject* MemoryView::MutableToPython(absl::Span<char> value) {
-  RIEGELI_ASSERT_EQ(object_, nullptr)
+  ABSL_DCHECK(object_ == nullptr)
       << "Failed precondition of MemoryView::MutableToPython(): "
          "called more than once";
   // `PyMemoryView_FromMemory()` disallows `nullptr` even if the size is zero.
@@ -328,7 +328,7 @@ inline bool MemoryView::ReleaseInternal() {
 }
 
 bool StrOrBytes::FromPython(PyObject* object ABSL_ATTRIBUTE_LIFETIME_BOUND) {
-  RIEGELI_ASSERT_EQ(data_.data(), nullptr)
+  ABSL_DCHECK(data_.data() == nullptr)
       << "Failed precondition of StrOrBytes::FromPython(): "
          "called more than once";
   if (PyUnicode_Check(object)) {
@@ -380,7 +380,7 @@ PythonPtr SizeToPython(size_t value) {
 std::optional<size_t> SizeFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
   if (ABSL_PREDICT_FALSE(index == nullptr)) return std::nullopt;
-  RIEGELI_ASSERT(PyLong_Check(index.get()))
+  ABSL_DCHECK(PyLong_Check(index.get()))
       << "PyNumber_Index() returned an unexpected type: "
       << Py_TYPE(index.get())->tp_name;
   unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());
@@ -409,7 +409,7 @@ PythonPtr PositionToPython(Position value) {
 std::optional<Position> PositionFromPython(PyObject* object) {
   const PythonPtr index(PyNumber_Index(object));
   if (ABSL_PREDICT_FALSE(index == nullptr)) return std::nullopt;
-  RIEGELI_ASSERT(PyLong_Check(index.get()))
+  ABSL_DCHECK(PyLong_Check(index.get()))
       << "PyNumber_Index() returned an unexpected type: "
       << Py_TYPE(index.get())->tp_name;
   const unsigned long long index_value = PyLong_AsUnsignedLongLong(index.get());

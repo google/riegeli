@@ -25,12 +25,12 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -265,10 +265,10 @@ inline bool ChunkDecoder::ReadRecord(absl::string_view& record) {
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
-  RIEGELI_ASSERT_LE(start, limit)
+  ABSL_DCHECK_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  RIEGELI_EVAL_ASSERT(values_reader_.Read(limit - start, record))
-      << values_reader_.status();
+  const bool read_ok = values_reader_.Read(limit - start, record);
+  ABSL_DCHECK(read_ok) << values_reader_.status();
   ++index_;
   return true;
 }
@@ -280,10 +280,10 @@ inline bool ChunkDecoder::ReadRecord(std::string& record) {
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
-  RIEGELI_ASSERT_LE(start, limit)
+  ABSL_DCHECK_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  RIEGELI_EVAL_ASSERT(values_reader_.Read(limit - start, record))
-      << values_reader_.status();
+  const bool read_ok = values_reader_.Read(limit - start, record);
+  ABSL_DCHECK(read_ok) << values_reader_.status();
   ++index_;
   return true;
 }
@@ -295,10 +295,10 @@ inline bool ChunkDecoder::ReadRecord(Chain& record) {
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
-  RIEGELI_ASSERT_LE(start, limit)
+  ABSL_DCHECK_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  RIEGELI_EVAL_ASSERT(values_reader_.Read(limit - start, record))
-      << values_reader_.status();
+  const bool read_ok = values_reader_.Read(limit - start, record);
+  ABSL_DCHECK(read_ok) << values_reader_.status();
   ++index_;
   return true;
 }
@@ -310,20 +310,22 @@ inline bool ChunkDecoder::ReadRecord(absl::Cord& record) {
   }
   const size_t start = IntCast<size_t>(values_reader_.pos());
   const size_t limit = limits_[IntCast<size_t>(index_)];
-  RIEGELI_ASSERT_LE(start, limit)
+  ABSL_DCHECK_LE(start, limit)
       << "Failed invariant of ChunkDecoder: record end positions not sorted";
-  RIEGELI_EVAL_ASSERT(values_reader_.Read(limit - start, record))
-      << values_reader_.status();
+  const bool read_ok = values_reader_.Read(limit - start, record);
+  ABSL_DCHECK(read_ok) << values_reader_.status();
   ++index_;
   return true;
 }
 
 inline void ChunkDecoder::SetIndex(uint64_t index) {
-  RIEGELI_ASSERT_OK(*this) << "Failed precondition of ChunkDecoder::SetIndex()";
+  ABSL_DCHECK(ok()) << "Failed precondition of ChunkDecoder::SetIndex(): "
+                    << status();
   index_ = UnsignedMin(index, num_records());
   const size_t start =
       index_ == 0 ? size_t{0} : limits_[IntCast<size_t>(index_ - 1)];
-  RIEGELI_EVAL_ASSERT(values_reader_.Seek(start)) << values_reader_.status();
+  const bool seek_ok = values_reader_.Seek(start);
+  ABSL_DCHECK(seek_ok) << values_reader_.status();
 }
 
 }  // namespace riegeli

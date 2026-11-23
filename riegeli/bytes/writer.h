@@ -25,13 +25,14 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/has_absl_stringify.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/bytes_ref.h"
@@ -57,7 +58,7 @@ class WriterStringifySink {
 
   // Will write to `*dest`.
   explicit WriterStringifySink(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : dest_(RIEGELI_EVAL_ASSERT_NOTNULL(dest)) {}
+      : dest_(ABSL_DIE_IF_NULL(dest)) {}
 
   WriterStringifySink(WriterStringifySink&& that) = default;
   WriterStringifySink& operator=(WriterStringifySink&& that) = default;
@@ -625,29 +626,29 @@ inline bool Writer::Push(size_t min_length, size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(!PushSlow(min_length, recommended_length))) {
     return false;
   }
-  RIEGELI_ASSERT_GE(available(), min_length)
+  ABSL_DCHECK_GE(available(), min_length)
       << "Failed postcondition of Writer::PushSlow(): "
          "not enough space available";
   return true;
 }
 
 inline void Writer::move_cursor(size_t length) {
-  RIEGELI_ASSERT_LE(length, available())
+  ABSL_DCHECK_LE(length, available())
       << "Failed precondition of Writer::move_cursor(): length out of range";
   cursor_ += length;
 }
 
 inline void Writer::set_cursor(char* cursor) {
-  RIEGELI_ASSERT_GE(cursor, start())
+  ABSL_DCHECK_GE(cursor, start())
       << "Failed precondition of Writer::set_cursor(): pointer out of range";
-  RIEGELI_ASSERT_LE(cursor, limit())
+  ABSL_DCHECK_LE(cursor, limit())
       << "Failed precondition of Writer::set_cursor(): pointer out of range";
   cursor_ = cursor;
 }
 
 inline void Writer::set_buffer(char* start, size_t start_to_limit,
                                size_t start_to_cursor) {
-  RIEGELI_ASSERT_LE(start_to_cursor, start_to_limit)
+  ABSL_DCHECK_LE(start_to_cursor, start_to_limit)
       << "Failed precondition of Writer::set_buffer(): length out of range";
   start_ = start;
   cursor_ = start + start_to_cursor;
@@ -738,21 +739,21 @@ inline bool Writer::Flush(FlushType flush_type) {
 }
 
 inline Position Writer::pos() const {
-  RIEGELI_ASSERT_LE(start_pos_,
-                    std::numeric_limits<Position>::max() - start_to_limit())
+  ABSL_DCHECK_LE(start_pos_,
+                 std::numeric_limits<Position>::max() - start_to_limit())
       << "Failed invariant of Writer: position of buffer limit overflow";
   return start_pos_ + start_to_cursor();
 }
 
 inline Position Writer::limit_pos() const {
-  RIEGELI_ASSERT_LE(start_pos_,
-                    std::numeric_limits<Position>::max() - start_to_limit())
+  ABSL_DCHECK_LE(start_pos_,
+                 std::numeric_limits<Position>::max() - start_to_limit())
       << "Failed invariant of Writer: position of buffer limit overflow";
   return start_pos_ + start_to_limit();
 }
 
 inline void Writer::move_start_pos(Position length) {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<Position>::max() - start_pos_)
+  ABSL_DCHECK_LE(length, std::numeric_limits<Position>::max() - start_pos_)
       << "Failed precondition of Writer::move_start_pos(): "
          "position out of range";
   start_pos_ += length;

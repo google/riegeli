@@ -26,12 +26,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -41,7 +41,7 @@
 namespace riegeli {
 
 void Lz4ReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of Lz4Reader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
@@ -171,14 +171,14 @@ absl::Status Lz4ReaderBase::AnnotateOverSrc(absl::Status status) {
 
 bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                  char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   Reader& src = *SrcReader();
   truncated_ = false;
   if (ABSL_PREDICT_FALSE(!header_read_)) {
@@ -226,10 +226,10 @@ bool Lz4ReaderBase::ReadInternal(size_t min_length, size_t max_length,
     }
     if (dest_length >= effective_min_length) return true;
     if (ABSL_PREDICT_FALSE(src.available() > 0)) {
-      RIEGELI_ASSERT_EQ(dest_length, max_length)
+      ABSL_DCHECK_EQ(dest_length, max_length)
           << "LZ4F_decompress_usingDict() returned but there are still "
              "input data and output space";
-      RIEGELI_ASSERT_EQ(dest_length, kMaxPosition - limit_pos())
+      ABSL_DCHECK_EQ(dest_length, kMaxPosition - limit_pos())
           << "The position does not overflow but the output buffer is full, "
              "while less than min_length was output, which implies that "
              "LZ4F_decompress_usingDict() wants to output more than the "
@@ -277,10 +277,10 @@ bool Lz4ReaderBase::SupportsRewind() {
 }
 
 bool Lz4ReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (new_pos <= limit_pos()) {

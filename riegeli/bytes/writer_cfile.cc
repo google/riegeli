@@ -32,10 +32,10 @@
 
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/errno_mapping.h"
@@ -47,7 +47,7 @@ namespace riegeli::cfile_internal {
 WriterCFileCookieBase::~WriterCFileCookieBase() {}
 
 void WriterCFileCookieBase::Initialize(Writer* writer) {
-  RIEGELI_ASSERT_NE(writer, nullptr)
+  ABSL_DCHECK(writer != nullptr)
       << "Failed precondition of WriterCFile(): null Writer pointer";
   if (flush_type_ != std::nullopt) writer->Flush(*flush_type_);
 }
@@ -159,7 +159,7 @@ inline std::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       }
       std::optional<Position> size;
       if (reader_ != nullptr) {
-        RIEGELI_ASSERT(reader_->SupportsSize())
+        ABSL_DCHECK(reader_->SupportsSize())
             << "Failed postcondition of Writer::ReadMode(): "
                "!Reader::SupportsSize() even though "
                "Writer::SupportsRandomAccess()";
@@ -188,7 +188,7 @@ inline std::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
       }
     } break;
     default:
-      RIEGELI_ASSUME_UNREACHABLE() << "Unknown seek origin: " << whence;
+      ABSL_UNREACHABLE();
   }
   if (new_pos == (reader_ != nullptr ? reader_->pos() : writer.pos())) {
     // Seeking to the current position is supported even if random access is
@@ -196,7 +196,7 @@ inline std::optional<int64_t> WriterCFileCookieBase::Seek(int64_t offset,
     return IntCast<int64_t>(new_pos);
   }
   if (reader_ != nullptr) {
-    RIEGELI_ASSERT(reader_->SupportsRewind())
+    ABSL_DCHECK(reader_->SupportsRewind())
         << "Failed postcondition of Writer::ReadMode(): "
            "!Reader::SupportsRewind()";
     if (ABSL_PREDICT_FALSE(!reader_->Seek(IntCast<Position>(new_pos)))) {

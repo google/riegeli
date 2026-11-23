@@ -19,7 +19,8 @@
 
 #include <type_traits>
 
-#include "riegeli/base/assert.h"
+#include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -81,10 +82,10 @@ struct VectorResizableTraits {
   static size_t Size(const Resizable& dest) { return dest.size() * sizeof(T); }
   static constexpr bool kIsStable = true;
   static bool Resize(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_LE(used_size, dest.size() * sizeof(T))
+    ABSL_DCHECK_LE(used_size, dest.size() * sizeof(T))
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds new size";
     const size_t new_num_elements = SizeToNumElements(new_size);
@@ -93,22 +94,22 @@ struct VectorResizableTraits {
     return true;
   }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size() * sizeof(T))
+    ABSL_DCHECK_GT(new_size, dest.size() * sizeof(T))
         << "Failed precondition of ResizableTraits::Grow(): "
            "no need to grow";
-    RIEGELI_ASSERT_LE(used_size, dest.size() * sizeof(T))
+    ABSL_DCHECK_LE(used_size, dest.size() * sizeof(T))
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
     const size_t new_num_elements = SizeToNumElements(new_size);
     Reserve(dest, new_num_elements, used_size);
-    if (!GrowUnderCapacity(dest, new_size)) RIEGELI_ASSUME_UNREACHABLE();
+    if (!GrowUnderCapacity(dest, new_size)) ABSL_UNREACHABLE();
     return true;
   }
   static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size() * sizeof(T))
+    ABSL_DCHECK_GT(new_size, dest.size() * sizeof(T))
         << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
            "no need to grow";
     const size_t new_num_elements = SizeToNumElements(new_size);
@@ -145,7 +146,8 @@ struct VectorResizableTraits {
       dest.reserve(UnsignedClamp(dest.capacity() + dest.capacity() / 2,
                                  new_num_elements, dest.max_size()));
     }
-    RIEGELI_ASSUME_GE(dest.capacity(), new_num_elements);
+    const size_t capacity = dest.capacity();
+    ABSL_ASSUME(capacity >= new_num_elements);
   }
 };
 

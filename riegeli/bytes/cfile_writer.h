@@ -27,7 +27,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -619,8 +618,7 @@ bool CFileWriter<Dest>::FlushImpl(FlushType flush_type) {
       }
       return true;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown flush type: " << static_cast<int>(flush_type);
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace riegeli

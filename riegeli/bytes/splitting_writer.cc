@@ -20,12 +20,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -50,9 +50,10 @@ void SplittingWriterBase::DoneBehindScratch() {
 }
 
 bool SplittingWriterBase::CloseShardImpl() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of SplittingWriterBase::CloseShardImpl()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of SplittingWriterBase::CloseShardImpl(): "
+      << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShardImpl(): "
          "shard already closed";
   Writer* shard = ShardWriter();
@@ -63,22 +64,24 @@ bool SplittingWriterBase::CloseShardImpl() {
 }
 
 inline bool SplittingWriterBase::OpenShardInternal() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of SplittingWriterBase::OpenShardInternal()";
-  RIEGELI_ASSERT(!shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of SplittingWriterBase::OpenShardInternal(): "
+      << status();
+  ABSL_DCHECK(!shard_is_open())
       << "Failed precondition of SplittingWriterBase::OpenShardInternal(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(start_pos() == kMaxPosition)) return FailOverflow();
   const std::optional<Position> size_limit = OpenShardImpl();
   if (ABSL_PREDICT_FALSE(size_limit == std::nullopt)) {
-    RIEGELI_ASSERT(!ok())
+    ABSL_DCHECK(!ok())
         << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
            "zero returned but SplittingWriterBase OK";
     return false;
   }
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed postcondition of SplittingWriterBase::OpenShardImpl()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
+      << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed postcondition of SplittingWriterBase::OpenShardImpl(): "
          "shard not opened";
   shard_pos_limit_ = SaturatingAdd(start_pos(), *size_limit);
@@ -92,30 +95,33 @@ inline bool SplittingWriterBase::OpenShardInternal() {
 }
 
 inline bool SplittingWriterBase::CloseShardInternal() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of SplittingWriterBase::CloseShardInternal()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of SplittingWriterBase::CloseShardInternal(): "
+      << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShardInternal(): "
          "shard already closed";
   const bool close_shard_ok = CloseShardImpl();
-  RIEGELI_ASSERT(!shard_is_open())
+  ABSL_DCHECK(!shard_is_open())
       << "Failed postcondition of SplittingWriterBase::CloseShardImpl(): "
          "shard not closed";
   if (ABSL_PREDICT_FALSE(!close_shard_ok)) {
-    RIEGELI_ASSERT(!ok())
+    ABSL_DCHECK(!ok())
         << "Failed postcondition of SplittingWriterBase::CloseShardImpl(): "
            "SplittingWriterBase OK";
     return false;
   }
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed postcondition of SplittingWriterBase::CloseShardImpl()";
+  ABSL_DCHECK(ok())
+      << "Failed postcondition of SplittingWriterBase::CloseShardImpl(): "
+      << status();
   return true;
 }
 
 bool SplittingWriterBase::OpenShard() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of SplittingWriterBase::OpenShard()";
-  RIEGELI_ASSERT(!shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of SplittingWriterBase::OpenShard(): "
+      << status();
+  ABSL_DCHECK(!shard_is_open())
       << "Failed precondition of SplittingWriterBase::OpenShard(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
@@ -125,9 +131,10 @@ bool SplittingWriterBase::OpenShard() {
 }
 
 bool SplittingWriterBase::CloseShard() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of SplittingWriterBase::CloseShard()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of SplittingWriterBase::CloseShard(): "
+      << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed precondition of SplittingWriterBase::CloseShard(): "
          "shard already closed";
   Writer* shard = ShardWriter();
@@ -172,14 +179,14 @@ void SplittingWriterBase::SetWriteSizeHintImpl(
 }
 
 bool SplittingWriterBase::PushBehindScratch(size_t recommended_length) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
+  ABSL_DCHECK_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
   Writer* shard = ShardWriter();
@@ -202,11 +209,11 @@ bool SplittingWriterBase::PushBehindScratch(size_t recommended_length) {
 }
 
 bool SplittingWriterBase::WriteBehindScratch(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of "
          "PushableWriter::WriteBehindScratch(string_view): "
          "enough space available, use Write(string_view) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableWriter::WriteBehindScratch(string_view): "
          "scratch used";
@@ -214,40 +221,40 @@ bool SplittingWriterBase::WriteBehindScratch(absl::string_view src) {
 }
 
 bool SplittingWriterBase::WriteBehindScratch(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Chain): "
          "enough space available, use Write(Chain) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Chain): "
          "scratch used";
   return WriteInternal<ChainReader<>>(src);
 }
 
 bool SplittingWriterBase::WriteBehindScratch(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Chain&&): "
          "scratch used";
   return WriteInternal<ChainReader<>>(std::move(src));
 }
 
 bool SplittingWriterBase::WriteBehindScratch(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Cord): "
          "enough space available, use Write(Cord) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Cord): "
          "scratch used";
   return WriteInternal<CordReader<>>(src);
 }
 
 bool SplittingWriterBase::WriteBehindScratch(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::WriteBehindScratch(Cord&&): "
          "scratch used";
   return WriteInternal<CordReader<>>(std::move(src));
@@ -256,7 +263,7 @@ bool SplittingWriterBase::WriteBehindScratch(absl::Cord&& src) {
 template <typename SrcReader, typename Src>
 inline bool SplittingWriterBase::WriteInternal(Src&& src) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
+  ABSL_DCHECK_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
   Writer* shard = ShardWriter();
@@ -280,7 +287,7 @@ inline bool SplittingWriterBase::WriteInternal(Src&& src) {
     SrcReader reader(&src);
     for (;;) {
       if (ABSL_PREDICT_FALSE(!reader.Copy(length_to_write, *shard))) {
-        RIEGELI_ASSERT(!shard->ok()) << "Reading failed";
+        ABSL_DCHECK(!shard->ok()) << "Reading failed";
         write_ok = false;
         break;
       }
@@ -301,16 +308,16 @@ inline bool SplittingWriterBase::WriteInternal(Src&& src) {
 }
 
 bool SplittingWriterBase::WriteBehindScratch(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of "
          "PushableWriter::WriteBehindScratch(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableWriter::WriteBehindScratch(ByteFill): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
+  ABSL_DCHECK_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
   Writer* shard = ShardWriter();
@@ -342,11 +349,11 @@ bool SplittingWriterBase::WriteBehindScratch(ByteFill src) {
 }
 
 bool SplittingWriterBase::FlushBehindScratch(FlushType flush_type) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_LE(pos(), shard_pos_limit_)
+  ABSL_DCHECK_LE(pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
   Writer* const shard = ShardWriter();

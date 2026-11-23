@@ -22,15 +22,15 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/shared_buffer.h"
 
 namespace riegeli {
 
 void SizedSharedBuffer::ShrinkSlow(size_t max_size) {
-  RIEGELI_ASSERT_GE(max_size, size_)
+  ABSL_DCHECK_GE(max_size, size_)
       << "Failed precondition of SizedSharedBuffer::ShrinkSlow(): "
          "max_size less than current size";
   if (size_ == 0) {
@@ -46,20 +46,20 @@ void SizedSharedBuffer::ShrinkSlow(size_t max_size) {
 }
 
 inline size_t SizedSharedBuffer::space_before() const {
-  RIEGELI_ASSERT(data_ != nullptr || buffer_.data() == nullptr)
+  ABSL_DCHECK(data_ != nullptr || buffer_.data() == nullptr)
       << "Failed precondition of SizedSharedBuffer::space_before(): null data_";
   return PtrDistance(buffer_.data(), data_);
 }
 
 inline size_t SizedSharedBuffer::space_after() const {
-  RIEGELI_ASSERT(data_ != nullptr || buffer_.data() == nullptr)
+  ABSL_DCHECK(data_ != nullptr || buffer_.data() == nullptr)
       << "Failed precondition of SizedSharedBuffer::space_after(): null data_";
   return PtrDistance(data_ + size_, buffer_.data() + buffer_.capacity());
 }
 
 inline bool SizedSharedBuffer::CanAppendMovingData(size_t length,
                                                    size_t& min_length_if_not) {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - size_)
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of SizedSharedBuffer::CanAppendMovingData(): "
          "SizedSharedBuffer size overflow";
   if (buffer_.IsUnique()) {
@@ -87,7 +87,7 @@ inline bool SizedSharedBuffer::CanAppendMovingData(size_t length,
 inline bool SizedSharedBuffer::CanPrependMovingData(size_t length,
                                                     size_t& space_after_if_not,
                                                     size_t& min_length_if_not) {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - size_)
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of SizedSharedBuffer::CanPrependMovingData(): "
          "SizedSharedBuffer size overflow";
   if (buffer_.IsUnique()) {
@@ -119,12 +119,12 @@ inline bool SizedSharedBuffer::CanPrependMovingData(size_t length,
 inline size_t SizedSharedBuffer::NewCapacity(size_t extra_space,
                                              size_t min_length,
                                              size_t recommended_length) const {
-  RIEGELI_ASSERT_LE(extra_space, std::numeric_limits<size_t>::max() - size_)
+  ABSL_DCHECK_LE(extra_space, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of SizedSharedBuffer::NewCapacity(): "
          "SizedSharedBuffer size overflow";
   const size_t existing_space = size_ + extra_space;
-  RIEGELI_ASSERT_LE(min_length,
-                    std::numeric_limits<size_t>::max() - existing_space)
+  ABSL_DCHECK_LE(min_length,
+                 std::numeric_limits<size_t>::max() - existing_space)
       << "Failed precondition of SizedSharedBuffer::NewCapacity(): "
          "SizedSharedBuffer size overflow";
   return existing_space +
@@ -135,10 +135,10 @@ inline size_t SizedSharedBuffer::NewCapacity(size_t extra_space,
 absl::Span<char> SizedSharedBuffer::AppendBuffer(
     size_t min_length, size_t recommended_length,
     size_t max_length) ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT_LE(min_length, max_length)
+  ABSL_DCHECK_LE(min_length, max_length)
       << "Failed precondition of SizedSharedBuffer::AppendBuffer(): "
          "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
+  ABSL_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
       << "Failed precondition of SizedSharedBuffer::AppendBuffer(): "
          "SizedSharedBuffer size overflow";
   size_t new_min_length;
@@ -167,10 +167,10 @@ absl::Span<char> SizedSharedBuffer::AppendBuffer(
 absl::Span<char> SizedSharedBuffer::PrependBuffer(
     size_t min_length, size_t recommended_length,
     size_t max_length) ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT_LE(min_length, max_length)
+  ABSL_DCHECK_LE(min_length, max_length)
       << "Failed precondition of SizedSharedBuffer::PrependBuffer(): "
          "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
+  ABSL_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size())
       << "Failed precondition of SizedSharedBuffer::PrependBuffer(): "
          "SizedSharedBuffer size overflow";
   size_t space_after, new_min_length;

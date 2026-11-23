@@ -25,12 +25,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -44,7 +44,7 @@ namespace riegeli {
 void Lz4WriterBase::Initialize(Writer* dest, int compression_level,
                                int window_log, bool store_content_checksum,
                                bool store_block_checksum) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of Lz4Writer: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -137,7 +137,7 @@ inline bool Lz4WriterBase::DoneCompression(Writer& dest) {
   }
   const size_t result = LZ4F_compressEnd(compressor_.get(), dest.cursor(),
                                          dest.available(), nullptr);
-  RIEGELI_ASSERT(!LZ4F_isError(result))
+  ABSL_DCHECK(!LZ4F_isError(result))
       << "LZ4F_compressEnd() failed: " << LZ4F_getErrorName(result);
   dest.move_cursor(result);
   return true;
@@ -162,11 +162,11 @@ absl::Status Lz4WriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 bool Lz4WriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   Writer& dest = *DestWriter();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
@@ -182,7 +182,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
       stable_src_ = true;
     }
   }
-  RIEGELI_ASSERT_NE(compressor_, nullptr)
+  ABSL_DCHECK(compressor_ != nullptr)
       << "compressor_ == nullptr when the pledged size was already written, "
          "which was checked above";
   size_t block_size;
@@ -200,9 +200,7 @@ bool Lz4WriterBase::WriteInternal(absl::string_view src) {
       block_size = size_t{4} << 20;
       break;
     default:
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Unexpected preferences_.frameInfo.blockSizeID: "
-          << preferences_.frameInfo.blockSizeID;
+      ABSL_UNREACHABLE();
   }
   LZ4F_compressOptions_t compress_options{};
   do {
@@ -251,7 +249,7 @@ bool Lz4WriterBase::FlushImpl(FlushType flush_type) {
   }
   const size_t result =
       LZ4F_flush(compressor_.get(), dest.cursor(), dest.available(), nullptr);
-  RIEGELI_ASSERT(!LZ4F_isError(result))
+  ABSL_DCHECK(!LZ4F_isError(result))
       << "LZ4F_flush() failed: " << LZ4F_getErrorName(result);
   dest.move_cursor(result);
   buffered_length_ = 0;
@@ -264,7 +262,7 @@ bool Lz4WriterBase::SupportsReadMode() {
 }
 
 Reader* Lz4WriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!Lz4WriterBase::FlushImpl(FlushType::kFromObject))) {

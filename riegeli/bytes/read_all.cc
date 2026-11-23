@@ -23,13 +23,13 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/resize_and_overwrite.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -247,9 +247,9 @@ absl::Status ReadAndAppendAllImpl(Reader& src, std::string& dest,
   }
   const Position pos_before = src.pos();
   const absl::Status status = ReadAndAppendAllImpl(src, dest, max_length);
-  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+  ABSL_DCHECK_GE(src.pos(), pos_before)
       << "ReadAndAppendAllImpl(std::string&) decreased src.pos()";
-  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+  ABSL_DCHECK_LE(src.pos() - pos_before, max_length)
       << "ReadAndAppendAllImpl(std::string&) read more than requested";
   *length_read = IntCast<size_t>(src.pos() - pos_before);
   return status;
@@ -262,9 +262,9 @@ absl::Status ReadAndAppendAllImpl(Reader& src, Chain& dest, size_t max_length,
   }
   const Position pos_before = src.pos();
   const absl::Status status = ReadAndAppendAllImpl(src, dest, max_length);
-  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+  ABSL_DCHECK_GE(src.pos(), pos_before)
       << "ReadAndAppendAllImpl(Chain&) decreased src.pos()";
-  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+  ABSL_DCHECK_LE(src.pos() - pos_before, max_length)
       << "ReadAndAppendAllImpl(Chain&) read more than requested";
   *length_read = IntCast<size_t>(src.pos() - pos_before);
   return status;
@@ -277,9 +277,9 @@ absl::Status ReadAndAppendAllImpl(Reader& src, absl::Cord& dest,
   }
   const Position pos_before = src.pos();
   const absl::Status status = ReadAndAppendAllImpl(src, dest, max_length);
-  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+  ABSL_DCHECK_GE(src.pos(), pos_before)
       << "ReadAndAppendAllImpl(absl::Cord&) decreased src.pos()";
-  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+  ABSL_DCHECK_LE(src.pos() - pos_before, max_length)
       << "ReadAndAppendAllImpl(absl::Cord&) read more than requested";
   *length_read = IntCast<size_t>(src.pos() - pos_before);
   return status;

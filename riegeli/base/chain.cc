@@ -27,12 +27,12 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/resize_and_overwrite.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain_base.h"
@@ -90,7 +90,7 @@ class FlatCordBlock {
 
 inline FlatCordBlock::FlatCordBlock(Initializer<absl::Cord> src)
     : src_(std::move(src)) {
-  RIEGELI_ASSERT(src_.TryFlat() != std::nullopt)
+  ABSL_DCHECK(src_.TryFlat() != std::nullopt)
       << "Failed precondition of FlatCordBlock::FlatCordBlock(): "
          "Cord is not flat";
 }
@@ -100,8 +100,8 @@ inline FlatCordBlock::operator absl::string_view() const {
       flat != std::nullopt) {
     return *flat;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Failed invariant of FlatCordBlock: Cord is not flat";
+  // Failed invariant of `FlatCordBlock`: `absl::Cord` is not flat.
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace
@@ -118,7 +118,7 @@ void RiegeliDumpStructure(const std::string* self, std::ostream& dest) {
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::RawBlock::NewInternal(
     size_t min_capacity) {
-  RIEGELI_ASSERT_GT(min_capacity, 0u)
+  ABSL_DCHECK_GT(min_capacity, 0u)
       << "Failed precondition of Chain::RawBlock::NewInternal(): zero capacity";
   size_t raw_capacity;
   return IntrusiveSharedPtr<RawBlock>(SizeReturningNewAligned<RawBlock>(
@@ -130,29 +130,29 @@ inline Chain::RawBlock::RawBlock(const size_t* raw_capacity)
       // Redundant cast is needed for `-fsanitize=bounds`.
       allocated_end_(static_cast<char*>(allocated_begin_) +
                      (*raw_capacity - kInternalAllocatedOffset())) {
-  RIEGELI_ASSERT(is_internal()) << "A RawBlock with allocated_end_ != nullptr "
-                                   "should be considered internal";
-  RIEGELI_ASSERT_LE(capacity(), RawBlock::kMaxCapacity)
+  ABSL_DCHECK(is_internal()) << "A RawBlock with allocated_end_ != nullptr "
+                                "should be considered internal";
+  ABSL_DCHECK_LE(capacity(), RawBlock::kMaxCapacity)
       << "Chain block capacity overflow";
 }
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::RawBlock::Copy() {
   IntrusiveSharedPtr<RawBlock> block = NewInternal(size());
   block->Append(*this);
-  RIEGELI_ASSERT(!block->wasteful())
+  ABSL_DCHECK(!block->wasteful())
       << "A full block should not be considered wasteful";
   return block;
 }
 
 inline size_t Chain::RawBlock::space_before() const {
-  RIEGELI_ASSERT(is_internal())
+  ABSL_DCHECK(is_internal())
       << "Failed precondition of Chain::RawBlock::space_before(): "
          "block not internal";
   return PtrDistance(allocated_begin_, data_begin());
 }
 
 inline size_t Chain::RawBlock::space_after() const {
-  RIEGELI_ASSERT(is_internal())
+  ABSL_DCHECK(is_internal())
       << "Failed precondition of Chain::RawBlock::space_after(): "
          "block not internal";
   return PtrDistance(data_end(), allocated_end_);
@@ -160,13 +160,13 @@ inline size_t Chain::RawBlock::space_after() const {
 
 inline bool Chain::RawBlock::tiny(size_t extra_size) const {
   if (is_internal()) {
-    RIEGELI_ASSERT_LE(size(), capacity())
+    ABSL_DCHECK_LE(size(), capacity())
         << "Failed invariant of Chain::RawBlock: size greater than capacity";
-    RIEGELI_ASSERT_LE(extra_size, capacity() - size())
+    ABSL_DCHECK_LE(extra_size, capacity() - size())
         << "Failed precondition of Chain::RawBlock::tiny(): "
            "extra size greater than remaining space";
   } else {
-    RIEGELI_ASSERT_EQ(extra_size, 0u)
+    ABSL_DCHECK_EQ(extra_size, 0u)
         << "Failed precondition of Chain::RawBlock::tiny(): "
            "non-zero extra size of external block";
   }
@@ -175,13 +175,13 @@ inline bool Chain::RawBlock::tiny(size_t extra_size) const {
 
 inline bool Chain::RawBlock::wasteful(size_t extra_size) const {
   if (is_internal()) {
-    RIEGELI_ASSERT_LE(size(), capacity())
+    ABSL_DCHECK_LE(size(), capacity())
         << "Failed invariant of Chain::RawBlock: size greater than capacity";
-    RIEGELI_ASSERT_LE(extra_size, capacity() - size())
+    ABSL_DCHECK_LE(extra_size, capacity() - size())
         << "Failed precondition of Chain::RawBlock::wasteful(): "
            "extra size greater than remaining space";
   } else {
-    RIEGELI_ASSERT_EQ(extra_size, 0u)
+    ABSL_DCHECK_EQ(extra_size, 0u)
         << "Failed precondition of Chain::RawBlock::wasteful(): "
            "non-zero extra size of external block";
     return false;
@@ -229,7 +229,7 @@ inline bool Chain::RawBlock::can_prepend(size_t length) const {
 
 inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length)
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(is_mutable())
+  ABSL_DCHECK(is_mutable())
       << "Failed precondition of Chain::RawBlock::AppendBuffer(): "
          "block is immutable";
   if (empty()) substr_ = absl::string_view(allocated_begin_, 0);
@@ -241,7 +241,7 @@ inline absl::Span<char> Chain::RawBlock::AppendBuffer(size_t max_length)
 
 inline absl::Span<char> Chain::RawBlock::PrependBuffer(size_t max_length)
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(is_mutable())
+  ABSL_DCHECK(is_mutable())
       << "Failed precondition of Chain::RawBlock::PrependBuffer(): "
          "block is immutable";
   if (empty()) substr_ = absl::string_view(allocated_end_, 0);
@@ -264,11 +264,11 @@ inline void Chain::RawBlock::Append(absl::string_view src,
 
 inline void Chain::RawBlock::AppendWithExplicitSizeToCopy(absl::string_view src,
                                                           size_t size_to_copy) {
-  RIEGELI_ASSERT_GE(size_to_copy, src.size())
+  ABSL_DCHECK_GE(size_to_copy, src.size())
       << "Failed precondition of "
          "Chain::RawBlock::AppendWithExplicitSizeToCopy(): "
          "size to copy too small";
-  RIEGELI_ASSERT(can_append(size_to_copy))
+  ABSL_DCHECK(can_append(size_to_copy))
       << "Failed precondition of "
          "Chain::RawBlock::AppendWithExplicitSizeToCopy(): "
          "not enough space";
@@ -278,7 +278,7 @@ inline void Chain::RawBlock::AppendWithExplicitSizeToCopy(absl::string_view src,
 
 inline void Chain::RawBlock::Prepend(absl::string_view src,
                                      size_t space_after) {
-  RIEGELI_ASSERT(can_prepend(src.size()))
+  ABSL_DCHECK(can_prepend(src.size()))
       << "Failed precondition of Chain::RawBlock::Prepend(): "
          "not enough space";
   if (empty()) substr_ = absl::string_view(allocated_end_ - space_after, 0);
@@ -300,9 +300,9 @@ size_t Chain::BlockIterator::CharIndexInChainInternal() const {
       case 1:
         return chain_->begin_[0].block_ptr->size();
       default:
-        RIEGELI_ASSUME_UNREACHABLE()
-            << "Failed invariant of Chain: "
-               "only two block pointers fit without allocating their array";
+        // Failed invariant of `Chain`: only two block pointers fit without
+        // allocating their array.
+        ABSL_UNREACHABLE();
     }
   } else {
     const size_t offset_base =
@@ -361,9 +361,8 @@ Chain& Chain::operator=(const Chain& that) {
 }
 
 bool Chain::ClearSlow() {
-  RIEGELI_ASSERT_NE(begin_, end_)
-      << "Failed precondition of Chain::ClearSlow(): "
-         "no blocks, use Clear() instead";
+  ABSL_DCHECK_NE(begin_, end_) << "Failed precondition of Chain::ClearSlow(): "
+                                  "no blocks, use Clear() instead";
   const bool block_remains = front()->TryClear();
   BlockPtr* const new_end = begin_ + (block_remains ? 1 : 0);
   UnrefBlocks(new_end, end_);
@@ -407,7 +406,7 @@ void Chain::Reset(absl::Cord&& src) {
 }
 
 void Chain::InitializeSlow(absl::string_view src) {
-  RIEGELI_ASSERT_GT(src.size(), kMaxShortDataSize)
+  ABSL_DCHECK_GT(src.size(), kMaxShortDataSize)
       << "Failed precondition of Chain::InitializeSlow(string_view): "
          "string too short, use Initialize() instead";
   IntrusiveSharedPtr<RawBlock> block =
@@ -422,14 +421,14 @@ void Chain::InitializeSlow(absl::string_view src) {
 }
 
 inline void Chain::Initialize(const absl::Cord& src) {
-  RIEGELI_ASSERT_EQ(size_, 0u)
+  ABSL_DCHECK_EQ(size_, 0u)
       << "Failed precondition of Chain::Initialize(const Cord&): "
          "size not reset";
   InitializeFromCord(src);
 }
 
 inline void Chain::Initialize(absl::Cord&& src) {
-  RIEGELI_ASSERT_EQ(size_, 0u)
+  ABSL_DCHECK_EQ(size_, 0u)
       << "Failed precondition of Chain::Initialize(absl::Cord&&): "
          "size not reset";
   InitializeFromCord(std::move(src));
@@ -473,7 +472,7 @@ inline std::string Chain::ToString() const {
 }
 
 absl::string_view Chain::FlattenSlow() {
-  RIEGELI_ASSERT_GT(end_ - begin_, 1)
+  ABSL_DCHECK_GT(end_ - begin_, 1)
       << "Failed precondition of Chain::FlattenSlow(): "
          "contents already flat, use Flatten() instead";
   if (front()->empty()) {
@@ -502,7 +501,7 @@ inline Chain::BlockPtr* Chain::NewBlockPtrs(size_t capacity) {
 }
 
 void Chain::UnrefBlocksSlow(const BlockPtr* begin, const BlockPtr* end) {
-  RIEGELI_ASSERT_LT(begin, end)
+  ABSL_DCHECK_LT(begin, end)
       << "Failed precondition of Chain::UnrefBlocksSlow(): "
          "no blocks, use UnrefBlocks() instead";
   do {
@@ -526,9 +525,8 @@ void Chain::CopyTo(char* dest) const {
 }
 
 inline void Chain::CopyToSlow(char* dest) const {
-  RIEGELI_ASSERT_NE(begin_, end_)
-      << "Failed precondition of Chain::CopyToSlow(): "
-         "no blocks, use CopyTo() instead";
+  ABSL_DCHECK_NE(begin_, end_) << "Failed precondition of Chain::CopyToSlow(): "
+                                  "no blocks, use CopyTo() instead";
   const BlockPtr* iter = begin_;
   do {
     std::memcpy(dest, iter->block_ptr->data_begin(), iter->block_ptr->size());
@@ -539,7 +537,7 @@ inline void Chain::CopyToSlow(char* dest) const {
 
 void Chain::AppendTo(std::string& dest) const& {
   const size_t old_size = dest.size();
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - old_size)
+  ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - old_size)
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
   riegeli::StringResizeAndOverwriteAmortized(dest, old_size + size_,
@@ -553,7 +551,7 @@ void Chain::AppendTo(std::string& dest) && {
   if (dest.empty() && PtrDistance(begin_, end_) == 1) {
     if (std::string* const string_ptr =
             back()->checked_external_object_with_unique_owner<std::string>()) {
-      RIEGELI_ASSERT_EQ(back()->size(), string_ptr->size())
+      ABSL_DCHECK_EQ(back()->size(), string_ptr->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
       if (dest.capacity() <= string_ptr->capacity()) {
@@ -565,7 +563,7 @@ void Chain::AppendTo(std::string& dest) && {
     }
   }
   const size_t old_size = dest.size();
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - old_size)
+  ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - old_size)
       << "Failed precondition of Chain::AppendTo(string&): "
          "string size overflow";
   riegeli::StringResizeAndOverwriteAmortized(dest, old_size + size_,
@@ -576,7 +574,7 @@ void Chain::AppendTo(std::string& dest) && {
 }
 
 void Chain::AppendTo(absl::Cord& dest) const& {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::AppendTo(Cord&): Cord size overflow";
   if (begin_ == end_) {
     dest.Append(short_data());
@@ -586,7 +584,7 @@ void Chain::AppendTo(absl::Cord& dest) const& {
 }
 
 void Chain::AppendTo(absl::Cord& dest) && {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::AppendTo(Cord&): Cord size overflow";
   if (begin_ == end_) {
     dest.Append(short_data());
@@ -596,7 +594,7 @@ void Chain::AppendTo(absl::Cord& dest) && {
 }
 
 inline void Chain::AppendToSlow(absl::Cord& dest) const& {
-  RIEGELI_ASSERT_NE(begin_, end_)
+  ABSL_DCHECK_NE(begin_, end_)
       << "Failed precondition of Chain::AppendToSlow(Cord&): "
          "no blocks, use AppendTo() instead";
   const BlockPtr* iter = begin_;
@@ -609,7 +607,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) const& {
 }
 
 inline void Chain::AppendToSlow(absl::Cord& dest) && {
-  RIEGELI_ASSERT_NE(begin_, end_)
+  ABSL_DCHECK_NE(begin_, end_)
       << "Failed precondition of Chain::AppendToSlow(Cord&): "
          "no blocks, use AppendTo() instead";
   size_ = 0;
@@ -625,7 +623,7 @@ inline void Chain::AppendToSlow(absl::Cord& dest) && {
 }
 
 void Chain::PrependTo(absl::Cord& dest) const& {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::PrependTo(Cord&): Cord size overflow";
   if (begin_ == end_) {
     dest.Prepend(short_data());
@@ -635,7 +633,7 @@ void Chain::PrependTo(absl::Cord& dest) const& {
 }
 
 void Chain::PrependTo(absl::Cord& dest) && {
-  RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Chain::PrependTo(Cord&): Cord size overflow";
   if (begin_ == end_) {
     dest.Prepend(short_data());
@@ -645,7 +643,7 @@ void Chain::PrependTo(absl::Cord& dest) && {
 }
 
 inline void Chain::PrependToSlow(absl::Cord& dest) const& {
-  RIEGELI_ASSERT_NE(end_, begin_)
+  ABSL_DCHECK_NE(end_, begin_)
       << "Failed precondition of Chain::PrependToSlow(Cord&): "
          "no blocks, use PrependTo() instead";
   const BlockPtr* iter = end_;
@@ -658,7 +656,7 @@ inline void Chain::PrependToSlow(absl::Cord& dest) const& {
 }
 
 inline void Chain::PrependToSlow(absl::Cord& dest) && {
-  RIEGELI_ASSERT_NE(end_, begin_)
+  ABSL_DCHECK_NE(end_, begin_)
       << "Failed precondition of Chain::PrependToSlow(Cord&): "
          "no blocks, use PrependTo() instead";
   const BlockPtr* iter = end_;
@@ -679,7 +677,7 @@ Chain::operator std::string() && {
   if (PtrDistance(begin_, end_) == 1) {
     if (std::string* const string_ptr =
             back()->checked_external_object_with_unique_owner<std::string>()) {
-      RIEGELI_ASSERT_EQ(back()->size(), string_ptr->size())
+      ABSL_DCHECK_EQ(back()->size(), string_ptr->size())
           << "Failed invariant of Chain::RawBlock: "
              "block size differs from string size";
       const std::string dest = std::move(*string_ptr);
@@ -706,7 +704,7 @@ Chain::operator absl::Cord() && {
 }
 
 Chain::BlockAndChar Chain::BlockAndCharIndex(size_t char_index_in_chain) const {
-  RIEGELI_ASSERT_LE(char_index_in_chain, size())
+  ABSL_DCHECK_LE(char_index_in_chain, size())
       << "Failed precondition of Chain::BlockAndCharIndex(): "
          "position out of range";
   if (char_index_in_chain == size()) {
@@ -718,7 +716,7 @@ Chain::BlockAndChar Chain::BlockAndCharIndex(size_t char_index_in_chain) const {
     if (char_index_in_chain >= block_iter->size()) {
       char_index_in_chain -= block_iter->size();
       ++block_iter;
-      RIEGELI_ASSERT_LT(char_index_in_chain, block_iter->size())
+      ABSL_DCHECK_LT(char_index_in_chain, block_iter->size())
           << "Failed invariant of Chain: "
              "only two block pointers fit without allocating their array";
     }
@@ -818,14 +816,14 @@ inline void Chain::PushFront(IntrusiveSharedPtr<RawBlock> block) {
 }
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopBack() {
-  RIEGELI_ASSERT_NE(begin_, end_)
+  ABSL_DCHECK_NE(begin_, end_)
       << "Failed precondition of Chain::PopBack(): no blocks";
   --end_;
   return IntrusiveSharedPtr<RawBlock>(end_[0].block_ptr);
 }
 
 inline IntrusiveSharedPtr<Chain::RawBlock> Chain::PopFront() {
-  RIEGELI_ASSERT_NE(begin_, end_)
+  ABSL_DCHECK_NE(begin_, end_)
       << "Failed precondition of Chain::PopFront(): no blocks";
   if (has_here()) {
     // Shift the remaining 0 or 1 block pointers to the left by 1 because
@@ -869,7 +867,7 @@ inline void Chain::AppendBlocks(const BlockPtr* begin, const BlockPtr* end) {
       dest_iter->block_ptr = begin->block_ptr->Ref<Ownership>();
       ++begin;
       ++dest_iter;
-      RIEGELI_ASSERT_EQ(begin, end)
+      ABSL_DCHECK_EQ(begin, end)
           << "Failed invariant of Chain: "
              "only two block pointers fit without allocating their array";
     }
@@ -905,7 +903,7 @@ inline void Chain::PrependBlocks(const BlockPtr* begin, const BlockPtr* end) {
       --end;
       --dest_iter;
       dest_iter->block_ptr = end->block_ptr->Ref<Ownership>();
-      RIEGELI_ASSERT_EQ(begin, end)
+      ABSL_DCHECK_EQ(begin, end)
           << "Failed invariant of Chain: "
              "only two block pointers fit without allocating their array";
     }
@@ -934,7 +932,7 @@ inline void Chain::ReserveFront(size_t extra_capacity) {
 }
 
 inline void Chain::ReserveBackSlow(size_t extra_capacity) {
-  RIEGELI_ASSERT_GT(extra_capacity, 0u)
+  ABSL_DCHECK_GT(extra_capacity, 0u)
       << "Failed precondition of Chain::ReserveBackSlow(): "
          "nothing to do, use ReserveBack() instead";
   BlockPtr* old_allocated_begin;
@@ -946,19 +944,19 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
     old_allocated_begin = block_ptrs_.allocated.begin;
     old_allocated_end = block_ptrs_.allocated.end;
   }
-  RIEGELI_ASSERT_GT(extra_capacity, PtrDistance(end_, old_allocated_end))
+  ABSL_DCHECK_GT(extra_capacity, PtrDistance(end_, old_allocated_end))
       << "Failed precondition of Chain::ReserveBackSlow(): "
          "extra capacity fits in allocated space, use ReserveBack() instead";
-  RIEGELI_ASSERT_LE(extra_capacity, std::numeric_limits<size_t>::max() /
-                                            (2 * sizeof(BlockPtr)) -
-                                        PtrDistance(old_allocated_begin, end_))
+  ABSL_DCHECK_LE(extra_capacity,
+                 std::numeric_limits<size_t>::max() / (2 * sizeof(BlockPtr)) -
+                     PtrDistance(old_allocated_begin, end_))
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t old_capacity =
       PtrDistance(old_allocated_begin, old_allocated_end);
   const size_t size = PtrDistance(begin_, end_);
   if (size + extra_capacity <= old_capacity && 2 * size <= old_capacity) {
-    RIEGELI_ASSERT(has_allocated())
+    ABSL_DCHECK(has_allocated())
         << "The case of has_here() if there is space without reallocation "
            "was handled in ReserveBack()";
     // Existing array has enough capacity and is at most half full: move
@@ -977,9 +975,9 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
   // Reallocate the array, without keeping space before the contents. This is
   // enough to make the amortized cost of adding one element constant if
   // prepending leaves space at both ends.
-  RIEGELI_ASSERT_LE(old_capacity / 2, std::numeric_limits<size_t>::max() /
-                                              (2 * sizeof(BlockPtr)) -
-                                          old_capacity)
+  ABSL_DCHECK_LE(old_capacity / 2,
+                 std::numeric_limits<size_t>::max() / (2 * sizeof(BlockPtr)) -
+                     old_capacity)
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t new_capacity =
@@ -994,7 +992,7 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
     std::memcpy(new_begin + new_capacity, begin_ + old_capacity,
                 size * sizeof(BlockPtr));
   } else if (size >= 1) {
-    RIEGELI_ASSERT_LE(size, 2u)
+    ABSL_DCHECK_LE(size, 2u)
         << "Failed invariant of Chain: "
            "only two block pointers fit without allocating their array";
     new_begin[new_capacity].block_offset = 0;
@@ -1010,7 +1008,7 @@ inline void Chain::ReserveBackSlow(size_t extra_capacity) {
 }
 
 inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
-  RIEGELI_ASSERT_GT(extra_capacity, 0u)
+  ABSL_DCHECK_GT(extra_capacity, 0u)
       << "Failed precondition of Chain::ReserveFrontSlow(): "
          "nothing to do, use ReserveFront() instead";
   BlockPtr* old_allocated_begin;
@@ -1033,19 +1031,19 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
     old_allocated_begin = block_ptrs_.allocated.begin;
     old_allocated_end = block_ptrs_.allocated.end;
   }
-  RIEGELI_ASSERT_GT(extra_capacity, PtrDistance(old_allocated_begin, begin_))
+  ABSL_DCHECK_GT(extra_capacity, PtrDistance(old_allocated_begin, begin_))
       << "Failed precondition of Chain::ReserveFrontSlow(): "
          "extra capacity fits in allocated space, use ReserveFront() instead";
-  RIEGELI_ASSERT_LE(extra_capacity, std::numeric_limits<size_t>::max() /
-                                            (2 * sizeof(BlockPtr)) -
-                                        PtrDistance(begin_, old_allocated_end))
+  ABSL_DCHECK_LE(extra_capacity,
+                 std::numeric_limits<size_t>::max() / (2 * sizeof(BlockPtr)) -
+                     PtrDistance(begin_, old_allocated_end))
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t old_capacity =
       PtrDistance(old_allocated_begin, old_allocated_end);
   const size_t size = PtrDistance(begin_, end_);
   if (size + extra_capacity <= old_capacity && 2 * size <= old_capacity) {
-    RIEGELI_ASSERT(has_allocated())
+    ABSL_DCHECK(has_allocated())
         << "The case of has_here() if there is space without reallocation "
            "was handled above";
     // Existing array has enough capacity and is at most half full: move
@@ -1063,9 +1061,9 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
   }
   // Reallocate the array, keeping space after the contents unchanged. This
   // makes the amortized cost of adding one element constant.
-  RIEGELI_ASSERT_LE(old_capacity / 2, std::numeric_limits<size_t>::max() /
-                                              (2 * sizeof(BlockPtr)) -
-                                          old_capacity)
+  ABSL_DCHECK_LE(old_capacity / 2,
+                 std::numeric_limits<size_t>::max() / (2 * sizeof(BlockPtr)) -
+                     old_capacity)
       << "Failed invariant of Chain: array of block pointers overflow, "
          "possibly blocks are too small";
   const size_t new_capacity =
@@ -1081,7 +1079,7 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
     std::memcpy(new_begin + new_capacity, begin_ + old_capacity,
                 size * sizeof(BlockPtr));
   } else if (size >= 1) {
-    RIEGELI_ASSERT_LE(size, 2u)
+    ABSL_DCHECK_LE(size, 2u)
         << "Failed invariant of Chain: "
            "only two block pointers fit without allocating their array";
     new_begin[new_capacity].block_offset = 0;
@@ -1099,10 +1097,10 @@ inline void Chain::ReserveFrontSlow(size_t extra_capacity) {
 inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
                                       size_t recommended_length,
                                       Options options) const {
-  RIEGELI_ASSERT_LE(replaced_length, size_)
+  ABSL_DCHECK_LE(replaced_length, size_)
       << "Failed precondition of Chain::NewBlockCapacity(): "
          "length to replace greater than current size";
-  RIEGELI_ASSERT_LE(min_length, RawBlock::kMaxCapacity - replaced_length)
+  ABSL_DCHECK_LE(min_length, RawBlock::kMaxCapacity - replaced_length)
       << "Chain block capacity overflow";
   return replaced_length +
          ApplyBufferConstraints(
@@ -1117,14 +1115,14 @@ inline size_t Chain::NewBlockCapacity(size_t replaced_length, size_t min_length,
 absl::Span<char> Chain::AppendBuffer(size_t min_length,
                                      size_t recommended_length,
                                      size_t max_length, Options options) {
-  RIEGELI_ASSERT_LE(min_length, max_length)
+  ABSL_DCHECK_LE(min_length, max_length)
       << "Failed precondition of Chain::AppendBuffer(): "
          "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
+  ABSL_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::AppendBuffer(): "
          "Chain size overflow";
   if (begin_ == end_) {
-    RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
+    ABSL_DCHECK_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
     if (min_length <= kMaxShortDataSize - size_) {
       // Do not bother returning short data if `recommended_length` or
@@ -1196,7 +1194,7 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
   }
   const absl::Span<char> buffer = back()->AppendBuffer(
       UnsignedMin(max_length, std::numeric_limits<size_t>::max() - size_));
-  RIEGELI_ASSERT_GE(buffer.size(), min_length)
+  ABSL_DCHECK_GE(buffer.size(), min_length)
       << "Chain::RawBlock::AppendBuffer() returned less than the free space";
   size_ += buffer.size();
   return buffer;
@@ -1205,14 +1203,14 @@ absl::Span<char> Chain::AppendBuffer(size_t min_length,
 absl::Span<char> Chain::PrependBuffer(size_t min_length,
                                       size_t recommended_length,
                                       size_t max_length, Options options) {
-  RIEGELI_ASSERT_LE(min_length, max_length)
+  ABSL_DCHECK_LE(min_length, max_length)
       << "Failed precondition of Chain::PrependBuffer(): "
          "min_length > max_length";
-  RIEGELI_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
+  ABSL_CHECK_LE(min_length, std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::PrependBuffer(): "
          "Chain size overflow";
   if (begin_ == end_) {
-    RIEGELI_ASSERT_LE(size_, kMaxShortDataSize)
+    ABSL_DCHECK_LE(size_, kMaxShortDataSize)
         << "Failed invariant of Chain: short data size too large";
     if (min_length <= kMaxShortDataSize - size_) {
       // Do not bother returning short data if `recommended_length` or
@@ -1284,7 +1282,7 @@ absl::Span<char> Chain::PrependBuffer(size_t min_length,
   }
   const absl::Span<char> buffer = front()->PrependBuffer(
       UnsignedMin(max_length, std::numeric_limits<size_t>::max() - size_));
-  RIEGELI_ASSERT_GE(buffer.size(), min_length)
+  ABSL_DCHECK_GE(buffer.size(), min_length)
       << "Chain::RawBlock::PrependBuffer() returned less than the free space";
   RefreshFront();
   size_ += buffer.size();
@@ -1314,7 +1312,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
     Append(src.short_data(), options);
     return;
   }
-  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
+  ABSL_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(Chain): "
          "Chain size overflow";
   const BlockPtr* src_iter = src.begin_;
@@ -1327,7 +1325,7 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
       // The first block of `src` must be rewritten. Merge short data with it to
       // a new block.
       if (!short_data().empty() || !src.front()->empty()) {
-        RIEGELI_ASSERT_LE(src.front()->size(), RawBlock::kMaxCapacity - size_)
+        ABSL_DCHECK_LE(src.front()->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny or wasteful block "
                "exceeds RawBlock::kMaxCapacity";
         const size_t capacity =
@@ -1366,8 +1364,8 @@ inline void Chain::AppendChain(ChainRef&& src, Options options) {
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(src.front()->size(),
-                          RawBlock::kMaxCapacity - back()->size())
+        ABSL_DCHECK_LE(src.front()->size(),
+                       RawBlock::kMaxCapacity - back()->size())
             << "Sum of sizes of two tiny or wasteful blocks exceeds "
                "RawBlock::kMaxCapacity";
         const size_t capacity =
@@ -1440,14 +1438,14 @@ void Chain::Append(Block&& src, Options options) {
 
 template <typename RawBlockPtrRef>
 inline void Chain::AppendRawBlock(RawBlockPtrRef&& block, Options options) {
-  RIEGELI_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
+  ABSL_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Append(Block): "
          "Chain size overflow";
   if (begin_ == end_) {
     if (!short_data().empty()) {
       if (block->tiny()) {
         // The block must be rewritten. Merge short data with it to a new block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
+        ABSL_DCHECK_LE(block->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny block exceeds "
                "RawBlock::kMaxCapacity";
         const size_t capacity = NewBlockCapacity(
@@ -1476,8 +1474,7 @@ inline void Chain::AppendRawBlock(RawBlockPtrRef&& block, Options options) {
       } else {
         // Boundary blocks cannot be appended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(block->size(),
-                          RawBlock::kMaxCapacity - back()->size())
+        ABSL_DCHECK_LE(block->size(), RawBlock::kMaxCapacity - back()->size())
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
             NewBlockCapacity(back()->size(), block->size(), 0, options));
@@ -1593,7 +1590,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
     Prepend(src.short_data(), options);
     return;
   }
-  RIEGELI_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
+  ABSL_CHECK_LE(src.size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(Chain): "
          "Chain size overflow";
   const BlockPtr* src_iter = src.end_;
@@ -1606,7 +1603,7 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
       // The last block of `src` must be rewritten. Merge short data with it to
       // a new block.
       if (!short_data().empty() || !src.back()->empty()) {
-        RIEGELI_ASSERT_LE(src.back()->size(), RawBlock::kMaxCapacity - size_)
+        ABSL_DCHECK_LE(src.back()->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny or wasteful block "
                "exceeds RawBlock::kMaxCapacity";
         const size_t capacity =
@@ -1643,8 +1640,8 @@ inline void Chain::PrependChain(ChainRef&& src, Options options) {
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(src.back()->size(),
-                          RawBlock::kMaxCapacity - front()->size())
+        ABSL_DCHECK_LE(src.back()->size(),
+                       RawBlock::kMaxCapacity - front()->size())
             << "Sum of sizes of two tiny or wasteful blocks exceeds "
                "RawBlock::kMaxCapacity";
         const size_t capacity =
@@ -1719,14 +1716,14 @@ void Chain::Prepend(Block&& src, Options options) {
 
 template <typename RawBlockPtrRef>
 inline void Chain::PrependRawBlock(RawBlockPtrRef&& block, Options options) {
-  RIEGELI_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
+  ABSL_CHECK_LE(block->size(), std::numeric_limits<size_t>::max() - size_)
       << "Failed precondition of Chain::Prepend(Block): "
          "Chain size overflow";
   if (begin_ == end_) {
     if (!short_data().empty()) {
       if (block->tiny()) {
         // The block must be rewritten. Merge short data with it to a new block.
-        RIEGELI_ASSERT_LE(block->size(), RawBlock::kMaxCapacity - size_)
+        ABSL_DCHECK_LE(block->size(), RawBlock::kMaxCapacity - size_)
             << "Sum of sizes of short data and a tiny block exceeds "
                "RawBlock::kMaxCapacity";
         const size_t capacity =
@@ -1755,8 +1752,7 @@ inline void Chain::PrependRawBlock(RawBlockPtrRef&& block, Options options) {
       } else {
         // Boundary blocks cannot be prepended in place. Merge them to a new
         // block.
-        RIEGELI_ASSERT_LE(block->size(),
-                          RawBlock::kMaxCapacity - front()->size())
+        ABSL_DCHECK_LE(block->size(), RawBlock::kMaxCapacity - front()->size())
             << "Sum of sizes of two tiny blocks exceeds RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
             NewBlockCapacity(front()->size(), block->size(), 0, options));
@@ -1850,7 +1846,7 @@ void Chain::AppendFrom(absl::Cord::CharIterator& iter, size_t length,
 
 void Chain::RemoveSuffix(size_t length, Options options) {
   if (length == 0) return;
-  RIEGELI_CHECK_LE(length, size())
+  ABSL_CHECK_LE(length, size())
       << "Failed precondition of Chain::RemoveSuffix(): "
       << "length to remove greater than current size";
   size_ -= length;
@@ -1861,7 +1857,7 @@ void Chain::RemoveSuffix(size_t length, Options options) {
   while (length > back()->size()) {
     length -= back()->size();
     PopBack();
-    RIEGELI_ASSERT_NE(begin_, end_)
+    ABSL_DCHECK_NE(begin_, end_)
         << "Failed invariant of Chain: "
            "sum of block sizes smaller than Chain size";
   }
@@ -1870,7 +1866,7 @@ void Chain::RemoveSuffix(size_t length, Options options) {
       // Last two blocks must be merged.
       IntrusiveSharedPtr<RawBlock> last = PopBack();
       if (!last->empty()) {
-        RIEGELI_ASSERT_LE(last->size(), RawBlock::kMaxCapacity - back()->size())
+        ABSL_DCHECK_LE(last->size(), RawBlock::kMaxCapacity - back()->size())
             << "Sum of sizes of two tiny blocks exceeds "
                "RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
@@ -1894,7 +1890,7 @@ void Chain::RemoveSuffix(size_t length, Options options) {
 
 void Chain::RemovePrefix(size_t length, Options options) {
   if (length == 0) return;
-  RIEGELI_CHECK_LE(length, size())
+  ABSL_CHECK_LE(length, size())
       << "Failed precondition of Chain::RemovePrefix(): "
       << "length to remove greater than current size";
   size_ -= length;
@@ -1906,7 +1902,7 @@ void Chain::RemovePrefix(size_t length, Options options) {
   while (length > front()->size()) {
     length -= front()->size();
     PopFront();
-    RIEGELI_ASSERT_NE(begin_, end_)
+    ABSL_DCHECK_NE(begin_, end_)
         << "Failed invariant of Chain: "
            "sum of block sizes smaller than Chain size";
   }
@@ -1916,8 +1912,7 @@ void Chain::RemovePrefix(size_t length, Options options) {
       // First two blocks must be merged.
       IntrusiveSharedPtr<RawBlock> first = PopFront();
       if (!first->empty()) {
-        RIEGELI_ASSERT_LE(first->size(),
-                          RawBlock::kMaxCapacity - front()->size())
+        ABSL_DCHECK_LE(first->size(), RawBlock::kMaxCapacity - front()->size())
             << "Sum of sizes of two tiny blocks exceeds "
                "RawBlock::kMaxCapacity";
         IntrusiveSharedPtr<RawBlock> merged = RawBlock::NewInternal(
@@ -2031,20 +2026,20 @@ void Chain::Output(std::ostream& dest) const {
 }
 
 void Chain::VerifyInvariants() const {
-#if RIEGELI_DEBUG
+#ifndef NDEBUG
   if (begin_ == end_) {
     if (has_here()) {
-      RIEGELI_CHECK_LE(size(), kMaxShortDataSize);
+      ABSL_CHECK_LE(size(), kMaxShortDataSize);
     } else {
-      RIEGELI_CHECK_EQ(size(), 0u);
+      ABSL_CHECK_EQ(size(), 0u);
     }
   } else {
-    RIEGELI_CHECK_LE(begin_, end_);
+    ABSL_CHECK_LE(begin_, end_);
     if (has_here()) {
-      RIEGELI_CHECK_LE(PtrDistance(begin_, end_), 2u);
+      ABSL_CHECK_LE(PtrDistance(begin_, end_), 2u);
     } else {
-      RIEGELI_CHECK_GE(begin_, block_ptrs_.allocated.begin);
-      RIEGELI_CHECK_LE(end_, block_ptrs_.allocated.end);
+      ABSL_CHECK_GE(begin_, block_ptrs_.allocated.begin);
+      ABSL_CHECK_LE(end_, block_ptrs_.allocated.end);
     }
     bool is_tiny = false;
     size_t offset =
@@ -2052,23 +2047,23 @@ void Chain::VerifyInvariants() const {
     const BlockPtr* iter = begin_;
     do {
       if (is_tiny) {
-        RIEGELI_CHECK(!iter->block_ptr->tiny());
+        ABSL_CHECK(!iter->block_ptr->tiny());
         is_tiny = false;
       } else {
         is_tiny = iter->block_ptr->tiny();
       }
       if (iter != begin_ && iter != end_ - 1) {
-        RIEGELI_CHECK(!iter->block_ptr->empty());
-        RIEGELI_CHECK(!iter->block_ptr->wasteful());
+        ABSL_CHECK(!iter->block_ptr->empty());
+        ABSL_CHECK(!iter->block_ptr->wasteful());
       }
       if (has_allocated()) {
-        RIEGELI_CHECK_EQ(iter[block_offsets()].block_offset, offset);
+        ABSL_CHECK_EQ(iter[block_offsets()].block_offset, offset);
       }
       offset += iter->block_ptr->size();
       ++iter;
     } while (iter != end_);
     if (has_allocated()) offset -= begin_[block_offsets()].block_offset;
-    RIEGELI_CHECK_EQ(size(), offset);
+    ABSL_CHECK_EQ(size(), offset);
   }
 #endif
 }

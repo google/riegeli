@@ -17,30 +17,30 @@
 #include <stddef.h>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 
 namespace riegeli {
 
 bool ArrayBackwardWriterBase::PushBehindScratch(size_t recommended_length) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PushableBackwardWriter::PushBehindScratch(): "
          "some space available, use Push() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableBackwardWriter::PushBehindScratch(): "
          "scratch used";
   return ForcePushUsingScratch();
 }
 
 bool ArrayBackwardWriterBase::WriteBehindScratch(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(string_view): "
          "enough space available, use Write(string_view) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(string_view): "
          "scratch used";
@@ -48,7 +48,7 @@ bool ArrayBackwardWriterBase::WriteBehindScratch(absl::string_view src) {
 }
 
 bool ArrayBackwardWriterBase::FlushBehindScratch(FlushType flush_type) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableBackwardWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -57,7 +57,7 @@ bool ArrayBackwardWriterBase::FlushBehindScratch(FlushType flush_type) {
 }
 
 bool ArrayBackwardWriterBase::TruncateBehindScratch(Position new_size) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::TruncateBehindScratch(): "
          "scratch used";

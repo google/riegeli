@@ -22,11 +22,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/debug.h"
 #include "riegeli/base/status.h"
 #include "riegeli/bytes/writer.h"
@@ -37,13 +37,13 @@
 namespace riegeli {
 
 void CsvWriterBase::Initialize(Writer* dest, Options&& options) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of CsvWriter: null Writer pointer";
   // Set `header_` early, so that `header()` is valid even in case of a failure,
   // and because `WriteRecord(const CsvRecord&)` uses this as a precondition.
   bool write_header = false;
   if (options.header() != std::nullopt) {
-    RIEGELI_ASSERT(options.assumed_header() == std::nullopt)
+    ABSL_DCHECK(options.assumed_header() == std::nullopt)
         << "Failed precondition of CsvWriter: "
            "header() and assumed_header() both set";
     has_header_ = true;
@@ -138,7 +138,7 @@ absl::Status CsvWriterBase::AnnotateOverDest(absl::Status status) {
 
 inline bool CsvWriterBase::WriteQuoted(Writer& dest, absl::string_view field,
                                        size_t already_scanned) {
-  RIEGELI_ASSERT_NE(quote_, std::nullopt)
+  ABSL_DCHECK(quote_ != std::nullopt)
       << "Failed precondition of CsvWriterBase::WriteQuoted(): "
          "quote character not available";
   if (ABSL_PREDICT_FALSE(!dest.Write(*quote_))) {
@@ -217,11 +217,11 @@ bool CsvWriterBase::WriteField(Writer& dest, absl::string_view field) {
 }
 
 bool CsvWriterBase::WriteRecord(const CsvRecord& record) {
-  RIEGELI_CHECK(has_header_)
+  ABSL_CHECK(has_header_)
       << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
          "CsvWriterBase::Options::header() is required";
   if (ok()) {
-    RIEGELI_CHECK_EQ(record.header(), header_)
+    ABSL_CHECK_EQ(record.header(), header_)
         << "Failed precondition of CsvWriterBase::WriteRecord(CsvRecord): "
         << "mismatched CSV header and record";
   }

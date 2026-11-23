@@ -22,8 +22,8 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -83,7 +83,7 @@ int ReaderStreambuf::underflow() {
 }
 
 std::streamsize ReaderStreambuf::xsgetn(char* dest, std::streamsize length) {
-  RIEGELI_ASSERT_GE(length, 0)
+  ABSL_DCHECK_GE(length, 0)
       << "Failed precondition of streambuf::xsgetn(): negative length";
   if (ABSL_PREDICT_TRUE(length <= egptr() - gptr())) {
     riegeli::null_safe_memcpy(dest, gptr(), IntCast<size_t>(length));
@@ -159,8 +159,7 @@ std::streampos ReaderStreambuf::seekoff(std::streamoff off,
       }
     } break;
     default:
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Unknown seek direction: " << static_cast<int>(dir);
+      ABSL_UNREACHABLE();
   }
   if (new_pos >= reader_->pos()) {
     // Seeking forwards is supported even if random access is not.

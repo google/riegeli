@@ -97,24 +97,6 @@ cc_library(
     ],
 )
 
-# TODO: Migrate to ABSL_CHECK, ABSL_DCHECK, ABSL_ASSUME, and
-# ABSL_UNREACHABLE.
-cc_library(
-    name = "assert",
-    srcs = [
-        "assert.cc",
-        "port.h",
-    ],
-    hdrs = ["assert.h"],
-    deps = [
-        ":debug",
-        ":stream_utils",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/log:absl_log",
-    ],
-)
-
 cc_library(
     name = "memory_annotations",
     hdrs = ["memory_annotations.h"],
@@ -133,10 +115,10 @@ cc_library(
     name = "arithmetic",
     hdrs = ["arithmetic.h"],
     deps = [
-        ":assert",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
     ],
@@ -174,7 +156,6 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":estimated_allocated_size",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:nullability",
@@ -189,7 +170,7 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/strings:resize_and_overwrite",
     ],
@@ -202,7 +183,6 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":buffering",
         ":string_utils",
         "@com_google_absl//absl/base:nullability",
@@ -238,10 +218,10 @@ cc_library(
     hdrs = ["type_erased_ref.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
-        ":assert",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/meta:type_traits",
     ],
 )
@@ -256,13 +236,13 @@ cc_library(
         "temporary_storage.h",
     ],
     deps = [
-        ":assert",
         ":reset",
         ":type_erased_ref",
         ":type_traits",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log:absl_check",
     ],
 )
 
@@ -283,12 +263,12 @@ cc_library(
     hdrs = ["string_ref.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
-        ":assert",
         ":compare",
         ":initializer",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings:string_view",
     ],
 )
@@ -360,13 +340,13 @@ cc_library(
         "dependency_manager.h",
     ],
     deps = [
-        ":assert",
         ":bytes_ref",
         ":compare",
         ":initializer",
         ":reset",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
@@ -387,7 +367,6 @@ cc_library(
     name = "stable_dependency",
     hdrs = ["stable_dependency.h"],
     deps = [
-        ":assert",
         ":dependency",
         ":initializer",
         ":type_traits",
@@ -404,7 +383,6 @@ cc_library(
     ],
     deps = [
         ":arithmetic",
-        ":assert",
         ":closing_ptr",
         ":compare",
         ":dependency",
@@ -415,6 +393,7 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings:string_view",
     ],
@@ -448,10 +427,10 @@ cc_library(
     srcs = ["object.cc"],
     hdrs = ["object.h"],
     deps = [
-        ":assert",
         ":initializer",
         ":type_id",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
     ],
 )
@@ -490,13 +469,13 @@ cc_library(
     hdrs = ["intrusive_shared_ptr.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
-        ":assert",
         ":compare",
         ":external_data",
         ":initializer",
         ":ownership",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log:absl_check",
     ],
 )
 
@@ -506,7 +485,6 @@ cc_library(
     hdrs = ["shared_ptr.h"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":compare",
         ":external_data",
         ":initializer",
@@ -514,6 +492,7 @@ cc_library(
         ":ref_count",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log:absl_check",
     ],
 )
 
@@ -524,7 +503,6 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":buffering",
         ":estimated_allocated_size",
         ":external_data",
@@ -540,12 +518,12 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":buffer",
         ":external_data",
         ":initializer",
         ":shared_ptr",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings:string_view",
     ],
 )
@@ -557,10 +535,10 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":buffering",
         ":shared_buffer",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],
@@ -578,7 +556,6 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":buffering",
         ":bytes_ref",
         ":compare",
@@ -597,6 +574,7 @@ cc_library(
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/strings:resize_and_overwrite",
@@ -625,7 +603,6 @@ cc_library(
     hdrs = ["byte_fill.h"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":chain",
         ":compare",
         ":cord_utils",
@@ -636,6 +613,7 @@ cc_library(
         ":shared_buffer",
         ":types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/strings:string_view",
@@ -665,7 +643,6 @@ cc_library(
     ],
     deps = [
         ":arithmetic",
-        ":assert",
         ":bytes_ref",
         ":compare",
         ":estimated_allocated_size",
@@ -676,6 +653,7 @@ cc_library(
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:hash_container_defaults",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings:string_view",
     ],
 )
@@ -686,13 +664,13 @@ cc_library(
     hdrs = ["optional_compact_string.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
-        ":assert",
         ":bytes_ref",
         ":compact_string",
         ":compare",
         ":iterable",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings:string_view",
     ],
 )
@@ -708,7 +686,6 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":compare",
         ":debug",
         ":initializer",
@@ -717,6 +694,8 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/log:absl_log",
     ],
 )
 
@@ -731,13 +710,13 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":compare",
         ":iterable",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:absl_check",
     ],
 )
 
@@ -759,10 +738,10 @@ cc_library(
     hdrs = ["parallelism.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
-        ":assert",
         ":global",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
@@ -774,10 +753,10 @@ cc_library(
     hdrs = ["background_cleaning.h"],
     visibility = ["//riegeli:__subpackages__"],
     deps = [
-        ":assert",
         ":global",
         ":parallelism",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
@@ -788,7 +767,6 @@ cc_library(
     hdrs = ["recycling_pool.h"],
     deps = [
         ":arithmetic",
-        ":assert",
         ":background_cleaning",
         ":compare",
         ":global",
@@ -796,6 +774,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
@@ -807,12 +786,13 @@ cc_library(
     srcs = ["options_parser.cc"],
     hdrs = ["options_parser.h"],
     deps = [
-        ":assert",
         ":initializer",
         ":object",
         ":string_ref",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",

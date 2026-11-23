@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/recycling_pool.h"
@@ -155,7 +155,8 @@ class Compressor : public Object {
 // Implementation details follow.
 
 inline Writer& Compressor::writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT_OK(*this) << "Failed precondition of Compressor::writer()";
+  ABSL_DCHECK(ok()) << "Failed precondition of Compressor::writer(): "
+                    << status();
   return *writer_;
 }
 

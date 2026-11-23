@@ -24,10 +24,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -92,7 +92,7 @@ class ChainBackwardWriterBase : public BackwardWriter {
     // Default: `kDefaultMaxBlockSize` (64K).
     Options& set_max_block_size(size_t max_block_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GT(max_block_size, 0u)
+      ABSL_DCHECK_GT(max_block_size, 0u)
           << "Failed precondition of "
              "ChainBackwardWriterBase::Options::set_max_block_size(): "
              "zero block size";
@@ -284,7 +284,7 @@ inline void ChainBackwardWriterBase::Reset(Options options) {
 }
 
 inline void ChainBackwardWriterBase::Initialize(Chain* dest, bool prepend) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of ChainBackwardWriter: null Chain pointer";
   if (prepend) {
     set_start_pos(dest->size());
@@ -302,9 +302,9 @@ class ChainBackwardWriter<Dest>::Mover {
       : uses_buffer_(self.start() != nullptr),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT_EQ(that.dest_->blocks().front().data(), self.limit())
+      ABSL_DCHECK_EQ(that.dest_->blocks().front().data(), self.limit())
           << "ChainBackwardWriter destination changed unexpectedly";
-      RIEGELI_ASSERT_EQ(that.dest_->size(), self.limit_pos())
+      ABSL_DCHECK_EQ(that.dest_->size(), self.limit_pos())
           << "ChainBackwardWriter destination changed unexpectedly";
     }
   }

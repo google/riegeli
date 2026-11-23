@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
@@ -63,7 +63,7 @@ Position PosAfterPadding(Position pos, Position padding) {
 ChunkWriter::~ChunkWriter() {}
 
 void DefaultChunkWriterBase::Initialize(Writer* dest, Position pos) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of DefaultChunkWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!records_internal::IsPossibleChunkBoundary(pos))) {
     const Position length = records_internal::RemainingInBlock(pos);
@@ -83,8 +83,8 @@ absl::Status DefaultChunkWriterBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
-  RIEGELI_ASSERT_EQ(chunk.header.data_hash(),
-                    chunk_encoding_internal::Hash(chunk.data))
+  ABSL_DCHECK_EQ(chunk.header.data_hash(),
+                 chunk_encoding_internal::Hash(chunk.data))
       << "Failed precondition of ChunkWriter::WriteChunk(): "
          "Wrong chunk data hash";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -104,8 +104,7 @@ bool DefaultChunkWriterBase::WriteChunk(const Chunk& chunk) {
   if (ABSL_PREDICT_FALSE(!WritePadding(chunk_begin, chunk_end, dest))) {
     return false;
   }
-  RIEGELI_ASSERT_EQ(pos(), chunk_end)
-      << "Unexpected position after writing chunk";
+  ABSL_DCHECK_EQ(pos(), chunk_end) << "Unexpected position after writing chunk";
   return true;
 }
 
@@ -114,8 +113,8 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
                                                  Position chunk_end,
                                                  Writer& dest) {
   const std::optional<Position> size = src.Size();
-  RIEGELI_ASSERT(size != std::nullopt) << src.status();
-  RIEGELI_ASSERT_EQ(src.pos(), 0u) << "Non-zero section reader position";
+  ABSL_DCHECK(size != std::nullopt) << src.status();
+  ABSL_DCHECK_EQ(src.pos(), 0u) << "Non-zero section reader position";
   while (src.pos() < *size) {
     if (records_internal::IsBlockBoundary(pos())) {
       records_internal::BlockHeader block_header(
@@ -134,7 +133,8 @@ inline bool DefaultChunkWriterBase::WriteSection(Reader& src,
     }
     move_pos(length);
   }
-  RIEGELI_EVAL_ASSERT(src.Close()) << src.status();
+  const bool close_ok = src.Close();
+  ABSL_DCHECK(close_ok) << src.status();
   return true;
 }
 

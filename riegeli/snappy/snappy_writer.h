@@ -25,11 +25,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -69,11 +69,11 @@ class SnappyWriterBase : public Writer {
         snappy::CompressionOptions::DefaultCompressionLevel();
     Options& set_compression_level(int compression_level) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+      ABSL_DCHECK_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "SnappyWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+      ABSL_DCHECK_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "SnappyWriterBase::Options::set_compression_level(): "
              "compression level out of range";
@@ -291,7 +291,7 @@ inline void SnappyWriterBase::Reset() {
 }
 
 inline void SnappyWriterBase::Initialize(Writer* dest, int compression_level) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of SnappyWriter: null Writer pointer";
   compression_level_ = compression_level;
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
@@ -302,12 +302,12 @@ inline void SnappyWriterBase::Initialize(Writer* dest, int compression_level) {
 inline void SnappyWriterBase::MoveUncompressed(SnappyWriterBase& that) {
   const bool uses_buffer = start() != nullptr;
   if (uses_buffer) {
-    RIEGELI_ASSERT(that.uncompressed_.blocks().back().data() +
-                       that.uncompressed_.blocks().back().size() ==
+    ABSL_DCHECK_EQ(that.uncompressed_.blocks().back().data() +
+                       that.uncompressed_.blocks().back().size(),
                    limit())
         << "Failed invariant of SnappyWriter: "
            "uncompressed data inconsistent with buffer pointers";
-    RIEGELI_ASSERT_EQ(that.uncompressed_.size(), limit_pos())
+    ABSL_DCHECK_EQ(that.uncompressed_.size(), limit_pos())
         << "Failed invariant of SnappyWriter: "
            "uncompressed data inconsistent with buffer pointers";
   }

@@ -21,11 +21,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -77,7 +77,7 @@ void ResizableWriterBase::SetWriteSizeHintImpl(
 
 bool ResizableWriterBase::PushSlow(size_t min_length,
                                    size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -109,7 +109,7 @@ bool ResizableWriterBase::PushSlow(size_t min_length,
 }
 
 bool ResizableWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -149,7 +149,7 @@ bool ResizableWriterBase::WriteSlow(absl::string_view src) {
 }
 
 bool ResizableWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -175,7 +175,7 @@ bool ResizableWriterBase::WriteSlow(ExternalRef src) {
 }
 
 bool ResizableWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -201,7 +201,7 @@ bool ResizableWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool ResizableWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -227,7 +227,7 @@ bool ResizableWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool ResizableWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -253,7 +253,7 @@ bool ResizableWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -279,7 +279,7 @@ bool ResizableWriterBase::WriteSlow(absl::Cord&& src) {
 }
 
 bool ResizableWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -315,7 +315,7 @@ bool ResizableWriterBase::FlushImpl(FlushType flush_type) {
 }
 
 bool ResizableWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

@@ -19,7 +19,7 @@
 
 #include <type_traits>
 
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -37,23 +37,23 @@ struct CompactStringResizableTraits {
   static size_t Size(const Resizable& dest) { return dest.size(); }
   static constexpr bool kIsStable = false;
   static bool Resize(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_LE(used_size, dest.size())
+    ABSL_DCHECK_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds new size";
     dest.resize(new_size, used_size);
     return true;
   }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size())
+    ABSL_DCHECK_GT(new_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "no need to grow";
-    RIEGELI_ASSERT_LE(used_size, dest.size())
+    ABSL_DCHECK_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
     dest.resize(new_size, used_size);
@@ -61,7 +61,7 @@ struct CompactStringResizableTraits {
     return true;
   }
   static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size())
+    ABSL_DCHECK_GT(new_size, dest.size())
         << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
            "no need to grow";
     if (new_size > dest.capacity()) return false;

@@ -19,10 +19,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -33,7 +33,7 @@ namespace riegeli {
 
 void RestrictedChainWriter::Done() {
   if (ABSL_PREDICT_TRUE(ok())) {
-    RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+    ABSL_DCHECK_EQ(limit_pos(), dest_.size())
         << "RestrictedChainWriter destination changed unexpectedly";
     SyncBuffer();
   }
@@ -55,11 +55,11 @@ inline void RestrictedChainWriter::MakeBuffer(size_t min_length,
 
 bool RestrictedChainWriter::PushSlow(size_t min_length,
                                      size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(min_length >
@@ -71,11 +71,11 @@ bool RestrictedChainWriter::PushSlow(size_t min_length,
 }
 
 bool RestrictedChainWriter::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -89,11 +89,11 @@ bool RestrictedChainWriter::WriteSlow(ExternalRef src) {
 }
 
 bool RestrictedChainWriter::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -107,11 +107,11 @@ bool RestrictedChainWriter::WriteSlow(const Chain& src) {
 }
 
 bool RestrictedChainWriter::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -125,11 +125,11 @@ bool RestrictedChainWriter::WriteSlow(Chain&& src) {
 }
 
 bool RestrictedChainWriter::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -143,11 +143,11 @@ bool RestrictedChainWriter::WriteSlow(const absl::Cord& src) {
 }
 
 bool RestrictedChainWriter::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -161,11 +161,11 @@ bool RestrictedChainWriter::WriteSlow(absl::Cord&& src) {
 }
 
 bool RestrictedChainWriter::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(limit_pos(), dest_.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest_.size())
       << "RestrictedChainWriter destination changed unexpectedly";
   SyncBuffer();
   if (ABSL_PREDICT_FALSE(src.size() >

@@ -23,11 +23,11 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -36,12 +36,12 @@ namespace riegeli {
 
 void IStreamReaderBase::Initialize(std::istream* src,
                                    std::optional<Position> assumed_pos) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of IStreamReader: null stream pointer";
-  RIEGELI_ASSERT(!supports_random_access_)
+  ABSL_DCHECK(!supports_random_access_)
       << "Failed precondition of IStreamReaderBase::Initialize(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT_OK(random_access_status_)
+  ABSL_DCHECK_OK(random_access_status_)
       << "Failed precondition of IStreamReaderBase::Initialize(): "
          "random_access_status_ not reset";
   if (ABSL_PREDICT_FALSE(src->fail())) {
@@ -170,14 +170,14 @@ bool IStreamReaderBase::FailOperation(absl::string_view operation) {
 
 bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                      char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   std::istream& src = *SrcStream();
   errno = 0;
   for (;;) {
@@ -204,8 +204,8 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
         return false;
       }
       length_read = src.readsome(dest, max_length_to_read);
-      RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::readsome()";
-      RIEGELI_ASSERT_LE(length_read, max_length_to_read)
+      ABSL_DCHECK_GE(length_read, 0) << "negative istream::readsome()";
+      ABSL_DCHECK_LE(length_read, max_length_to_read)
           << "istream::readsome() read more than requested";
       if (ABSL_PREDICT_TRUE(length_read > 0)) goto fragment_read;
       // `std::istream::peek()` returned non-`eof()` but
@@ -217,8 +217,8 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
     // Use `std::istream::read()` to read a fixed length of `length_to_read`.
     src.read(dest, length_to_read);
     length_read = src.gcount();
-    RIEGELI_ASSERT_GE(length_read, 0) << "negative istream::gcount()";
-    RIEGELI_ASSERT_LE(length_read, length_to_read)
+    ABSL_DCHECK_GE(length_read, 0) << "negative istream::gcount()";
+    ABSL_DCHECK_LE(length_read, length_to_read)
         << "istream::read() read more than requested";
   fragment_read:
     move_limit_pos(IntCast<size_t>(length_read));
@@ -244,10 +244,10 @@ bool IStreamReaderBase::ReadInternal(size_t min_length, size_t max_length,
 }
 
 bool IStreamReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!IStreamReaderBase::SupportsRandomAccess())) {

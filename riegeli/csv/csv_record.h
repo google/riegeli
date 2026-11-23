@@ -34,11 +34,11 @@
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/iterable.h"
@@ -954,7 +954,7 @@ template <
 CsvHeader::CsvHeader(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 template <typename Names,
@@ -963,7 +963,7 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      Names&& names) {
   const absl::Status status =
       TryResetInternal(std::move(normalizer), std::forward<Names>(names));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 template <
@@ -974,7 +974,7 @@ template <
 void CsvHeader::Reset(Names&& names) {
   const absl::Status status =
       TryResetInternal(nullptr, std::forward<Names>(names));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 template <typename Names,
@@ -983,7 +983,7 @@ void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
                       Names&& names) {
   const absl::Status status =
       TryResetInternal(std::move(normalizer), std::forward<Names>(names));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 template <
@@ -1218,7 +1218,7 @@ template <typename Fields,
 CsvRecord::CsvRecord(CsvHeader header, Fields&& fields) {
   const absl::Status status =
       TryResetInternal(std::move(header), std::forward<Fields>(fields));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::CsvRecord()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvRecord::CsvRecord()";
 }
 
 template <typename Fields,
@@ -1226,7 +1226,7 @@ template <typename Fields,
 void CsvRecord::Reset(CsvHeader header, Fields&& fields) {
   const absl::Status status =
       TryResetInternal(std::move(header), std::forward<Fields>(fields));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::Reset()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvRecord::Reset()";
 }
 
 template <typename Fields,
@@ -1267,7 +1267,7 @@ template <
                      int>>
 void CsvRecord::Merge(Src&& src) {
   const absl::Status status = TryMerge(std::forward<Src>(src));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Merge()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::Merge()";
 }
 
 template <
@@ -1293,7 +1293,7 @@ absl::Status CsvRecord::TryMerge(Src&& src) {
     ++this_iter;
     ++src_iter;
   }
-  RIEGELI_ASSERT(src_iter != src_end_iter)
+  ABSL_DCHECK(src_iter != src_end_iter)
       << "The code below assumes that the code above "
          "did not leave the source iterator at the end";
   // The assumption about matching fields no longer holds. Switch to string
@@ -1322,7 +1322,7 @@ template <typename Dest,
                            int>>
 void CsvRecord::Split(Dest& dest) const {
   const absl::Status status = TrySplit(dest);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Split()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::Split()";
 }
 
 template <typename Dest,
@@ -1345,7 +1345,7 @@ absl::Status CsvRecord::TrySplit(Dest& dest) const {
     ++this_iter;
     ++dest_iter;
   }
-  RIEGELI_ASSERT(dest_iter != dest_end_iter)
+  ABSL_DCHECK(dest_iter != dest_end_iter)
       << "The code below assumes that the code above "
          "did not leave the destination iterator at the end";
   // The assumption about matching fields no longer holds. Switch to string

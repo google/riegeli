@@ -20,10 +20,10 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
@@ -49,7 +49,7 @@ void BufferedWriter::Done() {
 }
 
 void BufferedWriter::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   FlushBehindBuffer(src, FlushType::kFromObject);
@@ -76,7 +76,7 @@ void BufferedWriter::SetWriteSizeHintImpl(
 }
 
 bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
@@ -94,7 +94,7 @@ bool BufferedWriter::PushSlow(size_t min_length, size_t recommended_length) {
 
 bool BufferedWriter::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -103,17 +103,17 @@ bool BufferedWriter::FlushBehindBuffer(absl::string_view src,
 }
 
 bool BufferedWriter::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "position unchanged, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   return Fail(absl::UnimplementedError("Writer::Seek() not supported"));
 }
 
 std::optional<Position> BufferedWriter::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   Fail(absl::UnimplementedError("Writer::Size() not supported"));
@@ -121,14 +121,14 @@ std::optional<Position> BufferedWriter::SizeBehindBuffer() {
 }
 
 bool BufferedWriter::TruncateBehindBuffer(Position new_size) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   return Fail(absl::UnimplementedError("Writer::Truncate() not supported"));
 }
 
 Reader* BufferedWriter::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   Fail(absl::UnimplementedError("Writer::ReadMode() not supported"));
@@ -136,7 +136,7 @@ Reader* BufferedWriter::ReadModeBehindBuffer(Position initial_pos) {
 }
 
 bool BufferedWriter::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   if (src.size() >= buffer_sizer_.BufferLength(pos())) {
@@ -149,7 +149,7 @@ bool BufferedWriter::WriteSlow(absl::string_view src) {
 }
 
 bool BufferedWriter::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   for (const absl::string_view fragment : src.blocks()) {
@@ -172,7 +172,7 @@ bool BufferedWriter::FlushImpl(FlushType flush_type) {
 }
 
 bool BufferedWriter::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_TRUE(

@@ -17,15 +17,15 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/endian/endian_writing.h"
 
 namespace riegeli::ordered_varint_internal {
 
 bool WriteOrderedVarint32Slow(uint32_t data, Writer& dest) {
-  RIEGELI_ASSERT_GE(data, uint32_t{1} << 7)
+  ABSL_DCHECK_GE(data, uint32_t{1} << 7)
       << "Failed precondition of WriteOrderedVarint32Slow(): data too small";
   if (data < uint32_t{1} << (2 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(2))) return false;
@@ -55,7 +55,7 @@ bool WriteOrderedVarint32Slow(uint32_t data, Writer& dest) {
 }
 
 bool WriteOrderedVarint64Slow(uint64_t data, Writer& dest) {
-  RIEGELI_ASSERT_GE(data, uint64_t{1} << 7)
+  ABSL_DCHECK_GE(data, uint64_t{1} << 7)
       << "Failed precondition of WriteOrderedVarint64Slow(): data too small";
   if (data < uint64_t{1} << (2 * 7)) {
     if (ABSL_PREDICT_FALSE(!dest.Push(2))) return false;

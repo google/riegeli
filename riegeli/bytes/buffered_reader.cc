@@ -21,12 +21,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -68,7 +68,7 @@ void BufferedReader::SetReadAllHintImpl(bool read_all_hint) {
 void BufferedReader::ExactSizeReached() {}
 
 bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -97,17 +97,17 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
   const Position pos_before = limit_pos();
   const bool read_ok =
       ReadInternal(min_length_to_read, buffer_length, flat_buffer.data());
-  RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+  ABSL_DCHECK_GE(limit_pos(), pos_before)
       << "BufferedReader::ReadInternal() decreased limit_pos()";
   const Position length_read = limit_pos() - pos_before;
-  RIEGELI_ASSERT_LE(length_read, buffer_length)
+  ABSL_DCHECK_LE(length_read, buffer_length)
       << "BufferedReader::ReadInternal() read more than requested";
   if (read_ok) {
-    RIEGELI_ASSERT_GE(length_read, min_length_to_read)
+    ABSL_DCHECK_GE(length_read, min_length_to_read)
         << "BufferedReader::ReadInternal() succeeded but "
            "read less than requested";
   } else {
-    RIEGELI_ASSERT_LT(length_read, min_length_to_read)
+    ABSL_DCHECK_LT(length_read, min_length_to_read)
         << "BufferedReader::ReadInternal() failed but read enough";
   }
   buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
@@ -116,10 +116,10 @@ bool BufferedReader::PullSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool BufferedReader::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(new_pos <= limit_pos())) {
@@ -132,14 +132,14 @@ bool BufferedReader::SeekBehindBuffer(Position new_pos) {
     if (ABSL_PREDICT_FALSE(!PullSlow(1, 0))) return false;
   } while (new_pos > limit_pos());
   const Position available_length = limit_pos() - new_pos;
-  RIEGELI_ASSERT_LE(available_length, start_to_limit())
+  ABSL_DCHECK_LE(available_length, start_to_limit())
       << "Reader::PullSlow() skipped some data";
   set_cursor(limit() - available_length);
   return true;
 }
 
 bool BufferedReader::ReadSlow(size_t length, char* dest) {
-  RIEGELI_ASSERT_LT(available(), length)
+  ABSL_DCHECK_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
   if (length >= buffer_sizer_.BufferLength(pos())) {
@@ -168,10 +168,10 @@ bool BufferedReader::ReadSlow(size_t length, char* dest) {
 }
 
 bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   bool enough_read = true;
@@ -212,17 +212,17 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
     const Position pos_before = limit_pos();
     const bool read_ok =
         ReadInternal(min_length_to_read, buffer_length, flat_buffer.data());
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, buffer_length)
+    ABSL_DCHECK_LE(length_read, buffer_length)
         << "BufferedReader::ReadInternal() read more than requested";
     if (read_ok) {
-      RIEGELI_ASSERT_GE(length_read, min_length_to_read)
+      ABSL_DCHECK_GE(length_read, min_length_to_read)
           << "BufferedReader::ReadInternal() succeeded but "
              "read less than requested";
     } else {
-      RIEGELI_ASSERT_LT(length_read, min_length_to_read)
+      ABSL_DCHECK_LT(length_read, min_length_to_read)
           << "BufferedReader::ReadInternal() failed but read enough";
     }
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
@@ -240,10 +240,10 @@ bool BufferedReader::ReadSlow(size_t length, Chain& dest) {
 }
 
 bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "enough data available, use Read(Cord&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   bool enough_read = true;
@@ -285,17 +285,17 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
     const Position pos_before = limit_pos();
     const bool read_ok =
         ReadInternal(min_length_to_read, buffer_length, flat_buffer.data());
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, buffer_length)
+    ABSL_DCHECK_LE(length_read, buffer_length)
         << "BufferedReader::ReadInternal() read more than requested";
     if (read_ok) {
-      RIEGELI_ASSERT_GE(length_read, min_length_to_read)
+      ABSL_DCHECK_GE(length_read, min_length_to_read)
           << "BufferedReader::ReadInternal() succeeded but "
              "read less than requested";
     } else {
-      RIEGELI_ASSERT_LT(length_read, min_length_to_read)
+      ABSL_DCHECK_LT(length_read, min_length_to_read)
           << "BufferedReader::ReadInternal() failed but read enough";
     }
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
@@ -313,7 +313,7 @@ bool BufferedReader::ReadSlow(size_t length, absl::Cord& dest) {
 }
 
 bool BufferedReader::CopySlow(Position length, Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
   bool enough_read = true;
@@ -381,17 +381,17 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
     const Position pos_before = limit_pos();
     const bool read_ok =
         ReadInternal(min_length_to_read, buffer_length, flat_buffer.data());
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, buffer_length)
+    ABSL_DCHECK_LE(length_read, buffer_length)
         << "BufferedReader::ReadInternal() read more than requested";
     if (read_ok) {
-      RIEGELI_ASSERT_GE(length_read, min_length_to_read)
+      ABSL_DCHECK_GE(length_read, min_length_to_read)
           << "BufferedReader::ReadInternal() succeeded but "
              "read less than requested";
     } else {
-      RIEGELI_ASSERT_LT(length_read, min_length_to_read)
+      ABSL_DCHECK_LT(length_read, min_length_to_read)
           << "BufferedReader::ReadInternal() failed but read enough";
     }
     buffer_.RemoveSuffix(flat_buffer.size() - IntCast<size_t>(length_read));
@@ -410,11 +410,11 @@ bool BufferedReader::CopySlow(Position length, Writer& dest) {
 }
 
 inline bool BufferedReader::CopyUsingPush(Position length, Writer& dest) {
-  RIEGELI_ASSERT_GT(length, 0u)
+  ABSL_DCHECK_GT(length, 0u)
       << "Failed precondition of BufferedReader::CopyUsingPush(): "
          "nothing to copy";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::CopyUsingPush()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedReader::CopyUsingPush(): " << status();
   Position length_to_read = length;
   if (exact_size() != std::nullopt) {
     if (ABSL_PREDICT_FALSE(limit_pos() >= *exact_size())) {
@@ -427,11 +427,11 @@ inline bool BufferedReader::CopyUsingPush(Position length, Writer& dest) {
 }
 
 bool BufferedReader::CopyInternal(Position length, Writer& dest) {
-  RIEGELI_ASSERT_GT(length, 0u)
+  ABSL_DCHECK_GT(length, 0u)
       << "Failed precondition of BufferedReader::CopyInternal(): "
          "nothing to copy";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::CopyInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::CopyInternal(): "
+                    << status();
   size_t length_to_read = SaturatingIntCast<size_t>(length);
   // In the first iteration `exact_size()` was taken into account by
   // `CopyUsingPush()`, so that `CopyInternal()` overrides do not need to.
@@ -441,17 +441,17 @@ bool BufferedReader::CopyInternal(Position length, Writer& dest) {
     const Position pos_before = limit_pos();
     const bool read_ok =
         ReadInternal(length_to_copy, length_to_copy, dest.cursor());
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, length_to_copy)
+    ABSL_DCHECK_LE(length_read, length_to_copy)
         << "BufferedReader::ReadInternal() read more than requested";
     if (read_ok) {
-      RIEGELI_ASSERT_GE(length_read, length_to_copy)
+      ABSL_DCHECK_GE(length_read, length_to_copy)
           << "BufferedReader::ReadInternal() succeeded but "
              "read less than requested";
     } else {
-      RIEGELI_ASSERT_LT(length_read, length_to_copy)
+      ABSL_DCHECK_LT(length_read, length_to_copy)
           << "BufferedReader::ReadInternal() failed but read enough";
     }
     dest.move_cursor(IntCast<size_t>(length_read));
@@ -473,7 +473,7 @@ bool BufferedReader::CopyInternal(Position length, Writer& dest) {
 }
 
 bool BufferedReader::CopySlow(size_t length, BackwardWriter& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
   if (length <= kMaxBytesToCopy) {
@@ -491,10 +491,10 @@ bool BufferedReader::CopySlow(size_t length, BackwardWriter& dest) {
 }
 
 bool BufferedReader::ReadSomeSlow(size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "nothing to read, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "some data available, use ReadSome(char*) instead";
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
@@ -511,7 +511,7 @@ bool BufferedReader::ReadSomeSlow(size_t max_length, char* dest) {
     const size_t min_length_to_read = ToleratesReadingAhead() ? max_length : 1;
     const Position pos_before = limit_pos();
     ReadInternal(min_length_to_read, max_length, dest);
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     return limit_pos() != pos_before;
   }
@@ -519,10 +519,10 @@ bool BufferedReader::ReadSomeSlow(size_t max_length, char* dest) {
 }
 
 bool BufferedReader::CopySomeSlow(size_t max_length, Writer& dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "nothing to read, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "some data available, use CopySome(Writer&) instead";
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
@@ -541,10 +541,10 @@ bool BufferedReader::CopySomeSlow(size_t max_length, Writer& dest) {
     const size_t min_length_to_read = ToleratesReadingAhead() ? max_length : 1;
     const Position pos_before = limit_pos();
     ReadInternal(min_length_to_read, max_length, dest.cursor());
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, max_length)
+    ABSL_DCHECK_LE(length_read, max_length)
         << "BufferedReader::ReadInternal() read more than requested";
     dest.move_cursor(IntCast<size_t>(length_read));
     return length_read > 0;
@@ -554,7 +554,7 @@ bool BufferedReader::CopySomeSlow(size_t max_length, Writer& dest) {
 
 void BufferedReader::ReadHintSlow(size_t min_length,
                                   size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   PullSlow(min_length, recommended_length);
@@ -574,7 +574,7 @@ bool BufferedReader::SyncImpl(SyncType sync_type) {
 }
 
 bool BufferedReader::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!SupportsRandomAccess())) {
@@ -615,7 +615,7 @@ SizedSharedBuffer BufferedReader::SaveBuffer() {
 }
 
 void BufferedReader::RestoreBuffer(SizedSharedBuffer buffer) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::RestoreBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;

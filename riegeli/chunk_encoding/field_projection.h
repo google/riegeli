@@ -19,7 +19,7 @@
 #include <utility>
 
 #include "absl/container/inlined_vector.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
 
@@ -128,8 +128,8 @@ inline Field& Field::operator=(std::initializer_list<int> path) {
 inline void Field::AssertValid(int field_number) {
   static_assert(kExistenceOnly == 0,
                 "Field::AssertValid() assumes that kExistenceOnly == 0");
-  RIEGELI_ASSERT_GE(field_number, 0) << "Field number out of range";
-  RIEGELI_ASSERT_LE(field_number, (1 << 29) - 1) << "Field number out of range";
+  ABSL_DCHECK_GE(field_number, 0) << "Field number out of range";
+  ABSL_DCHECK_LE(field_number, (1 << 29) - 1) << "Field number out of range";
 }
 
 inline Field& Field::AddFieldNumber(int field_number) & {

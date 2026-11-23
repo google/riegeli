@@ -27,10 +27,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -306,7 +306,7 @@ inline void FileWriterBase::Reset(BufferOptions buffer_options, tsl::Env* env) {
 }
 
 inline void FileWriterBase::Initialize(tsl::WritableFile* dest) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of FileWriter: null WritableFile pointer";
   if (ABSL_PREDICT_FALSE(!InitializeFilename(dest))) return;
   InitializePos(dest);
@@ -389,8 +389,7 @@ bool FileWriter<Dest>::FlushImpl(FlushType flush_type) {
       }
       return true;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown flush type: " << static_cast<int>(flush_type);
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace tensorflow

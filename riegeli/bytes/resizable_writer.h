@@ -26,10 +26,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -361,10 +361,10 @@ struct StringResizableTraits {
   static size_t Size(const Resizable& dest) { return dest.size(); }
   static constexpr bool kIsStable = false;
   static bool Resize(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_LE(used_size, dest.size())
+    ABSL_DCHECK_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds new size";
     Reserve(dest, new_size, used_size);
@@ -372,21 +372,21 @@ struct StringResizableTraits {
     return true;
   }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size())
+    ABSL_DCHECK_GT(new_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "no need to grow";
-    RIEGELI_ASSERT_LE(used_size, dest.size())
+    ABSL_DCHECK_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
     Reserve(dest, new_size, used_size);
-    if (!GrowUnderCapacity(dest, new_size)) RIEGELI_ASSUME_UNREACHABLE();
+    if (!GrowUnderCapacity(dest, new_size)) ABSL_UNREACHABLE();
     return true;
   }
   static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size())
+    ABSL_DCHECK_GT(new_size, dest.size())
         << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
            "no need to grow";
     if (new_size > dest.capacity()) return false;
@@ -414,7 +414,8 @@ struct StringResizableTraits {
                        : UnsignedClamp(dest.capacity() + dest.capacity() / 2,
                                        new_capacity, dest.max_size()));
     }
-    RIEGELI_ASSUME_GE(dest.capacity(), new_capacity);
+    const size_t capacity = dest.capacity();
+    ABSL_ASSUME(capacity >= new_capacity);
   }
 };
 
@@ -471,8 +472,8 @@ inline void ResizableWriterBase::MoveSecondaryBuffer(
   const size_t saved_start_to_limit = start_to_limit();
   const size_t saved_start_to_cursor = start_to_cursor();
   if (uses_buffer) {
-    RIEGELI_ASSERT(that.secondary_buffer_.blocks().back().data() +
-                       that.secondary_buffer_.blocks().back().size() ==
+    ABSL_DCHECK_EQ(that.secondary_buffer_.blocks().back().data() +
+                       that.secondary_buffer_.blocks().back().size(),
                    limit())
         << "Failed invariant of ResizableWriter: "
            "secondary buffer inconsistent with buffer pointers";
@@ -492,11 +493,11 @@ inline size_t ResizableWriterBase::used_size() const {
 
 inline size_t ResizableWriterBase::used_dest_size() const {
   if (uses_secondary_buffer()) {
-    RIEGELI_ASSERT_EQ(available(), 0u)
+    ABSL_DCHECK_EQ(available(), 0u)
         << "Failed precondition of ResizableWriterBase::used_dest_size(): "
         << "secondary buffer has free space";
   }
-  RIEGELI_ASSERT_GE(used_size(), secondary_buffer_.size())
+  ABSL_DCHECK_GE(used_size(), secondary_buffer_.size())
       << "Failed invariant of ResizableWriterBase: "
          "negative destination size";
   return used_size() - secondary_buffer_.size();
@@ -512,10 +513,9 @@ class ResizableWriter<ResizableTraits, Dest>::Mover {
                      !self.uses_secondary_buffer()),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT_EQ(ResizableTraits::Data(*that.dest_), self.start())
+      ABSL_DCHECK_EQ(ResizableTraits::Data(*that.dest_), self.start())
           << "ResizableWriter destination changed unexpectedly";
-      RIEGELI_ASSERT_EQ(ResizableTraits::Size(*that.dest_),
-                        self.start_to_limit())
+      ABSL_DCHECK_EQ(ResizableTraits::Size(*that.dest_), self.start_to_limit())
           << "ResizableWriter destination changed unexpectedly";
     }
   }
@@ -580,7 +580,7 @@ inline void ResizableWriter<ResizableTraits, Dest>::Reset(Options options) {
 template <typename ResizableTraits, typename Dest>
 inline void ResizableWriter<ResizableTraits, Dest>::Initialize(Resizable* dest,
                                                                bool append) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of ResizableWriter: null Resizable pointer";
   if (append) {
     set_start_pos(ResizableTraits::Size(*dest));
@@ -592,7 +592,7 @@ inline void ResizableWriter<ResizableTraits, Dest>::Initialize(Resizable* dest,
 template <typename ResizableTraits, typename Dest>
 void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer(
     size_t cursor_index) {
-  RIEGELI_ASSERT(!uses_secondary_buffer())
+  ABSL_DCHECK(!uses_secondary_buffer())
       << "Failed precondition in ResizableWriter::MakeDestBuffer(): "
          "secondary buffer is used";
   Resizable& dest = *dest_;
@@ -604,7 +604,7 @@ void ResizableWriter<ResizableTraits, Dest>::MakeDestBuffer(
 template <typename ResizableTraits, typename Dest>
 bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
   if (uses_secondary_buffer()) {
-    RIEGELI_ASSERT_EQ(available(), 0u)
+    ABSL_DCHECK_EQ(available(), 0u)
         << "Failed precondition of ResizableWriter::ResizeDest(): "
         << "secondary buffer has free space";
   }
@@ -615,7 +615,7 @@ bool ResizableWriter<ResizableTraits, Dest>::ResizeDest() {
     return FailOverflow();
   }
   Resizable& dest = *dest_;
-  RIEGELI_ASSERT_GE(ResizableTraits::Size(dest), new_size)
+  ABSL_DCHECK_GE(ResizableTraits::Size(dest), new_size)
       << "Failed postcondition of ResizableTraits::Resize(): "
          "not resized to at least requested size";
   set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
@@ -628,7 +628,7 @@ template <typename ResizableTraits, typename Dest>
 bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
     size_t new_size) {
   if (uses_secondary_buffer()) {
-    RIEGELI_ASSERT_EQ(available(), 0u)
+    ABSL_DCHECK_EQ(available(), 0u)
         << "Failed precondition of ResizableWriter::GrowDestAndMakeBuffer(): "
         << "secondary buffer has free space";
   }
@@ -640,7 +640,7 @@ bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
     }
   }
   Resizable& dest = *dest_;
-  RIEGELI_ASSERT_GE(ResizableTraits::Size(dest), new_size)
+  ABSL_DCHECK_GE(ResizableTraits::Size(dest), new_size)
       << "Failed postcondition of ResizableTraits::Grow(): "
          "not resized to at least requested size";
   set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),
@@ -652,11 +652,11 @@ bool ResizableWriter<ResizableTraits, Dest>::GrowDestAndMakeBuffer(
 template <typename ResizableTraits, typename Dest>
 bool ResizableWriter<ResizableTraits, Dest>::GrowDestUnderCapacityAndMakeBuffer(
     size_t min_length) {
-  RIEGELI_ASSERT(!uses_secondary_buffer())
+  ABSL_DCHECK(!uses_secondary_buffer())
       << "Failed precondition in "
          "ResizableWriter::GrowDestUnderCapacityAndMakeBuffer(): "
          "secondary buffer is used";
-  RIEGELI_ASSERT_LE(min_length, kMaxPosition - IntCast<size_t>(pos()))
+  ABSL_DCHECK_LE(min_length, kMaxPosition - IntCast<size_t>(pos()))
       << "Failed precondition of "
          "ResizableWriter::GrowDestUnderCapacityAndMakeBuffer(): "
          "Writer position overflow";
@@ -666,7 +666,7 @@ bool ResizableWriter<ResizableTraits, Dest>::GrowDestUnderCapacityAndMakeBuffer(
     if (!ResizableTraits::GrowUnderCapacity(*dest_, new_size)) return false;
   }
   Resizable& dest = *dest_;
-  RIEGELI_ASSERT_GE(ResizableTraits::Size(dest), new_size)
+  ABSL_DCHECK_GE(ResizableTraits::Size(dest), new_size)
       << "Failed postcondition of ResizableTraits::GrowUnderCapacity(): "
          "not resized to at least requested size";
   set_buffer(ResizableTraits::Data(dest), ResizableTraits::Size(dest),

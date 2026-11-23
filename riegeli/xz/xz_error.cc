@@ -16,11 +16,11 @@
 
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "lzma.h"
-#include "riegeli/base/assert.h"
 
 namespace riegeli::xz_internal {
 
@@ -48,7 +48,8 @@ absl::Status XzErrorToStatus(absl::string_view operation,
   absl::string_view details;
   switch (liblzma_code) {
     case LZMA_OK:
-      RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
+      // Handled before switch.
+      ABSL_UNREACHABLE();
     case LZMA_STREAM_END:
       details = "End of stream was reached";
       break;

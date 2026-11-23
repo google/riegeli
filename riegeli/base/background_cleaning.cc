@@ -17,9 +17,9 @@
 #include <list>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/log/absl_check.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/parallelism.h"
 
 namespace riegeli {
@@ -96,7 +96,7 @@ void BackgroundCleaner::ScheduleCleaningSlow(Token token, absl::Time deadline) {
     }
   }
   entries_.splice(iter, entries_, token.iter());
-  RIEGELI_ASSERT(next_ != entries_.end())
+  ABSL_DCHECK(next_ != entries_.end())
       << "next_ must cover at least token.iter()";
   token.iter()->deadline = deadline;
 
@@ -139,7 +139,7 @@ inline void BackgroundCleaner::BackgroundThread()
 }
 
 BackgroundCleaner::~BackgroundCleaner() {
-  RIEGELI_CHECK(entries_.empty())
+  ABSL_CHECK(entries_.empty())
       << "Failed precondition of BackgroundCleaner::~BackgroundCleaner(): "
          "some cleanees remain registered";
   absl::MutexLock lock(mutex_);

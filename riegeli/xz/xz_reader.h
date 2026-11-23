@@ -24,10 +24,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "lzma.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -129,7 +129,7 @@ class XzReaderBase : public BufferedReader {
   //
   // Precondition: `Options::concatenate()` was `false`.
   bool truncated() const {
-    RIEGELI_ASSERT_EQ(flags_ & LZMA_CONCATENATED, 0u)
+    ABSL_DCHECK_EQ(flags_ & LZMA_CONCATENATED, 0u)
         << "Failed precondition of XzReaderBase::truncated(): "
            "Options::concatenate() is true";
     return truncated_ && available() == 0;

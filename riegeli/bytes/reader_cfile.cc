@@ -33,7 +33,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cfile_handle.h"
 #include "riegeli/bytes/errno_mapping.h"
@@ -115,7 +114,7 @@ inline std::optional<int64_t> ReaderCFileCookieBase::Seek(int64_t offset,
       }
     } break;
     default:
-      RIEGELI_ASSUME_UNREACHABLE() << "Unknown seek origin: " << whence;
+      ABSL_UNREACHABLE();
   }
   if (new_pos >= reader.pos()) {
     // Seeking forwards is supported even if random access is not.

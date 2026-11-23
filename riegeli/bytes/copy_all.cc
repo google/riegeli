@@ -21,10 +21,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -90,9 +90,9 @@ absl::Status CopyAllImpl(Reader& src, Writer& dest, Position max_length,
   const Position pos_before = src.pos();
   const absl::Status status =
       CopyAllImpl(src, dest, max_length, set_write_size_hint);
-  RIEGELI_ASSERT_GE(src.pos(), pos_before)
+  ABSL_DCHECK_GE(src.pos(), pos_before)
       << "CopyAllImpl(Writer&) decreased src.pos()";
-  RIEGELI_ASSERT_LE(src.pos() - pos_before, max_length)
+  ABSL_DCHECK_LE(src.pos() - pos_before, max_length)
       << "CopyAllImpl(Writer&) read more than requested";
   *length_read = src.pos() - pos_before;
   return status;

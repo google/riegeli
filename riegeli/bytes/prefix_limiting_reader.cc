@@ -22,11 +22,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -68,7 +68,7 @@ absl::Status PrefixLimitingReaderBase::AnnotateOverSrc(absl::Status status) {
 
 bool PrefixLimitingReaderBase::PullSlow(size_t min_length,
                                         size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -80,7 +80,7 @@ bool PrefixLimitingReaderBase::PullSlow(size_t min_length,
 }
 
 bool PrefixLimitingReaderBase::ReadSlow(size_t length, char* dest) {
-  RIEGELI_ASSERT_LT(available(), length)
+  ABSL_DCHECK_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -92,20 +92,20 @@ bool PrefixLimitingReaderBase::ReadSlow(size_t length, char* dest) {
 }
 
 bool PrefixLimitingReaderBase::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   return ReadInternal(length, dest);
 }
 
 bool PrefixLimitingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "enough data available, use Read(Cord&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   return ReadInternal(length, dest);
@@ -122,7 +122,7 @@ inline bool PrefixLimitingReaderBase::ReadInternal(size_t length, Dest& dest) {
 }
 
 bool PrefixLimitingReaderBase::CopySlow(Position length, Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -134,7 +134,7 @@ bool PrefixLimitingReaderBase::CopySlow(Position length, Writer& dest) {
 }
 
 bool PrefixLimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -146,10 +146,10 @@ bool PrefixLimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
 }
 
 bool PrefixLimitingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "nothing to read, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "some data available, use ReadSome(char*) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -161,10 +161,10 @@ bool PrefixLimitingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
 }
 
 bool PrefixLimitingReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "nothing to copy, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "some data available, use CopySome(Writer&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -177,7 +177,7 @@ bool PrefixLimitingReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
 
 void PrefixLimitingReaderBase::ReadHintSlow(size_t min_length,
                                             size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return;
@@ -203,7 +203,7 @@ bool PrefixLimitingReaderBase::SupportsRewind() {
 }
 
 bool PrefixLimitingReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

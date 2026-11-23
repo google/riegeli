@@ -23,12 +23,12 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
@@ -111,11 +111,11 @@ SerializedMessageWriter SerializedMessageWriter::NewLengthDelimited()
 }
 
 absl::Status SerializedMessageWriter::CloseLengthDelimited(int field_number) {
-  RIEGELI_ASSERT(!submessages_.empty())
+  ABSL_DCHECK(!submessages_.empty())
       << "Failed precondition of "
          "SerializedMessageWriter::CloseLengthDelimited(): "
          "no matching OpenLengthDelimited() call";
-  RIEGELI_ASSERT(writer_ == &submessages_.back())
+  ABSL_DCHECK_EQ(writer_, &submessages_.back())
       << "Failed invariant of SerializedMessageWriter: "
          "writer() does not point to the most recently open submessage";
   CordWriter<absl::Cord>& submessage = submessages_.back();
@@ -126,7 +126,7 @@ absl::Status SerializedMessageWriter::CloseLengthDelimited(int field_number) {
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  RIEGELI_ASSERT(writer_ != nullptr)
+  ABSL_DCHECK(writer_ != nullptr)
       << "Failed precondition of CloseLengthDelimited(): "
          "set_dest() not called before the last CloseLengthDelimited()";
   if (ABSL_PREDICT_FALSE(!writer_->Write(std::move(submessage.dest())))) {
@@ -138,11 +138,11 @@ absl::Status SerializedMessageWriter::CloseLengthDelimited(int field_number) {
 
 absl::Status SerializedMessageWriter::CloseOptionalLengthDelimited(
     int field_number) {
-  RIEGELI_ASSERT(!submessages_.empty())
+  ABSL_DCHECK(!submessages_.empty())
       << "Failed precondition of "
          "SerializedMessageWriter::CloseOptionalLengthDelimited(): "
          "no matching OpenLengthDelimited() call";
-  RIEGELI_ASSERT(writer_ == &submessages_.back())
+  ABSL_DCHECK_EQ(writer_, &submessages_.back())
       << "Failed invariant of SerializedMessageWriter: "
          "writer() does not point to the most recently open submessage";
   CordWriter<absl::Cord>& submessage = submessages_.back();
@@ -154,7 +154,7 @@ absl::Status SerializedMessageWriter::CloseOptionalLengthDelimited(
         ABSL_PREDICT_FALSE(!status.ok())) {
       return status;
     }
-    RIEGELI_ASSERT(writer_ != nullptr)
+    ABSL_DCHECK(writer_ != nullptr)
         << "Failed precondition of CloseOptionalLengthDelimited(): "
            "set_dest() not called before the last "
            "CloseOptionalLengthDelimited()";

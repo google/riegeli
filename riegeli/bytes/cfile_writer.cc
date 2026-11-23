@@ -44,11 +44,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -66,27 +66,27 @@ const Position CFileWriterBase::kMaxPosition =
     Position{std::numeric_limits<cfile_internal::Offset>::max()};
 
 void CFileWriterBase::Initialize(FILE* dest, const Options& options) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
   InitializePos(dest, options, /*mode_was_passed_to_fopen=*/false);
 }
 
 void CFileWriterBase::InitializePos(FILE* dest, const Options& options,
                                     bool mode_was_passed_to_fopen) {
-  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
+  ABSL_DCHECK_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
+  ABSL_DCHECK_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
-  RIEGELI_ASSERT_OK(random_access_status_)
+  ABSL_DCHECK_OK(random_access_status_)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "random_access_status_ not reset";
-  RIEGELI_ASSERT_OK(read_mode_status_)
+  ABSL_DCHECK_OK(read_mode_status_)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
+  ABSL_DCHECK(original_mode_ == std::nullopt)
       << "Failed precondition of CFileWriterBase::InitializePos(): "
          "original_mode_ not reset";
 #endif
@@ -221,7 +221,7 @@ void CFileWriterBase::Done() {
 inline absl::Status CFileWriterBase::FailedOperationStatus(
     absl::string_view operation) {
   const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of CFileWriterBase::FailedOperationStatus(): "
          "zero errno";
   return absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
@@ -237,8 +237,8 @@ absl::Status CFileWriterBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 inline absl::Status CFileWriterBase::SizeStatus() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of CFileWriterBase::SizeStatus(): ";
+  ABSL_DCHECK(ok()) << "Failed precondition of CFileWriterBase::SizeStatus(): "
+                    << status();
   FILE* const dest = DestFile();
   if (cfile_internal::FSeek(dest, 0, SEEK_END) != 0) {
     // Not supported.
@@ -266,7 +266,7 @@ bool CFileWriterBase::SupportsRandomAccess() {
   if (ABSL_PREDICT_TRUE(supports_random_access_ != LazyBoolState::kUnknown)) {
     return supports_random_access_ == LazyBoolState::kTrue;
   }
-  RIEGELI_ASSERT_NE(supports_read_mode_, LazyBoolState::kTrue)
+  ABSL_DCHECK_NE(supports_read_mode_, LazyBoolState::kTrue)
       << "Failed invariant of CFileWriterBase: "
          "supports_random_access_ is unknown but supports_read_mode_ is true";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -357,22 +357,22 @@ inline bool CFileWriterBase::WriteMode() {
 }
 
 bool CFileWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   FILE* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
   const size_t length_written = fwrite(src.data(), 1, src.size(), dest);
-  RIEGELI_ASSERT_LE(length_written, src.size())
+  ABSL_DCHECK_LE(length_written, src.size())
       << "fwrite() wrote more than requested";
   move_start_pos(length_written);
   if (ABSL_PREDICT_FALSE(length_written < src.size())) {
-    RIEGELI_ASSERT(ferror(dest))
+    ABSL_DCHECK(ferror(dest))
         << "fwrite() succeeded but wrote less than requested";
     return FailOperation("fwrite()");
   }
@@ -381,7 +381,7 @@ bool CFileWriterBase::WriteInternal(absl::string_view src) {
 
 bool CFileWriterBase::FlushBehindBuffer(absl::string_view src,
                                         FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
@@ -389,10 +389,10 @@ bool CFileWriterBase::FlushBehindBuffer(absl::string_view src,
 }
 
 bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "position unchanged, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!CFileWriterBase::SupportsRandomAccess())) {
@@ -427,7 +427,7 @@ bool CFileWriterBase::SeekBehindBuffer(Position new_pos) {
 }
 
 std::optional<Position> CFileWriterBase::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!CFileWriterBase::SupportsRandomAccess())) {
@@ -456,7 +456,7 @@ std::optional<Position> CFileWriterBase::SizeBehindBuffer() {
 }
 
 bool CFileWriterBase::TruncateBehindBuffer(Position new_size) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -508,7 +508,7 @@ again:
 }
 
 Reader* CFileWriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!CFileWriterBase::SupportsReadMode())) {

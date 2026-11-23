@@ -24,12 +24,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/binary_search.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/debug.h"
@@ -75,7 +75,7 @@ ChunkedSortedStringSet::ChunkedSortedStringSet(LinearSortedStringSet&& src) {
 }
 
 LinearSortedStringSet ChunkedSortedStringSet::TheChunk() const& {
-  RIEGELI_ASSERT(has_single_chunk())
+  ABSL_DCHECK(has_single_chunk())
       << "Failed precondition of ChunkedSortedStringSet::TheChunk(): "
          "set has more than one chunk";
   if (chunks_.empty()) return LinearSortedStringSet();
@@ -83,7 +83,7 @@ LinearSortedStringSet ChunkedSortedStringSet::TheChunk() const& {
 }
 
 LinearSortedStringSet ChunkedSortedStringSet::TheChunk() && {
-  RIEGELI_ASSERT(has_single_chunk())
+  ABSL_DCHECK(has_single_chunk())
       << "Failed precondition of ChunkedSortedStringSet::TheChunk(): "
          "set has more than one chunk";
   if (chunks_.empty()) return LinearSortedStringSet();
@@ -210,7 +210,7 @@ absl::Status ChunkedSortedStringSet::DecodeImpl(Reader& src,
 template <typename LinearIterator>
 ChunkedSortedStringSet::IteratorImpl<LinearIterator>&
 ChunkedSortedStringSet::IteratorImpl<LinearIterator>::operator++() {
-  RIEGELI_ASSERT(current_iterator_ != LinearIterator())
+  ABSL_DCHECK(current_iterator_ != LinearIterator())
       << "Failed precondition of "
          "ChunkedSortedStringSet::IteratorImpl::operator++: "
          "iterator is end()";
@@ -219,7 +219,7 @@ ChunkedSortedStringSet::IteratorImpl<LinearIterator>::operator++() {
     // Staying in the same chunk.
     return *this;
   }
-  RIEGELI_ASSERT(current_chunk_iterator_ != set_->chunks_.cend())
+  ABSL_DCHECK(current_chunk_iterator_ != set_->chunks_.cend())
       << "Failed invariant of ChunkedSortedStringSet::Iterator: "
          "current_chunk_iterator_ is end() but current_iterator_ was not";
   ++current_chunk_iterator_;
@@ -274,7 +274,7 @@ inline void ChunkedSortedStringSet::Builder::ApplySizeHint(size_t size_hint) {
 
 bool ChunkedSortedStringSet::Builder::InsertNext(absl::string_view element) {
   const absl::StatusOr<bool> inserted = TryInsertNext(element);
-  RIEGELI_CHECK_OK(inserted)
+  ABSL_CHECK_OK(inserted)
       << "Failed precondition of ChunkedSortedStringSet::Builder::InsertNext()";
   return *inserted;
 }
@@ -285,7 +285,7 @@ bool ChunkedSortedStringSet::Builder::InsertNext(Element&& element) {
   // `std::move(element)` is correct and `std::forward<Element>(element)` is not
   // necessary: `Element` is always `std::string`, never an lvalue reference.
   const absl::StatusOr<bool> inserted = TryInsertNext(std::move(element));
-  RIEGELI_CHECK_OK(inserted)
+  ABSL_CHECK_OK(inserted)
       << "Failed precondition of ChunkedSortedStringSet::Builder::InsertNext()";
   return *inserted;
 }
@@ -333,7 +333,7 @@ absl::StatusOr<bool> ChunkedSortedStringSet::Builder::InsertNextImpl(
 ChunkedSortedStringSet ChunkedSortedStringSet::Builder::Build() {
   if (!current_builder_.empty()) AddChunk();
   ChunkedSortedStringSet set(std::exchange(chunks_, Chunks()));
-  RIEGELI_ASSERT(empty())
+  ABSL_DCHECK(empty())
       << "Failed postcondition of ChunkedSortedStringSet::Builder::Build(): "
          "builder should be empty";
   return set;

@@ -21,12 +21,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "bzlib.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -37,7 +37,7 @@
 namespace riegeli {
 
 void Bzip2ReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of Bzip2Reader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
@@ -68,11 +68,11 @@ void Bzip2ReaderBase::Done() {
 
 inline bool Bzip2ReaderBase::FailOperation(absl::string_view operation,
                                            int bzlib_code) {
-  RIEGELI_ASSERT(bzlib_code != BZ_OK && bzlib_code != BZ_RUN_OK &&
-                 bzlib_code != BZ_FLUSH_OK && bzlib_code != BZ_FINISH_OK)
+  ABSL_DCHECK(bzlib_code != BZ_OK && bzlib_code != BZ_RUN_OK &&
+              bzlib_code != BZ_FLUSH_OK && bzlib_code != BZ_FINISH_OK)
       << "Failed precondition of Bzip2ReaderBase::FailOperation(): "
          "bzlib error code not failed";
-  RIEGELI_ASSERT(is_open())
+  ABSL_DCHECK(is_open())
       << "Failed precondition of Bzip2ReaderBase::FailOperation(): "
          "Object closed";
   return Fail(bzip2_internal::Bzip2ErrorToStatus(operation, bzlib_code));
@@ -101,14 +101,14 @@ absl::Status Bzip2ReaderBase::AnnotateOverSrc(absl::Status status) {
 
 bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                    char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   Reader& src = *SrcReader();
   truncated_ = false;
   max_length = UnsignedMin(max_length, kMaxPosition - limit_pos());
@@ -126,10 +126,10 @@ bool Bzip2ReaderBase::ReadInternal(size_t min_length, size_t max_length,
       case BZ_OK:
         if (length_read >= min_length) break;
         if (ABSL_PREDICT_FALSE(decompressor_->avail_in > 0)) {
-          RIEGELI_ASSERT_EQ(decompressor_->avail_out, 0u)
+          ABSL_DCHECK_EQ(decompressor_->avail_out, 0u)
               << "BZ2_bzDecompress() returned but there are still input data "
                  "and output space";
-          RIEGELI_ASSERT_EQ(length_read, kMaxPosition - limit_pos())
+          ABSL_DCHECK_EQ(length_read, kMaxPosition - limit_pos())
               << "The position does not overflow but the output buffer is "
                  "full, while less than min_length was output, which is "
                  "impossible because the buffer has size max_length which is "
@@ -206,10 +206,10 @@ bool Bzip2ReaderBase::SupportsRewind() {
 }
 
 bool Bzip2ReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (new_pos <= limit_pos()) {

@@ -26,13 +26,14 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/dependency.h"
@@ -203,11 +204,12 @@ class WriterOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
 
   // Will write to `*dest`.
   explicit WriterOutputStream(Writer* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : dest_(RIEGELI_EVAL_ASSERT_NOTNULL(dest)) {}
+      : dest_(ABSL_DIE_IF_NULL(dest)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { dest_ = nullptr; }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Writer* dest) {
-    dest_ = RIEGELI_EVAL_ASSERT_NOTNULL(dest);
+    ABSL_CHECK(dest != nullptr);
+    dest_ = dest;
   }
 
   bool Next(void** data, int* size) override;

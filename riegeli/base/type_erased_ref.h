@@ -21,8 +21,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
+#include "absl/log/absl_check.h"
 #include "absl/meta/type_traits.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -82,7 +82,7 @@ class TypeErasedRef {
   T&& Cast() const {
     const auto cast_ptr =
         reinterpret_cast<std::remove_reference_t<T>* absl_nullable>(ptr_);
-    RIEGELI_ASSERT(cast_ptr != nullptr)
+    ABSL_DCHECK(cast_ptr != nullptr)
         << "Failed precondition of TypeErasedRef::Cast(): empty TypeErasedRef";
     if constexpr (!IsFunctionRef<T>::value) {
       return std::forward<T>(*cast_ptr);

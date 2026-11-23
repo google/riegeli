@@ -22,9 +22,9 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/log/absl_check.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 
 namespace riegeli::internal {
@@ -39,7 +39,7 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::Schedule(absl::AnyInvocable<void() &&> task) {
   {
     absl::MutexLock lock(mutex_);
-    RIEGELI_ASSERT(!exiting_)
+    ABSL_DCHECK(!exiting_)
         << "Failed precondition of ThreadPool::Schedule(): no new threads may "
            "be scheduled while the thread pool is exiting";
     tasks_.push_back(std::move(task));

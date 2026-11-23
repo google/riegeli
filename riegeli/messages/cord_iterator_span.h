@@ -25,10 +25,10 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -56,7 +56,7 @@ class CordIteratorSpan {
                                 ABSL_ATTRIBUTE_LIFETIME_BOUND,
                             size_t length)
       : iterator_(src), length_(length) {
-    RIEGELI_ASSERT_LE(length, Remaining(*iterator_))
+    ABSL_DCHECK_LE(length, Remaining(*iterator_))
         << "Failed precondition of CordIteratorSpan: not enough remaining data";
   }
 
@@ -133,11 +133,11 @@ class DependencyImpl<const absl::Cord*, CordIteratorSpan> {
 
 inline void CordIteratorSpan::Read(absl::Cord::CharIterator& src, size_t length,
                                    char* absl_nullable dest) {
-  RIEGELI_ASSERT_LE(length, Remaining(src))
+  ABSL_DCHECK_LE(length, Remaining(src))
       << "Failed precondition of CordIteratorSpan::Read(): "
          "not enough remaining data";
   if (length == 0) return;
-  RIEGELI_ASSERT(dest != nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of CordIteratorSpan::Read(): "
          "non-empty span from nullptr";
   const absl::string_view chunk = absl::Cord::ChunkRemaining(src);

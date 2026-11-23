@@ -62,6 +62,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #ifndef _WIN32
 #include "absl/status/statusor.h"
@@ -69,7 +70,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
 #ifndef _WIN32
@@ -95,7 +95,7 @@ namespace {
 
 struct HandleDeleter {
   void operator()(void* handle) const {
-    RIEGELI_CHECK(CloseHandle(reinterpret_cast<HANDLE>(handle)))
+    ABSL_CHECK(CloseHandle(reinterpret_cast<HANDLE>(handle)))
         << WindowsErrorToStatus(IntCast<uint32_t>(GetLastError()),
                                 "CloseHandle() failed")
                .message();
@@ -179,12 +179,12 @@ class MMapBlock {
 
 void MMapBlock::operator()(absl::string_view data) const {
 #ifndef _WIN32
-  RIEGELI_CHECK_EQ(munmap(const_cast<char*>(addr_),
-                          data.size() + PtrDistance(addr_, data.data())),
-                   0)
+  ABSL_CHECK_EQ(munmap(const_cast<char*>(addr_),
+                       data.size() + PtrDistance(addr_, data.data())),
+                0)
       << absl::ErrnoToStatus(errno, "munmap() failed").message();
 #else   // _WIN32
-  RIEGELI_CHECK(UnmapViewOfFile(addr_))
+  ABSL_CHECK(UnmapViewOfFile(addr_))
       << WindowsErrorToStatus(IntCast<uint32_t>(GetLastError()),
                               "UnmapViewOfFile() failed")
              .message();
@@ -194,7 +194,7 @@ void MMapBlock::operator()(absl::string_view data) const {
 }  // namespace
 
 void FdMMapReaderBase::Initialize(int src, const Options& options) {
-  RIEGELI_ASSERT_GE(src, 0)
+  ABSL_DCHECK_GE(src, 0)
       << "Failed precondition of FdMMapReader: negative file descriptor";
   InitializePos(src, options);
 }
@@ -301,7 +301,7 @@ void FdMMapReaderBase::Done() {
 
 bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
   const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of FdMMapReaderBase::FailOperation(): "
          "zero errno";
   return Fail(
@@ -312,7 +312,7 @@ bool FdMMapReaderBase::FailOperation(absl::string_view operation) {
 
 bool FdMMapReaderBase::FailWindowsOperation(absl::string_view operation) {
   const DWORD error_number = GetLastError();
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of FdMMapReaderBase::FailWindowsOperation(): "
          "zero error code";
   return Fail(WindowsErrorToStatus(IntCast<uint32_t>(error_number),

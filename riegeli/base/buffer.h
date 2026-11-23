@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/estimated_allocated_size.h"
 #include "riegeli/base/external_data.h"

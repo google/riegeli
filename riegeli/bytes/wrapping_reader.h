@@ -23,9 +23,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -167,7 +167,7 @@ inline WrappingReaderBase& WrappingReaderBase::operator=(
 }
 
 inline void WrappingReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of WrappingReader: null Reader pointer";
   MakeBuffer(*src);
 }

@@ -25,9 +25,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -82,11 +82,11 @@ class ZlibReaderBase : public BufferedReader {
     static constexpr int kMaxWindowLog = 15;      // `MAX_WBITS`
     static constexpr int kDefaultWindowLog = 15;  // `MAX_WBITS`
     Options& set_window_log(int window_log) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
+      ABSL_DCHECK_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
              "ZlibReaderBase::Options::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
+      ABSL_DCHECK_LE(window_log, kMaxWindowLog)
           << "Failed precondition of "
              "ZlibReaderBase::Options::set_window_log(): "
              "window log out of range";
@@ -175,7 +175,7 @@ class ZlibReaderBase : public BufferedReader {
   //
   // Precondition: `Options::concatenate()` was `false`.
   bool truncated() const {
-    RIEGELI_ASSERT(!concatenate_)
+    ABSL_DCHECK(!concatenate_)
         << "Failed precondition of ZlibReaderBase::truncated(): "
            "Options::concatenate() is true";
     return truncated_ && available() == 0;

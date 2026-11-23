@@ -23,10 +23,10 @@
 #include <type_traits>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 
 namespace riegeli::write_int_internal {
 
@@ -35,14 +35,14 @@ namespace {
 // `WriteDec{1,2}Impl()` write a fixed number of digits.
 
 inline char* WriteDec1Impl(uint32_t src, char* dest) {
-  RIEGELI_ASSERT_LT(src, 10u)
+  ABSL_DCHECK_LT(src, 10u)
       << "Failed precondition of WriteDec1Impl(): value too large";
   *dest = '0' + static_cast<char>(src);
   return dest + 1;
 }
 
 inline char* WriteDec2Impl(uint32_t src, char* dest) {
-  RIEGELI_ASSERT_LT(src, 100u)
+  ABSL_DCHECK_LT(src, 100u)
       << "Failed precondition of WriteDec2Impl(): value too large";
   static constexpr char kTwoDigits[100][2] = {
       {'0', '0'}, {'0', '1'}, {'0', '2'}, {'0', '3'}, {'0', '4'}, {'0', '5'},
@@ -160,8 +160,8 @@ inline char* WriteDecImpl(absl::uint128 src, char* dest, size_t width) {
   }
   // `src` needs at least 20 digits.
   constexpr absl::uint128 k1e20 = absl::MakeUint128(5, 0x6bc75e2d63100000);
-  RIEGELI_ASSERT_EQ(
-      k1e20, absl::uint128(10'000'000'000) * absl::uint128(10'000'000'000));
+  ABSL_DCHECK_EQ(k1e20,
+                 absl::uint128(10'000'000'000) * absl::uint128(10'000'000'000));
   if (src >= k1e20 || width > 20) {
     // `src` needs more than 20 digits.
     const absl::uint128 over_20_digits = src / k1e20;

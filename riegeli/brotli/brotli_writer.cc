@@ -22,12 +22,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -50,7 +50,7 @@ struct BrotliEncoderDictionaryDeleter {
 
 void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
                                   int window_log) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of BrotliWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -102,7 +102,7 @@ void BrotliWriterBase::Initialize(Writer* dest, int compression_level,
 }
 
 void BrotliWriterBase::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
@@ -149,19 +149,20 @@ void BrotliWriterBase::SetWriteSizeHintImpl(
 }
 
 bool BrotliWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   Writer& dest = *DestWriter();
   return WriteInternal(src, dest, BROTLI_OPERATION_PROCESS);
 }
 
 inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                             BrotliEncoderOperation op) {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BrotliWriterBase::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BrotliWriterBase::WriteInternal(): "
+      << status();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
@@ -190,7 +191,7 @@ inline bool BrotliWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 
 bool BrotliWriterBase::FlushBehindBuffer(absl::string_view src,
                                          FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -211,7 +212,7 @@ bool BrotliWriterBase::SupportsReadMode() {
 }
 
 Reader* BrotliWriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!BrotliWriterBase::FlushBehindBuffer(

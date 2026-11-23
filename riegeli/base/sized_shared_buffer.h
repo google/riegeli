@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/shared_buffer.h"
 
@@ -224,14 +224,14 @@ inline absl::Span<char> SizedSharedBuffer::PrependFixedBuffer(size_t length)
 }
 
 inline void SizedSharedBuffer::RemoveSuffix(size_t length) {
-  RIEGELI_CHECK_LE(length, size())
+  ABSL_CHECK_LE(length, size())
       << "Failed precondition of SizedSharedBuffer::RemoveSuffix(): "
       << "length to remove greater than current size";
   size_ -= length;
 }
 
 inline void SizedSharedBuffer::RemovePrefix(size_t length) {
-  RIEGELI_CHECK_LE(length, size())
+  ABSL_CHECK_LE(length, size())
       << "Failed precondition of SizedSharedBuffer::RemovePrefix(): "
       << "length to remove greater than current size";
   data_ += length;

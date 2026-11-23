@@ -21,13 +21,13 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "brotli/decode.h"
 #include "brotli/shared_dictionary.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -37,7 +37,7 @@
 namespace riegeli {
 
 void BrotliReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of BrotliReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
@@ -113,10 +113,10 @@ absl::Status BrotliReaderBase::AnnotateOverSrc(absl::Status status) {
 }
 
 bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "some data available, use Pull() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -162,7 +162,7 @@ bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
           move_limit_pos(available());
           return true;
         }
-        RIEGELI_ASSERT_EQ(result, BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT)
+        ABSL_DCHECK_EQ(result, BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT)
             << "BrotliDecoderDecompressStream() returned "
                "BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT but "
                "BrotliDecoderTakeOutput() returned no data";
@@ -177,8 +177,7 @@ bool BrotliReaderBase::PullBehindScratch(size_t recommended_length) {
         continue;
       }
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Unknown BrotliDecoderResult: " << static_cast<int>(result);
+    ABSL_UNREACHABLE();
   }
 }
 
@@ -193,10 +192,10 @@ bool BrotliReaderBase::SupportsRewind() {
 }
 
 bool BrotliReaderBase::SeekBehindScratch(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of PullableReader::SeekBehindScratch(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::SeekBehindScratch(): "
          "scratch used";
   if (new_pos <= limit_pos()) {

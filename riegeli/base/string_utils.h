@@ -21,8 +21,8 @@
 #include <utility>
 
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 #include "absl/strings/resize_and_overwrite.h"
-#include "riegeli/base/assert.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 
@@ -43,7 +43,8 @@ inline void StringReserveAmortized(std::string& dest, size_t new_capacity) {
   if (new_capacity > dest.capacity()) {
     string_utils_internal::ReserveAmortized(dest, new_capacity);
   }
-  RIEGELI_ASSUME_GE(dest.capacity(), new_capacity);
+  const size_t capacity = dest.capacity();
+  ABSL_ASSUME(capacity >= new_capacity);
 }
 
 // Like `std::string::resize()`, ensuring that repeated growth has the cost

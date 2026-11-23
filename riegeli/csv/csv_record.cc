@@ -29,6 +29,7 @@
 #include "absl/base/const_init.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -36,7 +37,6 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/string_ref.h"
@@ -112,13 +112,13 @@ ABSL_CONST_INIT SharedPtr<CsvHeader::Payload> CsvHeader::payload_cache_;
 
 CsvHeader::CsvHeader(std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 CsvHeader& CsvHeader::operator=(
     std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::operator=()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::operator=()";
   return *this;
 }
 
@@ -130,14 +130,14 @@ CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer)
 CsvHeader::CsvHeader(std::function<std::string(absl::string_view)> normalizer,
                      std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(std::move(normalizer), names);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::CsvHeader()";
 }
 
 void CsvHeader::Reset() { payload_.Reset(); }
 
 void CsvHeader::Reset(std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(nullptr, names);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 void CsvHeader::Reset(
@@ -152,7 +152,7 @@ void CsvHeader::Reset(
 void CsvHeader::Reset(std::function<std::string(absl::string_view)> normalizer,
                       std::initializer_list<absl::string_view> names) {
   const absl::Status status = TryResetInternal(std::move(normalizer), names);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::Reset()";
 }
 
 absl::Status CsvHeader::TryReset(
@@ -218,7 +218,7 @@ void CsvHeader::Reserve(size_t size) {
 
 void CsvHeader::Add(StringInitializer name) {
   const absl::Status status = TryAdd(std::move(name));
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvHeader::Add()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvHeader::Add()";
 }
 
 absl::Status CsvHeader::TryAdd(StringInitializer name) {
@@ -231,7 +231,7 @@ absl::Status CsvHeader::TryAdd(StringInitializer name) {
                           : payload_->name_to_index.emplace(
                                 payload_->normalizer(name_string), index);
   if (ABSL_PREDICT_FALSE(!insert_result.second)) {
-    RIEGELI_ASSERT(!empty())
+    ABSL_DCHECK(!empty())
         << "It should not have been needed to ensure that an empty CsvHeader "
            "has payload_ == nullptr because a duplicate field name is possible "
            "only if some fields were already present";
@@ -317,7 +317,7 @@ void CsvHeader::Output(std::ostream& dest) const {
 CsvRecord::CsvRecord(CsvHeader header,
                      std::initializer_list<absl::string_view> fields) {
   const absl::Status status = TryResetInternal(std::move(header), fields);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::CsvRecord()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvRecord::CsvRecord()";
 }
 
 void CsvRecord::Reset() {
@@ -334,7 +334,7 @@ void CsvRecord::Reset(CsvHeader header) {
 void CsvRecord::Reset(CsvHeader header,
                       std::initializer_list<absl::string_view> fields) {
   const absl::Status status = TryResetInternal(std::move(header), fields);
-  RIEGELI_CHECK_OK(status) << "Failed precondition of CsvRecord::Reset()";
+  ABSL_CHECK_OK(status) << "Failed precondition of CsvRecord::Reset()";
 }
 
 absl::Status CsvRecord::TryReset(
@@ -363,7 +363,7 @@ void CsvRecord::Clear() {
 std::string& CsvRecord::operator[](absl::string_view name)
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
-  RIEGELI_CHECK(name_iter != header_.end())
+  ABSL_CHECK(name_iter != header_.end())
       << "Failed precondition of CsvRecord::operator[]: missing field name: "
       << DebugQuotedIfNeeded(name) << "; existing field names: " << header_;
   return fields_[name_iter - header_.begin()];
@@ -372,7 +372,7 @@ std::string& CsvRecord::operator[](absl::string_view name)
 const std::string& CsvRecord::operator[](absl::string_view name) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
-  RIEGELI_CHECK(name_iter != header_.end())
+  ABSL_CHECK(name_iter != header_.end())
       << "Failed precondition of CsvRecord::operator[]: missing field name: "
       << DebugQuotedIfNeeded(name) << "; existing field names: " << header_;
   return fields_[name_iter - header_.begin()];
@@ -381,7 +381,7 @@ const std::string& CsvRecord::operator[](absl::string_view name) const
 CsvRecord::iterator CsvRecord::find(absl::string_view name)
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
-  RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
+  ABSL_DCHECK(name_iter >= header_.begin() && name_iter <= header_.end())
       << "Failed precondition of CsvRecord::find(): "
          "field name iterator does not belong to the same header";
   return iterator(name_iter, fields_.begin() + (name_iter - header_.begin()));
@@ -390,7 +390,7 @@ CsvRecord::iterator CsvRecord::find(absl::string_view name)
 CsvRecord::const_iterator CsvRecord::find(absl::string_view name) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   const CsvHeader::iterator name_iter = header_.find(name);
-  RIEGELI_ASSERT(name_iter >= header_.begin() && name_iter <= header_.end())
+  ABSL_DCHECK(name_iter >= header_.begin() && name_iter <= header_.end())
       << "Failed precondition of CsvRecord::find(): "
          "field name iterator does not belong to the same header";
   return const_iterator(name_iter,
@@ -441,7 +441,7 @@ bool CsvRecord::Equal(const CsvRecord& a, const CsvRecord& b) {
 }
 
 void CsvRecord::WriteDebugStringTo(Writer& dest) const {
-  RIEGELI_ASSERT_EQ(header_.size(), fields_.size())
+  ABSL_DCHECK_EQ(header_.size(), fields_.size())
       << "Failed invariant of CsvRecord: "
          "mismatched length of CSV header and fields";
   for (const_iterator iter = cbegin(); iter != cend(); ++iter) {

@@ -24,7 +24,6 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -301,8 +300,7 @@ AnyTextReader<TargetT<Src>> MakeAnyTextReader(Src&& src,
       return riegeli::Maker<TextReader<ReadNewline::kCrLfOrLf, TargetT<Src>>>(
           std::forward<Src>(src), options.buffer_options());
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown newline: " << static_cast<int>(options.newline());
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace riegeli

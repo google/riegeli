@@ -43,11 +43,11 @@
 
 #include "absl/base/dynamic_annotations.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -94,7 +94,7 @@ const Position CFileReaderBase::kMaxPosition =
     Position{std::numeric_limits<cfile_internal::Offset>::max()};
 
 void CFileReaderBase::Initialize(FILE* src, const Options& options) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of CFileReader: null FILE pointer";
   InitializePos(src, options
 #ifdef _WIN32
@@ -110,14 +110,14 @@ void CFileReaderBase::InitializePos(FILE* src, const Options& options
                                     bool mode_was_passed_to_fopen
 #endif
 ) {
-  RIEGELI_ASSERT(!supports_random_access_)
+  ABSL_DCHECK(!supports_random_access_)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT_OK(random_access_status_)
+  ABSL_DCHECK_OK(random_access_status_)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "random_access_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
+  ABSL_DCHECK(original_mode_ == std::nullopt)
       << "Failed precondition of CFileReaderBase::InitializePos(): "
          "original_mode_ not reset";
 #endif
@@ -279,7 +279,7 @@ void CFileReaderBase::Done() {
 inline absl::Status CFileReaderBase::FailedOperationStatus(
     absl::string_view operation) {
   const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of CFileReaderBase::FailedOperationStatus(): "
          "zero errno";
   return absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
@@ -296,14 +296,14 @@ absl::Status CFileReaderBase::AnnotateStatusImpl(absl::Status status) {
 
 bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                    char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   FILE* const src = SrcFile();
   for (;;) {
     if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) return FailOverflow();
@@ -311,14 +311,14 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
         UnsignedMin(UnsignedClamp(AvailableLength(src), min_length, max_length),
                     kMaxPosition - limit_pos());
     const size_t length_read = fread(dest, 1, length_to_read, src);
-    RIEGELI_ASSERT_LE(length_read, length_to_read)
+    ABSL_DCHECK_LE(length_read, length_to_read)
         << "fread() read more than requested";
     move_limit_pos(length_read);
     if (ABSL_PREDICT_FALSE(length_read < length_to_read)) {
-      RIEGELI_ASSERT_LT(length_read, min_length)
+      ABSL_DCHECK_LT(length_read, min_length)
           << "fread() read less than was available";
       if (ABSL_PREDICT_FALSE(ferror(src))) return FailOperation("fread()");
-      RIEGELI_ASSERT(feof(src))
+      ABSL_DCHECK(feof(src))
           << "fread() succeeded but read less than requested";
       clearerr(src);
       if (!growing_source_) set_exact_size(limit_pos());
@@ -332,10 +332,10 @@ bool CFileReaderBase::ReadInternal(size_t min_length, size_t max_length,
 }
 
 bool CFileReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!CFileReaderBase::SupportsRandomAccess())) {

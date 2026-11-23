@@ -31,10 +31,10 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/log/absl_check.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/background_cleaning.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/global.h"
@@ -410,12 +410,12 @@ class RecyclingPool<T, Deleter>::Recycler {
 
   explicit Recycler(RecyclingPool* pool, Deleter&& deleter)
       : repr_(pool, std::move(deleter)) {
-    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
+    ABSL_DCHECK(repr_.pool() != nullptr)
         << "Failed precondition of Recycler: null RecyclingPool pointer";
   }
 
   void operator()(T* ptr) const {
-    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
+    ABSL_DCHECK(repr_.pool() != nullptr)
         << "Failed precondition of RecyclingPool::Recycler: "
            "default-constructed recycler used with an object";
     repr_.pool()->RawPut(RawHandle(ptr, original_deleter()));
@@ -473,7 +473,7 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
 template <typename T, typename Deleter>
 void RecyclingPool<T, Deleter>::SetBackgroundCleaner(
     BackgroundCleaner* cleaner) {
-  RIEGELI_ASSERT_EQ(cleaner_, nullptr)
+  ABSL_DCHECK(cleaner_ == nullptr)
       << "Failed precondition of RecyclingPool::SetBackgroundCleaner(): "
          "BackgroundCleaner was already used";
   cleaner_ = cleaner;
@@ -611,12 +611,12 @@ class KeyedRecyclingPool<T, Key, Deleter>::Recycler {
 
   explicit Recycler(KeyedRecyclingPool* pool, Key&& key, Deleter&& deleter)
       : repr_(pool, std::move(deleter)), key_(std::move(key)) {
-    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
+    ABSL_DCHECK(repr_.pool() != nullptr)
         << "Failed precondition of Recycler: null KeyedRecyclingPool pointer";
   }
 
   void operator()(T* ptr) const {
-    RIEGELI_ASSERT_NE(repr_.pool(), nullptr)
+    ABSL_DCHECK(repr_.pool() != nullptr)
         << "Failed precondition of KeyedRecyclingPool::Recycler: "
            "default-constructed recycler used with an object";
     repr_.pool()->RawPut(key_, RawHandle(ptr, original_deleter()));
@@ -677,7 +677,7 @@ KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
 template <typename T, typename Key, typename Deleter>
 void KeyedRecyclingPool<T, Key, Deleter>::SetBackgroundCleaner(
     BackgroundCleaner* cleaner) {
-  RIEGELI_ASSERT_EQ(cleaner_, nullptr)
+  ABSL_DCHECK(cleaner_ == nullptr)
       << "Failed precondition of KeyedRecyclingPool::SetBackgroundCleaner(): "
          "BackgroundCleaner was already used";
   cleaner_ = cleaner;
@@ -726,10 +726,10 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
     if (cache_ != by_key_.end()) {
       // Finish erasing the cached entry.
       ByKeyEntries& by_key_entries = cache_->second;
-      RIEGELI_ASSERT(!by_key_entries.empty())
+      ABSL_DCHECK(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT_EQ(by_key_entries.back().object, nullptr)
+      ABSL_DCHECK(by_key_entries.back().object == nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "non-nullptr object pointed to by cache_";
       by_age_.erase(by_key_entries.back().by_age_iter);
@@ -740,10 +740,10 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
     if (ABSL_PREDICT_TRUE(by_key_iter != by_key_.end())) {
       // Return the newest entry with this key.
       ByKeyEntries& by_key_entries = by_key_iter->second;
-      RIEGELI_ASSERT(!by_key_entries.empty())
+      ABSL_DCHECK(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT_NE(by_key_entries.back().object, nullptr)
+      ABSL_DCHECK(by_key_entries.back().object != nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "nullptr object not pointed to by cache_";
       returned = std::move(by_key_entries.back().object);
@@ -776,10 +776,10 @@ void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
     }
     if (ABSL_PREDICT_TRUE(cache_ != by_key_.end())) {
       ByKeyEntries& by_key_entries = cache_->second;
-      RIEGELI_ASSERT(!by_key_entries.empty())
+      ABSL_DCHECK(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT_EQ(by_key_entries.back().object, nullptr)
+      ABSL_DCHECK(by_key_entries.back().object == nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "non-nullptr object pointed to by cache_";
       if (ABSL_PREDICT_TRUE(cache_->first == key)) {
@@ -809,14 +809,14 @@ void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
       // Evict the oldest entry.
       const typename ByKey::iterator by_key_iter =
           by_key_.find(by_age_.front().key);
-      RIEGELI_ASSERT(by_key_iter != by_key_.end())
+      ABSL_DCHECK(by_key_iter != by_key_.end())
           << "Failed invariant of KeyedRecyclingPool: "
              "a key from by_age_ absent in by_key_";
       ByKeyEntries& by_key_entries = by_key_iter->second;
-      RIEGELI_ASSERT(!by_key_entries.empty())
+      ABSL_DCHECK(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
-      RIEGELI_ASSERT_NE(by_key_entries.front().object, nullptr)
+      ABSL_DCHECK(by_key_entries.front().object != nullptr)
           << "Failed invariant of KeyedRecyclingPool: "
              "nullptr object not pointed to by cache_";
       evicted = std::move(by_key_entries.front().object);
@@ -852,12 +852,12 @@ void KeyedRecyclingPool<T, Key, Deleter>::Clean(absl::Time now) {
       if (by_age_entry.deadline > now) {
         if (cache_ != by_key_.end() && cache_->first == by_age_entry.key) {
           const ByKeyEntries& by_key_entries = cache_->second;
-          RIEGELI_ASSERT(!by_key_entries.empty())
+          ABSL_DCHECK(!by_key_entries.empty())
               << "Failed invariant of KeyedRecyclingPool: "
                  "empty by_key_ value";
           if (by_key_entries.front().object == nullptr) {
             // Finish erasing the cached entry.
-            RIEGELI_ASSERT_EQ(by_key_entries.size(), 1u)
+            ABSL_DCHECK_EQ(by_key_entries.size(), 1u)
                 << "Failed invariant of KeyedRecyclingPool: "
                    "nullptr object not at the end of by_key_ value";
             by_key_.erase(cache_);
@@ -872,22 +872,22 @@ void KeyedRecyclingPool<T, Key, Deleter>::Clean(absl::Time now) {
       // Evict the oldest entry.
       const typename ByKey::iterator by_key_iter =
           by_key_.find(by_age_entry.key);
-      RIEGELI_ASSERT(by_key_iter != by_key_.end())
+      ABSL_DCHECK(by_key_iter != by_key_.end())
           << "Failed invariant of KeyedRecyclingPool: "
              "a key from by_age_ absent in by_key_";
       ByKeyEntries& by_key_entries = by_key_iter->second;
-      RIEGELI_ASSERT(!by_key_entries.empty())
+      ABSL_DCHECK(!by_key_entries.empty())
           << "Failed invariant of KeyedRecyclingPool: "
              "empty by_key_ value";
       if (by_key_entries.front().object == nullptr) {
         // Finish erasing the cached entry.
-        RIEGELI_ASSERT(cache_ == by_key_iter)
+        ABSL_DCHECK(cache_ == by_key_iter)
             << "Failed invariant of KeyedRecyclingPool: "
                "nullptr object not pointed to by cache_";
-        RIEGELI_ASSERT(cache_->first == by_age_entry.key)
+        ABSL_DCHECK(cache_->first == by_age_entry.key)
             << "Failed invariant of KeyedRecyclingPool: "
                "nullptr object not pointed to by cache_";
-        RIEGELI_ASSERT_EQ(by_key_entries.size(), 1u)
+        ABSL_DCHECK_EQ(by_key_entries.size(), 1u)
             << "Failed invariant of KeyedRecyclingPool: "
                "nullptr object not at the end of by_key_ value";
         by_key_.erase(by_key_iter);

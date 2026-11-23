@@ -24,13 +24,13 @@
 #include <utility>
 #include <variant>
 
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/cord_utils.h"
 #include "riegeli/base/external_ref.h"
@@ -82,7 +82,7 @@ void ByteFill::LargeBlock::DumpStructure(absl::string_view substr,
 ByteFill::Blocks::Blocks(Position size, char fill) {
   if (size == 0) return;
   if (fill == '\0') {
-    RIEGELI_ASSERT(std::holds_alternative<ZeroBlock>(block_));
+    ABSL_DCHECK(std::holds_alternative<ZeroBlock>(block_));
     num_blocks_ = (size - 1) / ZeroBlock::kSize + 1;
     non_last_block_size_ = uint32_t{ZeroBlock::kSize};
     last_block_size_ =
@@ -122,13 +122,13 @@ ByteFill::operator Chain() const {
       std::memset(buffer.data(), fill_, buffer.size());
     }
   } else {
-    RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max())
+    ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max())
         << "Chain size overflow";
     Chain::Options options;
     options.set_size_hint(IntCast<size_t>(size_));
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cbegin();
-    RIEGELI_ASSERT(iter != blocks.cend()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cend()) << "Empty ByteFill handled above";
     do {
       dest.Append(*iter, options);
     } while (++iter != blocks.cend());
@@ -150,11 +150,11 @@ ByteFill::operator absl::Cord() const {
       dest.Append(std::move(buffer));
     }
   } else {
-    RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max())
+    ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max())
         << "Cord size overflow";
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cbegin();
-    RIEGELI_ASSERT(iter != blocks.cend()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cend()) << "Empty ByteFill handled above";
     do {
       ExternalRef(*iter).AppendTo(dest);
     } while (++iter != blocks.cend());
@@ -172,13 +172,13 @@ void ByteFill::AssignTo(Chain& dest) const {
         Chain::Options().set_size_hint(IntCast<size_t>(size_)));
     std::memset(buffer.data(), fill_, buffer.size());
   } else {
-    RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max())
+    ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max())
         << "Chain size overflow";
     Chain::Options options;
     options.set_size_hint(IntCast<size_t>(size_));
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cbegin();
-    RIEGELI_ASSERT(iter != blocks.cend()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cend()) << "Empty ByteFill handled above";
     do {
       dest.Append(*iter, options);
     } while (++iter != blocks.cend());
@@ -205,11 +205,11 @@ void ByteFill::AssignTo(absl::Cord& dest) const {
     }
   } else {
     dest.Clear();
-    RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max())
+    ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max())
         << "Cord size overflow";
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cbegin();
-    RIEGELI_ASSERT(iter != blocks.cend()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cend()) << "Empty ByteFill handled above";
     do {
       ExternalRef(*iter).AppendTo(dest);
     } while (++iter != blocks.cend());
@@ -228,7 +228,7 @@ void ByteFill::AppendTo(Chain& dest) const {
   } else {
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cbegin();
-    RIEGELI_ASSERT(iter != blocks.cend()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cend()) << "Empty ByteFill handled above";
     do {
       dest.Append(*iter);
     } while (++iter != blocks.cend());
@@ -248,7 +248,7 @@ void ByteFill::AppendTo(Chain& dest, Chain::Options options) const {
   } else {
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cbegin();
-    RIEGELI_ASSERT(iter != blocks.cend()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cend()) << "Empty ByteFill handled above";
     do {
       dest.Append(*iter, options);
     } while (++iter != blocks.cend());
@@ -280,11 +280,11 @@ void ByteFill::AppendTo(absl::Cord& dest) const {
     std::memset(buffer.data(), fill_, length);
     dest.Append(std::move(buffer));
   } else {
-    RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+    ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
         << "Cord size overflow";
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cbegin();
-    RIEGELI_ASSERT(iter != blocks.cend()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cend()) << "Empty ByteFill handled above";
     do {
       ExternalRef(*iter).AppendTo(dest);
     } while (++iter != blocks.cend());
@@ -303,7 +303,7 @@ void ByteFill::PrependTo(Chain& dest) const {
   } else {
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cend();
-    RIEGELI_ASSERT(iter != blocks.cbegin()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cbegin()) << "Empty ByteFill handled above";
     do {
       --iter;
       dest.Prepend(*iter);
@@ -324,7 +324,7 @@ void ByteFill::PrependTo(Chain& dest, Chain::Options options) const {
   } else {
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cend();
-    RIEGELI_ASSERT(iter != blocks.cbegin()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cbegin()) << "Empty ByteFill handled above";
     do {
       --iter;
       dest.Prepend(*iter, options);
@@ -344,11 +344,11 @@ void ByteFill::PrependTo(absl::Cord& dest) const {
     std::memset(buffer.data(), fill_, IntCast<size_t>(size_));
     dest.Prepend(std::move(buffer));
   } else {
-    RIEGELI_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
+    ABSL_CHECK_LE(size_, std::numeric_limits<size_t>::max() - dest.size())
         << "Cord size overflow";
     const Blocks blocks = this->blocks();
     BlockIterator iter = blocks.cend();
-    RIEGELI_ASSERT(iter != blocks.cbegin()) << "Empty ByteFill handled above";
+    ABSL_DCHECK(iter != blocks.cbegin()) << "Empty ByteFill handled above";
     do {
       --iter;
       ExternalRef(*iter).PrependTo(dest);

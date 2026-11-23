@@ -20,10 +20,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -33,7 +33,7 @@
 namespace riegeli {
 
 void TextReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of TextReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
@@ -71,10 +71,10 @@ bool TextReaderBase::SupportsRewind() {
 }
 
 bool TextReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (new_pos <= limit_pos()) {
@@ -102,14 +102,14 @@ void TextReaderImpl<ReadNewline::kCrLfOrLf>::Initialize(Reader* src) {
 bool TextReaderImpl<ReadNewline::kCrLfOrLf>::ReadInternal(size_t min_length,
                                                           size_t max_length,
                                                           char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   Reader& src = *SrcReader();
   for (;;) {
     if (ABSL_PREDICT_FALSE(!src.Pull(1, max_length))) {
@@ -169,10 +169,10 @@ bool TextReaderImpl<ReadNewline::kCrLfOrLf>::ReadInternal(size_t min_length,
 
 bool TextReaderImpl<ReadNewline::kCrLfOrLf>::SeekBehindBuffer(
     Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (new_pos <= limit_pos()) {

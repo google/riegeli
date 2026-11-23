@@ -19,8 +19,9 @@
 
 #include <type_traits>
 
+#include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -38,10 +39,10 @@ struct TStringResizableTraits {
   static size_t Size(const Resizable& dest) { return dest.size(); }
   static constexpr bool kIsStable = false;
   static bool Resize(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_LE(used_size, dest.size())
+    ABSL_DCHECK_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Resize(): "
            "used size exceeds new size";
     Reserve(dest, new_size, used_size);
@@ -49,13 +50,13 @@ struct TStringResizableTraits {
     return true;
   }
   static bool Grow(Resizable& dest, size_t new_size, size_t used_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size())
+    ABSL_DCHECK_GT(new_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "no need to grow";
-    RIEGELI_ASSERT_LE(used_size, dest.size())
+    ABSL_DCHECK_LE(used_size, dest.size())
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds old size";
-    RIEGELI_ASSERT_LE(used_size, new_size)
+    ABSL_DCHECK_LE(used_size, new_size)
         << "Failed precondition of ResizableTraits::Grow(): "
            "used size exceeds new size";
     Reserve(dest, new_size, used_size);
@@ -63,7 +64,7 @@ struct TStringResizableTraits {
     return true;
   }
   static bool GrowUnderCapacity(Resizable& dest, size_t new_size) {
-    RIEGELI_ASSERT_GT(new_size, dest.size())
+    ABSL_DCHECK_GT(new_size, dest.size())
         << "Failed precondition of ResizableTraits::GrowUnderCapacity(): "
            "no need to grow";
     if (new_size > dest.capacity()) return false;
@@ -80,7 +81,8 @@ struct TStringResizableTraits {
                        : UnsignedMax(dest.capacity() + dest.capacity() / 2,
                                      new_capacity));
     }
-    RIEGELI_ASSUME_GE(dest.capacity(), new_capacity);
+    const size_t capacity = dest.capacity();
+    ABSL_ASSUME(capacity >= new_capacity);
   }
 };
 

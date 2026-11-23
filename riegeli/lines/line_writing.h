@@ -23,7 +23,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
 #include "riegeli/bytes/stringify.h"
 #include "riegeli/bytes/writer.h"
@@ -111,8 +110,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool WriteLineInternal(
     case WriteNewline::kCrLf:
       return dest.Write("\r\n");
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown newline: " << static_cast<int>(options.newline());
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace write_line_internal

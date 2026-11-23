@@ -20,25 +20,25 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
 
 bool StringReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   return false;
 }
 
 bool StringReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_EQ(start_pos(), 0u)
+  ABSL_DCHECK_EQ(start_pos(), 0u)
       << "Failed invariant of StringReader: non-zero position of buffer start";
   // Seeking forwards. Source ends.
   set_cursor(limit());

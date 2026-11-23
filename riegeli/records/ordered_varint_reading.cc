@@ -17,17 +17,17 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/endian/endian_reading.h"
 
 namespace riegeli::ordered_varint_internal {
 
 bool ReadOrderedVarint32Slow(Reader& src, uint32_t& dest) {
-  RIEGELI_ASSERT_GT(src.available(), 0u)
+  ABSL_DCHECK_GT(src.available(), 0u)
       << "Failed precondition of ReadOrderedVarint32Slow(): no data available";
   const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
-  RIEGELI_ASSERT_GE(first_byte, 0x80)
+  ABSL_DCHECK_GE(first_byte, 0x80)
       << "Failed precondition of ReadOrderedVarint32Slow(): length is 1";
   if (first_byte < 0xc0) {
     if (ABSL_PREDICT_FALSE(!src.Pull(2))) return false;
@@ -61,10 +61,10 @@ bool ReadOrderedVarint32Slow(Reader& src, uint32_t& dest) {
 }
 
 bool ReadOrderedVarint64Slow(Reader& src, uint64_t& dest) {
-  RIEGELI_ASSERT_GT(src.available(), 0u)
+  ABSL_DCHECK_GT(src.available(), 0u)
       << "Failed precondition of ReadOrderedVarint64Slow(): no data available";
   const uint8_t first_byte = static_cast<uint8_t>(*src.cursor());
-  RIEGELI_ASSERT_GE(first_byte, 0x80)
+  ABSL_DCHECK_GE(first_byte, 0x80)
       << "Failed precondition of ReadOrderedVarint64Slow(): length is 1";
   if (first_byte < 0xc0) {
     if (ABSL_PREDICT_FALSE(!src.Pull(2))) return false;

@@ -18,9 +18,9 @@
 
 #include <optional>
 
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/types.h"
 
@@ -61,7 +61,7 @@ inline size_t ApplySizeHintAndRoundPos(Position base_length, size_t min_length,
 
 size_t ReadBufferSizer::BufferLength(Position pos, size_t min_length,
                                      size_t recommended_length) const {
-  RIEGELI_ASSERT_GE(pos, base_pos_)
+  ABSL_DCHECK_GE(pos, base_pos_)
       << "Failed precondition of ReadBufferSizer::ReadBufferLength(): "
       << "position earlier than base position of the run";
   const size_t length = ApplySizeHintAndRoundPos(
@@ -77,7 +77,7 @@ size_t ReadBufferSizer::BufferLength(Position pos, size_t min_length,
 
 size_t WriteBufferSizer::BufferLength(Position pos, size_t min_length,
                                       size_t recommended_length) const {
-  RIEGELI_ASSERT_GE(pos, base_pos_)
+  ABSL_DCHECK_GE(pos, base_pos_)
       << "Failed precondition of WriteBufferSizer::WriteBufferLength(): "
       << "position earlier than base position of the run";
   const size_t length = ApplySizeHintAndRoundPos(

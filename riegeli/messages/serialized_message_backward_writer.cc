@@ -21,10 +21,10 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
@@ -60,8 +60,7 @@ absl::Status SerializedMessageBackwardWriter::WriteString(int field_number,
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  RIEGELI_ASSERT_GE(writer().pos(), pos_after)
-      << "CopyAll() decreased dest.pos()";
+  ABSL_DCHECK_GE(writer().pos(), pos_after) << "CopyAll() decreased dest.pos()";
   return WriteLengthUnchecked(field_number, writer().pos() - pos_after);
 }
 
@@ -84,11 +83,11 @@ void SerializedMessageBackwardWriter::OpenLengthDelimited() {
 
 absl::Status SerializedMessageBackwardWriter::CloseLengthDelimited(
     int field_number) {
-  RIEGELI_ASSERT(!submessages_.empty())
+  ABSL_DCHECK(!submessages_.empty())
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseLengthDelimited(): "
          "no matching OpenLengthDelimited() call";
-  RIEGELI_ASSERT_GE(writer().pos(), submessages_.back())
+  ABSL_DCHECK_GE(writer().pos(), submessages_.back())
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseLengthDelimited(): "
          "writer().pos() decreased since OpenLengthDelimited()";
@@ -99,11 +98,11 @@ absl::Status SerializedMessageBackwardWriter::CloseLengthDelimited(
 
 absl::Status SerializedMessageBackwardWriter::CloseOptionalLengthDelimited(
     int field_number) {
-  RIEGELI_ASSERT(!submessages_.empty())
+  ABSL_DCHECK(!submessages_.empty())
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseOptionalLengthDelimited(): "
          "no matching OpenLengthDelimited() call";
-  RIEGELI_ASSERT_GE(writer().pos(), submessages_.back())
+  ABSL_DCHECK_GE(writer().pos(), submessages_.back())
       << "Failed precondition of "
          "SerializedMessageBackwardWriter::CloseOptionalLengthDelimited(): "
          "writer().pos() decreased since OpenLengthDelimited()";

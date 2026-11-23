@@ -23,11 +23,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -231,13 +231,13 @@ inline void PrefixLimitingBackwardWriterBase::Reset() {
 
 inline void PrefixLimitingBackwardWriterBase::Initialize(
     BackwardWriter* dest, std::optional<Position> base_pos) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of PrefixLimitingBackwardWriter: "
          "null BackwardWriter pointer";
   if (base_pos == std::nullopt) {
     base_pos_ = dest->pos();
   } else {
-    RIEGELI_ASSERT_LE(*base_pos, dest->pos())
+    ABSL_DCHECK_LE(*base_pos, dest->pos())
         << "Failed precondition of PrefixLimitingBackwardWriter: "
            "current position below the base position";
     base_pos_ = *base_pos;
@@ -250,7 +250,7 @@ inline void PrefixLimitingBackwardWriterBase::SyncBuffer(BackwardWriter& dest) {
 }
 
 inline void PrefixLimitingBackwardWriterBase::MakeBuffer(BackwardWriter& dest) {
-  RIEGELI_ASSERT_GE(dest.pos(), base_pos_)
+  ABSL_DCHECK_GE(dest.pos(), base_pos_)
       << "PrefixLimitingBackwardWriter destination "
          "changed position unexpectedly";
   set_buffer(dest.limit(), dest.available());

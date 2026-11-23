@@ -20,12 +20,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -38,7 +38,7 @@ namespace riegeli {
 
 void LimitingWriterBase::Initialize(Writer* dest, Options options,
                                     bool is_owning) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of LimitingWriter: null Writer pointer";
   if (is_owning && exact()) {
     if (options.max_pos() != std::nullopt) {
@@ -121,10 +121,10 @@ absl::Status LimitingWriterBase::AnnotateStatusImpl(absl::Status status) {
 
 bool LimitingWriterBase::PushSlow(size_t min_length,
                                   size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -136,7 +136,7 @@ bool LimitingWriterBase::PushSlow(size_t min_length,
 }
 
 bool LimitingWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   return WriteInternal(src, [](absl::string_view src, size_t length) {
@@ -146,7 +146,7 @@ bool LimitingWriterBase::WriteSlow(absl::string_view src) {
 }
 
 bool LimitingWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   return WriteInternal(std::move(src), [](ExternalRef src, size_t length) {
@@ -157,7 +157,7 @@ bool LimitingWriterBase::WriteSlow(ExternalRef src) {
 }
 
 bool LimitingWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   return WriteInternal(src, [](const Chain& src, size_t length) {
@@ -168,7 +168,7 @@ bool LimitingWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool LimitingWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   return WriteInternal(std::move(src),
@@ -179,7 +179,7 @@ bool LimitingWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool LimitingWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   return WriteInternal(src, [](const absl::Cord& src, size_t length) {
@@ -190,7 +190,7 @@ bool LimitingWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool LimitingWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   return WriteInternal(std::move(src),
@@ -203,7 +203,7 @@ bool LimitingWriterBase::WriteSlow(absl::Cord&& src) {
 template <typename Src, typename RemoveSuffix>
 inline bool LimitingWriterBase::WriteInternal(Src&& src,
                                               RemoveSuffix&& remove_suffix) {
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -224,10 +224,10 @@ inline bool LimitingWriterBase::WriteInternal(Src&& src,
 }
 
 bool LimitingWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -252,10 +252,10 @@ bool LimitingWriterBase::SupportsRandomAccess() {
 }
 
 bool LimitingWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -268,7 +268,7 @@ bool LimitingWriterBase::SeekSlow(Position new_pos) {
 }
 
 std::optional<Position> LimitingWriterBase::SizeImpl() {
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
@@ -285,7 +285,7 @@ bool LimitingWriterBase::SupportsTruncate() {
 }
 
 bool LimitingWriterBase::TruncateImpl(Position new_size) {
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -305,7 +305,7 @@ bool LimitingWriterBase::SupportsReadMode() {
 }
 
 Reader* LimitingWriterBase::ReadModeImpl(Position initial_pos) {
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;

@@ -24,7 +24,6 @@
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/string_utils.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL

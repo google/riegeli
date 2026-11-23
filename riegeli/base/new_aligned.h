@@ -25,7 +25,6 @@
 #include "absl/base/nullability.h"
 #include "absl/numeric/bits.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"                    // IWYU pragma: keep
 #include "riegeli/base/estimated_allocated_size.h"  // IWYU pragma: keep
 
 ABSL_POINTERS_DEFAULT_NONNULL

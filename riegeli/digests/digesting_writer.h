@@ -24,11 +24,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -297,7 +297,7 @@ inline DigestingWriterBase& DigestingWriterBase::operator=(
 
 inline void DigestingWriterBase::Initialize(Writer* dest,
                                             DigesterBaseHandle digester) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of DigestingWriter: null Writer pointer";
   MakeBuffer(*dest);
   absl::Status status = digester.status();
@@ -305,13 +305,14 @@ inline void DigestingWriterBase::Initialize(Writer* dest,
 }
 
 inline bool DigestingWriterBase::SyncBuffer(Writer& dest) {
-  RIEGELI_ASSERT_EQ(start(), dest.cursor())
+  ABSL_DCHECK_EQ(start(), dest.cursor())
       << "Failed invariant of DigestingWriterBase: "
          "cursor of the original Writer changed unexpectedly";
   if (start_to_cursor() > 0) {
     if (ABSL_PREDICT_FALSE(
             !WriteToDigester(absl::string_view(start(), start_to_cursor())))) {
-      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      const bool fail_ok = FailFromDigester();
+      ABSL_DCHECK(!fail_ok);
       return false;
     }
     dest.set_cursor(cursor());
@@ -475,7 +476,7 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
   if (digester_dep.IsOwning()) {
     if (ABSL_PREDICT_FALSE(!digester_dep.get().Close())) ok = false;
   }
-  RIEGELI_CHECK(ok) << FailedStatus(digester_dep.get());
+  ABSL_CHECK(ok) << FailedStatus(digester_dep.get());
   return digester_dep.get().template Digest<DesiredDigestType>();
 }
 
@@ -491,7 +492,7 @@ inline DesiredDigestType DigestFromImpl(std::tuple<Srcs...> srcs,
         srcs));
   }
   std::apply([&](const Srcs&... srcs) { writer.Write(srcs...); }, srcs);
-  RIEGELI_CHECK(writer.Close()) << writer.status();
+  ABSL_CHECK(writer.Close()) << writer.status();
   return writer.template Digest<DesiredDigestType>();
 }
 

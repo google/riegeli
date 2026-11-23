@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -123,11 +123,11 @@ inline void RestrictedChainWriter::Reset() {
 inline void RestrictedChainWriter::MoveDest(RestrictedChainWriter&& that) {
   const bool uses_buffer = start() != nullptr;
   if (uses_buffer) {
-    RIEGELI_ASSERT(that.dest_.blocks().back().data() +
-                       that.dest_.blocks().back().size() ==
-                   limit())
+    ABSL_DCHECK_EQ(
+        that.dest_.blocks().back().data() + that.dest_.blocks().back().size(),
+        limit())
         << "RestrictedChainWriter destination changed unexpectedly";
-    RIEGELI_ASSERT_EQ(that.dest_.size(), limit_pos())
+    ABSL_DCHECK_EQ(that.dest_.size(), limit_pos())
         << "RestrictedChainWriter destination changed unexpectedly";
   }
   const size_t saved_start_to_cursor = start_to_cursor();

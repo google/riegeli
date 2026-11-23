@@ -25,8 +25,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/initializer.h"
@@ -183,12 +183,12 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
 
   // Dereferences the pointer.
   T& operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(ptr_ != nullptr)
+    ABSL_DCHECK(ptr_ != nullptr)
         << "Failed precondition of SharedPtr::operator*: null pointer";
     return *ptr_;
   }
   T* operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(ptr_ != nullptr)
+    ABSL_DCHECK(ptr_ != nullptr)
         << "Failed precondition of SharedPtr::operator->: null pointer";
     return ptr_.get();
   }
@@ -296,7 +296,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   template <typename SubT>
   static T* absl_nullable UpCast(SubT* absl_nullable ptr) {
     T* const absl_nullable super_ptr = ptr;
-    RIEGELI_CHECK(
+    ABSL_CHECK(
         static_cast<void*>(const_cast<std::remove_cv_t<T>*>(super_ptr)) ==
         static_cast<void*>(const_cast<std::remove_cv_t<SubT>*>(ptr)))
         << "SharedPtr does not support upcasting "
@@ -388,7 +388,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI ABSL_NULLABILITY_COMPATIBLE SharedPtr
   void ResetImpl(Initializer<T> value) {
     if constexpr (IsAssignable<T>::value) {
       if (IsUnique()) {
-        RIEGELI_ASSERT(ptr_ != nullptr) << "Guaranteed by IsUnique()";
+        ABSL_DCHECK(ptr_ != nullptr) << "Guaranteed by IsUnique()";
         *ptr_ = std::move(value);
         return;
       }

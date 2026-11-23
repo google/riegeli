@@ -16,10 +16,10 @@
 
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "zlib.h"
 
 namespace riegeli::zlib_internal {
@@ -46,7 +46,8 @@ absl::Status ZlibErrorToStatus(absl::string_view operation, int zlib_code,
   if (details == nullptr) {
     switch (zlib_code) {
       case Z_OK:
-        RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
+        // Handled before switch.
+        ABSL_UNREACHABLE();
       case Z_STREAM_END:
         details = "stream end";
         break;

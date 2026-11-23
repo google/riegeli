@@ -26,10 +26,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain_base.h"
 #include "riegeli/base/cord_utils.h"
@@ -338,17 +338,17 @@ class ExternalRef {
     return &object;
   }
 
-#if RIEGELI_DEBUG
+#ifndef NDEBUG
   template <typename T, std::enable_if_t<
                             std::is_convertible_v<const T&, BytesRef>, int> = 0>
   static void AssertSubstr(const T& object, absl::string_view substr) {
     if (!substr.empty()) {
       const BytesRef whole = object;
-      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), whole.data()))
+      ABSL_DCHECK(std::greater_equal<>()(substr.data(), whole.data()))
           << "Failed precondition of ExternalRef: "
              "substring not contained in whole data";
-      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                         whole.data() + whole.size()))
+      ABSL_DCHECK(std::less_equal<>()(substr.data() + substr.size(),
+                                      whole.data() + whole.size()))
           << "Failed precondition of ExternalRef: "
              "substring not contained in whole data";
     }
@@ -644,7 +644,7 @@ class ExternalRef {
 
     template <typename SubT>
     void operator()(SubT&& subobject, absl::string_view substr) && {
-      RIEGELI_ASSERT_EQ(substr_.size(), substr.size())
+      ABSL_DCHECK_EQ(substr_.size(), substr.size())
           << "ExternalRef: size mismatch";
       // The constructor processes the subobject.
       ConverterToChainBlockSubstr<SubT> converter(
@@ -989,7 +989,7 @@ class ExternalRef {
 
     template <typename SubT>
     void operator()(SubT&& subobject, absl::string_view substr) && {
-      RIEGELI_ASSERT_EQ(substr_.size(), substr.size())
+      ABSL_DCHECK_EQ(substr_.size(), substr.size())
           << "ExternalRef: size mismatch";
       // The constructor processes the subobject.
       ConverterToCordSubstr<SubT> converter(std::forward<SubT>(subobject),
@@ -1358,7 +1358,7 @@ class ExternalRef {
 
     template <typename SubT>
     void operator()(SubT&& subobject, absl::string_view substr) && {
-      RIEGELI_ASSERT_EQ(substr_.size(), substr.size())
+      ABSL_DCHECK_EQ(substr_.size(), substr.size())
           << "ExternalRef: size mismatch";
       // The constructor processes the subobject.
       ConverterToExternalDataSubstr<SubT> converter(

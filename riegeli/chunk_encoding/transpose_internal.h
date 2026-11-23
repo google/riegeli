@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include "riegeli/base/assert.h"
+#include "absl/base/optimization.h"
 #include "riegeli/messages/message_wire_format.h"
 #include "riegeli/varint/varint_writing.h"
 
@@ -90,7 +90,7 @@ inline bool HasDataBuffer(uint32_t tag, Subtype subtype) {
     case WireType::kEndGroup:
       return false;
     default:
-      RIEGELI_ASSUME_UNREACHABLE() << "Unknown wire type in " << tag;
+      ABSL_UNREACHABLE();
   }
 }
 
@@ -112,7 +112,7 @@ inline bool HasSubtype(uint32_t tag) {
     case WireType::kEndGroup:
       return false;
     default:
-      RIEGELI_ASSUME_UNREACHABLE() << "Unknown wire type in " << tag;
+      ABSL_UNREACHABLE();
   }
 }
 

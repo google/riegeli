@@ -20,8 +20,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
@@ -48,7 +49,7 @@ class StringifyWriter : public BufferedWriter {
 
   // Will write to `*dest`.
   explicit StringifyWriter(Dest dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : dest_(std::move(RIEGELI_EVAL_ASSERT_NOTNULL(dest))) {}
+      : dest_(std::move(ABSL_DIE_IF_NULL(dest))) {}
 
   StringifyWriter(StringifyWriter&& that) = default;
   StringifyWriter& operator=(StringifyWriter&& that) = default;
@@ -83,8 +84,7 @@ class StringifyWriter<WriterStringifySink*> : public PrefixLimitingWriter<> {
   // Will write to `*dest`.
   explicit StringifyWriter(
       WriterStringifySink* dest ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : PrefixLimitingWriter(RIEGELI_EVAL_ASSERT_NOTNULL(dest)->dest()),
-        dest_(dest) {}
+      : PrefixLimitingWriter(ABSL_DIE_IF_NULL(dest)->dest()), dest_(dest) {}
 
   StringifyWriter(StringifyWriter&& that) = default;
   StringifyWriter& operator=(StringifyWriter&& that) = default;
@@ -124,11 +124,11 @@ inline void StringifyWriter<Dest>::Reset(Dest dest) {
 
 template <typename Dest>
 bool StringifyWriter<Dest>::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }

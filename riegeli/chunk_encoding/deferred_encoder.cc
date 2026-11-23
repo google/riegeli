@@ -23,12 +23,12 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -116,7 +116,7 @@ bool DeferredEncoder::AddRecordImpl(Record&& record) {
 }
 
 bool DeferredEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
-  RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
+  ABSL_DCHECK_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

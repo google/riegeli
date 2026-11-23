@@ -22,11 +22,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
@@ -39,7 +39,7 @@
 namespace riegeli {
 
 void DefaultChunkReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of DefaultChunkReader: null Reader pointer";
   pos_ = src->pos();
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
@@ -59,7 +59,7 @@ void DefaultChunkReaderBase::Done() {
   recoverable_pos_ = 0;
   if (ABSL_PREDICT_FALSE(truncated_)) {
     Reader& src = *SrcReader();
-    RIEGELI_ASSERT_GT(src.pos(), pos_)
+    ABSL_DCHECK_GT(src.pos(), pos_)
         << "Failed invariant of DefaultChunkReader: a chunk beginning must "
            "have been read for the chunk to be considered incomplete";
     recoverable_ = Recoverable::kHaveChunk;
@@ -218,11 +218,12 @@ bool DefaultChunkReaderBase::PullChunkHeader(const ChunkHeader** chunk_header) {
 }
 
 inline bool DefaultChunkReaderBase::ReadChunkHeader() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
+      << status();
   Reader& src = *SrcReader();
-  RIEGELI_ASSERT_LT(records_internal::DistanceWithoutOverhead(pos_, src.pos()),
-                    chunk_.header.size())
+  ABSL_DCHECK_LT(records_internal::DistanceWithoutOverhead(pos_, src.pos()),
+                 chunk_.header.size())
       << "Failed precondition of DefaultChunkReaderBase::ReadChunkHeader(): "
          "chunk header already read";
   size_t remaining_length;
@@ -312,12 +313,13 @@ inline bool DefaultChunkReaderBase::ReadChunkHeader() {
 }
 
 inline bool DefaultChunkReaderBase::ReadBlockHeader() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader(): "
+      << status();
   Reader& src = *SrcReader();
   const size_t remaining_length =
       records_internal::RemainingInBlockHeader(src.pos());
-  RIEGELI_ASSERT_GT(remaining_length, 0u)
+  ABSL_DCHECK_GT(remaining_length, 0u)
       << "Failed precondition of DefaultChunkReaderBase::ReadBlockHeader(): "
          "not before nor inside a block header";
   if (ABSL_PREDICT_FALSE(!src.Read(
@@ -348,8 +350,8 @@ bool DefaultChunkReaderBase::Recover(SkippedRegion* skipped_region) {
   Reader& src = *SrcReader();
   const Position region_begin = pos_;
 again:
-  RIEGELI_ASSERT(!ok()) << "Failed invariant of DefaultChunkReader: "
-                           "recovery applicable but DefaultChunkReader OK";
+  ABSL_DCHECK(!ok()) << "Failed invariant of DefaultChunkReader: "
+                        "recovery applicable but DefaultChunkReader OK";
   const Recoverable recoverable = recoverable_;
   recoverable_ = Recoverable::kNo;
   Position recoverable_pos = recoverable_pos_;
@@ -383,9 +385,10 @@ again:
     }
     return true;
   }
-  RIEGELI_ASSERT_OK(*this)
+  ABSL_DCHECK(ok())
       << "Failed invariant of DefaultChunkReader: "
-         "chunk boundary not reached yet but DefaultChunkReader is closed";
+         "chunk boundary not reached yet but DefaultChunkReader is closed: "
+      << status();
   pos_ = recoverable_pos;
 
 find_chunk:

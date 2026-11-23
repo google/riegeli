@@ -25,13 +25,13 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -81,7 +81,7 @@ std::unique_ptr<tsl::RandomAccessFile> FileReaderBase::OpenFile() {
       ABSL_PREDICT_FALSE(!status.ok())) {
     Reader::Reset(kClosed);
     FailOperation(status, "FileSystem::NewRandomAccessFile()");
-    RIEGELI_ASSERT(src == nullptr)
+    ABSL_DCHECK(src == nullptr)
         << "FileSystem::NewRandomAccessFile() should store "
            "null RandomAccessFile on failure";
   }
@@ -104,7 +104,7 @@ void FileReaderBase::Done() {
 
 inline bool FileReaderBase::FailOperation(const absl::Status& status,
                                           absl::string_view operation) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of FileReaderBase::FailOperation(): "
          "status not failed";
   return Fail(
@@ -132,7 +132,7 @@ void FileReaderBase::SetReadAllHintImpl(bool read_all_hint) {
 }
 
 bool FileReaderBase::PullSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -175,7 +175,7 @@ inline bool FileReaderBase::ReadToDest(size_t length,
   absl::string_view result;
   const absl::Status status = src->Read(IntCast<uint64_t>(limit_pos()), result,
                                         absl::MakeSpan(dest, length_to_read));
-  RIEGELI_ASSERT_LE(result.size(), length_to_read)
+  ABSL_DCHECK_LE(result.size(), length_to_read)
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() != dest) std::memcpy(dest, result.data(), result.size());
   move_limit_pos(result.size());
@@ -186,12 +186,12 @@ inline bool FileReaderBase::ReadToDest(size_t length,
     if (!growing_source_) set_exact_size(limit_pos());
     return false;
   }
-  RIEGELI_ASSERT_EQ(result.size(), length_to_read)
+  ABSL_DCHECK_EQ(result.size(), length_to_read)
       << "RandomAccessFile::Read() succeeded but read less than requested";
   if (ABSL_PREDICT_FALSE(result.size() < length)) {
     // `result.size() == length_to_read < length`, which implies that
     // `kMaxPosition` was reached.
-    RIEGELI_ASSERT_EQ(limit_pos(), kMaxPosition)
+    ABSL_DCHECK_EQ(limit_pos(), kMaxPosition)
         << "Maximum position must have been reached";
     return FailOverflow();
   }
@@ -201,7 +201,7 @@ inline bool FileReaderBase::ReadToDest(size_t length,
 inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
                                          tsl::RandomAccessFile* src,
                                          absl::Span<char> flat_buffer) {
-  RIEGELI_ASSERT(flat_buffer.data() + flat_buffer.size() ==
+  ABSL_DCHECK_EQ(flat_buffer.data() + flat_buffer.size(),
                  buffer_.data() + buffer_.size())
       << "Failed precondition of FileReaderBase::ReadToBuffer(): "
          "flat_buffer not a suffix of buffer_";
@@ -216,7 +216,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
   const absl::Status status =
       src->Read(IntCast<uint64_t>(limit_pos()), result,
                 absl::MakeSpan(flat_buffer.data(), length_to_read));
-  RIEGELI_ASSERT_LE(result.size(), length_to_read)
+  ABSL_DCHECK_LE(result.size(), length_to_read)
       << "RandomAccessFile::Read() read more than requested";
   if (result.data() == flat_buffer.data()) {
     buffer_.RemoveSuffix(flat_buffer.size() - result.size());
@@ -239,12 +239,12 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
     if (!growing_source_) set_exact_size(limit_pos());
     return false;
   }
-  RIEGELI_ASSERT_EQ(result.size(), length_to_read)
+  ABSL_DCHECK_EQ(result.size(), length_to_read)
       << "RandomAccessFile::Read() succeeded but read less than requested";
   if (ABSL_PREDICT_FALSE(result.size() < flat_buffer.size())) {
     // `result.size() == length_to_read < flat_buffer.size()`, which implies
     // that `kMaxPosition` was reached.
-    RIEGELI_ASSERT_EQ(limit_pos(), kMaxPosition)
+    ABSL_DCHECK_EQ(limit_pos(), kMaxPosition)
         << "Maximum position must have been reached";
     return FailOverflow();
   }
@@ -252,7 +252,7 @@ inline bool FileReaderBase::ReadToBuffer(size_t cursor_index,
 }
 
 bool FileReaderBase::ReadSlow(size_t length, char* dest) {
-  RIEGELI_ASSERT_LT(available(), length)
+  ABSL_DCHECK_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char*) instead";
   if (length >= buffer_sizer_.BufferLength(pos())) {
@@ -278,10 +278,10 @@ bool FileReaderBase::ReadSlow(size_t length, char* dest) {
 }
 
 bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   tsl::RandomAccessFile* const src = SrcFile();
@@ -345,10 +345,10 @@ bool FileReaderBase::ReadSlow(size_t length, Chain& dest) {
 }
 
 bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "enough data available, use Read(Cord&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   tsl::RandomAccessFile* const src = SrcFile();
@@ -413,7 +413,7 @@ bool FileReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
 }
 
 bool FileReaderBase::CopySlow(Position length, Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
   tsl::RandomAccessFile* const src = SrcFile();
@@ -511,7 +511,7 @@ bool FileReaderBase::CopySlow(Position length, Writer& dest) {
 inline bool FileReaderBase::CopyUsingPush(Position length,
                                           tsl::RandomAccessFile* src,
                                           Writer& dest) {
-  RIEGELI_ASSERT_GT(length, 0u)
+  ABSL_DCHECK_GT(length, 0u)
       << "Failed precondition of FileReaderBase::CopyUsingPush(): "
          "nothing to copy";
   do {
@@ -533,7 +533,7 @@ inline bool FileReaderBase::CopyUsingPush(Position length,
 }
 
 bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
   if (length <= available() && buffer_.empty()) {
@@ -558,10 +558,10 @@ bool FileReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
 }
 
 bool FileReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "nothing to read, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "some data available, use ReadSome(char*) instead";
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
@@ -575,7 +575,7 @@ bool FileReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
     }
     const Position pos_before = limit_pos();
     ReadToDest(max_length, src, dest);
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "FileReaderBase::ReadToDest() decreased limit_pos()";
     return limit_pos() != pos_before;
   }
@@ -583,10 +583,10 @@ bool FileReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
 }
 
 bool FileReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "nothing to read, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "some data available, use CopySome(Writer&) instead";
   if (max_length >= buffer_sizer_.BufferLength(limit_pos())) {
@@ -602,10 +602,10 @@ bool FileReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
     max_length = UnsignedMin(max_length, dest.available());
     const Position pos_before = limit_pos();
     ReadToDest(max_length, src, dest.cursor());
-    RIEGELI_ASSERT_GE(limit_pos(), pos_before)
+    ABSL_DCHECK_GE(limit_pos(), pos_before)
         << "BufferedReader::ReadInternal() decreased limit_pos()";
     const Position length_read = limit_pos() - pos_before;
-    RIEGELI_ASSERT_LE(length_read, max_length)
+    ABSL_DCHECK_LE(length_read, max_length)
         << "BufferedReader::ReadInternal() read more than requested";
     dest.move_cursor(IntCast<size_t>(length_read));
     return length_read > 0;
@@ -624,7 +624,7 @@ bool FileReaderBase::SyncImpl(SyncType sync_type) {
 }
 
 bool FileReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!FileReaderBase::SupportsRandomAccess())) {

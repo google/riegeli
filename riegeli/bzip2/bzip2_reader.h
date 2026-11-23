@@ -23,10 +23,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "bzlib.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -77,7 +77,7 @@ class Bzip2ReaderBase : public BufferedReader {
   //
   // Precondition: `Options::concatenate()` was `false`.
   bool truncated() const {
-    RIEGELI_ASSERT(!concatenate_)
+    ABSL_DCHECK(!concatenate_)
         << "Failed precondition of Bzip2ReaderBase::truncated(): "
            "Options::concatenate() is true";
     return truncated_ && available() == 0;
@@ -112,7 +112,7 @@ class Bzip2ReaderBase : public BufferedReader {
   struct BZStreamDeleter {
     void operator()(bz_stream* ptr) const {
       const int bzlib_code = BZ2_bzDecompressEnd(ptr);
-      RIEGELI_ASSERT_EQ(bzlib_code, BZ_OK)
+      ABSL_DCHECK_EQ(bzlib_code, BZ_OK)
           << "BZ2_bzDecompressEnd() failed: " << bzlib_code;
       delete ptr;
     }

@@ -16,7 +16,7 @@
 
 #include <utility>
 
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/sized_shared_buffer.h"
 #include "riegeli/bytes/fd_reader.h"
@@ -48,7 +48,7 @@ void StdIn::Reset(const Options& options) {
 }
 
 void StdIn::Done() {
-  RIEGELI_ASSERT(StdInPending().empty())
+  ABSL_DCHECK(StdInPending().empty())
       << "Multiple instances of StdIn in use at a time";
   if (available() > 0 && !SupportsRandomAccess()) StdInPending() = SaveBuffer();
   FdReader::Done();

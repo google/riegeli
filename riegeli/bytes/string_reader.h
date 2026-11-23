@@ -23,9 +23,9 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -212,9 +212,9 @@ class StringReader<Src>::Mover {
       : uses_buffer_(self.start() != nullptr),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT_EQ(that.src_.get().data(), self.start())
+      ABSL_DCHECK_EQ(that.src_.get().data(), self.start())
           << "StringReader source changed unexpectedly";
-      RIEGELI_ASSERT_EQ(that.src_.get().size(), self.start_to_limit())
+      ABSL_DCHECK_EQ(that.src_.get().size(), self.start_to_limit())
           << "StringReader source changed unexpectedly";
     }
   }

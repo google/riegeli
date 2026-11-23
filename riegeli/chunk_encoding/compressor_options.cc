@@ -17,9 +17,9 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
@@ -132,8 +132,7 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
       case CompressionType::kSnappy:
         return ValueParser::FailIfSeen("snappy");
     }
-    RIEGELI_ASSUME_UNREACHABLE() << "Unknown compression type: "
-                                 << static_cast<unsigned>(compression_type_);
+    ABSL_UNREACHABLE();
   }());
   options_parser.AddOption(
       "brotli_encoder",
@@ -149,16 +148,16 @@ absl::Status CompressorOptions::FromString(absl::string_view text) {
 }
 
 int CompressorOptions::brotli_window_log() const {
-  RIEGELI_ASSERT_EQ(compression_type_, CompressionType::kBrotli)
+  ABSL_DCHECK_EQ(compression_type_, CompressionType::kBrotli)
       << "Failed precondition of CompressorOptions::brotli_window_log(): "
          "compression type must be Brotli";
   if (window_log_ == std::nullopt) {
     return BrotliWriterBase::Options::kDefaultWindowLog;
   } else {
-    RIEGELI_ASSERT_GE(*window_log_, BrotliWriterBase::Options::kMinWindowLog)
+    ABSL_DCHECK_GE(*window_log_, BrotliWriterBase::Options::kMinWindowLog)
         << "Failed precondition of CompressorOptions::set_window_log(): "
            "window log out of range for Brotli";
-    RIEGELI_ASSERT_LE(*window_log_, BrotliWriterBase::Options::kMaxWindowLog)
+    ABSL_DCHECK_LE(*window_log_, BrotliWriterBase::Options::kMaxWindowLog)
         << "Failed precondition of CompressorOptions::set_window_log(): "
            "window log out of range for Brotli";
     return *window_log_;
@@ -166,14 +165,14 @@ int CompressorOptions::brotli_window_log() const {
 }
 
 std::optional<int> CompressorOptions::zstd_window_log() const {
-  RIEGELI_ASSERT_EQ(compression_type_, CompressionType::kZstd)
+  ABSL_DCHECK_EQ(compression_type_, CompressionType::kZstd)
       << "Failed precondition of CompressorOptions::zstd_window_log(): "
          "compression type must be Zstd";
   if (window_log_ != std::nullopt) {
-    RIEGELI_ASSERT_GE(*window_log_, ZstdWriterBase::Options::kMinWindowLog)
+    ABSL_DCHECK_GE(*window_log_, ZstdWriterBase::Options::kMinWindowLog)
         << "Failed precondition of CompressorOptions::set_window_log(): "
            "window log out of range for Zstd";
-    RIEGELI_ASSERT_LE(*window_log_, ZstdWriterBase::Options::kMaxWindowLog)
+    ABSL_DCHECK_LE(*window_log_, ZstdWriterBase::Options::kMaxWindowLog)
         << "Failed precondition of CompressorOptions::set_window_log(): "
            "window log out of range for Zstd";
   }

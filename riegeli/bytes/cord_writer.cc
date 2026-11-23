@@ -21,11 +21,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
@@ -87,9 +87,9 @@ inline void CordWriterBase::SyncBuffer(absl::Cord& dest) {
 }
 
 inline void CordWriterBase::MoveFromTail(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_NE(tail_, nullptr)
+  ABSL_DCHECK(tail_ != nullptr)
       << "Failed precondition of CordWriterBase::MoveFromTail(): no tail";
-  RIEGELI_ASSERT_LE(length, tail_->size())
+  ABSL_DCHECK_LE(length, tail_->size())
       << "Failed precondition of CordWriterBase::MoveFromTail(): "
          "length longer than the tail";
   if (length == tail_->size()) {
@@ -102,7 +102,7 @@ inline void CordWriterBase::MoveFromTail(size_t length, absl::Cord& dest) {
 }
 
 inline void CordWriterBase::MoveToTail(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LE(length, dest.size())
+  ABSL_DCHECK_LE(length, dest.size())
       << "Failed precondition of CordWriterBase::MoveToTail(): "
          "length longer than the destination";
   if (tail_ == nullptr) tail_ = std::make_unique<absl::Cord>();
@@ -120,17 +120,17 @@ inline bool CordWriterBase::HasAppendedTail(const absl::Cord& dest) const {
 }
 
 inline void CordWriterBase::ExtractTail(absl::Cord& dest) {
-  RIEGELI_ASSERT(HasAppendedTail(dest))
+  ABSL_DCHECK(HasAppendedTail(dest))
       << "Failed precondition of CordWriterBase::ExtractTail(): "
          "the tail is not appended";
-  RIEGELI_ASSERT_EQ(start(), nullptr)
+  ABSL_DCHECK(start() == nullptr)
       << "Failed invariant of CordWriterBase: "
          "both a buffer and the appended tail are present";
   MoveToTail(dest.size() - IntCast<size_t>(start_pos()), dest);
 }
 
 inline void CordWriterBase::AppendTail(absl::Cord& dest) {
-  RIEGELI_ASSERT(!HasAppendedTail(dest))
+  ABSL_DCHECK(!HasAppendedTail(dest))
       << "Failed precondition of CordWriterBase::AppendTail(): "
          "the tail is appended";
   if (ABSL_PREDICT_FALSE(tail_ != nullptr)) {
@@ -155,12 +155,12 @@ void CordWriterBase::SetWriteSizeHintImpl(
 }
 
 bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
     ExtractTail(dest);
@@ -188,8 +188,8 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       cursor_index + min_length,
       SaturatingAdd(cursor_index, recommended_length), max_block_size_);
   if (buffer_length <= cord_internal::kCordBufferMaxSize) {
-    RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
-                   start() != cord_buffer_.data())
+    ABSL_DCHECK(cord_buffer_.capacity() < buffer_length ||
+                start() != cord_buffer_.data())
         << "Failed invariant of CordWriter: "
            "cord_buffer_ has enough capacity but was used only partially";
     const size_t predicted_cord_buffer_size =
@@ -217,8 +217,7 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
       }
     }
   }
-  RIEGELI_ASSERT(buffer_.capacity() < buffer_length ||
-                 start() != buffer_.data())
+  ABSL_DCHECK(buffer_.capacity() < buffer_length || start() != buffer_.data())
       << "Failed invariant of CordWriter: "
          "buffer_ has enough capacity but was used only partially";
   Buffer new_buffer = buffer_.capacity() >= buffer_length
@@ -233,13 +232,13 @@ bool CordWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool CordWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(std::move(src));
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -253,13 +252,13 @@ bool CordWriterBase::WriteSlow(ExternalRef src) {
 }
 
 bool CordWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -273,7 +272,7 @@ bool CordWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool CordWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   if (src.size() <= MaxBytesToCopy()) {
@@ -284,7 +283,7 @@ bool CordWriterBase::WriteSlow(Chain&& src) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -298,13 +297,13 @@ bool CordWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool CordWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -318,7 +317,7 @@ bool CordWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool CordWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (src.size() <= MaxBytesToCopy()) {
@@ -329,7 +328,7 @@ bool CordWriterBase::WriteSlow(absl::Cord&& src) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -343,13 +342,13 @@ bool CordWriterBase::WriteSlow(absl::Cord&& src) {
 }
 
 bool CordWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (src.size() <= MaxBytesToCopy()) return Writer::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -365,13 +364,13 @@ bool CordWriterBase::WriteSlow(ByteFill src) {
 bool CordWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT_EQ(start(), nullptr)
+    ABSL_DCHECK(start() == nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
-    RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
+    ABSL_DCHECK(tail_ == nullptr || tail_->empty())
         << "Failed invariant of CordWriterBase: "
            "the tail is both appended and separated";
     return true;
@@ -382,18 +381,18 @@ bool CordWriterBase::FlushImpl(FlushType flush_type) {
 }
 
 bool CordWriterBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of Writer::SeekSlow(): "
          "position unchanged, use Seek() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT_EQ(start(), nullptr)
+    ABSL_DCHECK(start() == nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
-    RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
+    ABSL_DCHECK(tail_ == nullptr || tail_->empty())
         << "Failed invariant of CordWriterBase: "
            "the tail is both appended and separated";
     if (ABSL_PREDICT_FALSE(new_pos > dest.size())) {
@@ -424,13 +423,13 @@ bool CordWriterBase::SeekSlow(Position new_pos) {
 std::optional<Position> CordWriterBase::SizeImpl() {
   if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT_EQ(start(), nullptr)
+    ABSL_DCHECK(start() == nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
-    RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
+    ABSL_DCHECK(tail_ == nullptr || tail_->empty())
         << "Failed invariant of CordWriterBase: "
            "the tail is both appended and separated";
     return dest.size();
@@ -444,13 +443,13 @@ std::optional<Position> CordWriterBase::SizeImpl() {
 bool CordWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_LE(start_pos(), dest.size())
+  ABSL_DCHECK_LE(start_pos(), dest.size())
       << "CordWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(HasAppendedTail(dest))) {
-    RIEGELI_ASSERT_EQ(start(), nullptr)
+    ABSL_DCHECK(start() == nullptr)
         << "Failed invariant of CordWriterBase: "
            "both a buffer and the appended tail are present";
-    RIEGELI_ASSERT(tail_ == nullptr || tail_->empty())
+    ABSL_DCHECK(tail_ == nullptr || tail_->empty())
         << "Failed invariant of CordWriterBase: "
            "the tail is both appended and separated";
     if (ABSL_PREDICT_FALSE(new_size > dest.size())) {
@@ -477,8 +476,8 @@ bool CordWriterBase::TruncateImpl(Position new_size) {
       return true;
     }
   }
-  RIEGELI_ASSERT(tail_ == nullptr || tail_->empty());
-  RIEGELI_ASSERT_LE(new_size, dest.size());
+  ABSL_DCHECK(tail_ == nullptr || tail_->empty());
+  ABSL_DCHECK_LE(new_size, dest.size());
   set_start_pos(new_size);
   dest.RemoveSuffix(dest.size() - IntCast<size_t>(new_size));
   set_cursor(start());

@@ -51,12 +51,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/global.h"
@@ -81,30 +81,30 @@ const Position FdWriterBase::kMaxPosition =
 TypeId FdWriterBase::GetTypeId() const { return TypeId::For<FdWriterBase>(); }
 
 void FdWriterBase::Initialize(int dest, const Options& options) {
-  RIEGELI_ASSERT_GE(dest, 0)
+  ABSL_DCHECK_GE(dest, 0)
       << "Failed precondition of FdWriter: negative file descriptor";
   InitializePos(dest, options, /*mode_was_passed_to_open=*/false);
 }
 
 void FdWriterBase::InitializePos(int dest, const Options& options,
                                  bool mode_was_passed_to_open) {
-  RIEGELI_ASSERT(!has_independent_pos_)
+  ABSL_DCHECK(!has_independent_pos_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "has_independent_pos_ not reset";
-  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
+  ABSL_DCHECK_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
+  ABSL_DCHECK_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "supports_read_mode_ not reset";
-  RIEGELI_ASSERT_OK(random_access_status_)
+  ABSL_DCHECK_OK(random_access_status_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "random_access_status_ not reset";
-  RIEGELI_ASSERT_OK(read_mode_status_)
+  ABSL_DCHECK_OK(read_mode_status_)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "read_mode_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
+  ABSL_DCHECK(original_mode_ == std::nullopt)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "original_mode_ not reset";
 #endif  // _WIN32
@@ -261,7 +261,7 @@ void FdWriterBase::Done() {
 inline absl::Status FdWriterBase::FailedOperationStatus(
     absl::string_view operation) {
   const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of FdWriterBase::FailedOperationStatus(): "
          "zero errno";
   return absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
@@ -276,7 +276,7 @@ bool FdWriterBase::FailOperation(absl::string_view operation) {
 absl::Status FdWriterBase::FailedWindowsOperationStatus(
     absl::string_view operation) {
   const DWORD error_number = GetLastError();
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of FdWriterBase::FailedWindowsOperationStatus(): "
          "zero error code";
   return WindowsErrorToStatus(IntCast<uint32_t>(error_number),
@@ -295,8 +295,8 @@ absl::Status FdWriterBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 inline absl::Status FdWriterBase::SizeStatus() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of FdWriterBase::SizeStatus()";
+  ABSL_DCHECK(ok()) << "Failed precondition of FdWriterBase::SizeStatus(): "
+                    << status();
   const int dest = DestFd();
   if (fd_internal::LSeek(dest, 0, SEEK_END) < 0) {
     // Not supported.
@@ -341,7 +341,7 @@ bool FdWriterBase::SupportsReadMode() {
     return supports_read_mode_ == LazyBoolState::kTrue;
   }
 #ifndef _WIN32
-  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
+  ABSL_DCHECK_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed invariant of FdWriterBase: "
          "supports_random_access_ is resolved but supports_read_mode_ is not";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -435,11 +435,11 @@ inline bool FdWriterBase::WriteMode() {
 }
 
 bool FdWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   const int dest = DestFd();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
@@ -494,14 +494,14 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
       length_written = IntCast<DWORD>(length_written_int);
     }
 #endif  // _WIN32
-    RIEGELI_ASSERT_GT(length_written, 0)
+    ABSL_DCHECK_GT(length_written, 0)
 #ifndef _WIN32
         << (has_independent_pos_ ? "pwrite()" : "write()")
 #else
         << (has_independent_pos_ ? "WriteFile()" : "_write()")
 #endif
         << " returned 0";
-    RIEGELI_ASSERT_LE(UnsignedCast(length_written), length_to_write)
+    ABSL_DCHECK_LE(UnsignedCast(length_written), length_to_write)
 #ifndef _WIN32
         << (has_independent_pos_ ? "pwrite()" : "write()")
 #else
@@ -515,7 +515,7 @@ bool FdWriterBase::WriteInternal(absl::string_view src) {
 }
 
 bool FdWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (src.fill() != '\0' || !FdWriterBase::SupportsRandomAccess()) {
@@ -523,7 +523,7 @@ bool FdWriterBase::WriteSlow(ByteFill src) {
   }
   const std::optional<Position> size = SizeImpl();
   if (ABSL_PREDICT_FALSE(size == std::nullopt)) return false;
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "BufferedWriter::SizeImpl() flushes the buffer";
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
@@ -567,13 +567,12 @@ bool FdWriterBase::FlushImpl(FlushType flush_type) {
       return true;
     }
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown flush type: " << static_cast<int>(flush_type);
+  ABSL_UNREACHABLE();
 }
 
 bool FdWriterBase::FlushBehindBuffer(absl::string_view src,
                                      FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
@@ -581,11 +580,11 @@ bool FdWriterBase::FlushBehindBuffer(absl::string_view src,
 }
 
 inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of FdWriterBase::SeekInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of FdWriterBase::SeekInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of FdWriterBase::SeekInternal(): "
+                    << status();
   if (!has_independent_pos_) {
     if (ABSL_PREDICT_FALSE(
             fd_internal::LSeek(dest, IntCast<fd_internal::Offset>(new_pos),
@@ -598,10 +597,10 @@ inline bool FdWriterBase::SeekInternal(int dest, Position new_pos) {
 }
 
 bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "position unchanged, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!FdWriterBase::SupportsRandomAccess())) {
@@ -627,7 +626,7 @@ bool FdWriterBase::SeekBehindBuffer(Position new_pos) {
 }
 
 std::optional<Position> FdWriterBase::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!FdWriterBase::SupportsRandomAccess())) {
@@ -645,11 +644,12 @@ std::optional<Position> FdWriterBase::SizeBehindBuffer() {
 }
 
 inline bool FdWriterBase::TruncateInternal(int dest, Position new_size) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of FdWriterBase::TruncateInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of FdWriterBase::TruncateInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of FdWriterBase::TruncateInternal(): "
+      << status();
 #ifndef _WIN32
 again:
   if (ABSL_PREDICT_FALSE(
@@ -667,7 +667,7 @@ again:
 }
 
 bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -690,7 +690,7 @@ bool FdWriterBase::TruncateBehindBuffer(Position new_size) {
 }
 
 Reader* FdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!FdWriterBase::SupportsReadMode())) {

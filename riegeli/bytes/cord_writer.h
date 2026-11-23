@@ -25,10 +25,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
@@ -96,7 +96,7 @@ class CordWriterBase : public Writer {
     // Default: `kDefaultMaxBlockSize - 13` (65523).
     Options& set_max_block_size(size_t max_block_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GT(max_block_size, 0u)
+      ABSL_DCHECK_GT(max_block_size, 0u)
           << "Failed precondition of "
              "CordWriterBase::Options::set_max_block_size(): "
              "zero block size";
@@ -370,7 +370,7 @@ inline void CordWriterBase::Reset(Options options) {
 }
 
 inline void CordWriterBase::Initialize(absl::Cord* dest, bool append) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of CordWriter: null Cord pointer";
   if (append) {
     cord_buffer_ = dest->GetAppendBuffer(0, 1);
@@ -393,7 +393,7 @@ inline void CordWriterBase::MoveCordBuffer(CordWriterBase& that) {
   // `cord_buffer_` is not moved yet so `cord_buffer_` is taken from `that`.
   const bool uses_cord_buffer = start() == that.cord_buffer_.data();
   if (uses_cord_buffer) {
-    RIEGELI_ASSERT_EQ(that.cord_buffer_.length(), start_to_limit())
+    ABSL_DCHECK_EQ(that.cord_buffer_.length(), start_to_limit())
         << "Failed invariant of CordWriter: "
            "CordBuffer has an unexpected length";
   }

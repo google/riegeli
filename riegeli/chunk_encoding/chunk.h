@@ -19,7 +19,7 @@
 #include <stdint.h>
 
 #include "absl/base/attributes.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -76,7 +76,7 @@ class ChunkHeader {
   }
   void set_chunk_type_and_num_records(ChunkType chunk_type,
                                       uint64_t num_records) {
-    RIEGELI_ASSERT_LE(num_records, kMaxNumRecords)
+    ABSL_DCHECK_LE(num_records, kMaxNumRecords)
         << "Failed precondition of "
            "ChunkHeader::set_chunk_type_and_num_records(): "
            "number of records out of range";

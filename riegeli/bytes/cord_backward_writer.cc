@@ -20,11 +20,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
@@ -88,7 +88,7 @@ void CordBackwardWriterBase::SetWriteSizeHintImpl(
 
 bool CordBackwardWriterBase::PushSlow(size_t min_length,
                                       size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -106,7 +106,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
     }
   }
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (ABSL_PREDICT_FALSE(min_length > kMaxPosition - IntCast<size_t>(pos()))) {
     return FailOverflow();
@@ -119,8 +119,8 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
       cursor_index + min_length,
       SaturatingAdd(cursor_index, recommended_length), max_block_size_);
   if (buffer_length <= cord_internal::kCordBufferMaxSize) {
-    RIEGELI_ASSERT(cord_buffer_.capacity() < buffer_length ||
-                   limit() != cord_buffer_.data())
+    ABSL_DCHECK(cord_buffer_.capacity() < buffer_length ||
+                limit() != cord_buffer_.data())
         << "Failed invariant of CordBackwardWriter: "
            "cord_buffer_ has enough capacity but was used only partially";
     const size_t predicted_cord_buffer_size =
@@ -149,8 +149,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
       }
     }
   }
-  RIEGELI_ASSERT(buffer_.capacity() < buffer_length ||
-                 limit() != buffer_.data())
+  ABSL_DCHECK(buffer_.capacity() < buffer_length || limit() != buffer_.data())
       << "Failed invariant of CordBackwardWriter: "
          "buffer_ has enough capacity but was used only partially";
   Buffer new_buffer = buffer_.capacity() >= buffer_length
@@ -166,7 +165,7 @@ bool CordBackwardWriterBase::PushSlow(size_t min_length,
 }
 
 bool CordBackwardWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (src.size() <= MaxBytesToCopy()) {
@@ -174,7 +173,7 @@ bool CordBackwardWriterBase::WriteSlow(ExternalRef src) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -187,13 +186,13 @@ bool CordBackwardWriterBase::WriteSlow(ExternalRef src) {
 }
 
 bool CordBackwardWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (src.size() <= MaxBytesToCopy()) return BackwardWriter::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -206,7 +205,7 @@ bool CordBackwardWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool CordBackwardWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   if (src.size() <= MaxBytesToCopy()) {
@@ -218,7 +217,7 @@ bool CordBackwardWriterBase::WriteSlow(Chain&& src) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -231,13 +230,13 @@ bool CordBackwardWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool CordBackwardWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (src.size() <= MaxBytesToCopy()) return BackwardWriter::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -250,7 +249,7 @@ bool CordBackwardWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (src.size() <= MaxBytesToCopy()) {
@@ -262,7 +261,7 @@ bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
   }
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -275,13 +274,13 @@ bool CordBackwardWriterBase::WriteSlow(absl::Cord&& src) {
 }
 
 bool CordBackwardWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (src.size() <= MaxBytesToCopy()) return BackwardWriter::WriteSlow(src);
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -296,7 +295,7 @@ bool CordBackwardWriterBase::WriteSlow(ByteFill src) {
 bool CordBackwardWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
@@ -305,7 +304,7 @@ bool CordBackwardWriterBase::FlushImpl(FlushType flush_type) {
 bool CordBackwardWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   absl::Cord& dest = *DestCord();
-  RIEGELI_ASSERT_EQ(start_pos(), dest.size())
+  ABSL_DCHECK_EQ(start_pos(), dest.size())
       << "CordBackwardWriter destination changed unexpectedly";
   if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;

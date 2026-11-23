@@ -20,9 +20,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -83,11 +83,11 @@ class ZlibWriterBase : public BufferedWriter {
     static constexpr int kDefaultCompressionLevel = 6;
     Options& set_compression_level(int compression_level) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+      ABSL_DCHECK_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+      ABSL_DCHECK_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_compression_level(): "
              "compression level out of range";
@@ -110,11 +110,11 @@ class ZlibWriterBase : public BufferedWriter {
     static constexpr int kMaxWindowLog = 15;      // `MAX_WBITS`
     static constexpr int kDefaultWindowLog = 15;  // `MAX_WBITS`
     Options& set_window_log(int window_log) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
+      ABSL_DCHECK_GE(window_log, kMinWindowLog)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
+      ABSL_DCHECK_LE(window_log, kMaxWindowLog)
           << "Failed precondition of "
              "ZlibWriterBase::Options::set_window_log(): "
              "window log out of range";

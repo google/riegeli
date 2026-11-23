@@ -24,11 +24,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/ostream_writer.h"
 #include "riegeli/bytes/write_int_internal.h"
@@ -529,7 +529,7 @@ constexpr size_t MaxLengthWriteHexUnsignedBackward() {
 template <DigitCase digit_case, typename T,
           std::enable_if_t<FitsIn<T, uint8_t>::value, int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
-  RIEGELI_ASSERT_LE(width, 2u)
+  ABSL_DCHECK_LE(width, 2u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward2<digit_case>(IntCast<uint8_t>(src), dest);
   return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
@@ -540,7 +540,7 @@ template <DigitCase digit_case, typename T,
                                               FitsIn<T, uint16_t>>,
                            int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
-  RIEGELI_ASSERT_LE(width, 4u)
+  ABSL_DCHECK_LE(width, 4u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward4<digit_case>(IntCast<uint16_t>(src), dest);
   return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
@@ -552,7 +552,7 @@ template <
                                         FitsIn<T, uint32_t>>,
                      int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
-  RIEGELI_ASSERT_LE(width, 8u)
+  ABSL_DCHECK_LE(width, 8u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward8<digit_case>(IntCast<uint32_t>(src), dest);
   return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
@@ -564,7 +564,7 @@ template <
                                         FitsIn<T, uint64_t>>,
                      int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
-  RIEGELI_ASSERT_LE(width, 16u)
+  ABSL_DCHECK_LE(width, 16u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward16<digit_case>(IntCast<uint64_t>(src), dest);
   return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));
@@ -576,7 +576,7 @@ template <
                                         FitsIn<T, absl::uint128>>,
                      int> = 0>
 inline char* WriteHexUnsignedBackward(T src, char* dest, size_t width) {
-  RIEGELI_ASSERT_LE(width, 32u)
+  ABSL_DCHECK_LE(width, 32u)
       << "Failed precondition of WriteHexUnsignedBackward(): width too large";
   WriteHexBackward32<digit_case>(IntCast<absl::uint128>(src), dest);
   return dest - UnsignedMax(width, HexStringifiedSizeUnsigned(src));

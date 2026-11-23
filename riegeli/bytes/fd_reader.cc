@@ -60,12 +60,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -164,7 +164,7 @@ const Position FdReaderBase::kMaxPosition =
     Position{std::numeric_limits<fd_internal::Offset>::max()};
 
 void FdReaderBase::Initialize(int src, const Options& options) {
-  RIEGELI_ASSERT_GE(src, 0)
+  ABSL_DCHECK_GE(src, 0)
       << "Failed precondition of FdReader: negative file descriptor";
   InitializePos(src, options
 #ifdef _WIN32
@@ -180,17 +180,17 @@ void FdReaderBase::InitializePos(int src, const Options& options
                                  bool mode_was_passed_to_open
 #endif
 ) {
-  RIEGELI_ASSERT(!has_independent_pos_)
+  ABSL_DCHECK(!has_independent_pos_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "has_independent_pos_ not reset";
-  RIEGELI_ASSERT(!supports_random_access_)
+  ABSL_DCHECK(!supports_random_access_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT_OK(random_access_status_)
+  ABSL_DCHECK_OK(random_access_status_)
       << "Failed precondition of FdReaderBase::InitializePos(): "
          "random_access_status_ not reset";
 #ifdef _WIN32
-  RIEGELI_ASSERT_EQ(original_mode_, std::nullopt)
+  ABSL_DCHECK(original_mode_ == std::nullopt)
       << "Failed precondition of FdWriterBase::InitializePos(): "
          "original_mode_ not reset";
   int text_mode = options.mode() &
@@ -347,7 +347,7 @@ void FdReaderBase::Done() {
 inline absl::Status FdReaderBase::FailedOperationStatus(
     absl::string_view operation) {
   const int error_number = errno;
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of FdReaderBase::FailedOperationStatus(): "
          "zero errno";
   return absl::ErrnoToStatus(error_number, absl::StrCat(operation, " failed"));
@@ -361,7 +361,7 @@ bool FdReaderBase::FailOperation(absl::string_view operation) {
 
 bool FdReaderBase::FailWindowsOperation(absl::string_view operation) {
   const DWORD error_number = GetLastError();
-  RIEGELI_ASSERT_NE(error_number, 0)
+  ABSL_DCHECK_NE(error_number, 0)
       << "Failed precondition of FdReaderBase::FailWindowsOperation(): "
          "zero error code";
   return Fail(WindowsErrorToStatus(IntCast<uint32_t>(error_number),
@@ -388,14 +388,14 @@ void FdReaderBase::SetReadAllHintImpl(bool read_all_hint) {
 
 bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                 char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   const int src = SrcFd();
   for (;;) {
     if (ABSL_PREDICT_FALSE(limit_pos() >= kMaxPosition)) return FailOverflow();
@@ -452,7 +452,7 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       if (!growing_source_) set_exact_size(limit_pos());
       return false;
     }
-    RIEGELI_ASSERT_LE(UnsignedCast(length_read), length_to_read)
+    ABSL_DCHECK_LE(UnsignedCast(length_read), length_to_read)
 #ifndef _WIN32
         << (has_independent_pos_ ? "pread()" : "read()")
 #else
@@ -470,11 +470,11 @@ bool FdReaderBase::ReadInternal(size_t min_length, size_t max_length,
 #ifndef _WIN32
 
 bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
-  RIEGELI_ASSERT_GT(length, 0u)
+  ABSL_DCHECK_GT(length, 0u)
       << "Failed precondition of BufferedReader::CopyInternal(): "
          "nothing to copy";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::CopyInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::CopyInternal(): "
+                    << status();
 #if !RIEGELI_DISABLE_COPY_FILE_RANGE
   if (HaveCopyFileRange<int>::value) {
     if (FdWriterBase* const fd_writer = dest.GetIf<FdWriterBase>()) {
@@ -513,7 +513,7 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
           if (!growing_source_) set_exact_size(limit_pos());
           return false;
         }
-        RIEGELI_ASSERT_LE(IntCast<size_t>(length_copied), length_to_copy)
+        ABSL_DCHECK_LE(IntCast<size_t>(length_copied), length_to_copy)
             << "copy_file_range() copied more than requested";
         move_limit_pos(IntCast<size_t>(length_copied));
         fd_writer->move_start_pos(IntCast<size_t>(length_copied));
@@ -529,10 +529,10 @@ bool FdReaderBase::CopyInternal(Position length, Writer& dest) {
 #endif  // !_WIN32
 
 inline bool FdReaderBase::SeekInternal(int src, Position new_pos) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of FdReaderBase::SeekInternal(): "
          "buffer not empty";
-  RIEGELI_ASSERT(FdReaderBase::SupportsRandomAccess())
+  ABSL_DCHECK(FdReaderBase::SupportsRandomAccess())
       << "Failed precondition of FdReaderBase::SeekInternal(): "
          "random access not supported";
   if (!has_independent_pos_) {
@@ -547,10 +547,10 @@ inline bool FdReaderBase::SeekInternal(int src, Position new_pos) {
 }
 
 bool FdReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!FdReaderBase::SupportsRandomAccess())) {

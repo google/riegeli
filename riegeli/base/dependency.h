@@ -20,10 +20,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency_manager.h"
@@ -733,7 +733,7 @@ class DependencyDerived
             std::enable_if_t<
                 IsComparableAgainstNullptr<DependentSubhandle>::value, int> = 0>
   static void AssertNotNull(Subhandle handle, absl::string_view message) {
-    RIEGELI_ASSERT(handle != nullptr) << message;
+    ABSL_DCHECK(handle != nullptr) << message;
   }
   template <
       typename DependentSubhandle = Subhandle,

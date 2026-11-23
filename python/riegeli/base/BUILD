@@ -18,11 +18,11 @@ cc_library(
     features = ["-use_header_modules"],
     deps = [
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:chain",
         "//riegeli/base:compare",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",

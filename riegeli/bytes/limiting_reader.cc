@@ -22,11 +22,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
@@ -37,7 +37,7 @@
 namespace riegeli {
 
 void LimitingReaderBase::Initialize(Reader* src, Options options) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of LimitingReader: null Reader pointer";
   set_buffer(src->start(), src->start_to_limit(), src->start_to_cursor());
   set_limit_pos(src->limit_pos());
@@ -129,10 +129,10 @@ absl::Status LimitingReaderBase::AnnotateStatusImpl(absl::Status status) {
 
 bool LimitingReaderBase::PullSlow(size_t min_length,
                                   size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::PullSlow(): "
          "enough data available, use Pull() instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
+  ABSL_DCHECK_LE(pos(), max_pos_)
       << "Failed invariant of LimitingReaderBase: position exceeds the limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
@@ -145,12 +145,11 @@ bool LimitingReaderBase::PullSlow(size_t min_length,
 }
 
 bool LimitingReaderBase::ReadSlow(size_t length, char* dest) {
-  RIEGELI_ASSERT_LT(available(), length)
+  ABSL_DCHECK_LT(available(), length)
       << "Failed precondition of Reader::ReadSlow(char*): "
          "enough data available, use Read(char&) instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -162,20 +161,20 @@ bool LimitingReaderBase::ReadSlow(size_t length, char* dest) {
 }
 
 bool LimitingReaderBase::ReadSlow(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Chain&): "
          "Chain size overflow";
   return ReadInternal(length, dest);
 }
 
 bool LimitingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "enough data available, use Read(Cord&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of Reader::ReadSlow(Cord&): "
          "Cord size overflow";
   return ReadInternal(length, dest);
@@ -183,9 +182,8 @@ bool LimitingReaderBase::ReadSlow(size_t length, absl::Cord& dest) {
 
 template <typename Dest>
 inline bool LimitingReaderBase::ReadInternal(size_t length, Dest& dest) {
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -197,12 +195,11 @@ inline bool LimitingReaderBase::ReadInternal(size_t length, Dest& dest) {
 }
 
 bool LimitingReaderBase::CopySlow(Position length, Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(Writer&): "
          "enough data available, use Copy(Writer&) instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -217,12 +214,11 @@ bool LimitingReaderBase::CopySlow(Position length, Writer& dest) {
 }
 
 bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of Reader::CopySlow(BackwardWriter&): "
          "enough data available, use Copy(BackwardWriter&) instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -242,15 +238,14 @@ bool LimitingReaderBase::CopySlow(size_t length, BackwardWriter& dest) {
 }
 
 bool LimitingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "nothing to read, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::ReadSomeSlow(char*): "
          "some data available, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -262,15 +257,14 @@ bool LimitingReaderBase::ReadSomeSlow(size_t max_length, char* dest) {
 }
 
 bool LimitingReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "nothing to read, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of Reader::CopySomeSlow(Writer&): "
          "some data available, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -286,12 +280,11 @@ bool LimitingReaderBase::CopySomeSlow(size_t max_length, Writer& dest) {
 
 void LimitingReaderBase::ReadHintSlow(size_t min_length,
                                       size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Reader::ReadHintSlow(): "
          "enough data available, use ReadHint() instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -317,12 +310,11 @@ bool LimitingReaderBase::SupportsRewind() {
 }
 
 bool LimitingReaderBase::SeekSlow(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of Reader::SeekSlow(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Reader& src = *SrcReader();
   SyncBuffer(src);
@@ -340,9 +332,8 @@ bool LimitingReaderBase::SupportsSize() {
 }
 
 std::optional<Position> LimitingReaderBase::SizeImpl() {
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return std::nullopt;
   if (exact_) return max_pos_;
   Reader& src = *SrcReader();
@@ -360,9 +351,8 @@ bool LimitingReaderBase::SupportsNewReader() {
 
 std::unique_ptr<Reader> LimitingReaderBase::NewReaderImpl(
     Position initial_pos) {
-  RIEGELI_ASSERT_LE(pos(), max_pos_)
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_LE(pos(), max_pos_) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return nullptr;
   // `NewReaderImpl()` is thread-safe from this point
   // if `SrcReader()->SupportsNewReader()`.

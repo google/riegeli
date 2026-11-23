@@ -17,7 +17,7 @@
 
 #include <stddef.h>
 
-#include "riegeli/base/assert.h"
+#include "absl/log/die_if_null.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -28,8 +28,7 @@ namespace riegeli::snappy_internal {
 // Adapts a `Writer` to a `snappy::Sink`.
 class WriterSnappySink : public snappy::Sink {
  public:
-  explicit WriterSnappySink(Writer* dest)
-      : dest_(RIEGELI_EVAL_ASSERT_NOTNULL(dest)) {}
+  explicit WriterSnappySink(Writer* dest) : dest_(ABSL_DIE_IF_NULL(dest)) {}
 
   WriterSnappySink(const WriterSnappySink&) = delete;
   WriterSnappySink& operator=(const WriterSnappySink&) = delete;
@@ -51,7 +50,7 @@ class WriterSnappySink : public snappy::Sink {
 class ReaderSnappySource : public snappy::Source {
  public:
   explicit ReaderSnappySource(Reader* src, Position size)
-      : src_(RIEGELI_EVAL_ASSERT_NOTNULL(src)), size_(size) {}
+      : src_(ABSL_DIE_IF_NULL(src)), size_(size) {}
 
   ReaderSnappySource(const ReaderSnappySource&) = delete;
   ReaderSnappySource& operator=(const ReaderSnappySource&) = delete;

@@ -25,8 +25,8 @@
 
 #include "absl/base/optimization.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/string_ref.h"
@@ -249,7 +249,7 @@ ValueParser::Function ValueParser::FailIfSeen(StringInitializer key,
 inline void OptionsParser::AddOption(
     StringInitializer key, Initializer<ValueParser::Function> function) {
   options_.emplace_back(std::move(key), std::move(function));
-  RIEGELI_ASSERT(std::none_of(
+  ABSL_DCHECK(std::none_of(
       options_.cbegin(), options_.cend() - 1,
       [&](const Option& option) { return option.key == options_.back().key; }))
       << "Failed precondition of OptionsParser::AddOption(): option "

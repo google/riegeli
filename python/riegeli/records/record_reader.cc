@@ -28,13 +28,13 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_reader.h"
 #include "python/riegeli/records/record_position.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/types.h"
@@ -153,7 +153,7 @@ void SetExceptionFromRecordReader(PyRecordReaderObject* self) {
     self->recovery_exception->Restore();
     return;
   }
-  RIEGELI_ASSERT(!self->record_reader->ok())
+  ABSL_DCHECK(!self->record_reader->ok())
       << "Failed precondition of SetExceptionFromRecordReader(): "
          "RecordReader OK";
   if (!self->record_reader->src().exception().ok()) {

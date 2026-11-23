@@ -19,9 +19,9 @@
 #include <functional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/external_ref.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -29,8 +29,8 @@
 namespace riegeli::snappy_internal {
 
 void WriterSnappySink::Append(const char* src, size_t length) {
-  RIEGELI_ASSERT(std::less_equal<>()(src, dest_->cursor()) ||
-                 std::greater_equal<>()(src, dest_->limit()))
+  ABSL_DCHECK(std::less_equal<>()(src, dest_->cursor()) ||
+              std::greater_equal<>()(src, dest_->limit()))
       << "Failed precondition of Sink::Append(): "
          "appending a pointer to the middle of GetAppendBuffer()";
   // Check also `dest_->available()` because `dest_->cursor()` might point to
@@ -38,7 +38,7 @@ void WriterSnappySink::Append(const char* src, size_t length) {
   // memory block.
   if (src == dest_->cursor() && ABSL_PREDICT_TRUE(dest_->available() > 0)) {
     // Appending a prefix of the result of `GetAppendBuffer()`.
-    RIEGELI_ASSERT_LE(length, dest_->available())
+    ABSL_DCHECK_LE(length, dest_->available())
         << "Failed precondition of Sink::Append(): "
            "appending the result of GetAppendBuffer() with length too large";
     dest_->move_cursor(length);
@@ -70,7 +70,7 @@ char* WriterSnappySink::GetAppendBufferVariable(size_t min_length,
                                                 char* scratch,
                                                 size_t scratch_length,
                                                 size_t* result_length) {
-  RIEGELI_ASSERT_GE(scratch_length, min_length)
+  ABSL_DCHECK_GE(scratch_length, min_length)
       << "Failed precondition of Sink::GetAppendBufferVariable(): "
          "scratch length too small";
   if (ABSL_PREDICT_TRUE(dest_->Push(min_length, recommended_length))) {

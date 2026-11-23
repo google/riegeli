@@ -22,9 +22,9 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/type_traits.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -82,7 +82,7 @@ template <typename A, typename B,
           std::enable_if_t<
               std::conjunction_v<IsUnsignedInt<A>, IsUnsignedInt<B>>, int> = 0>
 constexpr A IntCast(B value) {
-  RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
+  ABSL_DCHECK_LE(value, std::numeric_limits<A>::max())
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
 }
@@ -91,10 +91,10 @@ template <typename A, typename B,
           std::enable_if_t<std::conjunction_v<IsUnsignedInt<A>, IsSignedInt<B>>,
                            int> = 0>
 constexpr A IntCast(B value) {
-  RIEGELI_ASSERT_GE(value, 0)
+  ABSL_DCHECK_GE(value, 0)
       << "Failed precondition of IntCast(): value out of range";
-  RIEGELI_ASSERT_LE(static_cast<MakeUnsignedT<B>>(value),
-                    std::numeric_limits<A>::max())
+  ABSL_DCHECK_LE(static_cast<MakeUnsignedT<B>>(value),
+                 std::numeric_limits<A>::max())
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
 }
@@ -103,7 +103,7 @@ template <typename A, typename B,
           std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsUnsignedInt<B>>,
                            int> = 0>
 constexpr A IntCast(B value) {
-  RIEGELI_ASSERT_LE(value, MakeUnsignedT<A>{std::numeric_limits<A>::max()})
+  ABSL_DCHECK_LE(value, MakeUnsignedT<A>{std::numeric_limits<A>::max()})
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
 }
@@ -112,9 +112,9 @@ template <typename A, typename B,
           std::enable_if_t<std::conjunction_v<IsSignedInt<A>, IsSignedInt<B>>,
                            int> = 0>
 constexpr A IntCast(B value) {
-  RIEGELI_ASSERT_GE(value, std::numeric_limits<A>::min())
+  ABSL_DCHECK_GE(value, std::numeric_limits<A>::min())
       << "Failed precondition of IntCast(): value out of range";
-  RIEGELI_ASSERT_LE(value, std::numeric_limits<A>::max())
+  ABSL_DCHECK_LE(value, std::numeric_limits<A>::max())
       << "Failed precondition of IntCast(): value out of range";
   return static_cast<A>(value);
 }
@@ -133,7 +133,7 @@ constexpr MakeUnsignedT<T> UnsignedCast(T value) {
 // `std::numeric_limits<T>::min()`.
 template <typename T, std::enable_if_t<IsSignedInt<T>::value, int> = 0>
 constexpr MakeUnsignedT<T> NegatingUnsignedCast(T value) {
-  RIEGELI_ASSERT_LE(value, 0)
+  ABSL_DCHECK_LE(value, 0)
       << "Failed precondition of NegatingUnsignedCast(): positive value";
   // Negate in the unsigned space to correctly handle
   // `std::numeric_limits<T>::min()`.
@@ -375,10 +375,10 @@ constexpr T RoundUp(T value) {
 template <typename A>
 constexpr size_t PtrDistance(const A* absl_nullable first,
                              const A* absl_nullable last) {
-  RIEGELI_ASSERT_EQ(first == nullptr, last == nullptr)
+  ABSL_DCHECK_EQ(first == nullptr, last == nullptr)
       << "Failed precondition of PtrDistance(): "
          "nullptr compared with non-nullptr";
-  RIEGELI_ASSERT_LE(first, last)
+  ABSL_DCHECK_LE(first, last)
       << "Failed precondition of PtrDistance(): pointers in the wrong order";
   return IntCast<size_t>(last - first);
 }

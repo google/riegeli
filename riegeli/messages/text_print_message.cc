@@ -17,12 +17,12 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/chain_writer.h"
 #include "riegeli/bytes/cord_writer.h"
@@ -37,7 +37,7 @@ namespace text_print_message_internal {
 absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
                                   Writer& dest,
                                   const TextPrintMessageOptions& options) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to text-print message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -54,7 +54,7 @@ absl::Status TextPrintMessageImpl(const google::protobuf::Message& src,
   WriterOutputStream output_stream(&dest);
   const bool print_ok = options.printer().Print(src, &output_stream);
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
-  RIEGELI_ASSERT(print_ok)
+  ABSL_DCHECK(print_ok)
       << "Failed to text-print message of type " << src.GetTypeName()
       << ": TextFormat::Printer::Print() failed for an unknown reason";
   return absl::OkStatus();

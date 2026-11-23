@@ -24,9 +24,9 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -331,7 +331,7 @@ inline void StringWriterBase::Reset(BufferOptions buffer_options) {
 }
 
 inline void StringWriterBase::Initialize(std::string* dest, bool append) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of StringWriter: null string pointer";
   if (append) {
     set_start_pos(dest->size());
@@ -349,8 +349,8 @@ inline void StringWriterBase::MoveSecondaryBuffer(StringWriterBase& that) {
   const size_t saved_start_to_limit = start_to_limit();
   const size_t saved_start_to_cursor = start_to_cursor();
   if (uses_buffer) {
-    RIEGELI_ASSERT(that.secondary_buffer_.blocks().back().data() +
-                       that.secondary_buffer_.blocks().back().size() ==
+    ABSL_DCHECK_EQ(that.secondary_buffer_.blocks().back().data() +
+                       that.secondary_buffer_.blocks().back().size(),
                    limit())
         << "Failed invariant of StringWriter: "
            "secondary buffer inconsistent with buffer pointers";
@@ -373,9 +373,9 @@ class StringWriter<Dest>::Mover {
       : uses_buffer_(self.start() != nullptr && !self.uses_secondary_buffer()),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT_EQ(that.dest_->data(), self.start())
+      ABSL_DCHECK_EQ(that.dest_->data(), self.start())
           << "StringWriter destination changed unexpectedly";
-      RIEGELI_ASSERT_EQ(that.dest_->size(), self.start_to_limit())
+      ABSL_DCHECK_EQ(that.dest_->size(), self.start_to_limit())
           << "StringWriter destination changed unexpectedly";
     }
   }

@@ -26,8 +26,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/initializer.h"
@@ -493,8 +493,7 @@ template <typename... T>
 inline void AsciiLeftType<T...>::WriteTo(Writer& dest) const& {
   const Position pos_before = dest.pos();
   dest.Write(values_);
-  RIEGELI_ASSERT_GE(dest.pos(), pos_before)
-      << "Writer::Write() decreased pos()";
+  ABSL_DCHECK_GE(dest.pos(), pos_before) << "Writer::Write() decreased pos()";
   dest.Write(ByteFill(SaturatingSub(options_.width(), dest.pos() - pos_before),
                       options_.fill()));
 }
@@ -503,8 +502,7 @@ template <typename... T>
 inline void AsciiLeftType<T...>::WriteTo(Writer& dest) && {
   const Position pos_before = dest.pos();
   dest.Write(std::move(values_));
-  RIEGELI_ASSERT_GE(dest.pos(), pos_before)
-      << "Writer::Write() decreased pos()";
+  ABSL_DCHECK_GE(dest.pos(), pos_before) << "Writer::Write() decreased pos()";
   dest.Write(ByteFill(SaturatingSub(options_.width(), dest.pos() - pos_before),
                       options_.fill()));
 }

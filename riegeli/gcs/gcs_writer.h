@@ -28,6 +28,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "google/cloud/status.h"
@@ -41,7 +42,6 @@
 #include "google/cloud/storage/user_ip_option.h"
 #include "google/cloud/storage/well_known_headers.h"
 #include "google/cloud/storage/well_known_parameters.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
@@ -187,7 +187,7 @@ class GcsWriter
       WriteObjectOptions&&... write_object_options);
 
   google::cloud::storage::Client& client() {
-    RIEGELI_ASSERT(client_ != std::nullopt)
+    ABSL_DCHECK(client_ != std::nullopt)
         << "Failed precondition of GcsWriter::client(): "
            "default-constructed GcsWriter";
     return *client_;
@@ -536,9 +536,9 @@ inline const google::cloud::storage::ObjectMetadata& GcsWriter::metadata()
   if (metadata_ != std::nullopt) return *metadata_;
   const google::cloud::StatusOr<google::cloud::storage::ObjectMetadata>&
       metadata = dest().metadata();
-  RIEGELI_ASSERT_OK(metadata)
-      << "Failed precondition of GcsWriter::metadata(): "
-         "Close() must have succeeded";
+  ABSL_DCHECK(metadata.ok()) << "Failed precondition of GcsWriter::metadata(): "
+                                "Close() must have succeeded: "
+                             << metadata.status();
   return *metadata;
 }
 
@@ -546,9 +546,9 @@ inline google::cloud::storage::ObjectMetadata&& GcsWriter::metadata() && {
   if (metadata_ != std::nullopt) return *std::move(metadata_);
   google::cloud::StatusOr<google::cloud::storage::ObjectMetadata>&& metadata =
       std::move(dest()).metadata();
-  RIEGELI_ASSERT_OK(metadata)
-      << "Failed precondition of GcsWriter::metadata(): "
-         "Close() must have succeeded";
+  ABSL_DCHECK(metadata.ok()) << "Failed precondition of GcsWriter::metadata(): "
+                                "Close() must have succeeded: "
+                             << metadata.status();
   return *std::move(metadata);
 }
 

@@ -23,11 +23,11 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/reset.h"
 #include "riegeli/bytes/limiting_reader.h"
 #include "riegeli/messages/cord_iterator_span.h"
@@ -50,8 +50,8 @@ SerializedMessageAssembler::Builder::~Builder() = default;
 void SerializedMessageAssembler::Builder::Reset() {
   next_parent_for_add_ = {/*raw=*/0};
   next_field_for_remove_ = {/*raw=*/0};
-  RIEGELI_ASSERT_EQ(root_builder_.field_for_remove.raw,
-                    FieldForRemove::kUnregistered);
+  ABSL_DCHECK_EQ(root_builder_.field_for_remove.raw,
+                 FieldForRemove::kUnregistered);
   root_builder_.parent_for_add = ParentForAdd();
   root_builder_.children.clear();
 }
@@ -132,7 +132,7 @@ SerializedMessageAssembler::SerializedMessageAssembler(Builder&& builder)
 void SerializedMessageAssembler::Reset() {
   num_fields_for_add_ = {/*raw=*/0};
   num_fields_for_remove_ = {/*raw=*/0};
-  RIEGELI_ASSERT_EQ(root_.field_number, 0);
+  ABSL_DCHECK_EQ(root_.field_number, 0);
   root_.parent_for_add = ParentForAdd();
   root_.submessages.clear();
   root_.handlers.Reset();
@@ -141,7 +141,7 @@ void SerializedMessageAssembler::Reset() {
 void SerializedMessageAssembler::Reset(Builder&& builder) {
   num_fields_for_add_ = builder.next_parent_for_add_;
   num_fields_for_remove_ = builder.next_field_for_remove_;
-  RIEGELI_ASSERT_EQ(root_.field_number, 0);
+  ABSL_DCHECK_EQ(root_.field_number, 0);
   root_.submessages.clear();
   Build(
       /*field_number=*/0, std::move(builder.root_builder_), root_);
@@ -320,7 +320,7 @@ struct SerializedMessageAssembler::SubmessageHandler {
 void SerializedMessageAssembler::Build(int field_number,
                                        RegisteredFieldBuilder&& message_builder,
                                        RegisteredMessage& message) {
-  RIEGELI_ASSERT(message.submessages.empty())
+  ABSL_DCHECK(message.submessages.empty())
       << "Failed precondition of SerializedMessageAssembler::Build(): "
          "message not empty";
   message.field_number = field_number;
@@ -351,7 +351,7 @@ void SerializedMessageAssembler::Build(int field_number,
           entry.first, LeafHandler{entry.first, entry.second.field_for_remove});
     }
   }
-  RIEGELI_ASSERT_EQ(submessage_index, num_submessages)
+  ABSL_DCHECK_EQ(submessage_index, num_submessages)
       << "The whole submessages array should have been filled";
   riegeli::Reset(message.handlers, std::move(fields_builder));
 }
@@ -374,7 +374,7 @@ absl::Status SerializedMessageAssembler::WriteNewFields(
     absl::Span<const bool> submessages_rewritten,
     SerializedMessageWriter& message_writer) {
   const absl::Span<const RegisteredMessage> submessages = message.submessages;
-  RIEGELI_ASSERT_EQ(submessages.size(), submessages_rewritten.size());
+  ABSL_DCHECK_EQ(submessages.size(), submessages_rewritten.size());
 
   // Create submessages for new fields and write these fields.
   for (size_t submessage_index = 0; submessage_index < submessages.size();

@@ -25,8 +25,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -145,7 +145,7 @@ class ZstdReaderBase : public BufferedReader {
   //
   // Precondition: `Options::concatenate()` was `false`.
   bool truncated() const {
-    RIEGELI_ASSERT(!concatenate_)
+    ABSL_DCHECK(!concatenate_)
         << "Failed precondition of ZstdReaderBase::truncated(): "
            "Options::concatenate() is true";
     return truncated_ && available() == 0;

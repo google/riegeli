@@ -29,11 +29,11 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any_initializer.h"
 #include "riegeli/base/any_internal.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/closing_ptr.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
@@ -209,7 +209,7 @@ class AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>,
             std::enable_if_t<IsComparableAgainstNullptr<DependentHandle>::value,
                              int> = 0>
   void AssertNotNull(absl::string_view message) const {
-    RIEGELI_ASSERT(get() != nullptr) << message;
+    ABSL_DCHECK(get() != nullptr) << message;
   }
   template <typename DependentHandle = Handle,
             std::enable_if_t<

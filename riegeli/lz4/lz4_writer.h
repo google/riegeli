@@ -23,11 +23,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "lz4frame.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -50,7 +50,7 @@ class Lz4WriterBase : public BufferedWriter {
   class Options : public BufferOptionsBase<Options> {
    public:
     Options() noexcept {
-      RIEGELI_ASSERT_EQ(LZ4F_compressionLevel_max(), kMaxCompressionLevel)
+      ABSL_DCHECK_EQ(LZ4F_compressionLevel_max(), kMaxCompressionLevel)
           << "Unexpected value of LZ4F_compressionLevel_max()";
     }
 
@@ -72,11 +72,11 @@ class Lz4WriterBase : public BufferedWriter {
     static constexpr int kDefaultCompressionLevel = 0;
     Options& set_compression_level(int compression_level) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+      ABSL_DCHECK_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "Lz4WriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+      ABSL_DCHECK_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "Lz4WriterBase::Options::set_compression_level(): "
              "compression level out of range";
@@ -101,10 +101,10 @@ class Lz4WriterBase : public BufferedWriter {
     static constexpr int kMaxWindowLog = 22;
     static constexpr int kDefaultWindowLog = 16;
     Options& set_window_log(int window_log) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(window_log, kMinWindowLog)
+      ABSL_DCHECK_GE(window_log, kMinWindowLog)
           << "Failed precondition of Lz4WriterBase::Options::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(window_log, kMaxWindowLog)
+      ABSL_DCHECK_LE(window_log, kMaxWindowLog)
           << "Failed precondition of Lz4WriterBase::Options::set_window_log(): "
              "window log out of range";
       window_log_ = window_log;
@@ -288,7 +288,7 @@ class Lz4WriterBase : public BufferedWriter {
   struct LZ4F_cctxDeleter {
     void operator()(LZ4F_cctx* ptr) const {
       const LZ4F_errorCode_t result = LZ4F_freeCompressionContext(ptr);
-      RIEGELI_ASSERT(!LZ4F_isError(result))
+      ABSL_DCHECK(!LZ4F_isError(result))
           << "LZ4F_freeCompressionContext() failed: "
           << LZ4F_getErrorName(result);
     }

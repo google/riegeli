@@ -16,11 +16,11 @@
 
 #include <string>
 
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "bzlib.h"
-#include "riegeli/base/assert.h"
 
 namespace riegeli::bzip2_internal {
 
@@ -51,7 +51,8 @@ absl::Status Bzip2ErrorToStatus(absl::string_view operation, int bzlib_code) {
     case BZ_RUN_OK:
     case BZ_FLUSH_OK:
     case BZ_FINISH_OK:
-      RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
+      // Handled before switch.
+      ABSL_UNREACHABLE();
     case BZ_STREAM_END:
       details = "stream end";
       break;

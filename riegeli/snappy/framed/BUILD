@@ -13,7 +13,6 @@ cc_library(
     hdrs = ["framed_snappy_reader.h"],
     deps = [
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:buffer",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
@@ -26,6 +25,7 @@ cc_library(
         "//riegeli/endian:endian_reading",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/crc:crc32c",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
@@ -40,7 +40,6 @@ cc_library(
     deps = [
         ":framed_snappy_reader",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:buffer",
         "//riegeli/base:buffering",
         "//riegeli/base:dependency",
@@ -55,6 +54,7 @@ cc_library(
         "//riegeli/digests:digesting_writer",
         "//riegeli/endian:endian_writing",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",

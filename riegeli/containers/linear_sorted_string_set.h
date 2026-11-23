@@ -29,10 +29,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
@@ -324,7 +324,7 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
   // owned by the `Iterator`, except that the last `absl::string_view` remains
   // valid while the iterator moves to `end()`.
   reference operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(cursor_, nullptr)
+    ABSL_DCHECK(cursor_ != nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::Iterator::operator*: "
            "iterator is end()";
@@ -337,7 +337,7 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
   }
 
   pointer operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(cursor_, nullptr)
+    ABSL_DCHECK(cursor_ != nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::Iterator::operator->: "
            "iterator is end()";
@@ -363,7 +363,7 @@ class LinearSortedStringSet::Iterator : public WithEqual<Iterator> {
 
   explicit Iterator(absl::string_view encoded)
       : cursor_(encoded.data()), limit_(encoded.data() + encoded.size()) {
-    RIEGELI_ASSERT(cursor_ != nullptr)
+    ABSL_DCHECK(cursor_ != nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::Iterator::Iterator(): "
            "encoded.data() is nullptr";
@@ -505,7 +505,7 @@ class LinearSortedStringSet::SplitElementIterator
   // conditionally owned by the `SplitElementIterator`, except that the last
   // `SplitElement` remains valid while the iterator moves to `end()`.
   reference operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(cursor_, nullptr)
+    ABSL_DCHECK(cursor_ != nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::SplitElementIterator::operator*: "
            "iterator is end()";
@@ -514,7 +514,7 @@ class LinearSortedStringSet::SplitElementIterator
   }
 
   pointer operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(cursor_, nullptr)
+    ABSL_DCHECK(cursor_ != nullptr)
         << "Failed precondition of "
            "LinearSortedStringSet::SplitElementIterator::operator->: "
            "iterator is end()";
@@ -664,7 +664,7 @@ class LinearSortedStringSet::Builder {
 
   // Returns the last inserted element. The set must not be empty.
   absl::string_view last() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(!empty())
+    ABSL_DCHECK(!empty())
         << "Failed precondition of LinearSortedStringSet::Builder::last(): "
            "empty set";
     return last_;
@@ -731,7 +731,7 @@ class LinearSortedStringSet::NextInsertIterator {
   NextInsertIterator& operator=(const NextInsertIterator& that) = default;
 
   reference operator*() const {
-    RIEGELI_ASSERT_NE(builder_, nullptr)
+    ABSL_DCHECK(builder_ != nullptr)
         << "Failed precondition of NextInsertIterator::operator*: "
            "iterator is sentinel";
     return reference(builder_);
@@ -887,7 +887,7 @@ inline absl::Status LinearSortedStringSet::Decode(Src&& src,
 
 inline const char& LinearSortedStringSet::SplitElement::operator[](
     size_t index) const {
-  RIEGELI_ASSERT_LT(index, size())
+  ABSL_DCHECK_LT(index, size())
       << "Failed precondition of "
          "LinearSortedStringSet::SplitElement::operator[]: "
          "index out of range";
@@ -896,7 +896,7 @@ inline const char& LinearSortedStringSet::SplitElement::operator[](
 }
 
 inline const char& LinearSortedStringSet::SplitElement::at(size_t index) const {
-  RIEGELI_CHECK_LT(index, size())
+  ABSL_CHECK_LT(index, size())
       << "Failed precondition of LinearSortedStringSet::SplitElement::at(): "
          "index out of range";
   return index < prefix().size() ? prefix()[index]
@@ -904,21 +904,21 @@ inline const char& LinearSortedStringSet::SplitElement::at(size_t index) const {
 }
 
 inline const char& LinearSortedStringSet::SplitElement::front() const {
-  RIEGELI_ASSERT(!empty()) << "Failed precondition of "
-                              "LinearSortedStringSet::SplitElement::front(): "
-                              "empty string";
+  ABSL_DCHECK(!empty()) << "Failed precondition of "
+                           "LinearSortedStringSet::SplitElement::front(): "
+                           "empty string";
   return prefix().empty() ? suffix().front() : prefix().front();
 }
 
 inline const char& LinearSortedStringSet::SplitElement::back() const {
-  RIEGELI_ASSERT(!empty()) << "Failed precondition of "
-                              "LinearSortedStringSet::SplitElement::back(): "
-                              "empty string";
+  ABSL_DCHECK(!empty()) << "Failed precondition of "
+                           "LinearSortedStringSet::SplitElement::back(): "
+                           "empty string";
   return suffix().empty() ? prefix().back() : suffix().back();
 }
 
 inline void LinearSortedStringSet::SplitElement::remove_prefix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size())
+  ABSL_DCHECK_LE(length, size())
       << "Failed precondition of "
          "LinearSortedStringSet::SplitElement::remove_prefix(): "
          "length out of range";
@@ -931,7 +931,7 @@ inline void LinearSortedStringSet::SplitElement::remove_prefix(size_t length) {
 }
 
 inline void LinearSortedStringSet::SplitElement::remove_suffix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size())
+  ABSL_DCHECK_LE(length, size())
       << "Failed precondition of "
          "LinearSortedStringSet::SplitElement::remove_suffix(): "
          "length out of range";

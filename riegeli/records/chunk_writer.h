@@ -22,8 +22,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -103,7 +103,7 @@ class ChunkWriter : public Object {
   void Reset();
   void set_pos(Position pos) { pos_ = pos; }
   void move_pos(Position length) {
-    RIEGELI_ASSERT_LE(length, std::numeric_limits<Position>::max() - pos_)
+    ABSL_DCHECK_LE(length, std::numeric_limits<Position>::max() - pos_)
         << "Failed precondition of ChunkWriter::move_pos(): position overflow";
     pos_ += length;
   }

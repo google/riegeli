@@ -23,11 +23,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -237,12 +237,12 @@ inline void PrefixLimitingWriterBase::Reset() {
 
 inline void PrefixLimitingWriterBase::Initialize(
     Writer* dest, std::optional<Position> base_pos) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of PrefixLimitingWriter: null Writer pointer";
   if (base_pos == std::nullopt) {
     base_pos_ = dest->pos();
   } else {
-    RIEGELI_ASSERT_LE(*base_pos, dest->pos())
+    ABSL_DCHECK_LE(*base_pos, dest->pos())
         << "Failed precondition of PrefixLimitingWriter: "
            "current position below the base position";
     base_pos_ = *base_pos;
@@ -255,7 +255,7 @@ inline void PrefixLimitingWriterBase::SyncBuffer(Writer& dest) {
 }
 
 inline void PrefixLimitingWriterBase::MakeBuffer(Writer& dest) {
-  RIEGELI_ASSERT_GE(dest.pos(), base_pos_)
+  ABSL_DCHECK_GE(dest.pos(), base_pos_)
       << "PrefixLimitingWriter destination changed position unexpectedly";
   set_buffer(dest.cursor(), dest.available());
   set_start_pos(dest.pos() - base_pos_);

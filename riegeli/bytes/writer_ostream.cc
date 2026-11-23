@@ -22,11 +22,11 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/types.h"
@@ -214,7 +214,7 @@ int WriterStreambuf::underflow() {
 }
 
 std::streamsize WriterStreambuf::xsgetn(char* dest, std::streamsize length) {
-  RIEGELI_ASSERT_GE(length, 0)
+  ABSL_DCHECK_GE(length, 0)
       << "Failed precondition of streambuf::xsgetn(): negative length";
   if (ABSL_PREDICT_TRUE(length <= egptr() - gptr())) {
     riegeli::null_safe_memcpy(dest, gptr(), IntCast<size_t>(length));
@@ -255,7 +255,7 @@ int WriterStreambuf::overflow(int src) {
 
 std::streamsize WriterStreambuf::xsputn(const char* src,
                                         std::streamsize length) {
-  RIEGELI_ASSERT_GE(length, 0)
+  ABSL_DCHECK_GE(length, 0)
       << "Failed precondition of streambuf::xsputn(): negative length";
   if (ABSL_PREDICT_TRUE(length <= epptr() - pptr())) {
     riegeli::null_safe_memcpy(pptr(), src, IntCast<size_t>(length));
@@ -272,7 +272,7 @@ std::streamsize WriterStreambuf::xsputn(const char* src,
     FailWriter();
     // `Write()` could have decreased `pos()` on failure.
     const Position length_written = SaturatingSub(writer_->pos(), pos_before);
-    RIEGELI_ASSERT_LE(length_written, IntCast<size_t>(length))
+    ABSL_DCHECK_LE(length_written, IntCast<size_t>(length))
         << "Writer::Write(absl::string_view) wrote more than requested";
     return IntCast<std::streamsize>(length_written);
   }
@@ -349,8 +349,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       }
     } break;
     default:
-      RIEGELI_ASSUME_UNREACHABLE()
-          << "Unknown seek direction: " << static_cast<int>(dir);
+      ABSL_UNREACHABLE();
   }
   if ((which & std::ios_base::in) != 0) {
     // Switch to read mode.
@@ -364,7 +363,7 @@ std::streampos WriterStreambuf::seekoff(std::streamoff off,
       }
       seek_ok = reader_->pos() == new_pos;
     } else {
-      RIEGELI_ASSERT(reader_->SupportsRewind())
+      ABSL_DCHECK(reader_->SupportsRewind())
           << "Failed postcondition of Writer::ReadMode(): "
              "!Reader::SupportsRewind()";
       seek_ok = reader_->Seek(new_pos);

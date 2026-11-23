@@ -27,11 +27,11 @@
 #include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/backward_writer.h"
 #include "riegeli/bytes/limiting_reader.h"
@@ -118,7 +118,7 @@ class SerializedMessageBackwardWriter {
   // to `writer()` is done in the opposite order than in
   // `SerializedMessageWriter`.
   BackwardWriter& writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(dest_ != nullptr)
+    ABSL_DCHECK(dest_ != nullptr)
         << "Failed precondition of SerializedMessageBackwardWriter::writer(): "
            "dest() not set";
     return *dest_;
@@ -273,14 +273,14 @@ SerializedMessageBackwardWriter::operator=(
 inline void SerializedMessageBackwardWriter::set_dest(
     BackwardWriter* absl_nullable dest) {
   if (!submessages_.empty()) {
-    RIEGELI_ASSERT(dest != nullptr)
+    ABSL_DCHECK(dest != nullptr)
         << "Failed precondition of "
            "SerializedMessageBackwardWriter::set_dest(): "
            "null BackwardWriter pointer while writing a submessage";
-    RIEGELI_ASSERT(dest_ != nullptr)
+    ABSL_DCHECK(dest_ != nullptr)
         << "Failed invariant of SerializedMessageBackwardWriter: "
            "dest_ is null while writing a submessage";
-    RIEGELI_ASSERT_EQ(dest->pos(), dest_->pos())
+    ABSL_DCHECK_EQ(dest->pos(), dest_->pos())
         << "Failed precondition of "
            "SerializedMessageBackwardWriter::set_dest(): "
            "pos() changes while writing a submessage";
@@ -504,7 +504,7 @@ inline absl::Status SerializedMessageBackwardWriter::WriteString(
   if (ABSL_PREDICT_FALSE(!writer().Write(std::forward<Values>(values)...))) {
     return writer().status();
   }
-  RIEGELI_ASSERT_GE(writer().pos(), pos_before)
+  ABSL_DCHECK_GE(writer().pos(), pos_before)
       << "BackwardWriter::Write() decreased pos()";
   return WriteLengthUnchecked(field_number, writer().pos() - pos_before);
 }

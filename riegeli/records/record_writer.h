@@ -27,12 +27,12 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -267,7 +267,7 @@ class RecordWriterBase : public Object {
     Options& set_chunk_size(std::optional<uint64_t> chunk_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       if (chunk_size != std::nullopt) {
-        RIEGELI_ASSERT_GT(*chunk_size, 0u)
+        ABSL_DCHECK_GT(*chunk_size, 0u)
             << "Failed precondition of "
                "RecordWriterBase::Options::set_chunk_size(): "
                "zero chunk size";
@@ -302,11 +302,11 @@ class RecordWriterBase : public Object {
     // Default: 1.0.
     Options& set_bucket_fraction(double bucket_fraction) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(bucket_fraction, 0.0)
+      ABSL_DCHECK_GE(bucket_fraction, 0.0)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_bucket_fraction(): "
              "negative bucket fraction";
-      RIEGELI_ASSERT_LE(bucket_fraction, 1.0)
+      ABSL_DCHECK_LE(bucket_fraction, 1.0)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_bucket_fraction(): "
              "fraction larger than 1";
@@ -393,7 +393,7 @@ class RecordWriterBase : public Object {
     // Default: 1 (no padding).
     Options& set_padding(Position padding = kImplicitPadding) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GT(padding, 0u)
+      ABSL_DCHECK_GT(padding, 0u)
           << "Failed precondition of RecordWriterBase::Options::set_padding(): "
              "padding must be positive";
       initial_padding_ = padding;
@@ -415,7 +415,7 @@ class RecordWriterBase : public Object {
     // Default: 1 (no padding).
     Options& set_initial_padding(Position initial_padding = kImplicitPadding) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GT(initial_padding, 0u)
+      ABSL_DCHECK_GT(initial_padding, 0u)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_initial_padding(): "
              "padding must be positive";
@@ -440,7 +440,7 @@ class RecordWriterBase : public Object {
     // Default: 1 (no padding).
     Options& set_final_padding(Position final_padding = kImplicitPadding) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GT(final_padding, 0u)
+      ABSL_DCHECK_GT(final_padding, 0u)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_final_padding(): "
              "padding must be positive";
@@ -462,7 +462,7 @@ class RecordWriterBase : public Object {
     //
     // Default: 0.
     Options& set_parallelism(int parallelism) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(parallelism, 0)
+      ABSL_DCHECK_GE(parallelism, 0)
           << "Failed precondition of "
              "RecordWriterBase::Options::set_parallelism(): "
              "negative parallelism";

@@ -21,10 +21,10 @@
 
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/resize_and_overwrite.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/string_utils.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -34,7 +34,7 @@ namespace riegeli {
 void CordIteratorSpan::ReadSlow(absl::Cord::CharIterator& src, size_t length,
                                 char* dest) {
   absl::string_view chunk = absl::Cord::ChunkRemaining(src);
-  RIEGELI_ASSERT_LT(chunk.size(), length)
+  ABSL_DCHECK_LT(chunk.size(), length)
       << "Failed precondition of CordIteratorSpan::ReadSlow(): "
          "enough data available, use Read() instead";
   do {

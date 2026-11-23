@@ -14,7 +14,6 @@ cc_library(
     deps = [
         ":bzip2_error",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:object",
@@ -25,6 +24,7 @@ cc_library(
         "//riegeli/bytes:reader",
         "@bzip2//:bz2",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
@@ -38,7 +38,6 @@ cc_library(
     deps = [
         ":bzip2_error",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:object",
@@ -49,6 +48,7 @@ cc_library(
         "//riegeli/bytes:writer",
         "@bzip2//:bz2",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
@@ -61,8 +61,8 @@ cc_library(
     hdrs = ["bzip2_error.h"],
     visibility = ["//visibility:private"],
     deps = [
-        "//riegeli/base:assert",
         "@bzip2//:bz2",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",

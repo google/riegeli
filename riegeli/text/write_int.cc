@@ -26,10 +26,10 @@
 #include <limits>  // IWYU pragma: keep
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"  // IWYU pragma: keep
 #include "absl/numeric/int128.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/endian/endian_writing.h"
 
 namespace riegeli::write_int_internal {
@@ -134,7 +134,7 @@ inline T DigitCaseDependent(T for_lower, T for_upper) {
 
 template <DigitCase digit_case>
 inline char* WriteHex1Impl(uint8_t src, char* dest) {
-  RIEGELI_ASSERT_LT(src, 0x10)
+  ABSL_DCHECK_LT(src, 0x10)
       << "Failed precondition of WriteHex1Impl(): value too large";
   *dest = static_cast<char>(src) +
           (src < 10 ? '0' : DigitCaseDependent<digit_case>('a', 'A') - 10);

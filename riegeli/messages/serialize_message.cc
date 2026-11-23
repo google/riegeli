@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/cord_buffer.h"
@@ -32,7 +33,6 @@
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compact_string.h"
@@ -76,15 +76,15 @@ inline absl::Status SerializeMessageUsingStream(
     coded_stream.SetSerializationDeterministic(*deterministic);
   }
   src.SerializeWithCachedSizes(&coded_stream);
-  RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+  ABSL_DCHECK_EQ(src.ByteSizeLong(), size)
       << src.GetTypeName() << " was modified concurrently during serialization";
   // Flush `coded_stream` before checking `dest.ok()`.
   coded_stream.Trim();
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
-  RIEGELI_ASSERT(!coded_stream.HadError())
+  ABSL_DCHECK(!coded_stream.HadError())
       << "Failed to serialize message of type " << src.GetTypeName()
       << ": SerializeWithCachedSizes() failed for an unknown reason";
-  RIEGELI_ASSERT_EQ(IntCast<size_t>(coded_stream.ByteCount()), size)
+  ABSL_DCHECK_EQ(IntCast<size_t>(coded_stream.ByteCount()), size)
       << "Byte size calculation and serialization were inconsistent. "
          "This may indicate a bug in protocol buffers "
          "or it may be caused by concurrent modification of "
@@ -106,10 +106,10 @@ inline absl::Status SerializeMessageHavingSize(
     char* const cursor =
         reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
             reinterpret_cast<uint8_t*>(dest.cursor())));
-    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+    ABSL_DCHECK_EQ(src.ByteSizeLong(), size)
         << src.GetTypeName()
         << " was modified concurrently during serialization";
-    RIEGELI_ASSERT_EQ(PtrDistance(dest.cursor(), cursor), size)
+    ABSL_DCHECK_EQ(PtrDistance(dest.cursor(), cursor), size)
         << "Byte size calculation and serialization were inconsistent. "
            "This may indicate a bug in protocol buffers "
            "or it may be caused by concurrent modification of "
@@ -135,10 +135,10 @@ inline absl::Status SerializeMessageHavingSize(
     char* const cursor =
         reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
             reinterpret_cast<uint8_t*>(dest.cursor())));
-    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+    ABSL_DCHECK_EQ(src.ByteSizeLong(), size)
         << src.GetTypeName()
         << " was modified concurrently during serialization";
-    RIEGELI_ASSERT_EQ(PtrDistance(dest.cursor(), cursor), size)
+    ABSL_DCHECK_EQ(PtrDistance(dest.cursor(), cursor), size)
         << "Byte size calculation and serialization were inconsistent. "
            "This may indicate a bug in protocol buffers "
            "or it may be caused by concurrent modification of "
@@ -165,7 +165,7 @@ namespace serialize_message_internal {
 absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
                                   Writer& dest, SerializeMessageOptions options,
                                   bool set_write_hint) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -182,7 +182,7 @@ absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
                                   BackwardWriter& dest,
                                   SerializeMessageOptions options,
                                   bool set_write_hint) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -200,7 +200,7 @@ absl::Status SerializeMessageImpl(const google::protobuf::MessageLite& src,
 absl::Status SerializeLengthPrefixedMessage(
     const google::protobuf::MessageLite& src, Writer& dest,
     SerializeMessageOptions options) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -218,7 +218,7 @@ absl::Status SerializeLengthPrefixedMessage(
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                               std::string& dest,
                               SerializeMessageOptions options) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -240,10 +240,10 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
           char* const cursor =
               reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
                   reinterpret_cast<uint8_t*>(data)));
-          RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+          ABSL_DCHECK_EQ(src.ByteSizeLong(), size)
               << src.GetTypeName()
               << " was modified concurrently during serialization";
-          RIEGELI_ASSERT_EQ(PtrDistance(data, cursor), size)
+          ABSL_DCHECK_EQ(PtrDistance(data, cursor), size)
               << "Byte size calculation and serialization were inconsistent. "
                  "This may indicate a bug in protocol buffers "
                  "or it may be caused by concurrent modification of "
@@ -253,10 +253,10 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
         riegeli::ArrayWriter writer(data, size);
         status = SerializeMessageUsingStream(src, writer,
                                              options.deterministic(), size);
-        RIEGELI_EVAL_ASSERT(writer.Close())
-            << "ArrayWriter has no reason to fail "
-               "if the size does not overflow: "
-            << writer.status();
+        const bool close_ok = writer.Close();
+        ABSL_DCHECK(close_ok) << "ArrayWriter has no reason to fail "
+                                 "if the size does not overflow: "
+                              << writer.status();
         return writer.written().size();
       });
   return status;
@@ -265,7 +265,7 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                               CompactString& dest,
                               SerializeMessageOptions options) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -275,17 +275,17 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     return FailSizeOverflow(src, size);
   }
   char* const data = dest.resize(size, 0);
-  RIEGELI_ASSERT(data != nullptr) << "CompactString data are never nullptr";
+  ABSL_DCHECK(data != nullptr) << "CompactString data are never nullptr";
   if (options.deterministic() == std::nullopt) {
     // Creating a string, which is necessarily flat.
     // `SerializeWithCachedSizesToArray()` is faster than
     // `SerializeWithCachedSizes()`.
     char* const cursor = reinterpret_cast<char*>(
         src.SerializeWithCachedSizesToArray(reinterpret_cast<uint8_t*>(data)));
-    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+    ABSL_DCHECK_EQ(src.ByteSizeLong(), size)
         << src.GetTypeName()
         << " was modified concurrently during serialization";
-    RIEGELI_ASSERT_EQ(PtrDistance(data, cursor), size)
+    ABSL_DCHECK_EQ(PtrDistance(data, cursor), size)
         << "Byte size calculation and serialization were inconsistent. "
            "This may indicate a bug in protocol buffers "
            "or it may be caused by concurrent modification of "
@@ -295,15 +295,16 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   riegeli::ArrayWriter writer(data, size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
-  RIEGELI_EVAL_ASSERT(writer.Close()) << "ArrayWriter has no reason to fail "
-                                         "if the size does not overflow: "
-                                      << writer.status();
+  const bool close_ok = writer.Close();
+  ABSL_DCHECK(close_ok) << "ArrayWriter has no reason to fail "
+                           "if the size does not overflow: "
+                        << writer.status();
   return status;
 }
 
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                               Chain& dest, SerializeMessageOptions options) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -324,10 +325,10 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     char* const cursor =
         reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
             reinterpret_cast<uint8_t*>(buffer.data())));
-    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+    ABSL_DCHECK_EQ(src.ByteSizeLong(), size)
         << src.GetTypeName()
         << " was modified concurrently during serialization";
-    RIEGELI_ASSERT_EQ(PtrDistance(buffer.data(), cursor), size)
+    ABSL_DCHECK_EQ(PtrDistance(buffer.data(), cursor), size)
         << "Byte size calculation and serialization were inconsistent. "
            "This may indicate a bug in protocol buffers "
            "or it may be caused by concurrent modification of "
@@ -338,15 +339,16 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   writer.SetWriteSizeHint(size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
-  RIEGELI_EVAL_ASSERT(writer.Close())
-      << "ChainWriter has no reason to fail: " << writer.status();
+  const bool close_ok = writer.Close();
+  ABSL_DCHECK(close_ok) << "ChainWriter has no reason to fail: "
+                        << writer.status();
   return status;
 }
 
 absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
                               absl::Cord& dest,
                               SerializeMessageOptions options) {
-  RIEGELI_ASSERT(options.partial() || src.IsInitialized())
+  ABSL_DCHECK(options.partial() || src.IsInitialized())
       << "Failed to serialize message of type " << src.GetTypeName()
       << " because it is missing required fields: "
       << src.InitializationErrorString();
@@ -372,10 +374,10 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
     char* const cursor =
         reinterpret_cast<char*>(src.SerializeWithCachedSizesToArray(
             reinterpret_cast<uint8_t*>(buffer.data())));
-    RIEGELI_ASSERT_EQ(src.ByteSizeLong(), size)
+    ABSL_DCHECK_EQ(src.ByteSizeLong(), size)
         << src.GetTypeName()
         << " was modified concurrently during serialization";
-    RIEGELI_ASSERT_EQ(PtrDistance(buffer.data(), cursor), size)
+    ABSL_DCHECK_EQ(PtrDistance(buffer.data(), cursor), size)
         << "Byte size calculation and serialization were inconsistent. "
            "This may indicate a bug in protocol buffers "
            "or it may be caused by concurrent modification of "
@@ -387,13 +389,14 @@ absl::Status SerializeMessage(const google::protobuf::MessageLite& src,
   writer.SetWriteSizeHint(size);
   const absl::Status status =
       SerializeMessageUsingStream(src, writer, options.deterministic(), size);
-  RIEGELI_EVAL_ASSERT(writer.Close())
-      << "CordWriter has no reason to fail: " << writer.status();
+  const bool close_ok = writer.Close();
+  ABSL_DCHECK(close_ok) << "CordWriter has no reason to fail: "
+                        << writer.status();
   return status;
 }
 
 bool WriterOutputStream::Next(void** data, int* size) {
-  RIEGELI_ASSERT_NE(dest_, nullptr)
+  ABSL_DCHECK(dest_ != nullptr)
       << "Failed precondition of WriterOutputStream::Next(): "
          "WriterOutputStream not initialized";
   if (ABSL_PREDICT_FALSE(dest_->pos() >=
@@ -410,27 +413,27 @@ bool WriterOutputStream::Next(void** data, int* size) {
 }
 
 void WriterOutputStream::BackUp(int length) {
-  RIEGELI_ASSERT_NE(dest_, nullptr)
+  ABSL_DCHECK(dest_ != nullptr)
       << "Failed precondition of WriterOutputStream::BackUp(): "
          "WriterOutputStream not initialized";
-  RIEGELI_ASSERT_GE(length, 0)
+  ABSL_DCHECK_GE(length, 0)
       << "Failed precondition of ZeroCopyOutputStream::BackUp(): "
          "negative length";
-  RIEGELI_ASSERT_LE(IntCast<size_t>(length), dest_->start_to_cursor())
+  ABSL_DCHECK_LE(IntCast<size_t>(length), dest_->start_to_cursor())
       << "Failed precondition of ZeroCopyOutputStream::BackUp(): "
          "length larger than the amount of buffered data";
   dest_->set_cursor(dest_->cursor() - length);
 }
 
 int64_t WriterOutputStream::ByteCount() const {
-  RIEGELI_ASSERT_NE(dest_, nullptr)
+  ABSL_DCHECK(dest_ != nullptr)
       << "Failed precondition of WriterOutputStream::ByteCount(): "
          "WriterOutputStream not initialized";
   return SaturatingIntCast<int64_t>(dest_->pos());
 }
 
 bool WriterOutputStream::WriteCord(const absl::Cord& src) {
-  RIEGELI_ASSERT_NE(dest_, nullptr)
+  ABSL_DCHECK(dest_ != nullptr)
       << "Failed precondition of WriterOutputStream::WriteCord(): "
          "WriterOutputStream not initialized";
   if (ABSL_PREDICT_FALSE(src.size() >

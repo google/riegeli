@@ -21,11 +21,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
@@ -53,13 +53,13 @@ static_assert(ZlibWriterBase::Options::kDefaultWindowLog == MAX_WBITS,
 void ZlibWriterBase::ZStreamDeleter::operator()(void* ptr) const {
   z_stream* const z_stream_ptr = static_cast<z_stream*>(ptr);
   const int zlib_code = deflateEnd(z_stream_ptr);
-  RIEGELI_ASSERT(zlib_code == Z_OK || zlib_code == Z_DATA_ERROR)
+  ABSL_DCHECK(zlib_code == Z_OK || zlib_code == Z_DATA_ERROR)
       << "deflateEnd() failed: " << zlib_code;
   delete z_stream_ptr;
 }
 
 void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of ZlibWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -103,7 +103,7 @@ void ZlibWriterBase::Initialize(Writer* dest, int compression_level) {
 }
 
 void ZlibWriterBase::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
@@ -120,10 +120,10 @@ void ZlibWriterBase::Done() {
 
 inline bool ZlibWriterBase::FailOperation(absl::string_view operation,
                                           int zlib_code) {
-  RIEGELI_ASSERT_NE(zlib_code, Z_OK)
+  ABSL_DCHECK_NE(zlib_code, Z_OK)
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "zlib error code not failed";
-  RIEGELI_ASSERT(is_open())
+  ABSL_DCHECK(is_open())
       << "Failed precondition of ZlibWriterBase::FailOperation(): "
          "Object closed";
   z_stream* const z_stream_ptr = static_cast<z_stream*>(compressor_.get());
@@ -150,19 +150,19 @@ absl::Status ZlibWriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 bool ZlibWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   Writer& dest = *DestWriter();
   return WriteInternal(src, dest, Z_NO_FLUSH);
 }
 
 inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                           int flush) {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of ZlibWriterBase::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of ZlibWriterBase::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
@@ -193,7 +193,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
     switch (zlib_code) {
       case Z_OK:
         if (z_stream_ptr->avail_out == 0) continue;
-        RIEGELI_ASSERT_EQ(z_stream_ptr->avail_in, 0u)
+        ABSL_DCHECK_EQ(z_stream_ptr->avail_in, 0u)
             << "deflate() returned but there are still input data "
                "and output space";
         if (ABSL_PREDICT_FALSE(length_written < src.size())) continue;
@@ -201,13 +201,13 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       case Z_STREAM_END:
         break;
       case Z_BUF_ERROR:
-        RIEGELI_ASSERT_EQ(op, Z_SYNC_FLUSH)
+        ABSL_DCHECK_EQ(op, Z_SYNC_FLUSH)
             << "deflate() returned an unexpected Z_BUF_ERROR";
         break;
       default:
         return FailOperation("deflate()", zlib_code);
     }
-    RIEGELI_ASSERT_EQ(length_written, src.size())
+    ABSL_DCHECK_EQ(length_written, src.size())
         << "deflate() returned but there are still input data";
     move_start_pos(length_written);
     return true;
@@ -216,7 +216,7 @@ inline bool ZlibWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 
 bool ZlibWriterBase::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -230,7 +230,7 @@ bool ZlibWriterBase::SupportsReadMode() {
 }
 
 Reader* ZlibWriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ZlibWriterBase::FlushBehindBuffer(

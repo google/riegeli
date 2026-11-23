@@ -29,11 +29,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -57,7 +57,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                                 int window_log_or_0,
                                 int target_cblock_size_or_0,
                                 bool store_checksum) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of ZstdWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -74,7 +74,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
                         [](ZSTD_CCtx* compressor) {
                           const size_t result = ZSTD_CCtx_reset(
                               compressor, ZSTD_reset_session_and_parameters);
-                          RIEGELI_ASSERT(!ZSTD_isError(result))
+                          ABSL_DCHECK(!ZSTD_isError(result))
                               << "ZSTD_CCtx_reset() failed: "
                               << ZSTD_getErrorName(result);
                         });
@@ -151,7 +151,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
 }
 
 void ZstdWriterBase::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
@@ -199,19 +199,19 @@ void ZstdWriterBase::SetWriteSizeHintImpl(
 }
 
 bool ZstdWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   Writer& dest = *DestWriter();
   return WriteInternal(src, dest, ZSTD_e_continue);
 }
 
 inline bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                           ZSTD_EndDirective end_op) {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of ZstdWriterBase::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of ZstdWriterBase::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
@@ -249,7 +249,7 @@ inline bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
         ZSTD_compressStream2(compressor_.get(), &output, &input, end_op);
     dest.set_cursor(static_cast<char*>(output.dst) + output.pos);
     if (result == 0) {
-      RIEGELI_ASSERT_EQ(input.pos, input.size)
+      ABSL_DCHECK_EQ(input.pos, input.size)
           << "ZSTD_compressStream2() returned 0 but there are still input data";
       move_start_pos(input.pos);
       if (end_op == ZSTD_e_end) compressor_.reset();
@@ -260,7 +260,7 @@ inline bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
           "ZSTD_compressStream2() failed: ", ZSTD_getErrorName(result))));
     }
     if (output.pos < output.size) {
-      RIEGELI_ASSERT_EQ(input.pos, input.size)
+      ABSL_DCHECK_EQ(input.pos, input.size)
           << "ZSTD_compressStream2() returned but there are still input data "
              "and output space";
       move_start_pos(input.pos);
@@ -274,7 +274,7 @@ inline bool ZstdWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 
 bool ZstdWriterBase::FlushBehindBuffer(absl::string_view src,
                                        FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -288,7 +288,7 @@ bool ZstdWriterBase::SupportsReadMode() {
 }
 
 Reader* ZstdWriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ZstdWriterBase::FlushBehindBuffer(

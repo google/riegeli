@@ -30,8 +30,8 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/hybrid_direct_common.h"  // IWYU pragma: export
 #include "riegeli/base/hybrid_direct_internal.h"
@@ -337,14 +337,14 @@ class HybridDirectSet<Key, Traits>::iterator : public WithEqual<iterator> {
   }
 
   friend bool operator==(iterator a, iterator b) {
-    RIEGELI_ASSERT_EQ(a.direct_set_end_, b.direct_set_end_)
+    ABSL_DCHECK_EQ(a.direct_set_end_, b.direct_set_end_)
         << "Failed precondition of operator==(HybridDirectSet::iterator): "
            "incomparable iterators";
-    RIEGELI_ASSERT_EQ(a.direct_set_size_, b.direct_set_size_)
+    ABSL_DCHECK_EQ(a.direct_set_size_, b.direct_set_size_)
         << "Failed precondition of operator==(HybridDirectSet::iterator): "
            "incomparable iterators";
-    RIEGELI_ASSERT_EQ(a.slow_set_iter_ != std::nullopt,
-                      b.slow_set_iter_ != std::nullopt)
+    ABSL_DCHECK_EQ(a.slow_set_iter_ != std::nullopt,
+                   b.slow_set_iter_ != std::nullopt)
         << "Failed precondition of operator==(HybridDirectSet::iterator): "
            "incomparable iterators";
     if (a.raw_key_complement_ != b.raw_key_complement_) return false;
@@ -438,8 +438,8 @@ void HybridDirectSet<Key, Traits>::Initialize(
   if constexpr (IterableHasSize<Src>::value) {
     using std::size;
     const size_t src_size = size(src);
-    RIEGELI_ASSERT_EQ(src_size,
-                      IntCast<size_t>(std::distance(begin(src), end(src))))
+    ABSL_DCHECK_EQ(src_size,
+                   IntCast<size_t>(std::distance(begin(src), end(src))))
         << "Failed precondition of HybridDirectSet initialization: "
            "size does not match the distance between iterators";
     if (src_size > 0) {
@@ -459,7 +459,7 @@ template <typename Index, typename KeyProjection>
 void HybridDirectSet<Key, Traits>::InitializeByIndex(
     Index size, const KeyProjection& key_projection, size_t direct_capacity) {
   if (size > 0) {
-    RIEGELI_CHECK_LE(UnsignedCast(size), std::numeric_limits<size_t>::max())
+    ABSL_CHECK_LE(UnsignedCast(size), std::numeric_limits<size_t>::max())
         << "Failed precondition of HybridDirectSet initialization: "
            "size overflow";
     Optimize(hybrid_direct_internal::IndexIterator<Index>(0),
@@ -474,10 +474,10 @@ void HybridDirectSet<Key, Traits>::Optimize(Iterator first, Iterator last,
                                             size_t size,
                                             const KeyProjection& key_projection,
                                             size_t direct_capacity) {
-  RIEGELI_ASSERT_GE(size, 0u)
+  ABSL_DCHECK_GE(size, 0u)
       << "Failed precondition of HybridDirectSet::Optimize(): "
          "an empty map must have been handled before";
-  RIEGELI_CHECK_LE(size, max_size())
+  ABSL_CHECK_LE(size, max_size())
       << "Failed precondition of HybridDirectSet initialization: "
          "size overflow";
   RawKey max_raw_key = 0;
@@ -513,7 +513,7 @@ void HybridDirectSet<Key, Traits>::Optimize(Iterator first, Iterator last,
           Traits::ToRawKey(std::invoke(key_projection, *iter));
       num_direct_elements += raw_key < max_num_direct_keys ? 1 : 0;
     }
-    RIEGELI_ASSERT_LT(num_direct_elements, size)
+    ABSL_DCHECK_LT(num_direct_elements, size)
         << "Some keys should have been too large for direct_set_";
     if (ABSL_PREDICT_FALSE(num_direct_elements == 0)) {
       // The distribution is unfortunate: all keys are too large for
@@ -563,8 +563,8 @@ auto HybridDirectSet<Key, Traits>::CopySlowSet() const ->
 template <typename Key, typename Traits>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool HybridDirectSet<Key, Traits>::contains(
     Key key) const {
-  RIEGELI_ASSERT(!direct_set_.get_deleter().IsMovedFromIfNull() ||
-                 direct_set_ != nullptr)
+  ABSL_DCHECK(!direct_set_.get_deleter().IsMovedFromIfNull() ||
+              direct_set_ != nullptr)
       << "Moved-from HybridDirectSet";
   const RawKey raw_key = Traits::ToRawKey(key);
   if (raw_key < direct_set_.get_deleter().size()) return direct_set_[raw_key];

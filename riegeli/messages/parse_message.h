@@ -23,12 +23,13 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "google/protobuf/io/coded_stream.h"
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message_lite.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -85,7 +86,7 @@ class ParseMessageOptions {
   // (usually 100).
   ParseMessageOptions& set_recursion_limit(int recursion_limit) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_GE(recursion_limit, 0)
+    ABSL_DCHECK_GE(recursion_limit, 0)
         << "Failed precondition of ParseMessageOptions::set_recursion_limit(): "
            "recursion limit out of range";
     recursion_limit_ = recursion_limit;
@@ -166,11 +167,12 @@ class ReaderInputStream : public google::protobuf::io::ZeroCopyInputStream {
 
   // Will read from `*src`.
   explicit ReaderInputStream(Reader* src ABSL_ATTRIBUTE_LIFETIME_BOUND)
-      : src_(RIEGELI_EVAL_ASSERT_NOTNULL(src)) {}
+      : src_(ABSL_DIE_IF_NULL(src)) {}
 
   ABSL_ATTRIBUTE_REINITIALIZES void Reset() { src_ = nullptr; }
   ABSL_ATTRIBUTE_REINITIALIZES void Reset(Reader* src) {
-    src_ = RIEGELI_EVAL_ASSERT_NOTNULL(src);
+    ABSL_CHECK(src != nullptr);
+    src_ = src;
   }
 
   bool Next(const void** data, int* size) override;

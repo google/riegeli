@@ -28,11 +28,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/shared_ptr.h"
@@ -195,7 +195,7 @@ class BrotliDictionary::Chunk {
 
   Type type() const { return type_; }
   absl::string_view data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_NE(static_cast<int>(type_), static_cast<int>(Type::kNative))
+    ABSL_DCHECK_NE(type_, Type::kNative)
         << "Original data are not available "
            "for a native Brotli dictionary chunk";
     return data_;

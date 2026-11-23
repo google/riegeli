@@ -29,10 +29,10 @@
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
@@ -271,7 +271,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
 
   // Returns the first element. The set must not be empty.
   absl::string_view first() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(!empty())
+    ABSL_DCHECK(!empty())
         << "Failed precondition of ChunkedSortedStringSet::first(): empty set";
     return chunks_.front().set.first();
   }
@@ -280,7 +280,7 @@ class ChunkedSortedStringSet : public WithCompare<ChunkedSortedStringSet> {
   //
   // Time complexity: `O(chunk_size)`.
   std::string last() const {
-    RIEGELI_ASSERT(!empty())
+    ABSL_DCHECK(!empty())
         << "Failed precondition of ChunkedSortedStringSet::last(): empty set";
     return chunks_.back().set.last();
   }
@@ -408,7 +408,7 @@ class ChunkedSortedStringSet::IteratorImpl
   // by the `IteratorImpl`, except that the last `value_type` remains valid
   // while the iterator is moved to `end()`.
   reference operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(current_iterator_ != LinearIterator())
+    ABSL_DCHECK(current_iterator_ != LinearIterator())
         << "Failed precondition of "
            "ChunkedSortedStringSet::IteratorImpl::operator*: "
            "iterator is end()";
@@ -416,7 +416,7 @@ class ChunkedSortedStringSet::IteratorImpl
   }
 
   pointer operator->() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(current_iterator_ != LinearIterator())
+    ABSL_DCHECK(current_iterator_ != LinearIterator())
         << "Failed precondition of "
            "ChunkedSortedStringSet::IteratorImpl::operator->: "
            "iterator is end()";
@@ -562,7 +562,7 @@ class ChunkedSortedStringSet::Builder {
 
   // Returns the last inserted element. The set must not be empty.
   absl::string_view last() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(!empty())
+    ABSL_DCHECK(!empty())
         << "Failed precondition of ChunkedSortedStringSet::Builder::last(): "
            "empty set";
     return current_builder_.last();
@@ -632,7 +632,7 @@ class ChunkedSortedStringSet::NextInsertIterator {
   NextInsertIterator& operator=(const NextInsertIterator& that) = default;
 
   reference operator*() const {
-    RIEGELI_ASSERT_NE(builder_, nullptr)
+    ABSL_DCHECK(builder_ != nullptr)
         << "Failed precondition of NextInsertIterator::operator*: "
            "iterator is sentinel";
     return reference(builder_);

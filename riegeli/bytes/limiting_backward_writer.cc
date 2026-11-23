@@ -20,12 +20,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -37,7 +37,7 @@ namespace riegeli {
 
 void LimitingBackwardWriterBase::Initialize(BackwardWriter* dest,
                                             Options options, bool is_owning) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of LimitingBackwardWriter: "
          "null BackwardWriter pointer";
   if (is_owning && exact()) {
@@ -123,10 +123,10 @@ absl::Status LimitingBackwardWriterBase::AnnotateStatusImpl(
 
 bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
                                           size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -138,7 +138,7 @@ bool LimitingBackwardWriterBase::PushSlow(size_t min_length,
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   return WriteInternal(src, [](absl::string_view src, size_t length) {
@@ -148,7 +148,7 @@ bool LimitingBackwardWriterBase::WriteSlow(absl::string_view src) {
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   return WriteInternal(std::move(src), [](ExternalRef src, size_t length) {
@@ -159,7 +159,7 @@ bool LimitingBackwardWriterBase::WriteSlow(ExternalRef src) {
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   return WriteInternal(src, [](const Chain& src, size_t length) {
@@ -170,7 +170,7 @@ bool LimitingBackwardWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   return WriteInternal(std::move(src),
@@ -181,7 +181,7 @@ bool LimitingBackwardWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   return WriteInternal(src, [](const absl::Cord& src, size_t length) {
@@ -192,7 +192,7 @@ bool LimitingBackwardWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   return WriteInternal(std::move(src),
@@ -205,7 +205,7 @@ bool LimitingBackwardWriterBase::WriteSlow(absl::Cord&& src) {
 template <typename Src, typename RemovePrefix>
 inline bool LimitingBackwardWriterBase::WriteInternal(
     Src&& src, RemovePrefix&& remove_prefix) {
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -226,10 +226,10 @@ inline bool LimitingBackwardWriterBase::WriteInternal(
 }
 
 bool LimitingBackwardWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -254,7 +254,7 @@ bool LimitingBackwardWriterBase::SupportsTruncate() {
 }
 
 bool LimitingBackwardWriterBase::TruncateImpl(Position new_size) {
-  RIEGELI_ASSERT_LE(start_pos(), max_pos_)
+  ABSL_DCHECK_LE(start_pos(), max_pos_)
       << "Failed invariant of LimitingBackwardWriterBase: "
          "position already exceeds its limit";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

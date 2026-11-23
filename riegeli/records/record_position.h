@@ -27,8 +27,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/shared_ptr.h"
 #include "riegeli/base/types.h"
@@ -217,8 +217,8 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI FutureRecordPosition {
 inline RecordPosition::RecordPosition(uint64_t chunk_begin,
                                       uint64_t record_index)
     : chunk_begin_(chunk_begin), record_index_(record_index) {
-  RIEGELI_ASSERT_LE(record_index,
-                    std::numeric_limits<uint64_t>::max() - chunk_begin)
+  ABSL_DCHECK_LE(record_index,
+                 std::numeric_limits<uint64_t>::max() - chunk_begin)
       << "RecordPosition overflow";
 }
 
@@ -252,8 +252,8 @@ class FutureChunkBegin::Unresolved {
 
 inline Position FutureChunkBegin::Unresolved::get() const {
   absl::call_once(flag_, &Unresolved::Resolve, this);
-  RIEGELI_ASSERT(actions_.empty()) << "FutureChunkBegin::Unresolved::Resolve() "
-                                      "did not clear actions_";
+  ABSL_DCHECK(actions_.empty()) << "FutureChunkBegin::Unresolved::Resolve() "
+                                   "did not clear actions_";
   return pos_before_chunks_;
 }
 

@@ -30,13 +30,13 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:types",
         "//riegeli/bytes:ostream_writer",
         "//riegeli/bytes:write_int_internal",
         "//riegeli/bytes:writer",
         "//riegeli/endian:endian_writing",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings:string_view",
@@ -51,7 +51,6 @@ cc_library(
     deps = [
         ":concat",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:byte_fill",
         "//riegeli/base:chain",
         "//riegeli/base:initializer",
@@ -63,6 +62,7 @@ cc_library(
         "//riegeli/bytes:stringify_writer",
         "//riegeli/bytes:writer",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
     ],
 )
 

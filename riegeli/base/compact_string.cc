@@ -22,9 +22,9 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/estimated_allocated_size.h"
 
 namespace riegeli {
@@ -49,10 +49,10 @@ void CompactString::AssignSlow(const CompactString& that) {
 }
 
 uintptr_t CompactString::MakeReprSlow(size_t size, size_t capacity) {
-  RIEGELI_ASSERT_LE(size, capacity)
+  ABSL_DCHECK_LE(size, capacity)
       << "Failed precondition of CompactString::MakeReprSlow(): "
          "size exceeds capacity";
-  RIEGELI_ASSERT_GT(capacity, kInlineCapacity)
+  ABSL_DCHECK_GT(capacity, kInlineCapacity)
       << "Failed precondition of CompactString::MakeReprSlow(): "
          "representation is inline, use MakeRepr() instead";
   uintptr_t repr;
@@ -70,7 +70,7 @@ uintptr_t CompactString::MakeReprSlow(size_t size, size_t capacity) {
     set_allocated_size<uint16_t>(size, repr);
   } else {
     static_assert(sizeof(size_t) % 4 == 0, "Unsupported size_t size");
-    RIEGELI_CHECK_LE(capacity, max_size()) << "CompactString capacity overflow";
+    ABSL_CHECK_LE(capacity, max_size()) << "CompactString capacity overflow";
     const size_t requested =
         EstimatedAllocatedSize(capacity + 2 * sizeof(size_t));
     repr =
@@ -83,17 +83,17 @@ uintptr_t CompactString::MakeReprSlow(size_t size, size_t capacity) {
 
 char* CompactString::ResizeSlow(size_t new_size, size_t min_capacity,
                                 size_t used_size) {
-  RIEGELI_ASSERT_LE(new_size, min_capacity)
+  ABSL_DCHECK_LE(new_size, min_capacity)
       << "Failed precondition of CompactString::ResizeSlow(): "
          "size exceeds capacity";
-  RIEGELI_ASSERT_LE(used_size, size())
+  ABSL_DCHECK_LE(used_size, size())
       << "Failed precondition of CompactString::ResizeSlow(): "
          "used size exceeds old size";
-  RIEGELI_ASSERT_LE(used_size, new_size)
+  ABSL_DCHECK_LE(used_size, new_size)
       << "Failed precondition of CompactString::ResizeSlow(): "
          "used size exceeds new size";
   const size_t old_capacity = capacity();
-  RIEGELI_ASSERT_GT(min_capacity, kInlineCapacity)
+  ABSL_DCHECK_GT(min_capacity, kInlineCapacity)
       << "Inline representation has a fixed capacity, so reallocation is never "
          "needed when the new capacity can use inline representation";
   const uintptr_t new_repr = MakeReprSlow(
@@ -107,7 +107,7 @@ char* CompactString::ResizeSlow(size_t new_size, size_t min_capacity,
 
 void CompactString::ShrinkToFitSlow() {
   const uintptr_t tag = repr_ & kTagMask;
-  RIEGELI_ASSERT_NE(tag, kInlineTag)
+  ABSL_DCHECK_NE(tag, kInlineTag)
       << "Failed precondition of CompactString::ShrinkToFitSlow(): "
          "representation is inline, use shrink_to_fit() instead";
   size_t size;
@@ -133,7 +133,7 @@ void CompactString::ShrinkToFitSlow() {
       return;
     }
   } else {
-    RIEGELI_ASSUME_UNREACHABLE() << "Impossible tag: " << tag;
+    ABSL_UNREACHABLE();
   }
   DeleteRepr(std::exchange(
       repr_, MakeRepr(absl::string_view(allocated_data(), size))));
@@ -141,22 +141,21 @@ void CompactString::ShrinkToFitSlow() {
 
 char* CompactString::AppendSlow(size_t length) {
   const size_t old_size = size();
-  RIEGELI_CHECK_LE(length, max_size() - old_size)
-      << "CompactString size overflow";
+  ABSL_CHECK_LE(length, max_size() - old_size) << "CompactString size overflow";
   const size_t new_size = old_size + length;
   return ResizeSlow(new_size, new_size, old_size);
 }
 
 void CompactString::AppendSlow(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of CompactString::AppendSlow(): "
          "nothing to append";
   const size_t old_size = size();
   const size_t old_capacity = capacity();
-  RIEGELI_CHECK_LE(src.size(), max_size() - old_size)
+  ABSL_CHECK_LE(src.size(), max_size() - old_size)
       << "CompactString size overflow";
   const size_t new_size = old_size + src.size();
-  RIEGELI_ASSERT_GT(new_size, kInlineCapacity)
+  ABSL_DCHECK_GT(new_size, kInlineCapacity)
       << "Inline representation has a fixed capacity, so reallocation is never "
          "needed when the new capacity can use inline representation";
   const uintptr_t new_repr = MakeReprSlow(
@@ -172,7 +171,7 @@ void CompactString::AppendSlow(absl::string_view src) {
 
 void CompactString::ReserveOneMoreByteSlow() {
   const size_t used_size = size();
-  RIEGELI_ASSERT_GT(used_size + 1, kInlineCapacity)
+  ABSL_DCHECK_GT(used_size + 1, kInlineCapacity)
       << "Inline representation has a fixed capacity, so reallocation is never "
          "needed when the new capacity can use inline representation";
   const uintptr_t new_repr = MakeReprSlow(used_size, used_size + 1);

@@ -30,8 +30,9 @@
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/absl_log.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/debug.h"
 #include "riegeli/base/hybrid_direct_common.h"  // IWYU pragma: export
@@ -520,14 +521,14 @@ class HybridDirectMapImpl<Key, Value, Traits>::IteratorImpl
   }
 
   friend bool operator==(IteratorImpl a, IteratorImpl b) {
-    RIEGELI_ASSERT_EQ(a.direct_map_end_, b.direct_map_end_)
+    ABSL_DCHECK_EQ(a.direct_map_end_, b.direct_map_end_)
         << "Failed precondition of operator==(HybridDirectMap::iterator): "
            "incomparable iterators";
-    RIEGELI_ASSERT_EQ(a.direct_map_size_, b.direct_map_size_)
+    ABSL_DCHECK_EQ(a.direct_map_size_, b.direct_map_size_)
         << "Failed precondition of operator==(HybridDirectMap::iterator): "
            "incomparable iterators";
-    RIEGELI_ASSERT_EQ(a.slow_map_iter_ != std::nullopt,
-                      b.slow_map_iter_ != std::nullopt)
+    ABSL_DCHECK_EQ(a.slow_map_iter_ != std::nullopt,
+                   b.slow_map_iter_ != std::nullopt)
         << "Failed precondition of operator==(HybridDirectMap::iterator): "
            "incomparable iterators";
     if (a.raw_key_complement_ != b.raw_key_complement_) return false;
@@ -621,8 +622,8 @@ void HybridDirectMapImpl<Key, Value, Traits>::Initialize(
   if constexpr (IterableHasSize<Src>::value) {
     using std::size;
     const size_t src_size = size(src);
-    RIEGELI_ASSERT_EQ(src_size,
-                      IntCast<size_t>(std::distance(begin(src), end(src))))
+    ABSL_DCHECK_EQ(src_size,
+                   IntCast<size_t>(std::distance(begin(src), end(src))))
         << "Failed precondition of HybridDirectMap initialization: "
            "size does not match the distance between iterators";
     if (src_size > 0) {
@@ -638,7 +639,7 @@ void HybridDirectMapImpl<Key, Value, Traits>::Initialize(
                     direct_capacity);
     }
   }
-#if RIEGELI_DEBUG
+#ifndef NDEBUG
   // Detect building `HybridDirectMap` from a moved-from `src` if possible.
   if constexpr (std::conjunction_v<std::negation<std::is_reference<Src>>,
                                    std::is_move_constructible<Src>>) {
@@ -653,7 +654,7 @@ void HybridDirectMapImpl<Key, Value, Traits>::InitializeByIndex(
     Index size, const KeyProjection& key_projection,
     const ValueProjection& value_projection, size_t direct_capacity) {
   if (size > 0) {
-    RIEGELI_CHECK_LE(UnsignedCast(size), std::numeric_limits<size_t>::max())
+    ABSL_CHECK_LE(UnsignedCast(size), std::numeric_limits<size_t>::max())
         << "Failed precondition of HybridDirectMap initialization: "
            "size overflow";
     // The template parameter of `Optimize()` serves only to determine whether
@@ -672,10 +673,10 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
     Iterator first, Iterator last, size_t size,
     const KeyProjection& key_projection,
     const ValueProjection& value_projection, size_t direct_capacity) {
-  RIEGELI_ASSERT_GE(size, 0u)
+  ABSL_DCHECK_GE(size, 0u)
       << "Failed precondition of HybridDirectMapImpl::Optimize(): "
          "an empty map must have been handled before";
-  RIEGELI_CHECK_LE(size, max_size())
+  ABSL_CHECK_LE(size, max_size())
       << "Failed precondition of HybridDirectMap initialization: "
          "size overflow";
   RawKey max_raw_key = 0;
@@ -718,7 +719,7 @@ void HybridDirectMapImpl<Key, Value, Traits>::Optimize(
           Traits::ToRawKey(std::invoke(key_projection, *iter));
       num_direct_values += raw_key < max_num_direct_keys ? 1 : 0;
     }
-    RIEGELI_ASSERT_LT(num_direct_values, size)
+    ABSL_DCHECK_LT(num_direct_values, size)
         << "Some keys should have been too large for direct_map_";
     if (ABSL_PREDICT_FALSE(num_direct_values == 0)) {
       // The distribution is unfortunate: all keys are too large for
@@ -836,8 +837,8 @@ template <typename Key, typename Value, typename Traits>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline const Value* absl_nullable
 HybridDirectMapImpl<Key, Value, Traits>::FindOrNull(Key key) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
-                 direct_map_ != nullptr)
+  ABSL_DCHECK(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+              direct_map_ != nullptr)
       << "Moved-from HybridDirectMap";
   const RawKey raw_key = Traits::ToRawKey(key);
   if (raw_key < direct_map_.get_deleter().size()) return direct_map_[raw_key];
@@ -852,8 +853,8 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline const Value&
 HybridDirectMapImpl<Key, Value, Traits>::FindOrDefault(
     Key key, const Value& default_value ABSL_ATTRIBUTE_LIFETIME_BOUND) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
-                 direct_map_ != nullptr)
+  ABSL_DCHECK(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+              direct_map_ != nullptr)
       << "Moved-from HybridDirectMap";
   const RawKey raw_key = Traits::ToRawKey(key);
   if (raw_key < direct_map_.get_deleter().size()) {
@@ -871,8 +872,8 @@ template <typename Key, typename Value, typename Traits>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline auto
 HybridDirectMapImpl<Key, Value, Traits>::find(Key key)
     ABSL_ATTRIBUTE_LIFETIME_BOUND -> iterator {
-  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
-                 direct_map_ != nullptr)
+  ABSL_DCHECK(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+              direct_map_ != nullptr)
       << "Moved-from HybridDirectMap";
   const RawKey raw_key = Traits::ToRawKey(key);
   if (raw_key < direct_map_.get_deleter().size()) {
@@ -895,8 +896,8 @@ template <typename Key, typename Value, typename Traits>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline auto
 HybridDirectMapImpl<Key, Value, Traits>::find(Key key) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND -> const_iterator {
-  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
-                 direct_map_ != nullptr)
+  ABSL_DCHECK(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+              direct_map_ != nullptr)
       << "Moved-from HybridDirectMap";
   const RawKey raw_key = Traits::ToRawKey(key);
   if (raw_key < direct_map_.get_deleter().size()) {
@@ -919,8 +920,8 @@ HybridDirectMapImpl<Key, Value, Traits>::find(Key key) const
 template <typename Key, typename Value, typename Traits>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool
 HybridDirectMapImpl<Key, Value, Traits>::contains(Key key) const {
-  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
-                 direct_map_ != nullptr)
+  ABSL_DCHECK(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+              direct_map_ != nullptr)
       << "Moved-from HybridDirectMap";
   const RawKey raw_key = Traits::ToRawKey(key);
   if (raw_key < direct_map_.get_deleter().size()) {
@@ -941,8 +942,8 @@ template <typename Key, typename Value, typename Traits>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline const Value&
 HybridDirectMapImpl<Key, Value, Traits>::at(Key key) const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(!direct_map_.get_deleter().IsMovedFromIfNull() ||
-                 direct_map_ != nullptr)
+  ABSL_DCHECK(!direct_map_.get_deleter().IsMovedFromIfNull() ||
+              direct_map_ != nullptr)
       << "Moved-from HybridDirectMap";
   const RawKey raw_key = Traits::ToRawKey(key);
   if (raw_key < direct_map_.get_deleter().size()) {
@@ -959,8 +960,7 @@ HybridDirectMapImpl<Key, Value, Traits>::at(Key key) const
 template <typename Key, typename Value, typename Traits>
 [[noreturn]] void HybridDirectMapImpl<Key, Value, Traits>::KeyNotFound(
     Key key) {
-  RIEGELI_CHECK_UNREACHABLE()
-      << "HybridDirectMap key not found: " << riegeli::Debug(key);
+  ABSL_LOG(FATAL) << "HybridDirectMap key not found: " << riegeli::Debug(key);
 }
 
 template <typename Key, typename Value, typename Traits>

@@ -23,8 +23,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -245,7 +245,7 @@ inline ReaderStreambuf& ReaderStreambuf::operator=(
 }
 
 inline void ReaderStreambuf::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of ReaderStreambuf: null Reader pointer";
   reader_ = src;
   setg(const_cast<char*>(reader_->start()),

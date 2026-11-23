@@ -27,13 +27,13 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
@@ -674,7 +674,7 @@ inline bool RecordReaderBase::TryRecovery() {
 }
 
 inline RecordPosition RecordReaderBase::last_pos() const {
-  RIEGELI_ASSERT(last_record_is_valid())
+  ABSL_DCHECK(last_record_is_valid())
       << "Failed precondition of RecordReaderBase::last_pos(): "
          "no record was recently read";
   // `chunk_decoder_.index() == 0` after reading metadata.

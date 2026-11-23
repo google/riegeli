@@ -22,10 +22,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -163,7 +163,7 @@ inline WrappingBackwardWriterBase& WrappingBackwardWriterBase::operator=(
 }
 
 inline void WrappingBackwardWriterBase::Initialize(BackwardWriter* dest) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of WrappingBackwardWriter: "
          "null BackwardWriter pointer";
   MakeBuffer(*dest);

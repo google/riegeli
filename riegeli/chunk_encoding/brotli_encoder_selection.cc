@@ -17,8 +17,8 @@
 #include <memory>
 
 #include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
@@ -43,9 +43,7 @@ ABSL_ATTRIBUTE_WEAK std::unique_ptr<Writer> NewBrotliWriter(
       return writer;
     }
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown Brotli encoder: "
-      << static_cast<int>(compressor_options.brotli_encoder());
+  ABSL_UNREACHABLE();
 }
 
 std::unique_ptr<Writer> NewCBrotliWriter(

@@ -24,12 +24,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -83,7 +83,7 @@ std::unique_ptr<tsl::WritableFile> FileWriterBase::OpenFile(bool append) {
     FailOperation(status,
                   append ? absl::string_view("FileSystem::NewAppendableFile()")
                          : absl::string_view("FileSystem::NewWritableFile()"));
-    RIEGELI_ASSERT(dest == nullptr)
+    ABSL_DCHECK(dest == nullptr)
         << (append ? absl::string_view("FileSystem::NewAppendableFile()")
                    : absl::string_view("FileSystem::NewWritableFile()"))
         << " should store null WritableFile on failure";
@@ -110,7 +110,7 @@ void FileWriterBase::Done() {
 
 bool FileWriterBase::FailOperation(const absl::Status& status,
                                    absl::string_view operation) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of FileWriterBase::FailOperation(): "
          "status not failed";
   return Fail(
@@ -150,7 +150,7 @@ void FileWriterBase::SetWriteSizeHintImpl(
 }
 
 bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of Writer::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!SyncBuffer())) return false;
@@ -167,11 +167,11 @@ bool FileWriterBase::PushSlow(size_t min_length, size_t recommended_length) {
 }
 
 bool FileWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of FileWriterBase::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
   tsl::WritableFile* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
@@ -185,7 +185,7 @@ bool FileWriterBase::WriteInternal(absl::string_view src) {
 }
 
 bool FileWriterBase::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of Writer::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   if (src.size() >= buffer_sizer_.BufferLength(pos())) {
@@ -198,7 +198,7 @@ bool FileWriterBase::WriteSlow(absl::string_view src) {
 }
 
 bool FileWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (src.size() >= buffer_sizer_.BufferLength(pos())) {
@@ -211,7 +211,7 @@ bool FileWriterBase::WriteSlow(ExternalRef src) {
 }
 
 bool FileWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (src.size() >= buffer_sizer_.BufferLength(pos())) {
@@ -224,7 +224,7 @@ bool FileWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool FileWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   if (src.size() >= buffer_sizer_.BufferLength(pos())) {
@@ -240,7 +240,7 @@ bool FileWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool FileWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (src.size() >= buffer_sizer_.BufferLength(pos())) {
@@ -253,7 +253,7 @@ bool FileWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool FileWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of Writer::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (src.size() >= buffer_sizer_.BufferLength(pos())) {
@@ -273,11 +273,11 @@ bool FileWriterBase::WriteSlow(ByteFill src) {
 }
 
 bool FileWriterBase::WriteInternal(const absl::Cord& src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of FileWriterBase::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of FileWriterBase::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of FileWriterBase::WriteInternal(): " << status();
   tsl::WritableFile* const dest = DestFile();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();

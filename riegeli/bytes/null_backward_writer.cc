@@ -19,10 +19,10 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
@@ -64,7 +64,7 @@ void NullBackwardWriter::SetWriteSizeHintImpl(
 
 bool NullBackwardWriter::PushSlow(size_t min_length,
                                   size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -73,7 +73,7 @@ bool NullBackwardWriter::PushSlow(size_t min_length,
 }
 
 bool NullBackwardWriter::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -86,7 +86,7 @@ bool NullBackwardWriter::WriteSlow(absl::string_view src) {
 }
 
 bool NullBackwardWriter::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -99,7 +99,7 @@ bool NullBackwardWriter::WriteSlow(ExternalRef src) {
 }
 
 bool NullBackwardWriter::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -112,7 +112,7 @@ bool NullBackwardWriter::WriteSlow(const Chain& src) {
 }
 
 bool NullBackwardWriter::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -125,7 +125,7 @@ bool NullBackwardWriter::WriteSlow(const absl::Cord& src) {
 }
 
 bool NullBackwardWriter::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

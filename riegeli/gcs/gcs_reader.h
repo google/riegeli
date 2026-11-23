@@ -28,6 +28,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "google/cloud/storage/client.h"
@@ -35,7 +36,6 @@
 #include "google/cloud/storage/object_read_stream.h"
 #include "google/cloud/storage/well_known_parameters.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
@@ -94,7 +94,7 @@ class GcsReader
       ReadObjectOptions&&... read_object_options);
 
   google::cloud::storage::Client& client() {
-    RIEGELI_ASSERT(client_ != std::nullopt)
+    ABSL_DCHECK(client_ != std::nullopt)
         << "Failed precondition of GcsReader::client(): "
            "default-constructed GcsReader";
     return *client_;

@@ -21,10 +21,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "bzlib.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -55,11 +55,11 @@ class Bzip2WriterBase : public BufferedWriter {
     static constexpr int kDefaultCompressionLevel = 9;
     Options& set_compression_level(int compression_level) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+      ABSL_DCHECK_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "Bzip2WriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+      ABSL_DCHECK_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "Bzip2WriterBase::Options::set_compression_level(): "
              "compression level out of range";
@@ -103,7 +103,7 @@ class Bzip2WriterBase : public BufferedWriter {
   struct BZStreamDeleter {
     void operator()(bz_stream* ptr) const {
       const int bzlib_code = BZ2_bzCompressEnd(ptr);
-      RIEGELI_ASSERT_EQ(bzlib_code, BZ_OK)
+      ABSL_DCHECK_EQ(bzlib_code, BZ_OK)
           << "BZ2_bzCompressEnd() failed: " << bzlib_code;
       delete ptr;
     }

@@ -24,12 +24,12 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/debug.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
@@ -42,14 +42,14 @@
 namespace riegeli {
 
 void CsvReaderBase::Initialize(Reader* src, Options&& options) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of CsvReader: null Reader pointer";
   // Set `has_header_` before early returns because `ReadRecord(CsvRecord&)`
   // uses this as a precondition.
   if (options.required_header() != std::nullopt ||
       options.assumed_header() != std::nullopt) {
-    RIEGELI_ASSERT(options.required_header() == std::nullopt ||
-                   options.assumed_header() == std::nullopt)
+    ABSL_DCHECK(options.required_header() == std::nullopt ||
+                options.assumed_header() == std::nullopt)
         << "Failed precondition of CsvReader: "
            "required_header() and assumed_header() both set";
     has_header_ = true;
@@ -203,10 +203,10 @@ void CsvReaderBase::Initialize(Reader* src, Options&& options) {
 }
 
 void CsvReaderBase::FailAtPreviousRecord(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "status not failed";
-  RIEGELI_ASSERT(!standalone_record_)
+  ABSL_DCHECK(!standalone_record_)
       << "Failed precondition of CsvReaderBase::FailAtPreviousRecord(): "
          "should never happen in ReadCsvRecordFromString()";
   if (is_open()) {
@@ -311,7 +311,8 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
       case CharClass::kCr:
       case CharClass::kComment:
       case CharClass::kFieldSeparator:
-        RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
+        // Handled before switch.
+        ABSL_UNREACHABLE();
       case CharClass::kQuote:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.ok())) {
@@ -337,15 +338,14 @@ inline bool CsvReaderBase::ReadQuoted(Reader& src, std::string& field) {
         ptr = src.cursor() + 1;
         continue;
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Unknown character class: " << static_cast<int>(char_class);
+    ABSL_UNREACHABLE();
   }
 }
 
 inline bool CsvReaderBase::ReadFields(Reader& src,
                                       std::vector<std::string>& fields,
                                       size_t& field_index) {
-  RIEGELI_ASSERT_EQ(field_index, 0u)
+  ABSL_DCHECK_EQ(field_index, 0u)
       << "Failed precondition of CsvReaderBase::ReadFields(): "
          "initial index must be 0";
 next_record:
@@ -418,7 +418,8 @@ next_field:
     switch (char_class) {
       case CharClass::kOther:
       case CharClass::kComment:
-        RIEGELI_ASSUME_UNREACHABLE() << "Handled before switch";
+        // Handled before switch.
+        ABSL_UNREACHABLE();
       case CharClass::kCr:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
           if (ABSL_PREDICT_FALSE(!src.ok())) {
@@ -489,11 +490,10 @@ next_field:
             }
             return true;
           case CharClass::kQuote:
-            RIEGELI_ASSUME_UNREACHABLE() << "Handled by ReadQuoted()";
+            // Handled by `ReadQuoted()`.
+            ABSL_UNREACHABLE();
         }
-        RIEGELI_ASSUME_UNREACHABLE()
-            << "Unknown character class: "
-            << static_cast<int>(char_class_after_quoted);
+        ABSL_UNREACHABLE();
       }
       case CharClass::kEscape:
         if (ABSL_PREDICT_FALSE(!src.Pull())) {
@@ -507,13 +507,12 @@ next_field:
         ptr = src.cursor() + 1;
         continue;
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Unknown character class: " << static_cast<int>(char_class);
+    ABSL_UNREACHABLE();
   }
 }
 
 bool CsvReaderBase::ReadRecord(CsvRecord& record) {
-  RIEGELI_CHECK(has_header())
+  ABSL_CHECK(has_header())
       << "Failed precondition of CsvReaderBase::ReadRecord(CsvRecord&): "
          "CsvReaderBase::Options::required_header() != nullopt or "
          "assumed_header() != nullopt is required";
@@ -567,7 +566,7 @@ inline bool CsvReaderBase::ReadRecordInternal(
     return false;
   }
   if (standalone_record_) {
-    RIEGELI_ASSERT_EQ(record_index_, 0u)
+    ABSL_DCHECK_EQ(record_index_, 0u)
         << "Failed precondition of CsvReaderBase::ReadRecordInternal(): "
            "called more than once by ReadCsvRecordFromString()";
   }
@@ -649,13 +648,13 @@ bool CsvReaderBase::HasNextRecord() {
 absl::Status ReadCsvRecordFromString(absl::string_view src,
                                      std::vector<std::string>& record,
                                      CsvReaderBase::Options options) {
-  RIEGELI_ASSERT(options.required_header() == std::nullopt)
+  ABSL_DCHECK(options.required_header() == std::nullopt)
       << "Failed precondition of ReadCsvRecordFromString(): "
          "CsvReaderBase::Options::required_header() != nullopt not applicable";
   CsvReader csv_reader(riegeli::Maker<StringReader>(src), std::move(options));
   if (ABSL_PREDICT_FALSE(
           !csv_internal::ReadStandaloneRecord(csv_reader, record))) {
-    RIEGELI_ASSERT(!csv_reader.ok())
+    ABSL_DCHECK(!csv_reader.ok())
         << "ReadStandaloneRecord() returned false but ok() is true";
     return csv_reader.status();
   }

@@ -20,10 +20,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -63,12 +63,12 @@ void ChainBackwardWriterBase::SetWriteSizeHintImpl(
 
 bool ChainBackwardWriterBase::PushSlow(size_t min_length,
                                        size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(min_length >
@@ -80,12 +80,12 @@ bool ChainBackwardWriterBase::PushSlow(size_t min_length,
 }
 
 bool ChainBackwardWriterBase::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -99,12 +99,12 @@ bool ChainBackwardWriterBase::WriteSlow(ExternalRef src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -118,12 +118,12 @@ bool ChainBackwardWriterBase::WriteSlow(const Chain& src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -137,12 +137,12 @@ bool ChainBackwardWriterBase::WriteSlow(Chain&& src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -156,12 +156,12 @@ bool ChainBackwardWriterBase::WriteSlow(const absl::Cord& src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -175,12 +175,12 @@ bool ChainBackwardWriterBase::WriteSlow(ByteFill src) {
 }
 
 bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   if (ABSL_PREDICT_FALSE(src.size() >
@@ -196,7 +196,7 @@ bool ChainBackwardWriterBase::WriteSlow(absl::Cord&& src) {
 bool ChainBackwardWriterBase::FlushImpl(FlushType flush_type) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   SyncBuffer(dest);
   return true;
@@ -205,7 +205,7 @@ bool ChainBackwardWriterBase::FlushImpl(FlushType flush_type) {
 bool ChainBackwardWriterBase::TruncateImpl(Position new_size) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   Chain& dest = *DestChain();
-  RIEGELI_ASSERT_EQ(limit_pos(), dest.size())
+  ABSL_DCHECK_EQ(limit_pos(), dest.size())
       << "ChainBackwardWriter destination changed unexpectedly";
   if (new_size >= start_pos()) {
     if (ABSL_PREDICT_FALSE(new_size > pos())) return false;

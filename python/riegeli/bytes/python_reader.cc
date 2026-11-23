@@ -30,6 +30,7 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -37,7 +38,6 @@
 #include "absl/types/span.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_reader.h"
@@ -110,7 +110,7 @@ void PythonReader::Done() {
 }
 
 inline bool PythonReader::FailOperation(absl::string_view operation) {
-  RIEGELI_ASSERT(is_open())
+  ABSL_DCHECK(is_open())
       << "Failed precondition of PythonReader::FailOperation(): "
          "Object closed";
   PythonLock::AssertHeld();
@@ -126,14 +126,14 @@ inline bool PythonReader::FailOperation(absl::string_view operation) {
 
 bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
                                 char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   PythonLock lock;
   // Find a read function to use, preferring in order: `readinto1()`,
   // `readinto()`, `read1()`, `read()`.
@@ -249,10 +249,10 @@ bool PythonReader::ReadInternal(size_t min_length, size_t max_length,
 }
 
 bool PythonReader::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!PythonReader::SupportsRandomAccess())) {
@@ -289,9 +289,9 @@ bool PythonReader::SeekBehindBuffer(Position new_pos) {
 }
 
 inline std::optional<Position> PythonReader::SizeInternal() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of PythonReader::SizeInternal()";
-  RIEGELI_ASSERT(PythonReader::SupportsRandomAccess())
+  ABSL_DCHECK(ok()) << "Failed precondition of PythonReader::SizeInternal(): "
+                    << status();
+  ABSL_DCHECK(PythonReader::SupportsRandomAccess())
       << "Failed precondition of PythonReader::SizeInternal(): "
          "random access not supported";
   PythonLock::AssertHeld();

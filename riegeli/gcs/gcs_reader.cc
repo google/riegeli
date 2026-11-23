@@ -24,13 +24,13 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "google/cloud/status.h"
 #include "google/cloud/storage/client.h"
 #include "google/cloud/storage/object_read_stream.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -127,7 +127,7 @@ inline void GcsReader::PropagateStatus() {
 }
 
 void GcsReader::PropagateStatusSlow() {
-  RIEGELI_ASSERT(!src().status().ok())
+  ABSL_DCHECK(!src().status().ok())
       << "Failed precondition of GcsReader::PropagateStatusSlow(): "
          "ObjectReadStream not failed";
   MarkNotFailed();
@@ -135,14 +135,14 @@ void GcsReader::PropagateStatusSlow() {
 }
 
 bool GcsReader::ReadInternal(size_t min_length, size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   const Position pos_before = limit_pos();
   bool result = IStreamReader::ReadInternal(min_length, max_length, dest);
   PropagateStatus();
@@ -151,7 +151,7 @@ bool GcsReader::ReadInternal(size_t min_length, size_t max_length, char* dest) {
   // The requested range could not satisfy this read. Continue with a request
   // for the rest of the object.
   const size_t length_read = IntCast<size_t>(limit_pos() - pos_before);
-  RIEGELI_ASSERT_LT(length_read, min_length)
+  ABSL_DCHECK_LT(length_read, min_length)
       << "IStreamReader::ReadInternal() returned false but read enough";
   dest += length_read;
   min_length -= length_read;
@@ -172,10 +172,10 @@ bool GcsReader::ReadInternal(size_t min_length, size_t max_length, char* dest) {
 bool GcsReader::SupportsRandomAccess() { return exact_size() != std::nullopt; }
 
 bool GcsReader::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(exact_size() == std::nullopt)) {

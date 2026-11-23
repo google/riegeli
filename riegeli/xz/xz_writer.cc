@@ -21,12 +21,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "lzma.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
@@ -48,7 +48,7 @@ static_assert(static_cast<int>(XzWriterBase::Container::kLzma) ==
 
 void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
                               int parallelism) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of XzWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -103,12 +103,11 @@ void XzWriterBase::Initialize(Writer* dest, uint32_t preset, Check check,
       return;
     }
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown container format: " << static_cast<int>(container_);
+  ABSL_UNREACHABLE();
 }
 
 void XzWriterBase::DoneBehindBuffer(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::DoneBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return;
@@ -124,10 +123,10 @@ void XzWriterBase::Done() {
 
 inline bool XzWriterBase::FailOperation(absl::string_view operation,
                                         lzma_ret liblzma_code) {
-  RIEGELI_ASSERT_NE(liblzma_code, LZMA_OK)
+  ABSL_DCHECK_NE(liblzma_code, LZMA_OK)
       << "Failed precondition of XzWriterBase::FailOperation(): "
          "liblzma error code not failed";
-  RIEGELI_ASSERT(is_open())
+  ABSL_DCHECK(is_open())
       << "Failed precondition of XzWriterBase::FailOperation(): "
          "Object closed";
   return Fail(xz_internal::XzErrorToStatus(operation, liblzma_code));
@@ -152,19 +151,19 @@ absl::Status XzWriterBase::AnnotateOverDest(absl::Status status) {
 }
 
 bool XzWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   Writer& dest = *DestWriter();
   return WriteInternal(src, dest, LZMA_RUN);
 }
 
 inline bool XzWriterBase::WriteInternal(absl::string_view src, Writer& dest,
                                         lzma_action flush) {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of XzWriterBase::WriteInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of XzWriterBase::WriteInternal(): "
+                    << status();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
@@ -188,7 +187,7 @@ inline bool XzWriterBase::WriteInternal(absl::string_view src, Writer& dest,
           }
           continue;
         }
-        RIEGELI_ASSERT_EQ(compressor_->avail_in, 0u)
+        ABSL_DCHECK_EQ(compressor_->avail_in, 0u)
             << "lzma_code() returned but there are still input data "
                "and output space";
         break;
@@ -197,7 +196,7 @@ inline bool XzWriterBase::WriteInternal(absl::string_view src, Writer& dest,
       default:
         return FailOperation("lzma_code()", liblzma_code);
     }
-    RIEGELI_ASSERT_EQ(length_written, src.size())
+    ABSL_DCHECK_EQ(length_written, src.size())
         << "lzma_code() returned but there are still input data";
     move_start_pos(length_written);
     return true;
@@ -206,7 +205,7 @@ inline bool XzWriterBase::WriteInternal(absl::string_view src, Writer& dest,
 
 bool XzWriterBase::FlushBehindBuffer(absl::string_view src,
                                      FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -224,12 +223,11 @@ bool XzWriterBase::SupportsReadMode() {
     case Container::kLzma:
       return false;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown container format: " << static_cast<int>(container_);
+  ABSL_UNREACHABLE();
 }
 
 Reader* XzWriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!XzWriterBase::FlushBehindBuffer(

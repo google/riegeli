@@ -16,7 +16,7 @@
 #ifndef RIEGELI_RECORDS_TOOLS_TFRECORD_DETECTOR_H_
 #define RIEGELI_RECORDS_TOOLS_TFRECORD_DETECTOR_H_
 
-#include "riegeli/base/assert.h"
+#include "absl/log/die_if_null.h"
 #include "riegeli/base/object.h"
 #include "riegeli/bytes/reader.h"
 #include "tensorflow/core/lib/io/record_reader.h"
@@ -47,7 +47,7 @@ class TFRecordRecognizer : public Object {
 
 inline TFRecordRecognizer::TFRecordRecognizer(
     Reader* byte_reader ABSL_ATTRIBUTE_LIFETIME_BOUND)
-    : byte_reader_(RIEGELI_EVAL_ASSERT_NOTNULL(byte_reader)) {}
+    : byte_reader_(ABSL_DIE_IF_NULL(byte_reader)) {}
 
 }  // namespace riegeli
 

@@ -33,10 +33,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain_base.h"
 #include "riegeli/base/compare.h"
@@ -74,7 +74,7 @@ class Chain::BlockPtrPtr : public WithCompare<BlockPtrPtr> {
     return a.repr_ == b.repr_;
   }
   friend StrongOrdering RIEGELI_COMPARE(BlockPtrPtr a, BlockPtrPtr b) {
-    RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
+    ABSL_DCHECK_EQ(a.is_special(), b.is_special())
         << "Incompatible BlockPtrPtr values";
     if (a.is_special()) return riegeli::Compare(a.repr_, b.repr_);
     return riegeli::Compare(a.as_ptr(), b.as_ptr());
@@ -84,7 +84,7 @@ class Chain::BlockPtrPtr : public WithCompare<BlockPtrPtr> {
   // `operator-` body is defined in a member function to gain access to private
   // `Chain::RawBlock` under gcc.
   static ptrdiff_t Subtract(BlockPtrPtr a, BlockPtrPtr b) {
-    RIEGELI_ASSERT_EQ(a.is_special(), b.is_special())
+    ABSL_DCHECK_EQ(a.is_special(), b.is_special())
         << "Incompatible BlockPtrPtr values";
     if (a.is_special()) {
       const ptrdiff_t byte_diff =
@@ -216,19 +216,19 @@ class Chain::BlockIterator : public WithCompare<BlockIterator> {
   reference operator[](difference_type n) const;
 
   friend bool operator==(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT_EQ(a.chain_, b.chain_)
+    ABSL_DCHECK_EQ(a.chain_, b.chain_)
         << "Failed precondition of operator==(Chain::BlockIterator): "
            "incomparable iterators";
     return a.ptr_ == b.ptr_;
   }
   friend StrongOrdering RIEGELI_COMPARE(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT_EQ(a.chain_, b.chain_)
+    ABSL_DCHECK_EQ(a.chain_, b.chain_)
         << "Failed precondition of operator<=>(Chain::BlockIterator): "
            "incomparable iterators";
     return riegeli::Compare(a.ptr_, b.ptr_);
   }
   friend difference_type operator-(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT_EQ(a.chain_, b.chain_)
+    ABSL_DCHECK_EQ(a.chain_, b.chain_)
         << "Failed precondition of operator-(Chain::BlockIterator): "
            "incomparable iterators";
     return a.ptr_ - b.ptr_;
@@ -513,8 +513,8 @@ inline Chain::RawBlock::RawBlock(Initializer<T> object) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
   new (&unchecked_external_object<T>()) T(std::move(object));
   substr_ = absl::string_view(BytesRef(unchecked_external_object<T>()));
-  RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
-                                   "should be considered external";
+  ABSL_DCHECK(is_external()) << "A RawBlock with allocated_end_ == nullptr "
+                                "should be considered external";
 }
 
 template <typename T>
@@ -523,8 +523,8 @@ inline Chain::RawBlock::RawBlock(Initializer<T> object,
     : substr_(substr) {
   external_.methods = &ExternalMethodsFor<T>::kMethods;
   new (&unchecked_external_object<T>()) T(std::move(object));
-  RIEGELI_ASSERT(is_external()) << "A RawBlock with allocated_end_ == nullptr "
-                                   "should be considered external";
+  ABSL_DCHECK(is_external()) << "A RawBlock with allocated_end_ == nullptr "
+                                "should be considered external";
   AssertSubstr(unchecked_external_object<T>(), substr);
 }
 
@@ -565,7 +565,7 @@ inline bool Chain::RawBlock::has_unique_owner() const {
 }
 
 inline size_t Chain::RawBlock::capacity() const {
-  RIEGELI_ASSERT(is_internal())
+  ABSL_DCHECK(is_internal())
       << "Failed precondition of Chain::RawBlock::capacity(): "
          "block not internal";
   return PtrDistance(allocated_begin_, allocated_end_);
@@ -573,7 +573,7 @@ inline size_t Chain::RawBlock::capacity() const {
 
 template <typename T>
 inline T& Chain::RawBlock::unchecked_external_object() {
-  RIEGELI_ASSERT(is_external())
+  ABSL_DCHECK(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
   return *std::launder(reinterpret_cast<T*>(reinterpret_cast<char*>(this) +
@@ -582,7 +582,7 @@ inline T& Chain::RawBlock::unchecked_external_object() {
 
 template <typename T>
 inline const T& Chain::RawBlock::unchecked_external_object() const {
-  RIEGELI_ASSERT(is_external())
+  ABSL_DCHECK(is_external())
       << "Failed precondition of Chain::RawBlock::unchecked_external_object(): "
       << "block not external";
   return *std::launder(reinterpret_cast<const T*>(
@@ -614,7 +614,7 @@ inline bool Chain::RawBlock::TryClear() {
 }
 
 inline bool Chain::RawBlock::TryRemoveSuffix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size())
+  ABSL_DCHECK_LE(length, size())
       << "Failed precondition of Chain::RawBlock::TryRemoveSuffix(): "
       << "length to remove greater than current size";
   if (is_mutable()) {
@@ -625,7 +625,7 @@ inline bool Chain::RawBlock::TryRemoveSuffix(size_t length) {
 }
 
 inline bool Chain::RawBlock::TryRemovePrefix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size())
+  ABSL_DCHECK_LE(length, size())
       << "Failed precondition of Chain::RawBlock::TryRemovePrefix(): "
       << "length to remove greater than current size";
   if (is_mutable()) {
@@ -644,7 +644,7 @@ inline bool Chain::BlockPtrPtr::is_special() const {
 }
 
 inline const Chain::BlockPtr* Chain::BlockPtrPtr::as_ptr() const {
-  RIEGELI_ASSERT(!is_special()) << "Unexpected special BlockPtrPtr value";
+  ABSL_DCHECK(!is_special()) << "Unexpected special BlockPtrPtr value";
   return reinterpret_cast<const BlockPtr*>(repr_);
 }
 
@@ -703,7 +703,7 @@ inline bool Chain::BlockRef::ExternalCopy() const {
 
 inline Chain::Block Chain::BlockRef::ToChainBlock(
     absl::string_view substr) const {
-  RIEGELI_ASSERT(ptr_ != BlockIterator::kBeginShortData)
+  ABSL_DCHECK(ptr_ != BlockIterator::kBeginShortData)
       << "Failed precondition of RiegeliToChainBlock(const Chain::BlockRef*): "
          "case excluded by RiegeliExternalCopy()";
   return Block(ptr_.as_ptr()->block_ptr, substr);
@@ -712,7 +712,7 @@ inline Chain::Block Chain::BlockRef::ToChainBlock(
 template <typename Callback>
 inline void Chain::BlockRef::ExternalDelegate(absl::string_view substr,
                                               Callback&& delegate_to) const {
-  RIEGELI_ASSERT(ptr_ != BlockIterator::kBeginShortData)
+  ABSL_DCHECK(ptr_ != BlockIterator::kBeginShortData)
       << "Failed precondition of "
          "RiegeliExternalDelegate(const Chain::BlockRef*): "
          "case excluded by RiegeliExternalCopy()";
@@ -756,7 +756,7 @@ inline size_t Chain::BlockIterator::CharIndexInChain(
 }
 
 inline Chain::BlockIterator::reference Chain::BlockIterator::operator*() const {
-  RIEGELI_ASSERT(ptr_ != kEndShortData)
+  ABSL_DCHECK(ptr_ != kEndShortData)
       << "Failed precondition of Chain::BlockIterator::operator*: "
          "iterator is end()";
   return BlockRef(chain_, ptr_);
@@ -891,7 +891,7 @@ inline bool Chain::Blocks::empty() const {
 }
 
 inline Chain::Blocks::reference Chain::Blocks::operator[](size_type n) const {
-  RIEGELI_ASSERT_LT(n, size())
+  ABSL_DCHECK_LT(n, size())
       << "Failed precondition of Chain::Blocks::operator[]: "
          "block index out of range";
   return BlockRef(chain_, chain_->begin_ == chain_->end_
@@ -900,15 +900,15 @@ inline Chain::Blocks::reference Chain::Blocks::operator[](size_type n) const {
 }
 
 inline Chain::Blocks::reference Chain::Blocks::at(size_type n) const {
-  RIEGELI_CHECK_LT(n, size()) << "Failed precondition of Chain::Blocks::at(): "
-                                 "block index out of range";
+  ABSL_CHECK_LT(n, size()) << "Failed precondition of Chain::Blocks::at(): "
+                              "block index out of range";
   return BlockRef(chain_, chain_->begin_ == chain_->end_
                               ? BlockIterator::kBeginShortData
                               : BlockPtrPtr::from_ptr(chain_->begin_ + n));
 }
 
 inline Chain::Blocks::reference Chain::Blocks::front() const {
-  RIEGELI_ASSERT(!empty())
+  ABSL_DCHECK(!empty())
       << "Failed precondition of Chain::Blocks::front(): no blocks";
   return BlockRef(chain_, chain_->begin_ == chain_->end_
                               ? BlockIterator::kBeginShortData
@@ -916,7 +916,7 @@ inline Chain::Blocks::reference Chain::Blocks::front() const {
 }
 
 inline Chain::Blocks::reference Chain::Blocks::back() const {
-  RIEGELI_ASSERT(!empty())
+  ABSL_DCHECK(!empty())
       << "Failed precondition of Chain::Blocks::back(): no blocks";
   return BlockRef(chain_, chain_->begin_ == chain_->end_
                               ? BlockIterator::kBeginShortData
@@ -1009,7 +1009,7 @@ inline void Chain::Clear() {
 }
 
 inline void Chain::Initialize(absl::string_view src) {
-  RIEGELI_ASSERT_EQ(size_, 0u)
+  ABSL_DCHECK_EQ(size_, 0u)
       << "Failed precondition of Chain::Initialize(string_view): "
          "size not reset";
   if (src.size() <= kMaxShortDataSize) {
@@ -1032,18 +1032,18 @@ inline absl::string_view Chain::short_data() const {
 }
 
 inline char* Chain::short_data_begin() {
-  RIEGELI_ASSERT_EQ(begin_, end_)
+  ABSL_DCHECK_EQ(begin_, end_)
       << "Failed precondition of Chain::short_data_begin(): blocks exist";
-  RIEGELI_ASSERT(empty() || has_here())
+  ABSL_DCHECK(empty() || has_here())
       << "Failed precondition of Chain::short_data_begin(): "
          "block pointer array is allocated";
   return block_ptrs_.short_data;
 }
 
 inline const char* Chain::short_data_begin() const {
-  RIEGELI_ASSERT_EQ(begin_, end_)
+  ABSL_DCHECK_EQ(begin_, end_)
       << "Failed precondition of Chain::short_data_begin(): blocks exist";
-  RIEGELI_ASSERT(empty() || has_here())
+  ABSL_DCHECK(empty() || has_here())
       << "Failed precondition of Chain::short_data_begin(): "
          "block pointer array is allocated";
   return block_ptrs_.short_data;
@@ -1059,7 +1059,7 @@ inline void Chain::DeleteBlockPtrs() {
 }
 
 inline void Chain::EnsureHasHere() {
-  RIEGELI_ASSERT_EQ(begin_, end_)
+  ABSL_DCHECK_EQ(begin_, end_)
       << "Failed precondition of Chain::EnsureHasHere(): blocks exist";
   if (ABSL_PREDICT_FALSE(has_allocated())) {
     DeleteBlockPtrs();
@@ -1150,7 +1150,7 @@ inline void Chain::Prepend(Src&& src, Options options) {
 template <typename HashState>
 HashState Chain::HashValue(HashState hash_state) const {
   if (empty()) return HashState::combine(std::move(hash_state), size_t{0});
-  RIEGELI_ASSERT(!blocks().empty());
+  ABSL_DCHECK(!blocks().empty());
   constexpr size_t kChunkSize = 256;
   char chunk[kChunkSize];
 
@@ -1208,7 +1208,7 @@ HashState Chain::HashValue(HashState hash_state) const {
                                                block.data(), kChunkSize);
     block.remove_prefix(kChunkSize);
   }
-  RIEGELI_ASSERT(!block.empty());
+  ABSL_DCHECK(!block.empty());
   hash_state = HashState::combine_contiguous(std::move(hash_state),
                                              block.data(), block.size());
   return HashState::combine(std::move(hash_state), size());

@@ -22,8 +22,8 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -160,7 +160,7 @@ inline void ChainReaderBase::Reset() {
 }
 
 inline void ChainReaderBase::Initialize(const Chain* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of ChainReader: null Chain pointer";
   iter_ = src->blocks().cbegin();
   if (iter_ != src->blocks().cend()) {
@@ -181,9 +181,9 @@ class ChainReader<Src>::Mover {
         uses_buffer_(self.start() != nullptr),
         start_to_cursor_(self.start_to_cursor()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT_EQ(self.iter()->data(), self.start())
+      ABSL_DCHECK_EQ(self.iter()->data(), self.start())
           << "ChainReader source changed unexpectedly";
-      RIEGELI_ASSERT_EQ(self.iter()->size(), self.start_to_limit())
+      ABSL_DCHECK_EQ(self.iter()->size(), self.start_to_limit())
           << "ChainReader source changed unexpectedly";
     }
   }

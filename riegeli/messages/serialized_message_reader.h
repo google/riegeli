@@ -28,11 +28,11 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -731,7 +731,7 @@ absl::Status SerializedMessageReaderType<
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
             }
-            RIEGELI_ASSERT_EQ(src.pos(), end_pos)
+            ABSL_DCHECK_EQ(src.pos(), end_pos)
                 << "A field handler of a length-delimited field "
                    "must read to the end of the ReaderSpan<> or fail; "
                    "the value of field "
@@ -775,8 +775,7 @@ absl::Status SerializedMessageReaderType<
       case WireType::kInvalid7:
         return serialized_message_reader_internal::InvalidWireTypeError(tag);
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
+    ABSL_UNREACHABLE();
   }
   if (ABSL_PREDICT_FALSE(src.available() > 0)) {
     return serialized_message_reader_internal::ReadTagError(src);
@@ -906,8 +905,8 @@ inline absl::Status SerializedMessageReaderType<
               return serialized_message_reader_internal::
                   AnnotateWithFieldNumber(std::move(status), field_number);
             }
-            RIEGELI_ASSERT_EQ(CordIteratorSpan::Remaining(src),
-                              available_for_value + limit - size_t{length})
+            ABSL_DCHECK_EQ(CordIteratorSpan::Remaining(src),
+                           available_for_value + limit - size_t{length})
                 << "A field handler of a length-delimited field "
                    "must read to the end of the CordIteratorSpan or fail; "
                    "the value of field "
@@ -946,8 +945,7 @@ inline absl::Status SerializedMessageReaderType<
       case WireType::kInvalid7:
         return serialized_message_reader_internal::InvalidWireTypeError(tag);
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
+    ABSL_UNREACHABLE();
   }
   if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(src) > limit)) {
     return serialized_message_reader_internal::ReadTagError();
@@ -965,8 +963,8 @@ inline absl::Status SerializedMessageReaderType<
   uint32_t tag;
   while (const size_t tag_length =
              ReadVarint32(cursor, PtrDistance(cursor, limit), tag)) {
-    RIEGELI_ASSERT(cursor != nullptr);
-    RIEGELI_ASSERT(limit != nullptr);
+    ABSL_DCHECK(cursor != nullptr);
+    ABSL_DCHECK(limit != nullptr);
     cursor += tag_length;
     const int field_number = GetTagFieldNumber(tag);
     switch (GetTagWireType(tag)) {
@@ -1086,8 +1084,7 @@ inline absl::Status SerializedMessageReaderType<
       case WireType::kInvalid7:
         return serialized_message_reader_internal::InvalidWireTypeError(tag);
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
+    ABSL_UNREACHABLE();
   }
   if (ABSL_PREDICT_FALSE(cursor < limit)) {
     return serialized_message_reader_internal::ReadTagError();
@@ -1228,7 +1225,7 @@ inline absl::Status SkipLengthDelimitedFromCord(const CordIteratorSpan& value,
       ABSL_PREDICT_FALSE(!status.ok())) {
     return status;
   }
-  RIEGELI_ASSERT_GE(CordIteratorSpan::Remaining(iterator), limit)
+  ABSL_DCHECK_GE(CordIteratorSpan::Remaining(iterator), limit)
       << "Length-delimited field handler action read past field contents";
   if (ABSL_PREDICT_FALSE(CordIteratorSpan::Remaining(iterator) != limit)) {
     absl::Cord::Advance(&iterator,

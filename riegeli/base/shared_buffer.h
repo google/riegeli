@@ -20,8 +20,8 @@
 #include <iosfwd>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/external_data.h"
 #include "riegeli/base/maker.h"
@@ -124,7 +124,7 @@ inline void SharedBuffer::Reset(size_t min_capacity) {
 }
 
 inline char* SharedBuffer::mutable_data() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT(IsUnique())
+  ABSL_DCHECK(IsUnique())
       << "Failed precondition of SharedBuffer::mutable_data(): "
          "ownership is shared";
   return buffer_->data();

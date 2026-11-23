@@ -22,10 +22,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
@@ -186,7 +186,7 @@ inline void CordReaderBase::Reset() {
 }
 
 inline void CordReaderBase::Initialize(const absl::Cord* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of CordReader: null Cord pointer";
   if (const std::optional<absl::string_view> flat = src->TryFlat()) {
     if (flat->size() <= kMaxBytesToCopy) {
@@ -200,7 +200,7 @@ inline void CordReaderBase::Initialize(const absl::Cord* src) {
 }
 
 inline void CordReaderBase::MakeBuffer(const absl::Cord& src) {
-  RIEGELI_ASSERT(iter_ != std::nullopt)
+  ABSL_DCHECK(iter_ != std::nullopt)
       << "Failed precondition of CordReaderBase::MakeBuffer(): "
          "no Cord iterator";
   if (*iter_ == src.char_end()) {
@@ -222,29 +222,28 @@ class CordReader<Src>::Mover {
         uses_buffer_(self.start() != nullptr),
         position_(IntCast<size_t>(self.start_pos())),
         start_to_cursor_(self.start_to_cursor()) {
-#if RIEGELI_DEBUG
+#ifndef NDEBUG
     if (self.iter_ == std::nullopt) {
       if (uses_buffer_) {
         const std::optional<absl::string_view> flat = that.src_->TryFlat();
-        RIEGELI_ASSERT(flat != std::nullopt)
+        ABSL_DCHECK(flat != std::nullopt)
             << "CordReader source changed unexpectedly";
-        RIEGELI_ASSERT_EQ(flat->data(), self.start())
+        ABSL_DCHECK_EQ(flat->data(), self.start())
             << "CordReader source changed unexpectedly";
-        RIEGELI_ASSERT_EQ(flat->size(), self.start_to_limit())
+        ABSL_DCHECK_EQ(flat->size(), self.start_to_limit())
             << "CordReader source changed unexpectedly";
       }
     } else {
       if (position_ == that.src_->size()) {
-        RIEGELI_ASSERT(*self.iter_ == that.src_->char_end())
+        ABSL_DCHECK(*self.iter_ == that.src_->char_end())
             << "CordReader source changed unexpectedly";
-        RIEGELI_ASSERT(!uses_buffer_)
-            << "CordReader source changed unexpectedly";
+        ABSL_DCHECK(!uses_buffer_) << "CordReader source changed unexpectedly";
       } else {
         const absl::string_view fragment =
             absl::Cord::ChunkRemaining(*self.iter_);
-        RIEGELI_ASSERT_EQ(fragment.data(), self.start())
+        ABSL_DCHECK_EQ(fragment.data(), self.start())
             << "CordReader source changed unexpectedly";
-        RIEGELI_ASSERT_EQ(fragment.size(), self.start_to_limit())
+        ABSL_DCHECK_EQ(fragment.size(), self.start_to_limit())
             << "CordReader source changed unexpectedly";
       }
     }
@@ -255,7 +254,7 @@ class CordReader<Src>::Mover {
     if (self.iter_ == std::nullopt) {
       if (uses_buffer_) {
         const std::optional<absl::string_view> flat = self.src_->TryFlat();
-        RIEGELI_ASSERT(flat != std::nullopt)
+        ABSL_DCHECK(flat != std::nullopt)
             << "CordReader source changed unexpectedly";
         self.set_buffer(flat->data(), flat->size(), start_to_cursor_);
       }

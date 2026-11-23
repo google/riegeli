@@ -23,8 +23,8 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 
 namespace riegeli {
@@ -66,7 +66,7 @@ class BufferOptions {
   static constexpr size_t kDefaultMaxBufferSize = size_t{64} << 10;
   BufferOptions& set_max_buffer_size(size_t max_buffer_size) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_GT(max_buffer_size, 0u)
+    ABSL_DCHECK_GT(max_buffer_size, 0u)
         << "Failed precondition of BufferOptions::set_max_buffer_size(): "
            "zero buffer size";
     max_buffer_size_ = UnsignedMin(max_buffer_size, uint32_t{1} << 31);
@@ -371,7 +371,7 @@ inline void ReadBufferSizer::Reset(BufferOptions buffer_options) {
 }
 
 inline void ReadBufferSizer::EndRun(Position pos) {
-  RIEGELI_ASSERT_GE(pos, base_pos_)
+  ABSL_DCHECK_GE(pos, base_pos_)
       << "Failed precondition of ReadBufferSizer::EndRun(): "
       << "position earlier than base position of the run";
   if (pos == base_pos_) return;
@@ -400,7 +400,7 @@ inline void WriteBufferSizer::Reset(BufferOptions buffer_options) {
 }
 
 inline void WriteBufferSizer::EndRun(Position pos) {
-  RIEGELI_ASSERT_GE(pos, base_pos_)
+  ABSL_DCHECK_GE(pos, base_pos_)
       << "Failed precondition of WriteBufferSizer::EndRun(): "
       << "position earlier than base position of the run";
   if (pos == base_pos_) return;

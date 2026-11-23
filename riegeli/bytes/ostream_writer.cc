@@ -24,11 +24,11 @@
 #include <string>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -41,18 +41,18 @@ namespace riegeli {
 void OStreamWriterBase::Initialize(std::ostream* dest,
                                    std::optional<Position> assumed_pos,
                                    bool assumed_append) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of OStreamWriter: null stream pointer";
-  RIEGELI_ASSERT_EQ(supports_random_access_, LazyBoolState::kUnknown)
+  ABSL_DCHECK_EQ(supports_random_access_, LazyBoolState::kUnknown)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_random_access_ not reset";
-  RIEGELI_ASSERT_EQ(supports_read_mode_, LazyBoolState::kUnknown)
+  ABSL_DCHECK_EQ(supports_read_mode_, LazyBoolState::kUnknown)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "supports_read_mode_ not reset";
-  RIEGELI_ASSERT_OK(random_access_status_)
+  ABSL_DCHECK_OK(random_access_status_)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "random_access_status_ not reset";
-  RIEGELI_ASSERT_OK(read_mode_status_)
+  ABSL_DCHECK_OK(read_mode_status_)
       << "Failed precondition of OStreamWriterBase::Initialize(): "
          "read_mode_status_ not reset";
   if (ABSL_PREDICT_FALSE(dest->fail())) {
@@ -199,11 +199,11 @@ inline bool OStreamWriterBase::WriteMode() {
 }
 
 bool OStreamWriterBase::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
   std::ostream& dest = *DestStream();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
@@ -223,7 +223,7 @@ bool OStreamWriterBase::WriteInternal(absl::string_view src) {
 
 bool OStreamWriterBase::FlushBehindBuffer(absl::string_view src,
                                           FlushType flush_type) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::FlushBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!WriteMode())) return false;
@@ -231,10 +231,10 @@ bool OStreamWriterBase::FlushBehindBuffer(absl::string_view src,
 }
 
 bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "position unchanged, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!OStreamWriterBase::SupportsRandomAccess())) {
@@ -268,7 +268,7 @@ bool OStreamWriterBase::SeekBehindBuffer(Position new_pos) {
 }
 
 std::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!OStreamWriterBase::SupportsRandomAccess())) {
@@ -298,7 +298,7 @@ std::optional<Position> OStreamWriterBase::SizeBehindBuffer() {
 }
 
 Reader* OStreamWriterBase::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!OStreamWriterBase::SupportsReadMode())) {

@@ -22,7 +22,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/type_traits.h"
@@ -264,9 +263,9 @@ template <typename Handle, typename Manager>
 Dependency<Handle, Manager>&
 StableDependencyDefault<Handle, Manager>::AssumeAllocatedSlow(
     const StableDependencyDefault<Handle, Manager>& /*self*/) {
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Failed invariant of StableDependency: "
-         "dep_ == nullptr but ensure_allocated_ == AssumeAllocatedSlow";
+  // Failed invariant of `StableDependency`:
+  // `dep_ == nullptr` but `ensure_allocated_ == AssumeAllocatedSlow`.
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace dependency_internal

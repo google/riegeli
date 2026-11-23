@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -29,7 +30,6 @@
 #include "google/cloud/storage/object_metadata.h"
 #include "google/cloud/storage/object_write_stream.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -170,7 +170,7 @@ inline void GcsWriter::PropagateStatus() {
 }
 
 void GcsWriter::PropagateStatusSlow(const google::cloud::Status& status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of GcsWriter::PropagateStatusSlow(): "
          "ObjectWriteStream not failed";
   MarkNotFailed();
@@ -178,11 +178,11 @@ void GcsWriter::PropagateStatusSlow(const google::cloud::Status& status) {
 }
 
 bool GcsWriter::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   const bool result = OStreamWriter::WriteInternal(src);
   PropagateStatus();
   return result;
@@ -224,7 +224,7 @@ bool GcsWriter::FlushImpl(FlushType flush_type) {
 bool GcsWriter::SupportsReadMode() { return temp_object_name_ != std::nullopt; }
 
 Reader* GcsWriter::ReadModeBehindBuffer(Position initial_pos) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::ReadModeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!GcsWriter::SupportsReadMode())) {

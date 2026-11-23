@@ -24,8 +24,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -274,7 +274,7 @@ inline WriterStreambuf& WriterStreambuf::operator=(
 }
 
 inline void WriterStreambuf::Initialize(Writer* dest) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of WriterStreambuf: null Writer pointer";
   writer_ = dest;
   setp(writer_->cursor(), writer_->limit());

@@ -29,13 +29,13 @@
 #include <optional>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "python/riegeli/base/utils.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -109,7 +109,7 @@ void PythonWriter::Done() {
 }
 
 inline bool PythonWriter::FailOperation(absl::string_view operation) {
-  RIEGELI_ASSERT(is_open())
+  ABSL_DCHECK(is_open())
       << "Failed precondition of PythonWriter::FailOperation(): "
          "Object closed";
   PythonLock::AssertHeld();
@@ -124,11 +124,11 @@ inline bool PythonWriter::FailOperation(absl::string_view operation) {
 }
 
 bool PythonWriter::WriteInternal(absl::string_view src) {
-  RIEGELI_ASSERT(!src.empty())
+  ABSL_DCHECK(!src.empty())
       << "Failed precondition of BufferedWriter::WriteInternal(): "
          "nothing to write";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedWriter::WriteInternal()";
+  ABSL_DCHECK(ok())
+      << "Failed precondition of BufferedWriter::WriteInternal(): " << status();
   if (ABSL_PREDICT_FALSE(src.size() > kMaxPosition - start_pos())) {
     return FailOverflow();
   }
@@ -221,15 +221,14 @@ bool PythonWriter::FlushImpl(FlushType flush_type) {
       }
       return true;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown flush type: " << static_cast<int>(flush_type);
+  ABSL_UNREACHABLE();
 }
 
 bool PythonWriter::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT_NE(new_pos, pos())
+  ABSL_DCHECK_NE(new_pos, pos())
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "position unchanged, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SeekBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!PythonWriter::SupportsRandomAccess())) {
@@ -262,12 +261,12 @@ bool PythonWriter::SeekBehindBuffer(Position new_pos) {
 }
 
 inline std::optional<Position> PythonWriter::SizeInternal() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of PythonWriter::SizeInternal()";
-  RIEGELI_ASSERT(PythonWriter::SupportsRandomAccess())
+  ABSL_DCHECK(ok()) << "Failed precondition of PythonWriter::SizeInternal(): "
+                    << status();
+  ABSL_DCHECK(PythonWriter::SupportsRandomAccess())
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "random access not supported";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of PythonWriter::SizeInternal(): "
          "buffer not empty";
   PythonLock::AssertHeld();
@@ -309,7 +308,7 @@ inline std::optional<Position> PythonWriter::SizeInternal() {
 }
 
 std::optional<Position> PythonWriter::SizeBehindBuffer() {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::SizeBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!PythonWriter::SupportsRandomAccess())) {
@@ -336,7 +335,7 @@ std::optional<Position> PythonWriter::SizeBehindBuffer() {
 }
 
 bool PythonWriter::TruncateBehindBuffer(Position new_size) {
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedWriter::TruncateBehindBuffer(): "
          "buffer not empty";
   if (ABSL_PREDICT_FALSE(!PythonWriter::SupportsRandomAccess())) {

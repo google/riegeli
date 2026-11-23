@@ -23,8 +23,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -63,11 +63,11 @@ class FramedSnappyWriterBase : public PushableWriter {
         snappy::CompressionOptions::DefaultCompressionLevel();
     Options& set_compression_level(int compression_level) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+      ABSL_DCHECK_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "FramedSnappyWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+      ABSL_DCHECK_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "FramedSnappyWriterBase::Options::set_compression_level(): "
              "compression level out of range";

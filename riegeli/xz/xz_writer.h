@@ -22,11 +22,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "lzma.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -96,11 +96,11 @@ class XzWriterBase : public BufferedWriter {
     static constexpr int kDefaultCompressionLevel = 6;
     Options& set_compression_level(int compression_level) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+      ABSL_DCHECK_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "XzWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+      ABSL_DCHECK_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "XzWriterBase::Options::set_compression_level(): "
              "compression level out of range";
@@ -156,7 +156,7 @@ class XzWriterBase : public BufferedWriter {
     //
     // Default: 0.
     Options& set_parallelism(int parallelism) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(parallelism, 0)
+      ABSL_DCHECK_GE(parallelism, 0)
           << "Failed precondition of XzWriterBase::Options::set_parallelism(): "
              "negative parallelism";
       parallelism_ = parallelism;

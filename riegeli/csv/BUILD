@@ -14,7 +14,6 @@ cc_library(
     deps = [
         ":csv_record",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:debug",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
@@ -26,6 +25,7 @@ cc_library(
         "//riegeli/bytes:string_writer",
         "//riegeli/lines:line_reading",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
@@ -40,7 +40,6 @@ cc_library(
     deps = [
         ":csv_record",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:debug",
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
@@ -53,6 +52,7 @@ cc_library(
         "//riegeli/lines:line_writing",
         "//riegeli/lines:newline",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",
@@ -65,7 +65,6 @@ cc_library(
     hdrs = ["csv_record.h"],
     deps = [
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:compare",
         "//riegeli/base:global",
         "//riegeli/base:initializer",
@@ -81,6 +80,7 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:string_view",

@@ -19,10 +19,10 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/varint/varint_internal.h"  // IWYU pragma: export
 
@@ -556,7 +556,7 @@ extern template bool ReadVarintFromCord<uint64_t, true, 1>(
 
 inline bool ReadVarint32(absl::Cord::CharIterator& src, size_t available,
                          uint32_t& dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of ReadVarint32(): not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;
   const uint32_t byte0 = uint32_t{static_cast<uint8_t>(*src)};
@@ -586,7 +586,7 @@ inline bool ReadVarint32(absl::Cord::CharIterator& src, size_t available,
 
 inline bool ReadVarint64(absl::Cord::CharIterator& src, size_t available,
                          uint64_t& dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of ReadVarint64(): not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;
   const uint64_t byte0 = uint64_t{static_cast<uint8_t>(*src)};
@@ -636,7 +636,7 @@ inline bool ReadVarintSigned64(absl::Cord::CharIterator& src, size_t available,
 
 inline bool ReadCanonicalVarint32(absl::Cord::CharIterator& src,
                                   size_t available, uint32_t& dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of ReadCanonicalVarint32(): "
          "not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;
@@ -668,7 +668,7 @@ inline bool ReadCanonicalVarint32(absl::Cord::CharIterator& src,
 
 inline bool ReadCanonicalVarint64(absl::Cord::CharIterator& src,
                                   size_t available, uint64_t& dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of ReadCanonicalVarint64(): "
          "not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;
@@ -971,7 +971,7 @@ extern template size_t CopyVarintFromCord<uint64_t, true, 1>(
 
 inline size_t CopyVarint32(absl::Cord::CharIterator& src, size_t available,
                            char* dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of CopyVarint32(): not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return 0;
   const uint8_t byte0 = static_cast<uint8_t>(*src);
@@ -1000,7 +1000,7 @@ inline size_t CopyVarint32(absl::Cord::CharIterator& src, size_t available,
 
 inline size_t CopyVarint64(absl::Cord::CharIterator& src, size_t available,
                            char* dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of CopyVarint64(): not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return 0;
   const uint8_t byte0 = static_cast<uint8_t>(*src);
@@ -1029,7 +1029,7 @@ inline size_t CopyVarint64(absl::Cord::CharIterator& src, size_t available,
 
 inline size_t CopyCanonicalVarint32(absl::Cord::CharIterator& src,
                                     size_t available, char* dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of CopyCanonicalVarint32(): "
          "not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return 0;
@@ -1060,7 +1060,7 @@ inline size_t CopyCanonicalVarint32(absl::Cord::CharIterator& src,
 
 inline size_t CopyCanonicalVarint64(absl::Cord::CharIterator& src,
                                     size_t available, char* dest) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of CopyCanonicalVarint64(): "
          "not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return 0;
@@ -1308,7 +1308,7 @@ extern template bool SkipVarintFromCord<uint64_t, true, 1>(
 }  // namespace varint_internal
 
 inline bool SkipVarint32(absl::Cord::CharIterator& src, size_t available) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of SkipVarint32(): not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;
   const uint32_t byte0 = uint32_t{static_cast<uint8_t>(*src)};
@@ -1334,7 +1334,7 @@ inline bool SkipVarint32(absl::Cord::CharIterator& src, size_t available) {
 }
 
 inline bool SkipVarint64(absl::Cord::CharIterator& src, size_t available) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of SkipVarint64(): not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;
   const uint64_t byte0 = uint64_t{static_cast<uint8_t>(*src)};
@@ -1361,7 +1361,7 @@ inline bool SkipVarint64(absl::Cord::CharIterator& src, size_t available) {
 
 inline bool SkipCanonicalVarint32(absl::Cord::CharIterator& src,
                                   size_t available) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of SkipCanonicalVarint32(): "
          "not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;
@@ -1390,7 +1390,7 @@ inline bool SkipCanonicalVarint32(absl::Cord::CharIterator& src,
 
 inline bool SkipCanonicalVarint64(absl::Cord::CharIterator& src,
                                   size_t available) {
-  RIEGELI_ASSERT_LE(available, varint_internal::Remaining(src))
+  ABSL_DCHECK_LE(available, varint_internal::Remaining(src))
       << "Failed precondition of SkipCanonicalVarint64(): "
          "not enough remaining data";
   if (ABSL_PREDICT_FALSE(available == 0)) return false;

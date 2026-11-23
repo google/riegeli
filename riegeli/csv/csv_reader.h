@@ -29,9 +29,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -268,7 +268,7 @@ class CsvReaderBase : public Object {
     // Default: `std::numeric_limits<size_t>::max()`.
     Options& set_max_num_fields(size_t max_num_fields) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(max_num_fields, 1u)
+      ABSL_DCHECK_GE(max_num_fields, 1u)
           << "Failed precondition of "
              "CsvReaderBase::Options::set_max_num_fields(): "
              "number of fields out of range";
@@ -674,7 +674,7 @@ inline void CsvReaderBase::Reset() {
 }
 
 inline uint64_t CsvReaderBase::last_record_index() const {
-  RIEGELI_ASSERT_GT(record_index_, 0u)
+  ABSL_DCHECK_GT(record_index_, 0u)
       << "Failed precondition of CsvReaderBase::last_record_index(): "
          "no record was read";
   return record_index_ - 1;

@@ -29,12 +29,12 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
@@ -125,10 +125,9 @@ bool IsProtoMessage(Reader& record) {
       case WireType::kInvalid7:
         return false;
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Impossible wire type: " << static_cast<int>(GetTagWireType(tag));
+    ABSL_UNREACHABLE();
   }
-  RIEGELI_ASSERT_OK(record);
+  ABSL_DCHECK(record.ok()) << record.status();
   return started_groups.empty();
 }
 
@@ -244,32 +243,34 @@ bool TransposeEncoder::AddRecord(const absl::Cord& record) {
 }
 
 bool TransposeEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
-  RIEGELI_ASSERT_EQ(limits.empty() ? 0u : limits.back(), records.size())
+  ABSL_DCHECK_EQ(limits.empty() ? 0u : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   LimitingReader<ChainReader<>> record_reader(
       riegeli::Maker(&records), LimitingReaderBase::Options().set_exact_pos(0));
   for (const size_t limit : limits) {
-    RIEGELI_ASSERT_GE(limit, record_reader.pos())
+    ABSL_DCHECK_GE(limit, record_reader.pos())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions not sorted";
     record_reader.set_max_pos(limit);
     if (ABSL_PREDICT_FALSE(!AddRecordInternal(record_reader))) return false;
-    RIEGELI_ASSERT_EQ(record_reader.pos(), limit)
+    ABSL_DCHECK_EQ(record_reader.pos(), limit)
         << "Record was not read up to its end";
   }
-  RIEGELI_EVAL_ASSERT(record_reader.Close()) << record_reader.status();
+  const bool close_ok = record_reader.Close();
+  ABSL_DCHECK(close_ok) << record_reader.status();
   return true;
 }
 
 inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
-  RIEGELI_ASSERT_OK(record)
-      << "Failed precondition of TransposeEncoder::AddRecordInternal()";
+  ABSL_DCHECK(record.ok())
+      << "Failed precondition of TransposeEncoder::AddRecordInternal(): "
+      << record.status();
   const Position pos_before = record.pos();
   std::optional<Position> size = record.Size();
-  RIEGELI_ASSERT(size != std::nullopt) << record.status();
-  RIEGELI_ASSERT_LE(pos_before, *size)
+  ABSL_DCHECK(size != std::nullopt) << record.status();
+  ABSL_DCHECK_LE(pos_before, *size)
       << "Current position after the end of record";
   *size -= pos_before;
   if (ABSL_PREDICT_FALSE(num_records_ == kMaxNumRecords)) {
@@ -282,7 +283,8 @@ inline bool TransposeEncoder::AddRecordInternal(Reader& record) {
   ++num_records_;
   decoded_data_size_ += IntCast<uint64_t>(*size);
   const bool is_proto = IsProtoMessage(record);
-  RIEGELI_EVAL_ASSERT(record.Seek(pos_before)) << record.status();
+  const bool seek_ok = record.Seek(pos_before);
+  ABSL_DCHECK(seek_ok) << record.status();
   if (is_proto) {
     encoded_tags_.push_back(GetPosInTagsList(
         GetNode(NodeId(chunk_encoding_internal::MessageId::kStartOfMessage, 0)),
@@ -349,8 +351,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
   for (;;) {
     while (limited_record.Pull()) {
       uint32_t tag;
-      RIEGELI_EVAL_ASSERT(ReadVarint32(limited_record, tag))
-          << "Invalid tag: " << limited_record.status();
+      const bool read_tag_ok = ReadVarint32(limited_record, tag);
+      ABSL_DCHECK(read_tag_ok) << "Invalid tag: " << limited_record.status();
       Node* node = GetNode(NodeId(parent_message_id, tag));
       switch (GetTagWireType(tag)) {
         case WireType::kVarint: {
@@ -361,7 +363,7 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
                         "value too small to hold a varint64");
           const size_t value_length =
               CopyVarint64(limited_record, reinterpret_cast<char*>(value));
-          RIEGELI_ASSERT(value_length > 0)
+          ABSL_DCHECK_GT(value_length, 0u)
               << "Invalid varint: " << limited_record.status();
           if (reinterpret_cast<const unsigned char*>(value)[0] <=
               kMaxVarintInline) {
@@ -402,7 +404,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
         case WireType::kLengthDelimited: {
           const Position length_pos = limited_record.pos();
           uint32_t length;
-          RIEGELI_EVAL_ASSERT(ReadVarint32(limited_record, length))
+          const bool read_length_ok = ReadVarint32(limited_record, length);
+          ABSL_DCHECK(read_length_ok)
               << "Invalid length: " << limited_record.status();
           const Position value_pos = limited_record.pos();
           const Position parent_max_record_pos = limited_record.max_pos();
@@ -416,8 +419,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
             encoded_tags_.push_back(
                 GetPosInTagsList(node, chunk_encoding_internal::Subtype::
                                            kLengthDelimitedStartOfSubmessage));
-            RIEGELI_EVAL_ASSERT(limited_record.Seek(value_pos))
-                << limited_record.status();
+            const bool seek_ok = limited_record.Seek(value_pos);
+            ABSL_DCHECK(seek_ok) << limited_record.status();
             const uint32_t end_of_submessage_pos =
                 GetPosInTagsList(node, chunk_encoding_internal::Subtype::
                                            kLengthDelimitedEndOfSubmessage);
@@ -435,8 +438,8 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
           }
           encoded_tags_.push_back(GetPosInTagsList(
               node, chunk_encoding_internal::Subtype::kLengthDelimitedString));
-          RIEGELI_EVAL_ASSERT(limited_record.Seek(length_pos))
-              << limited_record.status();
+          const bool seek_ok = limited_record.Seek(length_pos);
+          ABSL_DCHECK(seek_ok) << limited_record.status();
           BackwardWriter* const buffer = GetBuffer(node, BufferType::kString);
           if (ABSL_PREDICT_FALSE(!limited_record.Copy(
                   IntCast<size_t>(value_pos - length_pos) + length, *buffer))) {
@@ -461,12 +464,10 @@ inline bool TransposeEncoder::AddMessage(Reader& record) {
               node, chunk_encoding_internal::Subtype::kTrivial));
           break;
         default:
-          RIEGELI_ASSUME_UNREACHABLE()
-              << "Invalid wire type: "
-              << static_cast<uint32_t>(GetTagWireType(tag));
+          ABSL_UNREACHABLE();
       }
     }
-    RIEGELI_ASSERT_OK(limited_record);
+    ABSL_DCHECK(limited_record.ok()) << limited_record.status();
     if (message_stack_.empty()) return true;
     const MessageFrame& message_frame = message_stack_.back();
     encoded_tags_.push_back(message_frame.end_of_submessage_pos);
@@ -488,7 +489,7 @@ inline bool TransposeEncoder::AddBuffer(
       if (ABSL_PREDICT_FALSE(!bucket_compressor.EncodeAndClose(data_writer))) {
         return Fail(bucket_compressor.status());
       }
-      RIEGELI_ASSERT_GE(data_writer.pos(), pos_before)
+      ABSL_DCHECK_GE(data_writer.pos(), pos_before)
           << "Data writer position decreased";
       compressed_bucket_sizes.push_back(
           IntCast<size_t>(data_writer.pos() - pos_before));
@@ -567,13 +568,13 @@ inline bool TransposeEncoder::WriteBuffers(
     for (const BufferWithMetadata& buffer : buffers) {
       std::optional<size_t> new_uncompressed_bucket_size;
       if (current_bucket_size == 0) {
-        RIEGELI_ASSERT(!uncompressed_bucket_sizes.empty())
+        ABSL_DCHECK(!uncompressed_bucket_sizes.empty())
             << "Bucket sizes and buffer sizes do not match";
         current_bucket_size = uncompressed_bucket_sizes.back();
         uncompressed_bucket_sizes.pop_back();
         new_uncompressed_bucket_size = current_bucket_size;
       }
-      RIEGELI_ASSERT_GE(current_bucket_size, buffer.buffer->size())
+      ABSL_DCHECK_GE(current_bucket_size, buffer.buffer->size())
           << "Bucket sizes and buffer sizes do not match";
       current_bucket_size -= buffer.buffer->size();
       if (ABSL_PREDICT_FALSE(!AddBuffer(
@@ -584,14 +585,14 @@ inline bool TransposeEncoder::WriteBuffers(
       const std::pair<absl::flat_hash_map<NodeId, uint32_t>::iterator, bool>
           insert_result = buffer_pos->emplace(
               buffer.node_id, IntCast<uint32_t>(buffer_pos->size()));
-      RIEGELI_ASSERT(insert_result.second)
+      ABSL_DCHECK(insert_result.second)
           << "Field already has buffer assigned: "
           << static_cast<uint32_t>(buffer.node_id.parent_message_id) << "/"
           << buffer.node_id.tag;
     }
-    RIEGELI_ASSERT(uncompressed_bucket_sizes.empty())
+    ABSL_DCHECK(uncompressed_bucket_sizes.empty())
         << "Bucket sizes and buffer sizes do not match";
-    RIEGELI_ASSERT_EQ(current_bucket_size, 0u)
+    ABSL_DCHECK_EQ(current_bucket_size, 0u)
         << "Bucket sizes and buffer sizes do not match";
   }
   if (!nonproto_lengths.empty()) {
@@ -610,7 +611,7 @@ inline bool TransposeEncoder::WriteBuffers(
     if (ABSL_PREDICT_FALSE(!bucket_compressor.EncodeAndClose(data_writer))) {
       return Fail(bucket_compressor.status());
     }
-    RIEGELI_ASSERT_GE(data_writer.pos(), pos_before)
+    ABSL_DCHECK_GE(data_writer.pos(), pos_before)
         << "Data writer position decreased";
     compressed_bucket_sizes.push_back(
         IntCast<size_t>(data_writer.pos() - pos_before));
@@ -650,7 +651,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
         tags_list_[encoded_tags_[0]].dest_info;
     const uint32_t first_key = dest_info.begin()->first;
     dest_info[first_key + 1];
-    RIEGELI_ASSERT_NE(tags_list_[encoded_tags_[0]].dest_info.size(), 1u)
+    ABSL_DCHECK_NE(tags_list_[encoded_tags_[0]].dest_info.size(), 1u)
         << "Number of transitions from the last state did not increase";
   }
   absl::flat_hash_map<NodeId, uint32_t> buffer_pos;
@@ -716,7 +717,7 @@ inline bool TransposeEncoder::WriteStatesAndData(
         if (chunk_encoding_internal::HasDataBuffer(node_id.tag, subtype)) {
           const absl::flat_hash_map<NodeId, uint32_t>::const_iterator iter =
               buffer_pos.find(NodeId(node_id.parent_message_id, node_id.tag));
-          RIEGELI_ASSERT(iter != buffer_pos.end())
+          ABSL_DCHECK(iter != buffer_pos.end())
               << "Buffer not found: "
               << static_cast<uint32_t>(node_id.parent_message_id) << "/"
               << node_id.tag;
@@ -736,14 +737,12 @@ inline bool TransposeEncoder::WriteStatesAndData(
         const absl::flat_hash_map<NodeId, uint32_t>::const_iterator iter =
             buffer_pos.find(
                 NodeId(chunk_encoding_internal::MessageId::kNonProto, 0));
-        RIEGELI_ASSERT(iter != buffer_pos.end())
+        ABSL_DCHECK(iter != buffer_pos.end())
             << "Buffer of non-proto records not found";
         buffer_index_to_write.push_back(iter->second);
       } else {
-        RIEGELI_ASSERT_EQ(
-            static_cast<uint32_t>(node_id.parent_message_id),
-            static_cast<uint32_t>(
-                chunk_encoding_internal::MessageId::kStartOfMessage))
+        ABSL_DCHECK_EQ(node_id.parent_message_id,
+                       chunk_encoding_internal::MessageId::kStartOfMessage)
             << "Unexpected message ID with no tag";
       }
     }
@@ -847,18 +846,18 @@ inline bool TransposeEncoder::WriteTransitions(
             // While desired pos is not reachable using one transition, move to
             // `canonical_source`.
             const uint32_t cs = state_machine[pos].canonical_source;
-            RIEGELI_ASSERT_LT(cs, state_machine.size())
+            ABSL_DCHECK_LT(cs, state_machine.size())
                 << "Canonical source out of range: " << pos;
-            RIEGELI_ASSERT_LE(state_machine[cs].base, pos)
+            ABSL_DCHECK_LE(state_machine[cs].base, pos)
                 << "Position unreachable from its base: " << pos;
-            RIEGELI_ASSERT_LE(pos - state_machine[cs].base, max_transition)
+            ABSL_DCHECK_LE(pos - state_machine[cs].base, max_transition)
                 << "Position unreachable from its base: " << pos;
-            RIEGELI_ASSERT_NE(write_start, 0u) << "Write buffer overflow";
+            ABSL_DCHECK_NE(write_start, 0u) << "Write buffer overflow";
             write[--write_start] =
                 IntCast<uint8_t>(pos - state_machine[cs].base);
             pos = cs;
           }
-          RIEGELI_ASSERT_NE(write_start, 0u) << "Write buffer overflow";
+          ABSL_DCHECK_NE(write_start, 0u) << "Write buffer overflow";
           write[--write_start] = IntCast<uint8_t>(pos - current_base);
 
           for (size_t j = write_start; j < kWriteBufSize; ++j) {
@@ -882,26 +881,26 @@ inline bool TransposeEncoder::WriteTransitions(
         // `pos` becomes the position of the state in the public list.
         pos = tags_list_[tag].state_machine_pos;
       }
-      RIEGELI_ASSERT_NE(current_base, kInvalidPos)
+      ABSL_DCHECK_NE(current_base, kInvalidPos)
           << "No outgoing transition from current base";
-      RIEGELI_ASSERT_LT(pos, state_machine.size()) << "Position out of range";
+      ABSL_DCHECK_LT(pos, state_machine.size()) << "Position out of range";
       size_t write_start = kWriteBufSize;
       // Encode transition from `current_base` to `pos`.
       while (current_base > pos || pos - current_base > max_transition) {
         // While desired pos is not reachable using one transition, move to
         // `canonical_source`.
         const uint32_t cs = state_machine[pos].canonical_source;
-        RIEGELI_ASSERT_LT(cs, state_machine.size())
+        ABSL_DCHECK_LT(cs, state_machine.size())
             << "Canonical source out of range: " << pos;
-        RIEGELI_ASSERT_LE(state_machine[cs].base, pos)
+        ABSL_DCHECK_LE(state_machine[cs].base, pos)
             << "Position unreachable from its base: " << pos;
-        RIEGELI_ASSERT_LE(pos - state_machine[cs].base, max_transition)
+        ABSL_DCHECK_LE(pos - state_machine[cs].base, max_transition)
             << "Position unreachable from its base: " << pos;
-        RIEGELI_ASSERT_NE(write_start, 0u) << "Write buffer overflow";
+        ABSL_DCHECK_NE(write_start, 0u) << "Write buffer overflow";
         write[--write_start] = IntCast<uint8_t>(pos - state_machine[cs].base);
         pos = cs;
       }
-      RIEGELI_ASSERT_NE(write_start, 0u) << "Write buffer overflow";
+      ABSL_DCHECK_NE(write_start, 0u) << "Write buffer overflow";
       write[--write_start] = IntCast<uint8_t>(pos - current_base);
       for (size_t j = write_start; j < kWriteBufSize; ++j) {
         if (write[j] == 0 && last_transition != std::nullopt &&
@@ -918,8 +917,7 @@ inline bool TransposeEncoder::WriteTransitions(
         }
       }
     } else {
-      RIEGELI_ASSERT_EQ(state_machine[tags_list_[prev_etag].base].etag_index,
-                        tag)
+      ABSL_DCHECK_EQ(state_machine[tags_list_[prev_etag].base].etag_index, tag)
           << "Implicit transition goes to a wrong tag";
     }
     prev_etag = tag;
@@ -979,7 +977,7 @@ inline void TransposeEncoder::ComputeBaseIndices(
       }
       // Position of the state that we need to reach.
       pos = tags_list_[dest_info.first].state_machine_pos;
-      RIEGELI_ASSERT_NE(pos, kInvalidPos) << "Invalid position";
+      ABSL_DCHECK_NE(pos, kInvalidPos) << "Invalid position";
       // Assuming we processed some states already and `base` is already set to
       // non-`kInvalidPos` we find the base of the block that is the common
       // ancestor for both `pos` and current `base`.
@@ -1011,7 +1009,7 @@ inline void TransposeEncoder::ComputeBaseIndices(
             cs = state_machine[base].canonical_source;
             // If `cs` is `kInvalidPos` then `base` was already in the first
             // block. But then `base > pos` can't be true.
-            RIEGELI_ASSERT_NE(cs, kInvalidPos) << "Unreachable base: " << base;
+            ABSL_DCHECK_NE(cs, kInvalidPos) << "Unreachable base: " << base;
             // Transitions to previously added states will use `cs` so we update
             // `min_pos`.
             min_pos = UnsignedMin(min_pos, cs);
@@ -1029,18 +1027,18 @@ inline void TransposeEncoder::ComputeBaseIndices(
         } else {
           // Update `pos` to `canonical_source` of `pos`.
           const uint32_t cs = state_machine[pos].canonical_source;
-          RIEGELI_ASSERT_LT(cs, state_machine.size())
+          ABSL_DCHECK_LT(cs, state_machine.size())
               << "Canonical source out of range: " << pos;
-          RIEGELI_ASSERT_LE(state_machine[cs].base, pos)
+          ABSL_DCHECK_LE(state_machine[cs].base, pos)
               << "Position unreachable from its base: " << pos;
-          RIEGELI_ASSERT_LE(pos - state_machine[cs].base, max_transition)
+          ABSL_DCHECK_LE(pos - state_machine[cs].base, max_transition)
               << "Position unreachable from its base: " << pos;
           pos = cs;
         }
       }
       min_pos = UnsignedMin(min_pos, pos);
     }
-    RIEGELI_ASSERT_NE(min_pos, kInvalidPos)
+    ABSL_DCHECK_NE(min_pos, kInvalidPos)
         << "No outgoing transition from a public NoOp";
     state_machine[tag_index_and_state_index.second].base = min_pos;
   }
@@ -1060,7 +1058,7 @@ inline void TransposeEncoder::ComputeBaseIndices(
         continue;
       }
       pos = tags_list_[dest_info.first].state_machine_pos;
-      RIEGELI_ASSERT_NE(pos, kInvalidPos) << "Invalid position";
+      ABSL_DCHECK_NE(pos, kInvalidPos) << "Invalid position";
       while (base > pos || pos - base > max_transition) {
         if (base > pos) {
           uint32_t cs;
@@ -1068,7 +1066,7 @@ inline void TransposeEncoder::ComputeBaseIndices(
             cs = state_machine[pos].canonical_source;
           } else {
             cs = state_machine[base].canonical_source;
-            RIEGELI_ASSERT_NE(cs, kInvalidPos) << "Unreachable base: " << base;
+            ABSL_DCHECK_NE(cs, kInvalidPos) << "Unreachable base: " << base;
             min_pos = UnsignedMin(min_pos, cs);
             cs = state_machine[cs].canonical_source;
           }
@@ -1079,11 +1077,11 @@ inline void TransposeEncoder::ComputeBaseIndices(
           }
         } else {
           const uint32_t cs = state_machine[pos].canonical_source;
-          RIEGELI_ASSERT_LT(cs, state_machine.size())
+          ABSL_DCHECK_LT(cs, state_machine.size())
               << "Canonical source out of range: " << pos;
-          RIEGELI_ASSERT_LE(state_machine[cs].base, pos)
+          ABSL_DCHECK_LE(state_machine[cs].base, pos)
               << "Position unreachable from its base: " << pos;
-          RIEGELI_ASSERT_LE(pos - state_machine[cs].base, max_transition)
+          ABSL_DCHECK_LE(pos - state_machine[cs].base, max_transition)
               << "Position unreachable from its base: " << pos;
           pos = cs;
         }
@@ -1207,7 +1205,7 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
       // weight of the `kNoOp` created for this block.
       uint32_t total_block_nodes_weight = 0;
       for (uint32_t i = 0; i < block_size; ++i) {
-        RIEGELI_ASSERT(!tag_priority.empty()) << "No remaining nodes";
+        ABSL_DCHECK(!tag_priority.empty()) << "No remaining nodes";
         total_block_nodes_weight += tag_priority.top().num_transitions;
         const uint32_t node_index = tag_priority.top().dest_index;
         if (node_index == kInvalidPos) {
@@ -1276,7 +1274,7 @@ TransposeEncoder::CreateStateMachine(uint32_t max_transition,
     for (;;) {
       uint32_t total_block_nodes_weight = 0;
       for (uint32_t i = 0; i < block_size; ++i) {
-        RIEGELI_ASSERT(!tag_priority.empty()) << "No remaining nodes";
+        ABSL_DCHECK(!tag_priority.empty()) << "No remaining nodes";
         total_block_nodes_weight += tag_priority.top().num_transitions;
         const uint32_t node_index = tag_priority.top().dest_index;
         if (node_index >= tags_list_.size()) {
@@ -1330,7 +1328,7 @@ bool TransposeEncoder::EncodeAndCloseInternal(uint32_t max_transition,
                                               Writer& dest,
                                               uint64_t& num_records,
                                               uint64_t& decoded_data_size) {
-  RIEGELI_ASSERT_LE(max_transition, 63u)
+  ABSL_DCHECK_LE(max_transition, 63u)
       << "Failed precondition of TransposeEncoder::EncodeAndCloseInternal(): "
          "maximum transition too large to encode";
   if (ABSL_PREDICT_FALSE(!ok())) return false;

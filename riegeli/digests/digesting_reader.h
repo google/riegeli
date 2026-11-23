@@ -24,10 +24,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -260,7 +260,7 @@ inline DigestingReaderBase& DigestingReaderBase::operator=(
 
 inline void DigestingReaderBase::Initialize(Reader* src,
                                             DigesterBaseHandle digester) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of DigestingReader: null Reader pointer";
   MakeBuffer(*src);
   absl::Status status = digester.status();
@@ -268,13 +268,14 @@ inline void DigestingReaderBase::Initialize(Reader* src,
 }
 
 inline bool DigestingReaderBase::SyncBuffer(Reader& src) {
-  RIEGELI_ASSERT_EQ(start(), src.cursor())
+  ABSL_DCHECK_EQ(start(), src.cursor())
       << "Failed invariant of DigestingReaderBase: "
          "cursor of the original Reader changed unexpectedly";
   if (start_to_cursor() > 0) {
     if (ABSL_PREDICT_FALSE(
             !WriteToDigester(absl::string_view(start(), start_to_cursor())))) {
-      RIEGELI_EVAL_ASSERT(!FailFromDigester());
+      const bool fail_ok = FailFromDigester();
+      ABSL_DCHECK(!fail_ok);
       return false;
     }
     src.set_cursor(cursor());
@@ -400,7 +401,7 @@ DigestFromReader(Src&& src, Digester&& digester, Position* length_read) {
   do {
     reader.move_cursor(reader.available());
   } while (reader.Pull());
-  RIEGELI_ASSERT_GE(reader.pos(), pos_before)
+  ABSL_DCHECK_GE(reader.pos(), pos_before)
       << "DigestingReader decreased src.pos()";
   if (length_read != nullptr) *length_read = reader.pos() - pos_before;
   if (ABSL_PREDICT_FALSE(!reader.VerifyEndAndClose())) {

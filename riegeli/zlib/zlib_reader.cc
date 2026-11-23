@@ -22,11 +22,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
@@ -48,12 +48,12 @@ static_assert(ZlibReaderBase::Options::kDefaultWindowLog == MAX_WBITS,
 void ZlibReaderBase::ZStreamDeleter::operator()(void* ptr) const {
   z_stream* const z_stream_ptr = static_cast<z_stream*>(ptr);
   const int zlib_code = inflateEnd(z_stream_ptr);
-  RIEGELI_ASSERT_EQ(zlib_code, Z_OK) << "inflateEnd() failed";
+  ABSL_DCHECK_EQ(zlib_code, Z_OK) << "inflateEnd() failed";
   delete z_stream_ptr;
 }
 
 void ZlibReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of ZlibReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
@@ -98,10 +98,10 @@ void ZlibReaderBase::Done() {
 
 inline bool ZlibReaderBase::FailOperation(absl::string_view operation,
                                           int zlib_code) {
-  RIEGELI_ASSERT_NE(zlib_code, Z_OK)
+  ABSL_DCHECK_NE(zlib_code, Z_OK)
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "zlib error code not failed";
-  RIEGELI_ASSERT(is_open())
+  ABSL_DCHECK(is_open())
       << "Failed precondition of ZlibReaderBase::FailOperation(): "
          "Object closed";
   z_stream* const z_stream_ptr = static_cast<z_stream*>(decompressor_.get());
@@ -132,14 +132,14 @@ absl::Status ZlibReaderBase::AnnotateOverSrc(absl::Status status) {
 
 bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                   char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   Reader& src = *SrcReader();
   truncated_ = false;
   max_length = UnsignedMin(max_length, kMaxPosition - limit_pos());
@@ -162,10 +162,10 @@ bool ZlibReaderBase::ReadInternal(size_t min_length, size_t max_length,
         [[fallthrough]];
       case Z_BUF_ERROR:
         if (ABSL_PREDICT_FALSE(z_stream_ptr->avail_in > 0)) {
-          RIEGELI_ASSERT_EQ(z_stream_ptr->avail_out, 0u)
+          ABSL_DCHECK_EQ(z_stream_ptr->avail_out, 0u)
               << "inflate() returned but there are still input data "
                  "and output space";
-          RIEGELI_ASSERT_EQ(length_read, kMaxPosition - limit_pos())
+          ABSL_DCHECK_EQ(length_read, kMaxPosition - limit_pos())
               << "The position does not overflow but the output buffer is "
                  "full, while less than min_length was output, which is "
                  "impossible because the buffer has size max_length which is "
@@ -246,10 +246,10 @@ bool ZlibReaderBase::SupportsRewind() {
 }
 
 bool ZlibReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (new_pos <= limit_pos()) {
@@ -307,7 +307,7 @@ std::unique_ptr<Reader> ZlibReaderBase::NewReaderImpl(Position initial_pos) {
 
 bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
                    RecyclingPoolOptions recycling_pool_options) {
-  RIEGELI_ASSERT_NE(header, ZlibReaderBase::Header::kRaw)
+  ABSL_DCHECK_NE(header, ZlibReaderBase::Header::kRaw)
       << "Failed precondition of RecognizeZlib(): "
          "Header::kRaw cannot be reliably detected";
   using ZStreamDeleter = ZlibReaderBase::ZStreamDeleter;
@@ -351,7 +351,7 @@ bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
         }
         [[fallthrough]];
       case Z_BUF_ERROR:
-        RIEGELI_ASSERT_EQ(decompressor->avail_in, 0u)
+        ABSL_DCHECK_EQ(decompressor->avail_in, 0u)
             << "inflate() returned but there are still input data";
         cursor_index = src.available();
         if (ABSL_PREDICT_FALSE(!src.Pull(cursor_index + 1))) return false;
@@ -367,7 +367,7 @@ bool RecognizeZlib(Reader& src, ZlibReaderBase::Header header,
 }
 
 std::optional<uint32_t> GzipUncompressedSizeModulo4G(Reader& src) {
-  RIEGELI_ASSERT(src.SupportsRandomAccess())
+  ABSL_DCHECK(src.SupportsRandomAccess())
       << "Failed precondition of GzipUncompressedSizeModulo4G(): "
          "Reader does not support random access";
   const std::optional<Position> compressed_size = src.Size();

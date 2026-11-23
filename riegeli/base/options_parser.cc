@@ -25,11 +25,12 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/string_ref.h"
 
@@ -37,12 +38,12 @@ namespace riegeli {
 
 ValueParser::ValueParser(OptionsParser* options_parser, absl::string_view key,
                          absl::string_view value)
-    : options_parser_(RIEGELI_EVAL_ASSERT_NOTNULL(options_parser)),
+    : options_parser_(ABSL_DIE_IF_NULL(options_parser)),
       key_(key),
       value_(value) {}
 
 ValueParser::Function ValueParser::Int(int min_value, int max_value, int* out) {
-  RIEGELI_ASSERT_LE(min_value, max_value)
+  ABSL_DCHECK_LE(min_value, max_value)
       << "Failed precondition of OptionsParser::IntOption(): "
          "bounds in the wrong order";
   return [min_value, max_value, out](ValueParser& value_parser) {
@@ -59,7 +60,7 @@ ValueParser::Function ValueParser::Int(int min_value, int max_value, int* out) {
 
 ValueParser::Function ValueParser::Bytes(uint64_t min_value, uint64_t max_value,
                                          uint64_t* out) {
-  RIEGELI_ASSERT_LE(min_value, max_value)
+  ABSL_DCHECK_LE(min_value, max_value)
       << "Failed precondition of BytesOption(): bounds in the wrong order";
   return [min_value, max_value, out](ValueParser& value_parser) {
     absl::string_view value = value_parser.value();
@@ -118,7 +119,7 @@ ValueParser::Function ValueParser::Bytes(uint64_t min_value, uint64_t max_value,
 
 ValueParser::Function ValueParser::Real(double min_value, double max_value,
                                         double* out) {
-  RIEGELI_ASSERT_LE(min_value, max_value)
+  ABSL_DCHECK_LE(min_value, max_value)
       << "Failed precondition of IntOption(): bounds in the wrong order";
   return [min_value, max_value, out](ValueParser& value_parser) {
     double double_value;
@@ -172,7 +173,7 @@ ValueParser::Function ValueParser::FailIfSeen(StringInitializer key) {
         return true;
       }
     }
-    RIEGELI_ASSUME_UNREACHABLE() << "Unknown option " << key;
+    ABSL_UNREACHABLE();
   };
 }
 
@@ -190,7 +191,7 @@ ValueParser::Function ValueParser::FailIfAnySeen() {
 }
 
 bool ValueParser::InvalidValue(absl::string_view valid_values) {
-  RIEGELI_ASSERT(!valid_values.empty())
+  ABSL_DCHECK(!valid_values.empty())
       << "Failed precondition of OptionsParser::InvalidValue(): "
          "empty valid values";
   absl::StrAppend(&valid_values_, valid_values_.empty() ? "" : ", ",
@@ -244,9 +245,10 @@ bool OptionsParser::FromString(absl::string_view text) {
             value_parser.valid_values_.empty() ? "" : ", valid values: ",
             value_parser.valid_values_)));
       }
-      RIEGELI_ASSERT_OK(value_parser)
+      ABSL_DCHECK(value_parser.ok())
           << "Value parser of option " << key
-          << " returned true but failed the ValueParser";
+          << " returned true but failed the ValueParser: "
+          << value_parser.status();
       option->seen = true;
     }
     if (option_end == text.size()) break;

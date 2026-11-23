@@ -19,8 +19,8 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/type_id.h"
 
 namespace riegeli {
@@ -69,7 +69,7 @@ absl::Status ObjectState::status() const {
 }
 
 bool ObjectState::Fail(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of ObjectState::Fail(): status not failed";
   if (status_ptr_ == kOk || status_ptr_ == kClosedSuccessfully) {
     status_ptr_ = reinterpret_cast<uintptr_t>(new FailedStatus{
@@ -79,9 +79,9 @@ bool ObjectState::Fail(absl::Status status) {
 }
 
 void ObjectState::SetStatus(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of ObjectState::SetStatus(): status not failed";
-  RIEGELI_ASSERT(!not_failed())
+  ABSL_DCHECK(!not_failed())
       << "Failed precondition of ObjectState::SetStatus(): "
          "ObjectState not failed";
   reinterpret_cast<FailedStatus*>(status_ptr_)->status = std::move(status);
@@ -96,7 +96,7 @@ bool Object::Close() {
 void Object::Done() {}
 
 bool Object::Fail(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of Object::Fail(): status not failed";
   if (ABSL_PREDICT_FALSE(!not_failed())) return false;
   state_.Fail(std::move(status));
@@ -106,9 +106,9 @@ bool Object::Fail(absl::Status status) {
 }
 
 void Object::SetStatus(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of Object::SetStatus(): status not failed";
-  RIEGELI_ASSERT(!not_failed())
+  ABSL_DCHECK(!not_failed())
       << "Failed precondition of Object::SetStatus(): Object not failed";
   state_.SetStatus(std::move(status));
 }
@@ -118,7 +118,7 @@ void Object::OnFail() {}
 absl::Status Object::AnnotateStatusImpl(absl::Status status) { return status; }
 
 bool Object::FailWithoutAnnotation(absl::Status status) {
-  RIEGELI_ASSERT(!status.ok())
+  ABSL_DCHECK(!status.ok())
       << "Failed precondition of Object::FailWithoutAnnotation(): "
          "status not failed";
   if (ABSL_PREDICT_FALSE(!not_failed())) return false;

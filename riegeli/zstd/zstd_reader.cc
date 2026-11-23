@@ -33,10 +33,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/recycling_pool.h"
 #include "riegeli/base/status.h"
 #include "riegeli/base/types.h"
@@ -47,7 +47,7 @@
 namespace riegeli {
 
 void ZstdReaderBase::Initialize(Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of ZstdReader: null Reader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok()) && src->available() == 0) {
     FailWithoutAnnotation(AnnotateOverSrc(src->status()));
@@ -70,7 +70,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
                 {
                   const size_t result = ZSTD_DCtx_reset(
                       decompressor, ZSTD_reset_session_and_parameters);
-                  RIEGELI_ASSERT(!ZSTD_isError(result))
+                  ABSL_DCHECK(!ZSTD_isError(result))
                       << "ZSTD_DCtx_reset() failed: "
                       << ZSTD_getErrorName(result);
                 }
@@ -79,7 +79,7 @@ inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
                 {
                   const size_t result = ZSTD_DCtx_setParameter(
                       decompressor, ZSTD_d_stableOutBuffer, 0);
-                  RIEGELI_ASSERT(!ZSTD_isError(result))
+                  ABSL_DCHECK(!ZSTD_isError(result))
                       << "ZSTD_DCtx_setParameter(ZSTD_d_stableOutBuffer) "
                          "failed: "
                       << ZSTD_getErrorName(result);
@@ -158,14 +158,14 @@ absl::Status ZstdReaderBase::AnnotateOverSrc(absl::Status status) {
 
 bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
                                   char* dest) {
-  RIEGELI_ASSERT_GT(min_length, 0u)
+  ABSL_DCHECK_GT(min_length, 0u)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "nothing to read";
-  RIEGELI_ASSERT_GE(max_length, min_length)
+  ABSL_DCHECK_GE(max_length, min_length)
       << "Failed precondition of BufferedReader::ReadInternal(): "
          "max_length < min_length";
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of BufferedReader::ReadInternal()";
+  ABSL_DCHECK(ok()) << "Failed precondition of BufferedReader::ReadInternal(): "
+                    << status();
   Reader& src = *SrcReader();
   truncated_ = false;
   if (just_initialized_ && !concatenate_ && exact_size() == std::nullopt) {
@@ -219,10 +219,10 @@ bool ZstdReaderBase::ReadInternal(size_t min_length, size_t max_length,
       return true;
     }
     if (ABSL_PREDICT_FALSE(input.pos < input.size)) {
-      RIEGELI_ASSERT_EQ(output.pos, output.size)
+      ABSL_DCHECK_EQ(output.pos, output.size)
           << "ZSTD_decompressStream() returned but there are still "
              "input data and output space";
-      RIEGELI_ASSERT_EQ(output.pos, kMaxPosition - limit_pos())
+      ABSL_DCHECK_EQ(output.pos, kMaxPosition - limit_pos())
           << "The position does not overflow but the output buffer is full, "
              "while less than min_length was output, which implies that "
              "ZSTD_decompressStream() wants to output more than the "
@@ -271,10 +271,10 @@ bool ZstdReaderBase::SupportsRewind() {
 }
 
 bool ZstdReaderBase::SeekBehindBuffer(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT_EQ(start_to_limit(), 0u)
+  ABSL_DCHECK_EQ(start_to_limit(), 0u)
       << "Failed precondition of BufferedReader::SeekBehindBuffer(): "
          "buffer not empty";
   if (new_pos <= limit_pos()) {

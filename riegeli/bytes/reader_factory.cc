@@ -25,12 +25,12 @@
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -151,10 +151,10 @@ void ReaderFactoryBase::ConcurrentReader::SetReadAllHintImpl(
 
 bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch(
     size_t recommended_length) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "enough data available, use Pull() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
   if (iter_ != secondary_buffer_.blocks().cend()) ++iter_;
@@ -180,10 +180,10 @@ bool ReaderFactoryBase::ConcurrentReader::PullBehindScratch(
 
 bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
                                                             char* dest) {
-  RIEGELI_ASSERT_LT(available(), length)
+  ABSL_DCHECK_LT(available(), length)
       << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
          "enough data available, use Read(char*) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
          "scratch used";
   if (iter_ != secondary_buffer_.blocks().cend()) {
@@ -232,13 +232,13 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
 
 bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
                                                             Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "Chain size overflow";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "scratch used";
   if (length <= available()) {
@@ -289,13 +289,13 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
 
 bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
                                                             absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "Chain size overflow";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
   if (length <= available()) {
@@ -347,10 +347,10 @@ bool ReaderFactoryBase::ConcurrentReader::ReadBehindScratch(size_t length,
 
 bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
                                                             Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "enough data available, use Copy(Writer&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
   if (length <= available()) {
@@ -404,13 +404,13 @@ bool ReaderFactoryBase::ConcurrentReader::CopyBehindScratch(Position length,
 
 bool ReaderFactoryBase::ConcurrentReader::ReadSomeBehindScratch(
     size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
          "nothing to read, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
          "some data available, use ReadSome(char*) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
          "scratch used";
   if (iter_ != secondary_buffer_.blocks().cend()) ++iter_;
@@ -449,15 +449,15 @@ bool ReaderFactoryBase::ConcurrentReader::ReadSomeBehindScratch(
 
 bool ReaderFactoryBase::ConcurrentReader::CopySomeBehindScratch(
     size_t max_length, Writer& dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of "
          "PullableReader::CopySomeBehindScratch(Writer&): "
          "nothing to read, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of "
          "PullableReader::CopySomeBehindScratch(Writer&): "
          "some data available, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PullableReader::CopySomeBehindScratch(Writer&): "
          "scratch used";
@@ -498,10 +498,10 @@ bool ReaderFactoryBase::ConcurrentReader::CopySomeBehindScratch(
 
 void ReaderFactoryBase::ConcurrentReader::ReadHintBehindScratch(
     size_t min_length, size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "enough data available, use ReadHint() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return;
@@ -566,10 +566,10 @@ bool ReaderFactoryBase::ConcurrentReader::ToleratesReadingAhead() {
 }
 
 bool ReaderFactoryBase::ConcurrentReader::SeekBehindScratch(Position new_pos) {
-  RIEGELI_ASSERT(new_pos < start_pos() || new_pos > limit_pos())
+  ABSL_DCHECK(new_pos < start_pos() || new_pos > limit_pos())
       << "Failed precondition of PullableReader::SeekBehindScratch(): "
          "position in the buffer, use Seek() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::SeekBehindScratch(): "
          "scratch used";
   const Position secondary_buffer_begin =
@@ -637,9 +637,9 @@ std::unique_ptr<Reader> ReaderFactoryBase::ConcurrentReader::NewReaderImpl(
 }
 
 void ReaderFactoryBase::Initialize(BufferOptions buffer_options, Reader* src) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of ReaderFactory: null Reader pointer";
-  RIEGELI_ASSERT(src->SupportsRandomAccess())
+  ABSL_DCHECK(src->SupportsRandomAccess())
       << "Failed precondition of ReaderFactory: "
          "the original Reader does not support random access";
   initial_pos_ = src->pos();
@@ -674,7 +674,7 @@ std::unique_ptr<Reader> ReaderFactoryBase::NewReader(Position initial_pos) const
     std::unique_ptr<Reader> reader = initial_pos == pos()
                                          ? src.NewReaderCurrentPos()
                                          : src.NewReader(initial_pos);
-    RIEGELI_ASSERT_NE(reader, nullptr)
+    ABSL_DCHECK(reader != nullptr)
         << "Failed postcondition of Reader::NewReader(): "
            "returned null but Reader is ok() and SupportsNewReader()";
     return reader;

@@ -24,6 +24,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -32,7 +33,6 @@
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
@@ -123,10 +123,10 @@ absl::Status ParseMessageFromReaderSpanImpl(ReaderSpan<ReaderType> src,
   }
   const absl::Status status =
       CheckInitialized(scoped_limiter.reader(), dest, options);
-  RIEGELI_EVAL_ASSERT(scoped_limiter.Close())
-      << "LimitingReader with !fail_if_longer() "
-         "has no reason to fail only in Close(): "
-      << scoped_limiter.reader().status();
+  const bool close_ok = scoped_limiter.Close();
+  ABSL_DCHECK(close_ok) << "LimitingReader with !fail_if_longer() "
+                           "has no reason to fail only in Close(): "
+                        << scoped_limiter.reader().status();
   return status;
 }
 
@@ -266,7 +266,8 @@ absl::Status ParseMessage(const Chain& src, google::protobuf::MessageLite& dest,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
-  RIEGELI_ASSERT_OK(reader) << "ChainReader has no reason to fail";
+  ABSL_DCHECK(reader.ok()) << "ChainReader has no reason to fail: "
+                           << reader.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
@@ -303,7 +304,8 @@ absl::Status ParseMessage(const absl::Cord& src,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
-  RIEGELI_ASSERT_OK(reader) << "CordReader has no reason to fail";
+  ABSL_DCHECK(reader.ok()) << "CordReader has no reason to fail: "
+                           << reader.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
@@ -341,13 +343,14 @@ absl::Status ParseMessage(CordIteratorSpan src,
     parse_ok = dest.MergePartialFromCodedStream(&coded_stream) &&
                coded_stream.ConsumedEntireMessage();
   }
-  RIEGELI_ASSERT_OK(reader) << "CordReader has no reason to fail";
+  ABSL_DCHECK(reader.ok()) << "CordReader has no reason to fail: "
+                           << reader.status();
   if (ABSL_PREDICT_FALSE(!parse_ok)) return ParseError(dest);
   return CheckInitialized(dest, options);
 }
 
 bool ReaderInputStream::Next(const void** data, int* size) {
-  RIEGELI_ASSERT_NE(src_, nullptr)
+  ABSL_DCHECK(src_ != nullptr)
       << "Failed precondition of ReaderInputStream::Next(): "
          "ReaderInputStream not initialized";
   if (ABSL_PREDICT_FALSE(src_->pos() >=
@@ -364,23 +367,23 @@ bool ReaderInputStream::Next(const void** data, int* size) {
 }
 
 void ReaderInputStream::BackUp(int length) {
-  RIEGELI_ASSERT_NE(src_, nullptr)
+  ABSL_DCHECK(src_ != nullptr)
       << "Failed precondition of ReaderInputStream::BackUp(): "
          "ReaderInputStream not initialized";
-  RIEGELI_ASSERT_GE(length, 0)
+  ABSL_DCHECK_GE(length, 0)
       << "Failed precondition of ZeroCopyInputStream::BackUp(): "
          "negative length";
-  RIEGELI_ASSERT_LE(IntCast<size_t>(length), src_->start_to_cursor())
+  ABSL_DCHECK_LE(IntCast<size_t>(length), src_->start_to_cursor())
       << "Failed precondition of ZeroCopyInputStream::BackUp(): "
          "length larger than the amount of buffered data";
   src_->set_cursor(src_->cursor() - length);
 }
 
 bool ReaderInputStream::Skip(int length) {
-  RIEGELI_ASSERT_NE(src_, nullptr)
+  ABSL_DCHECK(src_ != nullptr)
       << "Failed precondition of ReaderInputStream::Skip(): "
          "ReaderInputStream not initialized";
-  RIEGELI_ASSERT_GE(length, 0)
+  ABSL_DCHECK_GE(length, 0)
       << "Failed precondition of ZeroCopyInputStream::Skip(): negative length";
   const Position max_length =
       SaturatingSub(Position{std::numeric_limits<int64_t>::max()}, src_->pos());
@@ -391,17 +394,17 @@ bool ReaderInputStream::Skip(int length) {
 }
 
 int64_t ReaderInputStream::ByteCount() const {
-  RIEGELI_ASSERT_NE(src_, nullptr)
+  ABSL_DCHECK(src_ != nullptr)
       << "Failed precondition of ReaderInputStream::ByteCount(): "
          "ReaderInputStream not initialized";
   return SaturatingIntCast<int64_t>(src_->pos());
 }
 
 bool ReaderInputStream::ReadCord(absl::Cord* cord, int length) {
-  RIEGELI_ASSERT_NE(src_, nullptr)
+  ABSL_DCHECK(src_ != nullptr)
       << "Failed precondition of ReaderInputStream::ReadCord(): "
          "ReaderInputStream not initialized";
-  RIEGELI_ASSERT_GE(length, 0)
+  ABSL_DCHECK_GE(length, 0)
       << "Failed precondition of ZeroCopyInputStream::ReadCord(): "
          "negative length";
   const Position max_length =

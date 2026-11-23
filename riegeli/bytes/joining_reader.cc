@@ -20,11 +20,11 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/status.h"
@@ -44,9 +44,10 @@ void JoiningReaderBase::Done() {
 }
 
 bool JoiningReaderBase::CloseShardImpl() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of JoiningReaderBase::CloseShardImpl()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of JoiningReaderBase::CloseShardImpl(): "
+      << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShardImpl(): "
          "shard already closed";
   Reader* shard = ShardReader();
@@ -57,15 +58,17 @@ bool JoiningReaderBase::CloseShardImpl() {
 }
 
 inline bool JoiningReaderBase::OpenShardInternal() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of JoiningReaderBase::OpenShardInternal()";
-  RIEGELI_ASSERT(!shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of JoiningReaderBase::OpenShardInternal(): "
+      << status();
+  ABSL_DCHECK(!shard_is_open())
       << "Failed precondition of JoiningReaderBase::OpenShardInternal(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(!OpenShardImpl())) return false;
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed postcondition of JoiningReaderBase::OpenShardImpl()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed postcondition of JoiningReaderBase::OpenShardImpl(): "
+      << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed postcondition of JoiningReaderBase::OpenShardImpl(): "
          "shard not opened";
   if (read_all_hint_) {
@@ -76,30 +79,32 @@ inline bool JoiningReaderBase::OpenShardInternal() {
 }
 
 inline bool JoiningReaderBase::CloseShardInternal() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of JoiningReaderBase::CloseShardInternal()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of JoiningReaderBase::CloseShardInternal(): "
+      << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShardInternal(): "
          "shard already closed";
   const bool close_shard_ok = CloseShardImpl();
-  RIEGELI_ASSERT(!shard_is_open())
+  ABSL_DCHECK(!shard_is_open())
       << "Failed postcondition of JoiningReaderBase::CloseShardImpl(): "
          "shard not closed";
   if (ABSL_PREDICT_FALSE(!close_shard_ok)) {
-    RIEGELI_ASSERT(!ok())
+    ABSL_DCHECK(!ok())
         << "Failed postcondition of JoiningReaderBase::CloseShardImpl(): "
            "false returned but JoiningReaderBase OK";
     return false;
   }
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed postcondition of JoiningReaderBase::CloseShardImpl()";
+  ABSL_DCHECK(ok())
+      << "Failed postcondition of JoiningReaderBase::CloseShardImpl(): "
+      << status();
   return true;
 }
 
 bool JoiningReaderBase::OpenShard() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of JoiningReaderBase::OpenShard()";
-  RIEGELI_ASSERT(!shard_is_open())
+  ABSL_DCHECK(ok()) << "Failed precondition of JoiningReaderBase::OpenShard(): "
+                    << status();
+  ABSL_DCHECK(!shard_is_open())
       << "Failed precondition of JoiningReaderBase::OpenShard(): "
          "shard already opened";
   if (ABSL_PREDICT_FALSE(!OpenShardInternal())) return false;
@@ -109,9 +114,9 @@ bool JoiningReaderBase::OpenShard() {
 }
 
 bool JoiningReaderBase::CloseShard() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of JoiningReaderBase::CloseShard()";
-  RIEGELI_ASSERT(shard_is_open())
+  ABSL_DCHECK(ok())
+      << "Failed precondition of JoiningReaderBase::CloseShard(): " << status();
+  ABSL_DCHECK(shard_is_open())
       << "Failed precondition of JoiningReaderBase::CloseShard(): "
          "shard already closed";
   Reader* shard = ShardReader();
@@ -147,10 +152,10 @@ void JoiningReaderBase::SetReadAllHintImpl(bool read_all_hint) {
 }
 
 bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "enough data available, use Pull() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::PullBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -175,10 +180,10 @@ bool JoiningReaderBase::PullBehindScratch(size_t recommended_length) {
 }
 
 bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
-  RIEGELI_ASSERT_LT(available(), length)
+  ABSL_DCHECK_LT(available(), length)
       << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
          "enough data available, use Read(char*) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(char*): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -213,26 +218,26 @@ bool JoiningReaderBase::ReadBehindScratch(size_t length, char* dest) {
 }
 
 bool JoiningReaderBase::ReadBehindScratch(size_t length, Chain& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "enough data available, use Read(Chain&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "Chain size overflow";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Chain&): "
          "scratch used";
   return ReadInternal(length, dest);
 }
 
 bool JoiningReaderBase::ReadBehindScratch(size_t length, absl::Cord& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "enough data available, use Read(Cord&) instead";
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<size_t>::max() - dest.size())
+  ABSL_DCHECK_LE(length, std::numeric_limits<size_t>::max() - dest.size())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "Cord size overflow";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadBehindScratch(Cord&): "
          "scratch used";
   return ReadInternal(length, dest);
@@ -272,10 +277,10 @@ inline bool JoiningReaderBase::ReadInternal(size_t length, Dest& dest) {
 }
 
 bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), length)
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "enough data available, use Copy(Writer&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::CopyBehindScratch(Writer&): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -313,13 +318,13 @@ bool JoiningReaderBase::CopyBehindScratch(Position length, Writer& dest) {
 }
 
 bool JoiningReaderBase::ReadSomeBehindScratch(size_t max_length, char* dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
          "nothing to read, use ReadSome(char*) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
          "some data available, use ReadSome(char*) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadSomeBehindScratch(char*): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -351,15 +356,15 @@ bool JoiningReaderBase::ReadSomeBehindScratch(size_t max_length, char* dest) {
 }
 
 bool JoiningReaderBase::CopySomeBehindScratch(size_t max_length, Writer& dest) {
-  RIEGELI_ASSERT_GT(max_length, 0u)
+  ABSL_DCHECK_GT(max_length, 0u)
       << "Failed precondition of "
          "PullableReader::CopySomeBehindScratch(Writer&): "
          "nothing to read, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of "
          "PullableReader::CopySomeBehindScratch(Writer&): "
          "some data available, use CopySome(Writer&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PullableReader::CopySomeBehindScratch(Writer&): "
          "scratch used";
@@ -396,10 +401,10 @@ bool JoiningReaderBase::CopySomeBehindScratch(size_t max_length, Writer& dest) {
 
 void JoiningReaderBase::ReadHintBehindScratch(size_t min_length,
                                               size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "enough data available, use ReadHint() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PullableReader::ReadHintBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return;

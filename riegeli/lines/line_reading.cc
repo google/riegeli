@@ -21,12 +21,12 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/lines/newline.h"
@@ -44,10 +44,10 @@ namespace {
 template <typename Dest>
 inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
                             size_t length_to_write, Dest& dest) {
-  RIEGELI_ASSERT_LE(length_to_read, src.available())
+  ABSL_DCHECK_LE(length_to_read, src.available())
       << "Failed precondition of ReadFlatAndSkip(): "
          "reading more than buffered";
-  RIEGELI_ASSERT_LE(length_to_write, length_to_read)
+  ABSL_DCHECK_LE(length_to_write, length_to_read)
       << "Failed precondition of ReadFlatAndSkip(): "
          "writing more than reading";
   src.ReadAndAppend(length_to_write, dest);
@@ -56,10 +56,10 @@ inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
 
 inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
                             size_t length_to_write, absl::string_view& dest) {
-  RIEGELI_ASSERT_LE(length_to_read, src.available())
+  ABSL_DCHECK_LE(length_to_read, src.available())
       << "Failed precondition of ReadFlatAndSkip(): "
          "reading more than buffered";
-  RIEGELI_ASSERT_LE(length_to_write, length_to_read)
+  ABSL_DCHECK_LE(length_to_write, length_to_read)
       << "Failed precondition of ReadFlatAndSkip(): "
          "writing more than reading";
   dest = absl::string_view(src.cursor(), length_to_write);
@@ -68,10 +68,10 @@ inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
 
 inline void ReadFlatAndSkip(Reader& src, size_t length_to_read,
                             size_t length_to_write, std::string& dest) {
-  RIEGELI_ASSERT_LE(length_to_read, src.available())
+  ABSL_DCHECK_LE(length_to_read, src.available())
       << "Failed precondition of ReadFlatAndSkip(): "
          "reading more than buffered";
-  RIEGELI_ASSERT_LE(length_to_write, length_to_read)
+  ABSL_DCHECK_LE(length_to_write, length_to_read)
       << "Failed precondition of ReadFlatAndSkip(): "
          "writing more than reading";
   dest.append(src.cursor(), length_to_write);
@@ -162,8 +162,7 @@ inline bool ReadLineInternal(Reader& src, Dest& dest, ReadLineOptions options) {
         }
       }
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Unknown newline: " << static_cast<int>(options.newline());
+    ABSL_UNREACHABLE();
   continue_reading:
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {
       return FailMaxLineLengthExceeded(src, dest, options.max_length());
@@ -228,8 +227,7 @@ bool ReadLine(Reader& src, absl::string_view& dest, ReadLineOptions options) {
           length += 2;
         }
     }
-    RIEGELI_ASSUME_UNREACHABLE()
-        << "Unknown newline: " << static_cast<int>(options.newline());
+    ABSL_UNREACHABLE();
   continue_reading:
     length = src.available();
     if (ABSL_PREDICT_FALSE(length > options.max_length())) {

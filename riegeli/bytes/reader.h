@@ -27,11 +27,11 @@
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/null_safe_memcpy.h"
 #include "riegeli/base/object.h"
@@ -728,29 +728,29 @@ inline bool Reader::Pull(size_t min_length, size_t recommended_length) {
   if (ABSL_PREDICT_FALSE(!PullSlow(min_length, recommended_length))) {
     return false;
   }
-  RIEGELI_ASSERT_GE(available(), min_length)
+  ABSL_DCHECK_GE(available(), min_length)
       << "Failed postcondition of Reader::PullSlow(): "
          "not enough data available";
   return true;
 }
 
 inline void Reader::move_cursor(size_t length) {
-  RIEGELI_ASSERT_LE(length, available())
+  ABSL_DCHECK_LE(length, available())
       << "Failed precondition of Reader::move_cursor(): length out of range";
   cursor_ += length;
 }
 
 inline void Reader::set_cursor(const char* cursor) {
-  RIEGELI_ASSERT_GE(cursor, start())
+  ABSL_DCHECK_GE(cursor, start())
       << "Failed precondition of Reader::set_cursor(): pointer out of range";
-  RIEGELI_ASSERT_LE(cursor, limit())
+  ABSL_DCHECK_LE(cursor, limit())
       << "Failed precondition of Reader::set_cursor(): pointer out of range";
   cursor_ = cursor;
 }
 
 inline void Reader::set_buffer(const char* start, size_t start_to_limit,
                                size_t start_to_cursor) {
-  RIEGELI_ASSERT_LE(start_to_cursor, start_to_limit)
+  ABSL_DCHECK_LE(start_to_cursor, start_to_limit)
       << "Failed precondition of Reader::set_buffer(): length out of range";
   start_ = start;
   cursor_ = start + start_to_cursor;
@@ -827,19 +827,19 @@ inline void Reader::ReadHint(size_t min_length, size_t recommended_length) {
 inline bool Reader::Sync(SyncType sync_type) { return SyncImpl(sync_type); }
 
 inline Position Reader::pos() const {
-  RIEGELI_ASSERT_GE(limit_pos_, start_to_limit())
+  ABSL_DCHECK_GE(limit_pos_, start_to_limit())
       << "Failed invariant of Reader: negative position of buffer start";
   return limit_pos_ - available();
 }
 
 inline Position Reader::start_pos() const {
-  RIEGELI_ASSERT_GE(limit_pos_, start_to_limit())
+  ABSL_DCHECK_GE(limit_pos_, start_to_limit())
       << "Failed invariant of Reader: negative position of buffer start";
   return limit_pos_ - start_to_limit();
 }
 
 inline void Reader::move_limit_pos(Position length) {
-  RIEGELI_ASSERT_LE(length, std::numeric_limits<Position>::max() - limit_pos_)
+  ABSL_DCHECK_LE(length, std::numeric_limits<Position>::max() - limit_pos_)
       << "Failed precondition of Reader::move_limit_pos(): "
          "position out of range";
   limit_pos_ += length;
@@ -882,13 +882,13 @@ inline bool Reader::Skip(Position length, Position* length_skipped) {
   }
   // `SeekSlow()` could have decreased `pos()` if the source decreased its
   // size.
-  RIEGELI_ASSERT_LE(pos(), pos_before + length)
+  ABSL_DCHECK_LE(pos(), pos_before + length)
       << "Reader::SeekSlow() skipped more than requested";
   if (ABSL_PREDICT_FALSE(!seek_ok)) {
     *length_skipped = SaturatingSub(pos(), pos_before);
     return false;
   }
-  RIEGELI_ASSERT_EQ(pos(), pos_before + length)
+  ABSL_DCHECK_EQ(pos(), pos_before + length)
       << "Reader::SeekSlow() succeeded but skipped less than requested";
   *length_skipped = length;
   return true;

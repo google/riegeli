@@ -24,8 +24,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -45,8 +46,10 @@ class StringRefBase {
   bool empty() const { return str_.empty(); }
   const char* absl_nullable data() const { return str_.data(); };
   size_t size() const {
-    RIEGELI_ASSUME_LE(str_.size(), str_.max_size());
-    return str_.size();
+    const size_t size = str_.size();
+    const size_t max_size = str_.max_size();
+    ABSL_ASSUME(size <= max_size);
+    return size;
   }
 
   const char& operator[](size_t index) const;
@@ -197,38 +200,38 @@ class StringInitializer : public Initializer<std::string> {
 // Implementation details follow.
 
 inline const char& StringRefBase::operator[](size_t index) const {
-  RIEGELI_ASSERT_LT(index, size())
+  ABSL_DCHECK_LT(index, size())
       << "Failed precondition of StringRefBase::operator[]: index out of range";
   return str_[index];
 }
 
 inline const char& StringRefBase::at(size_t index) const {
-  RIEGELI_ASSERT_LT(index, size())
+  ABSL_DCHECK_LT(index, size())
       << "Failed precondition of StringRefBase::at(): index out of range";
   return str_[index];
 }
 
 inline const char& StringRefBase::front() const {
-  RIEGELI_ASSERT(!empty())
+  ABSL_DCHECK(!empty())
       << "Failed precondition of StringRefBase::front(): empty string";
   return str_.front();
 }
 
 inline const char& StringRefBase::back() const {
-  RIEGELI_ASSERT(!empty())
+  ABSL_DCHECK(!empty())
       << "Failed precondition of StringRefBase::back(): empty string";
   return str_.back();
 }
 
 inline void StringRefBase::remove_prefix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size())
+  ABSL_DCHECK_LE(length, size())
       << "Failed precondition of StringRefBase::remove_prefix(): "
          "length out of range";
   str_.remove_prefix(length);
 }
 
 inline void StringRefBase::remove_suffix(size_t length) {
-  RIEGELI_ASSERT_LE(length, size())
+  ABSL_DCHECK_LE(length, size())
       << "Failed precondition of StringRefBase::remove_suffix(): "
          "length out of range";
   str_.remove_suffix(length);

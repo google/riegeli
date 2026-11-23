@@ -27,11 +27,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -363,7 +363,7 @@ inline void FileReaderBase::Reset(BufferOptions buffer_options, tsl::Env* env,
 
 inline void FileReaderBase::Initialize(tsl::RandomAccessFile* src,
                                        Position initial_pos) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of FileReader: null RandomAccessFile pointer";
   if (ABSL_PREDICT_FALSE(!InitializeFilename(src))) return;
   InitializePos(initial_pos);

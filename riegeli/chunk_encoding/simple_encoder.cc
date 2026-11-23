@@ -22,12 +22,12 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/external_ref.h"
@@ -133,7 +133,7 @@ bool SimpleEncoder::AddRecordImpl(Record&& record) {
 }
 
 bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
-  RIEGELI_ASSERT_EQ(limits.empty() ? size_t{0} : limits.back(), records.size())
+  ABSL_DCHECK_EQ(limits.empty() ? size_t{0} : limits.back(), records.size())
       << "Failed precondition of ChunkEncoder::AddRecords(): "
          "record end positions do not match concatenated record values";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -148,10 +148,10 @@ bool SimpleEncoder::AddRecords(Chain records, std::vector<size_t> limits) {
   decoded_data_size_ += IntCast<uint64_t>(records.size());
   size_t start = 0;
   for (const size_t limit : limits) {
-    RIEGELI_ASSERT_GE(limit, start)
+    ABSL_DCHECK_GE(limit, start)
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions not sorted";
-    RIEGELI_ASSERT_LE(limit, records.size())
+    ABSL_DCHECK_LE(limit, records.size())
         << "Failed precondition of ChunkEncoder::AddRecords(): "
            "record end positions do not match concatenated record values";
     if (ABSL_PREDICT_FALSE(!WriteVarint64(IntCast<uint64_t>(limit - start),

@@ -25,6 +25,7 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -32,7 +33,6 @@
 #include "google/protobuf/repeated_ptr_field.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/status.h"
@@ -95,9 +95,9 @@ absl::Status DescribeFileMetadataChunk(const Chunk& chunk,
     return data_reader.status();
   }
   const Chain& serialized_metadata = serialized_metadata_writer.dest();
-  RIEGELI_ASSERT_EQ(limits.size(), 1u)
+  ABSL_DCHECK_EQ(limits.size(), 1u)
       << "Metadata chunk has unexpected record limits";
-  RIEGELI_ASSERT_EQ(limits.back(), serialized_metadata.size())
+  ABSL_DCHECK_EQ(limits.back(), serialized_metadata.size())
       << "Metadata chunk has unexpected record limits";
   return ParseMessage(serialized_metadata, records_metadata);
 }
@@ -109,7 +109,7 @@ absl::Status ReadRecords(
   const Position initial_pos = src.pos();
   for (const size_t limit : limits) {
     const size_t start = IntCast<size_t>(src.pos() - initial_pos);
-    RIEGELI_ASSERT_LE(start, limit) << "Record end positions not sorted";
+    ABSL_DCHECK_LE(start, limit) << "Record end positions not sorted";
     if (ABSL_PREDICT_FALSE(!src.Read(limit - start, *dest.Add()))) {
       return src.StatusOrAnnotate(
           absl::InvalidArgumentError("Reading record failed"));
@@ -249,7 +249,7 @@ absl::Status DescribeTransposedChunk(
           IntCast<int>(limits.size()));
       size_t prev_limit = 0;
       for (const size_t next_limit : limits) {
-        RIEGELI_ASSERT_LE(prev_limit, next_limit)
+        ABSL_DCHECK_LE(prev_limit, next_limit)
             << "Failed postcondition of TransposeDecoder: "
                "record end positions not sorted";
         transposed_chunk.add_record_sizes(next_limit - prev_limit);

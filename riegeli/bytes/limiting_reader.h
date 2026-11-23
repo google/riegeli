@@ -25,10 +25,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -607,16 +607,15 @@ inline void LimitingReaderBase::Reset(bool exact, bool fail_if_longer) {
 }
 
 inline void LimitingReaderBase::restore_max_pos(Position max_pos) {
-  RIEGELI_ASSERT_GE(max_pos, max_pos_)
+  ABSL_DCHECK_GE(max_pos, max_pos_)
       << "Failed precondition of LimitingReaderBase::restore_max_pos(): "
          "the limit is being reduced";
   max_pos_ = max_pos;
 }
 
 inline Position LimitingReaderBase::max_length() const {
-  RIEGELI_ASSERT_GE(max_pos_, pos())
-      << "Failed invariant of LimitingReaderBase: "
-         "position already exceeds its limit";
+  ABSL_DCHECK_GE(max_pos_, pos()) << "Failed invariant of LimitingReaderBase: "
+                                     "position already exceeds its limit";
   return max_pos_ - pos();
 }
 
@@ -717,8 +716,11 @@ bool LimitingReader<Src>::SyncImpl(SyncType sync_type) {
 ABSL_ATTRIBUTE_ALWAYS_INLINE
 inline ScopedLimiter::ScopedLimiter(
     LimitingReaderBase* reader ABSL_ATTRIBUTE_LIFETIME_BOUND, Options options)
-    : reader_(RIEGELI_EVAL_ASSERT_NOTNULL(reader)),
-      old_max_pos_(reader_->max_pos()),
+    : reader_(reader),
+      old_max_pos_([&] {
+        ABSL_DCHECK(reader_ != nullptr);
+        return reader_->max_pos();
+      }()),
       old_exact_(reader_->exact()),
       fail_if_longer_(options.fail_if_longer()) {
   if (options.max_pos() != std::nullopt) {
@@ -744,7 +746,7 @@ inline ScopedLimiter::ScopedLimiter(
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE
 inline ScopedLimiter::~ScopedLimiter() {
-  RIEGELI_ASSERT_GE(old_max_pos_, reader_->max_pos())
+  ABSL_DCHECK_GE(old_max_pos_, reader_->max_pos())
       << "Failed precondtion of ~ScopedLimiter: "
          "The underlying LimitingReader increased its limit "
          "while the ScopedLimiter was active";

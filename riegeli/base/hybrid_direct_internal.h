@@ -26,7 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/compare.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
@@ -136,7 +136,7 @@ class SizedDeleter {
   template <bool dependent_supports_abandon = supports_abandon,
             std::enable_if_t<dependent_supports_abandon, int> = 0>
   void AbandonAfter(T* ptr, size_t new_size) {
-    RIEGELI_ASSERT_LE(new_size, size_ & kSizeMask)
+    ABSL_DCHECK_LE(new_size, size_ & kSizeMask)
         << "Failed precondition of SizedDeleter::AbandonAfter(): "
            "array size overflow";
     if (ABSL_PREDICT_TRUE(new_size == size_)) return;
@@ -230,9 +230,10 @@ inline SizedArray<T, supports_abandon> MakeSizedArrayForOverwrite(size_t size) {
 // always null.
 template <typename Dest, typename Src>
 inline void AssignToAssumedNull(Dest& dest, Src&& src) {
-  RIEGELI_ASSUME_EQ(dest, nullptr)
-      << "Failed precondition of AssignToAssumedNull(): "
-         "old value of destination is not null";
+  // Failed precondition of `AssignToAssumedNull()`: old value of destination
+  // is not null.
+  const bool is_null = dest == nullptr;
+  ABSL_ASSUME(is_null);
   dest = std::forward<Src>(src);
 }
 

@@ -28,9 +28,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/iterable.h"
@@ -548,7 +548,7 @@ template <typename Record>
 inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
   if (ABSL_PREDICT_FALSE(!ok())) return false;
   if (standalone_record_) {
-    RIEGELI_ASSERT_EQ(record_index_, 0u)
+    ABSL_DCHECK_EQ(record_index_, 0u)
         << "Failed precondition of CsvWriterBase::WriteRecordInternal(): "
            "called more than once by WriteCsvRecordToString()";
   }
@@ -585,7 +585,7 @@ inline bool CsvWriterBase::WriteRecordInternal(const Record& record) {
 }
 
 inline uint64_t CsvWriterBase::last_record_index() const {
-  RIEGELI_ASSERT_GT(record_index_, 0u)
+  ABSL_DCHECK_GT(record_index_, 0u)
       << "Failed precondition of CsvWriterBase::last_record_index(): "
          "no record was written";
   return record_index_ - 1;
@@ -624,7 +624,7 @@ template <typename Record,
           std::enable_if_t<IsIterableOf<Record, absl::string_view>::value, int>>
 std::string WriteCsvRecordToString(const Record& record,
                                    CsvWriterBase::Options options) {
-  RIEGELI_ASSERT(options.header() == std::nullopt)
+  ABSL_DCHECK(options.header() == std::nullopt)
       << "Failed precondition of WriteCsvRecordToString(): "
          "options.header() != std::nullopt not applicable";
   std::string dest;
@@ -632,7 +632,7 @@ std::string WriteCsvRecordToString(const Record& record,
   csv_internal::WriteStandaloneRecord(record, csv_writer);
   // This can fail if `std::string` overflows, or if quoting is turned off and
   // fields include inexpressible characters.
-  RIEGELI_CHECK(csv_writer.Close()) << csv_writer.status();
+  ABSL_CHECK(csv_writer.Close()) << csv_writer.status();
   return dest;
 }
 

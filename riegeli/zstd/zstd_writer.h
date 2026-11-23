@@ -23,10 +23,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
@@ -70,11 +70,11 @@ class ZstdWriterBase : public BufferedWriter {
     static constexpr int kDefaultCompressionLevel = ZSTD_CLEVEL_DEFAULT;
     Options& set_compression_level(int compression_level) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GE(compression_level, kMinCompressionLevel)
+      ABSL_DCHECK_GE(compression_level, kMinCompressionLevel)
           << "Failed precondition of "
              "ZstdWriterBase::Options::set_compression_level(): "
              "compression level out of range";
-      RIEGELI_ASSERT_LE(compression_level, kMaxCompressionLevel)
+      ABSL_DCHECK_LE(compression_level, kMaxCompressionLevel)
           << "Failed precondition of "
              "ZstdWriterBase::Options::set_compression_level(): "
              "compression level out of range";
@@ -103,11 +103,11 @@ class ZstdWriterBase : public BufferedWriter {
     Options& set_window_log(std::optional<int> window_log) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       if (window_log != std::nullopt) {
-        RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
+        ABSL_DCHECK_GE(*window_log, kMinWindowLog)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
-        RIEGELI_ASSERT_LE(*window_log, kMaxWindowLog)
+        ABSL_DCHECK_LE(*window_log, kMaxWindowLog)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_window_log(): "
                "window log out of range";
@@ -141,11 +141,11 @@ class ZstdWriterBase : public BufferedWriter {
     Options& set_target_cblock_size(std::optional<int> target_cblock_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
       if (target_cblock_size != std::nullopt) {
-        RIEGELI_ASSERT_GE(*target_cblock_size, kMinTargetCBlockSize)
+        ABSL_DCHECK_GE(*target_cblock_size, kMinTargetCBlockSize)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_target_cblock_size(): "
                "target CBlock size out of range";
-        RIEGELI_ASSERT_LE(*target_cblock_size, kMaxTargetCBlockSize)
+        ABSL_DCHECK_LE(*target_cblock_size, kMaxTargetCBlockSize)
             << "Failed precondition of "
                "ZstdWriterBase::Options::set_target_cblock_size(): "
                "target CBlock size out of range";

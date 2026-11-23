@@ -37,6 +37,7 @@
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 #include "absl/functional/function_ref.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -44,7 +45,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/fd_reader.h"
@@ -122,21 +122,21 @@ bool SizeLimiter::Accept(size_t size) {
 
 uint64_t FileSize(const std::string& filename) {
   struct stat stat_info;
-  RIEGELI_CHECK_EQ(stat(filename.c_str(), &stat_info), 0)
+  ABSL_CHECK_EQ(stat(filename.c_str(), &stat_info), 0)
       << absl::ErrnoToStatus(errno, "stat() failed").message();
   return riegeli::IntCast<uint64_t>(stat_info.st_size);
 }
 
 uint64_t CpuTimeNow_ns() {
   struct timespec time_info;
-  RIEGELI_CHECK_EQ(clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_info), 0);
+  ABSL_CHECK_EQ(clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_info), 0);
   return riegeli::IntCast<uint64_t>(time_info.tv_sec) * uint64_t{1000000000} +
          riegeli::IntCast<uint64_t>(time_info.tv_nsec);
 }
 
 uint64_t RealTimeNow_ns() {
   struct timespec time_info;
-  RIEGELI_CHECK_EQ(clock_gettime(CLOCK_MONOTONIC, &time_info), 0);
+  ABSL_CHECK_EQ(clock_gettime(CLOCK_MONOTONIC, &time_info), 0);
   return riegeli::IntCast<uint64_t>(time_info.tv_sec) * uint64_t{1000000000} +
          riegeli::IntCast<uint64_t>(time_info.tv_nsec);
 }
@@ -154,7 +154,7 @@ class Stats {
 void Stats::Add(double value) { samples_.push_back(value); }
 
 double Stats::Median() {
-  RIEGELI_CHECK(!samples_.empty()) << "No data";
+  ABSL_CHECK(!samples_.empty()) << "No data";
   const size_t middle = samples_.size() / 2;
   std::nth_element(samples_.begin(), samples_.begin() + middle, samples_.end());
   return samples_[middle];
@@ -228,21 +228,20 @@ bool Benchmarks::ReadFile(absl::string_view filename,
     riegeli::TFRecordRecognizer tfrecord_recognizer(&file_reader);
     tensorflow::io::RecordReaderOptions record_reader_options;
     if (tfrecord_recognizer.CheckFileFormat(record_reader_options)) {
-      RIEGELI_CHECK(tfrecord_recognizer.Close())
-          << tfrecord_recognizer.status();
-      RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
+      ABSL_CHECK(tfrecord_recognizer.Close()) << tfrecord_recognizer.status();
+      ABSL_CHECK(file_reader.Close()) << file_reader.status();
       riegeli::WriteLine("Reading TFRecord: ", filename, report);
       report.Flush();
       return ReadTFRecord(filename, record_reader_options, records,
                           size_limiter);
     }
   }
-  RIEGELI_CHECK(file_reader.Seek(0)) << file_reader.status();
+  ABSL_CHECK(file_reader.Seek(0)) << file_reader.status();
   {
     riegeli::DefaultChunkReader<> chunk_reader(&file_reader);
     if (chunk_reader.CheckFileFormat()) {
-      RIEGELI_CHECK(chunk_reader.Close()) << chunk_reader.status();
-      RIEGELI_CHECK(file_reader.Close()) << file_reader.status();
+      ABSL_CHECK(chunk_reader.Close()) << chunk_reader.status();
+      ABSL_CHECK(file_reader.Close()) << file_reader.status();
       riegeli::WriteLine("Reading Riegeli/records: ", filename, report);
       report.Flush();
       return ReadRiegeli(filename, riegeli::RecordReaderBase::Options(),
@@ -264,16 +263,16 @@ void Benchmarks::WriteTFRecord(
   {
     const absl::Status status =
         env->NewWritableFile(std::string(filename), &file_writer);
-    RIEGELI_CHECK_OK(status);
+    ABSL_CHECK_OK(status);
   }
   tensorflow::io::RecordWriter record_writer(file_writer.get(),
                                              record_writer_options);
   for (const absl::string_view record : records) {
     const absl::Status status = record_writer.WriteRecord(record);
-    RIEGELI_CHECK_OK(status);
+    ABSL_CHECK_OK(status);
   }
   const absl::Status status = record_writer.Close();
-  RIEGELI_CHECK_OK(status);
+  ABSL_CHECK_OK(status);
 }
 
 bool Benchmarks::ReadTFRecord(
@@ -285,7 +284,7 @@ bool Benchmarks::ReadTFRecord(
   {
     const absl::Status status =
         env->NewRandomAccessFile(std::string(filename), &file_reader);
-    RIEGELI_CHECK_OK(status);
+    ABSL_CHECK_OK(status);
   }
   tensorflow::io::SequentialRecordReader record_reader(file_reader.get(),
                                                        record_reader_options);
@@ -293,7 +292,7 @@ bool Benchmarks::ReadTFRecord(
   for (;;) {
     const absl::Status status = record_reader.ReadRecord(&record);
     if (!status.ok()) {
-      RIEGELI_CHECK(absl::IsOutOfRange(status)) << status;
+      ABSL_CHECK(absl::IsOutOfRange(status)) << status;
       break;
     }
     if (size_limiter != nullptr &&
@@ -313,9 +312,9 @@ void Benchmarks::WriteRiegeli(
   riegeli::RecordWriter<riegeli::FdWriter<>> record_writer(
       riegeli::Maker(filename), std::move(record_writer_options));
   for (const absl::string_view record : records) {
-    RIEGELI_CHECK(record_writer.WriteRecord(record)) << record_writer.status();
+    ABSL_CHECK(record_writer.WriteRecord(record)) << record_writer.status();
   }
-  RIEGELI_CHECK(record_writer.Close()) << record_writer.status();
+  ABSL_CHECK(record_writer.Close()) << record_writer.status();
 }
 
 bool Benchmarks::ReadRiegeli(
@@ -333,7 +332,7 @@ bool Benchmarks::ReadRiegeli(
     }
     records->push_back(std::move(record));
   }
-  RIEGELI_CHECK(record_reader.Close()) << record_reader.status();
+  ABSL_CHECK(record_reader.Close()) << record_reader.status();
   return true;
 }
 
@@ -376,7 +375,7 @@ void Benchmarks::RegisterTFRecord(absl::string_view tfrecord_options) {
                   riegeli::ValueParser::FailIfSeen("uncompressed"),
                   riegeli::ValueParser::Empty(
                       tensorflow::io::compression::kGzip, &compression)));
-  RIEGELI_CHECK(options_parser.FromString(tfrecord_options))
+  ABSL_CHECK(options_parser.FromString(tfrecord_options))
       << options_parser.status();
   tfrecord_benchmarks_.emplace_back(tfrecord_options, compression);
 }
@@ -386,7 +385,7 @@ void Benchmarks::RegisterRiegeli(absl::string_view riegeli_options) {
       max_name_width_,
       absl::string_view("riegeli ").size() + riegeli_options.size());
   riegeli::RecordWriterBase::Options options;
-  RIEGELI_CHECK_OK(options.FromString(riegeli_options));
+  ABSL_CHECK_OK(options.FromString(riegeli_options));
   riegeli_benchmarks_.emplace_back(riegeli_options, std::move(options));
 }
 
@@ -489,7 +488,7 @@ void Benchmarks::RunOne(
     const uint64_t real_time_after_ns = RealTimeNow_ns();
     if (i == 0) {
       // Warm-up and correctness check.
-      RIEGELI_CHECK(decoded_records == records_)
+      ABSL_CHECK(decoded_records == records_)
           << "Decoded records do not match for " << name;
     } else {
       reading_cpu_speed.Add(

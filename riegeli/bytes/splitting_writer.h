@@ -22,11 +22,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/moving_dependency.h"
@@ -264,7 +264,7 @@ inline bool SplittingWriterBase::shard_is_open(const Writer* shard) const {
 }
 
 inline void SplittingWriterBase::SyncBuffer(Writer& shard) {
-  RIEGELI_ASSERT(shard_is_open(&shard))
+  ABSL_DCHECK(shard_is_open(&shard))
       << "Failed precondition of SplittingWriterBase::SyncBuffer(): "
          "shard is closed";
   shard.set_cursor(cursor());
@@ -273,10 +273,10 @@ inline void SplittingWriterBase::SyncBuffer(Writer& shard) {
 }
 
 inline void SplittingWriterBase::MakeBuffer(Writer& shard) {
-  RIEGELI_ASSERT(shard_is_open(&shard))
+  ABSL_DCHECK(shard_is_open(&shard))
       << "Failed precondition of SplittingWriterBase::MakeBuffer(): "
          "shard is closed";
-  RIEGELI_ASSERT_LE(start_pos(), shard_pos_limit_)
+  ABSL_DCHECK_LE(start_pos(), shard_pos_limit_)
       << "Failed invariant of SplittingWriter: "
          "current position exceeds the shard limit";
   set_buffer(shard.cursor(),

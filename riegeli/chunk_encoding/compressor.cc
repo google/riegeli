@@ -22,7 +22,6 @@
 
 #include "absl/base/optimization.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
@@ -82,9 +81,7 @@ inline void Compressor::Initialize() {
               compressor_options_.compression_level()));
       return;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown compression type: "
-      << static_cast<unsigned>(compressor_options_.compression_type());
+  ABSL_UNREACHABLE();
 }
 
 inline void Compressor::SetWriteSizeHint() {

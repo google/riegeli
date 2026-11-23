@@ -22,10 +22,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -187,7 +187,8 @@ inline void Decompressor<Src>::Initialize(
   }
   switch (compression_type) {
     case CompressionType::kNone:
-      RIEGELI_ASSUME_UNREACHABLE() << "kNone handled above";
+      // `kNone` handled above.
+      ABSL_UNREACHABLE();
     case CompressionType::kBrotli:
       decompressed_ = riegeli::Maker<BrotliReader<Src>>(
           std::move(compressed_reader.manager()));
@@ -209,7 +210,8 @@ inline void Decompressor<Src>::Initialize(
 
 template <typename Src>
 inline Reader& Decompressor<Src>::reader() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  RIEGELI_ASSERT_OK(*this) << "Failed precondition of Decompressor::reader()";
+  ABSL_DCHECK(ok()) << "Failed precondition of Decompressor::reader(): "
+                    << status();
   return *decompressed_;
 }
 

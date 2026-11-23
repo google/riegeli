@@ -26,12 +26,12 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "python/riegeli/base/utils.h"
 #include "python/riegeli/bytes/python_writer.h"
 #include "python/riegeli/records/record_position.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/types.h"
 #include "riegeli/records/record_writer.h"
@@ -59,7 +59,7 @@ PythonPtr DefineFlushType() {
 }
 
 bool FlushTypeFromPython(PyObject* object, FlushType* value) {
-  RIEGELI_ASSERT_NE(PyFlushType_Type, nullptr)
+  ABSL_DCHECK(PyFlushType_Type != nullptr)
       << "Python FlushType not defined yet";
   if (ABSL_PREDICT_FALSE(!PyObject_IsInstance(object, PyFlushType_Type))) {
     PyErr_Format(PyExc_TypeError, "Expected FlushType, not %s",
@@ -199,7 +199,7 @@ struct PyRecordWriterObject {
 extern PyTypeObject PyRecordWriter_Type;
 
 void SetExceptionFromRecordWriter(PyRecordWriterObject* self) {
-  RIEGELI_ASSERT(!self->record_writer->ok())
+  ABSL_DCHECK(!self->record_writer->ok())
       << "Failed precondition of SetExceptionFromRecordWriter(): "
          "RecordWriter OK";
   if (!self->record_writer->dest().exception().ok()) {

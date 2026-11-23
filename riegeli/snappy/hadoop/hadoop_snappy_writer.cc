@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffer.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/status.h"
@@ -39,7 +39,7 @@
 namespace riegeli {
 
 void HadoopSnappyWriterBase::Initialize(Writer* dest, int compression_level) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of HadoopSnappyWriter: null Writer pointer";
   compression_level_ = compression_level;
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
@@ -81,10 +81,10 @@ void HadoopSnappyWriterBase::SetWriteSizeHintImpl(
 }
 
 bool HadoopSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "some space available, use Push() instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::PushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -103,7 +103,7 @@ bool HadoopSnappyWriterBase::PushBehindScratch(size_t recommended_length) {
 
 inline bool HadoopSnappyWriterBase::PushInternal(Writer& dest) {
   const size_t uncompressed_length = start_to_cursor();
-  RIEGELI_ASSERT_LE(uncompressed_length, snappy::kBlockSize)
+  ABSL_DCHECK_LE(uncompressed_length, snappy::kBlockSize)
       << "Failed invariant of HadoopSnappyWriterBase: buffer too large";
   if (uncompressed_length == 0) return true;
   set_cursor(start());
@@ -128,7 +128,7 @@ inline bool HadoopSnappyWriterBase::PushInternal(Writer& dest) {
 }
 
 bool HadoopSnappyWriterBase::FlushBehindScratch(FlushType flush_type) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::FlushBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!ok())) return false;
@@ -142,7 +142,7 @@ bool HadoopSnappyWriterBase::SupportsReadMode() {
 }
 
 Reader* HadoopSnappyWriterBase::ReadModeBehindScratch(Position initial_pos) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableWriter::ReadModeBehindScratch(): "
          "scratch used";
   if (ABSL_PREDICT_FALSE(!HadoopSnappyWriterBase::FlushBehindScratch(

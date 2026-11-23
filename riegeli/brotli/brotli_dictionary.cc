@@ -21,10 +21,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/call_once.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "brotli/encode.h"
 #include "brotli/shared_dictionary.h"
-#include "riegeli/base/assert.h"
 
 namespace riegeli {
 
@@ -33,7 +33,7 @@ BrotliDictionary::Chunk::PrepareCompressionDictionary() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   absl::call_once(compression_once_, [&] {
     if (type_ == Type::kNative) {
-      RIEGELI_ASSERT_NE(compression_dictionary_, nullptr)
+      ABSL_DCHECK(compression_dictionary_ != nullptr)
           << "Failed invariant of BrotliDictionary::Chunk: "
              "unprepared native chunk";
       return;

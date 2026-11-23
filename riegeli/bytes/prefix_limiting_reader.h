@@ -24,9 +24,9 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
@@ -231,12 +231,12 @@ inline void PrefixLimitingReaderBase::Reset() {
 
 inline void PrefixLimitingReaderBase::Initialize(
     Reader* src, std::optional<Position> base_pos) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of PrefixLimitingReader: null Reader pointer";
   if (base_pos == std::nullopt) {
     base_pos_ = src->pos();
   } else {
-    RIEGELI_ASSERT_LE(*base_pos, src->pos())
+    ABSL_DCHECK_LE(*base_pos, src->pos())
         << "Failed precondition of PrefixLimitingReader: "
            "current position below the base position";
     base_pos_ = *base_pos;
@@ -249,7 +249,7 @@ inline void PrefixLimitingReaderBase::SyncBuffer(Reader& src) {
 }
 
 inline void PrefixLimitingReaderBase::MakeBuffer(Reader& src) {
-  RIEGELI_ASSERT_GE(src.pos(), base_pos_)
+  ABSL_DCHECK_GE(src.pos(), base_pos_)
       << "PrefixLimitingReader source changed position unexpectedly";
   set_buffer(src.cursor(), src.available());
   set_limit_pos(src.limit_pos() - base_pos_);

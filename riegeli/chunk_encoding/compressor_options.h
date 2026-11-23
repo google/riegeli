@@ -19,10 +19,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/chunk_encoding/constants.h"
 #include "riegeli/snappy/snappy_writer.h"
@@ -94,10 +94,10 @@ class CompressorOptions {
       BrotliWriterBase::Options::kDefaultCompressionLevel;
   CompressorOptions& set_brotli(int compression_level = kDefaultBrotli) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_GE(compression_level, kMinBrotli)
+    ABSL_DCHECK_GE(compression_level, kMinBrotli)
         << "Failed precondition of CompressorOptions::set_brotli(): "
            "compression level out of range";
-    RIEGELI_ASSERT_LE(compression_level, kMaxBrotli)
+    ABSL_DCHECK_LE(compression_level, kMaxBrotli)
         << "Failed precondition of CompressorOptions::set_brotli(): "
            "compression level out of range";
     compression_type_ = CompressionType::kBrotli;
@@ -122,10 +122,10 @@ class CompressorOptions {
       ZstdWriterBase::Options::kDefaultCompressionLevel;
   CompressorOptions& set_zstd(int compression_level = kDefaultZstd) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_GE(compression_level, kMinZstd)
+    ABSL_DCHECK_GE(compression_level, kMinZstd)
         << "Failed precondition of CompressorOptions::set_zstd(): "
            "compression level out of range";
-    RIEGELI_ASSERT_LE(compression_level, kMaxZstd)
+    ABSL_DCHECK_LE(compression_level, kMaxZstd)
         << "Failed precondition of CompressorOptions::set_zstd(): "
            "compression level out of range";
     compression_type_ = CompressionType::kZstd;
@@ -189,10 +189,10 @@ class CompressorOptions {
   CompressorOptions& set_window_log(std::optional<int> window_log) &
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (window_log != std::nullopt) {
-      RIEGELI_ASSERT_GE(*window_log, kMinWindowLog)
+      ABSL_DCHECK_GE(*window_log, kMinWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
              "window log out of range";
-      RIEGELI_ASSERT_LE(*window_log, kMaxWindowLog)
+      ABSL_DCHECK_LE(*window_log, kMaxWindowLog)
           << "Failed precondition of CompressorOptions::set_window_log(): "
              "window log out of range";
     }

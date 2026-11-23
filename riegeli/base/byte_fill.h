@@ -26,10 +26,10 @@
 #include <variant>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/external_data.h"
@@ -63,7 +63,7 @@ class ByteFill {
   //
   // Precondition: `difference <= size()`
   ByteFill Extract(Position difference) {
-    RIEGELI_ASSERT_LE(difference, size_)
+    ABSL_DCHECK_LE(difference, size_)
         << "Failed precondition of ByteFill::Extract(): size underflow";
     size_ -= difference;
     return ByteFill(difference, fill_);
@@ -307,20 +307,20 @@ class ByteFill::BlockIterator : public WithCompare<BlockIterator> {
   reference operator[](difference_type n) const;
 
   friend bool operator==(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT_EQ(a.blocks_, b.blocks_)
+    ABSL_DCHECK_EQ(a.blocks_, b.blocks_)
         << "Failed precondition of operator==(ByteFill::BlockIterator): "
            "incomparable iterators";
     return b.block_index_complement_ == a.block_index_complement_;
   }
   friend StrongOrdering RIEGELI_COMPARE(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT_EQ(a.blocks_, b.blocks_)
+    ABSL_DCHECK_EQ(a.blocks_, b.blocks_)
         << "Failed precondition of operator<=>(ByteFill::BlockIterator): "
            "incomparable iterators";
     return riegeli::Compare(b.block_index_complement_,
                             a.block_index_complement_);
   }
   friend difference_type operator-(BlockIterator a, BlockIterator b) {
-    RIEGELI_ASSERT_EQ(a.blocks_, b.blocks_)
+    ABSL_DCHECK_EQ(a.blocks_, b.blocks_)
         << "Failed precondition of operator-(ByteFill::BlockIterator): "
            "incomparable iterators";
     return b.block_index_complement_ - a.block_index_complement_;
@@ -373,24 +373,24 @@ class ByteFill::Blocks {
   size_type size() const { return num_blocks_; }
 
   reference operator[](size_type n) const {
-    RIEGELI_ASSERT_LT(n, size())
+    ABSL_DCHECK_LT(n, size())
         << "Failed precondition of ByteFill::Blocks::operator[]: "
            "block index out of range";
     return BlockRef(this, num_blocks_ - n);
   }
   reference at(size_type n) const {
-    RIEGELI_CHECK_LT(n, size())
+    ABSL_CHECK_LT(n, size())
         << "Failed precondition of ByteFill::Blocks::at(): "
            "block index out of range";
     return BlockRef(this, num_blocks_ - n);
   }
   reference front() const {
-    RIEGELI_ASSERT(!empty())
+    ABSL_DCHECK(!empty())
         << "Failed precondition of ByteFill::Blocks::front(): no blocks";
     return BlockRef(this, num_blocks_);
   }
   reference back() const {
-    RIEGELI_ASSERT(!empty())
+    ABSL_DCHECK(!empty())
         << "Failed precondition of ByteFill::Blocks::back(): no blocks";
     return BlockRef(this, 1);
   }
@@ -458,7 +458,7 @@ inline void ByteFill::BlockRef::ExternalDelegate(absl::string_view substr,
 
 inline ByteFill::BlockIterator::reference ByteFill::BlockIterator::operator*()
     const {
-  RIEGELI_ASSERT_GT(block_index_complement_, 0u)
+  ABSL_DCHECK_GT(block_index_complement_, 0u)
       << "Failed precondition of ByteFill::BlockIterator::operator*: "
          "iterator is end()";
   return BlockRef(blocks_, block_index_complement_);
@@ -470,7 +470,7 @@ inline ByteFill::BlockIterator::pointer ByteFill::BlockIterator::operator->()
 }
 
 inline ByteFill::BlockIterator& ByteFill::BlockIterator::operator++() {
-  RIEGELI_ASSERT_GT(block_index_complement_, 0u)
+  ABSL_DCHECK_GT(block_index_complement_, 0u)
       << "Failed precondition of ByteFill::BlockIterator::operator++: "
          "iterator is end()";
   --block_index_complement_;
@@ -484,7 +484,7 @@ inline ByteFill::BlockIterator ByteFill::BlockIterator::operator++(int) {
 }
 
 inline ByteFill::BlockIterator& ByteFill::BlockIterator::operator--() {
-  RIEGELI_ASSERT_LT(block_index_complement_, blocks_->size())
+  ABSL_DCHECK_LT(block_index_complement_, blocks_->size())
       << "Failed precondition of ByteFill::BlockIterator::operator--: "
          "iterator is begin()";
   ++block_index_complement_;
@@ -500,12 +500,12 @@ inline ByteFill::BlockIterator ByteFill::BlockIterator::operator--(int) {
 inline ByteFill::BlockIterator& ByteFill::BlockIterator::operator+=(
     difference_type n) {
   if (n >= 0) {
-    RIEGELI_ASSERT_LE(UnsignedCast(n), block_index_complement_)
+    ABSL_DCHECK_LE(UnsignedCast(n), block_index_complement_)
         << "Failed precondition of ByteFill::BlockIterator::operator+=: "
            "iterator after end()";
   } else {
-    RIEGELI_ASSERT_LE(NegatingUnsignedCast(n),
-                      blocks_->size() - block_index_complement_)
+    ABSL_DCHECK_LE(NegatingUnsignedCast(n),
+                   blocks_->size() - block_index_complement_)
         << "Failed precondition of ByteFill::BlockIterator::operator+=: "
            "iterator before begin()";
   }
@@ -521,12 +521,11 @@ inline ByteFill::BlockIterator ByteFill::BlockIterator::operator+(
 inline ByteFill::BlockIterator& ByteFill::BlockIterator::operator-=(
     difference_type n) {
   if (n >= 0) {
-    RIEGELI_ASSERT_LE(UnsignedCast(n),
-                      blocks_->size() - block_index_complement_)
+    ABSL_DCHECK_LE(UnsignedCast(n), blocks_->size() - block_index_complement_)
         << "Failed precondition of ByteFill::BlockIterator::operator-=: "
            "iterator before begin()";
   } else {
-    RIEGELI_ASSERT_LE(NegatingUnsignedCast(n), block_index_complement_)
+    ABSL_DCHECK_LE(NegatingUnsignedCast(n), block_index_complement_)
         << "Failed precondition of ByteFill::BlockIterator::operator-=: "
            "iterator after end()";
   }

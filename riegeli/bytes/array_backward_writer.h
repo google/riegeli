@@ -21,9 +21,9 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/moving_dependency.h"
@@ -193,13 +193,13 @@ class ArrayBackwardWriter<Dest>::Mover {
         has_written_(self.written().data() != nullptr),
         written_size_(self.written().size()) {
     if (uses_buffer_) {
-      RIEGELI_ASSERT_EQ(that.dest_.get().data(), self.limit())
+      ABSL_DCHECK_EQ(that.dest_.get().data(), self.limit())
           << "ArrayBackwardWriter destination changed unexpectedly";
-      RIEGELI_ASSERT_EQ(that.dest_.get().size(), self.start_to_limit())
+      ABSL_DCHECK_EQ(that.dest_.get().size(), self.start_to_limit())
           << "ArrayBackwardWriter destination changed unexpectedly";
     }
     if (has_written_) {
-      RIEGELI_ASSERT(that.dest_.get().data() + that.dest_.get().size() ==
+      ABSL_DCHECK_EQ(that.dest_.get().data() + that.dest_.get().size(),
                      self.written().data() + self.written().size())
           << "ArrayBackwardWriter destination changed unexpectedly";
     }

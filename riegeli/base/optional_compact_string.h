@@ -22,8 +22,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/hash/hash.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/compact_string.h"
 #include "riegeli/base/compare.h"
@@ -116,7 +116,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
   //
   // Precondition: `*this != nullptr`.
   CompactString Release() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(*this != nullptr)
+    ABSL_DCHECK(*this != nullptr)
         << "Failed precondition of OptionalCompactString::Release(): "
            "OptionalCompactString is nullptr";
     return CompactString::MoveFromRaw(std::exchange(repr_, kNullRepr));
@@ -126,7 +126,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
   //
   // Precondition: `*this != nullptr`.
   absl::string_view operator*() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(*this != nullptr)
+    ABSL_DCHECK(*this != nullptr)
         << "Failed precondition of OptionalCompactString::operator*: "
            "OptionalCompactString is nullptr";
     return CompactString::ViewFromRaw(&repr_);
@@ -136,7 +136,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
   //
   // Precondition: `*this != nullptr`.
   absl::string_view value() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_CHECK(*this != nullptr)
+    ABSL_CHECK(*this != nullptr)
         << "Failed precondition of OptionalCompactString::value(): "
            "OptionalCompactString is nullptr";
     return CompactString::ViewFromRaw(&repr_);
@@ -144,7 +144,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI OptionalCompactString
 
   ArrowProxy<absl::string_view> operator->() const
       ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(*this != nullptr)
+    ABSL_DCHECK(*this != nullptr)
         << "Failed precondition of OptionalCompactString::operator->: "
            "OptionalCompactString is nullptr";
     return ArrowProxy<absl::string_view>(**this);

@@ -18,9 +18,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/types.h"
 #include "riegeli/chunk_encoding/chunk.h"
 #include "riegeli/chunk_encoding/hash.h"
@@ -114,7 +114,7 @@ inline size_t RemainingInBlockHeader(Position pos) {
 // For a chunk beginning at `chunk_begin`, the position after `length`, adding
 // intervening block headers.
 inline Position AddWithOverhead(Position chunk_begin, Position length) {
-  RIEGELI_ASSERT_LT(RemainingInBlock(chunk_begin), kUsableBlockSize)
+  ABSL_DCHECK_LT(RemainingInBlock(chunk_begin), kUsableBlockSize)
       << "Failed precondition of AddWithOverhead(): invalid chunk boundary";
   const Position num_overhead_blocks =
       (length + (chunk_begin + kUsableBlockSize - 1) % kBlockSize) /
@@ -125,7 +125,7 @@ inline Position AddWithOverhead(Position chunk_begin, Position length) {
 // For a chunk beginning at `chunk_begin`, the length until `pos`, subtracting
 // intervening block headers.
 inline Position DistanceWithoutOverhead(Position chunk_begin, Position pos) {
-  RIEGELI_ASSERT_LE(chunk_begin, pos)
+  ABSL_DCHECK_LE(chunk_begin, pos)
       << "Failed precondition of DistanceWithoutOverhead(): "
          "positions in the wrong order";
   const Position num_overhead_blocks =

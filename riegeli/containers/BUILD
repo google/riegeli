@@ -16,7 +16,6 @@ cc_library(
     visibility = ["//riegeli:__subpackages__"],
     deps = [
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:compact_string",
         "//riegeli/base:compare",
         "//riegeli/base:debug",
@@ -31,6 +30,7 @@ cc_library(
         "//riegeli/varint:varint_reading",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -47,7 +47,6 @@ cc_library(
     deps = [
         ":linear_sorted_string_set",
         "//riegeli/base:arithmetic",
-        "//riegeli/base:assert",
         "//riegeli/base:binary_search",
         "//riegeli/base:compact_string",
         "//riegeli/base:compare",
@@ -61,6 +60,7 @@ cc_library(
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

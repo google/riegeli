@@ -20,10 +20,10 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/any.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/maker.h"
@@ -196,7 +196,7 @@ AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(
 // Implementation details below.
 
 inline void TextWriterBase::Initialize(Writer* dest) {
-  RIEGELI_ASSERT_NE(dest, nullptr)
+  ABSL_DCHECK(dest != nullptr)
       << "Failed precondition of TextWriter: null Writer pointer";
   if (ABSL_PREDICT_FALSE(!dest->ok())) {
     FailWithoutAnnotation(AnnotateOverDest(dest->status()));
@@ -276,8 +276,7 @@ AnyTextWriter<TargetT<Dest>> MakeAnyTextWriter(Dest&& dest,
       return riegeli::Maker<TextWriter<WriteNewline::kCrLf, TargetT<Dest>>>(
           std::forward<Dest>(dest), options.buffer_options());
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown newline: " << static_cast<int>(options.newline());
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace riegeli

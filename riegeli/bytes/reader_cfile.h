@@ -27,7 +27,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/reset.h"
@@ -122,7 +122,7 @@ class ReaderCFileCookieBase {
 };
 
 inline void ReaderCFileCookieBase::Initialize(Reader* reader) {
-  RIEGELI_ASSERT_NE(reader, nullptr)
+  ABSL_DCHECK(reader != nullptr)
       << "Failed precondition of ReaderCFile(): null Reader pointer";
 }
 

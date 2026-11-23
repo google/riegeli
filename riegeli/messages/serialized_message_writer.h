@@ -26,12 +26,12 @@
 #include "absl/base/casts.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/any.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/constexpr.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/cord_writer.h"
@@ -110,7 +110,7 @@ class SerializedMessageWriter {
   // This can be used to write parts of the message directly, apart from
   // `Write...()` functions which write whole fields.
   Writer& writer() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(writer_ != nullptr)
+    ABSL_DCHECK(writer_ != nullptr)
         << "Failed precondition of SerializedMessageWriter::writer(): "
            "dest() not set while writing the root message";
     return *writer_;

@@ -26,6 +26,8 @@
 
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/die_if_null.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
@@ -35,7 +37,6 @@
 #include "google/protobuf/message.h"
 #include "google/protobuf/message_lite.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/binary_search.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
@@ -150,7 +151,7 @@ void RecordReaderBase::Reset() {
 }
 
 void RecordReaderBase::Initialize(ChunkReader* src, Options&& options) {
-  RIEGELI_ASSERT_NE(src, nullptr)
+  ABSL_DCHECK(src != nullptr)
       << "Failed precondition of RecordReader: null ChunkReader pointer";
   if (ABSL_PREDICT_FALSE(!src->ok())) {
     FailWithoutAnnotation(src->status());
@@ -252,7 +253,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
     if (ABSL_PREDICT_FALSE(!src.ok())) return FailReading(src);
     return false;
   }
-  RIEGELI_ASSERT_EQ(chunk.header.chunk_type(), ChunkType::kFileSignature)
+  ABSL_DCHECK_EQ(chunk.header.chunk_type(), ChunkType::kFileSignature)
       << "Unexpected type of the first chunk: "
       << static_cast<unsigned>(chunk.header.chunk_type());
 
@@ -282,7 +283,7 @@ bool RecordReaderBase::ReadSerializedMetadata(Chain& metadata) {
 
 inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
                                             Chain& metadata) {
-  RIEGELI_ASSERT_EQ(chunk.header.chunk_type(), ChunkType::kFileMetadata)
+  ABSL_DCHECK_EQ(chunk.header.chunk_type(), ChunkType::kFileMetadata)
       << "Failed precondition of RecordReaderBase::ParseMetadata(): "
          "wrong chunk type";
   if (ABSL_PREDICT_FALSE(chunk.header.num_records() != 0)) {
@@ -307,9 +308,9 @@ inline bool RecordReaderBase::ParseMetadata(const Chunk& chunk,
   if (ABSL_PREDICT_FALSE(!data_reader.VerifyEndAndClose())) {
     return Fail(data_reader.status());
   }
-  RIEGELI_ASSERT_EQ(limits.size(), 1u)
+  ABSL_DCHECK_EQ(limits.size(), 1u)
       << "Metadata chunk has unexpected record limits";
-  RIEGELI_ASSERT_EQ(limits.back(), metadata.size())
+  ABSL_DCHECK_EQ(limits.back(), metadata.size())
       << "Metadata chunk has unexpected record limits";
   return true;
 }
@@ -344,7 +345,7 @@ inline bool RecordReaderBase::ReadRecordImpl(Record& record) {
   last_record_is_valid_ = false;
   for (;;) {
     if (ABSL_PREDICT_TRUE(chunk_decoder_.ReadRecord(record))) {
-      RIEGELI_ASSERT_GT(chunk_decoder_.index(), 0u)
+      ABSL_DCHECK_GT(chunk_decoder_.index(), 0u)
           << "ChunkDecoder::ReadRecord() left record index at 0";
       last_record_is_valid_ = true;
       return true;
@@ -382,20 +383,21 @@ bool RecordReaderBase::SetFieldProjection(
 bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
   if (recoverable_ == Recoverable::kNo) return false;
   ChunkReader& src = *SrcChunkReader();
-  RIEGELI_ASSERT(!ok()) << "Failed invariant of RecordReader: "
-                           "recovery applicable but RecordReader OK";
+  ABSL_DCHECK(!ok()) << "Failed invariant of RecordReader: "
+                        "recovery applicable but RecordReader OK";
   const Recoverable recoverable = recoverable_;
   recoverable_ = Recoverable::kNo;
   if (recoverable != Recoverable::kRecoverChunkReader) {
-    RIEGELI_ASSERT(is_open()) << "Failed invariant of RecordReader: "
-                                 "recovery does not apply to chunk reader "
-                                 "but RecordReader is closed";
+    ABSL_DCHECK(is_open()) << "Failed invariant of RecordReader: "
+                              "recovery does not apply to chunk reader "
+                              "but RecordReader is closed";
   }
   std::string saved_message(status().message());
   MarkNotFailed();
   switch (recoverable) {
     case Recoverable::kNo:
-      RIEGELI_ASSUME_UNREACHABLE() << "kNo handled above";
+      // `kNo` handled above.
+      ABSL_UNREACHABLE();
     case Recoverable::kRecoverChunkReader:
       if (ABSL_PREDICT_FALSE(!src.Recover(skipped_region))) {
         return FailWithoutAnnotation(AnnotateOverSrc(src.status()));
@@ -418,8 +420,7 @@ bool RecordReaderBase::Recover(SkippedRegion* skipped_region) {
       }
       return true;
   }
-  RIEGELI_ASSUME_UNREACHABLE()
-      << "Unknown recoverable method: " << static_cast<int>(recoverable);
+  ABSL_UNREACHABLE();
 }
 
 bool RecordReaderBase::SupportsRandomAccess() {
@@ -534,7 +535,7 @@ std::optional<Position> RecordReaderBase::Size() {
 class RecordReaderBase::ChunkSearchTraits {
  public:
   explicit ChunkSearchTraits(RecordReaderBase* self)
-      : self_(RIEGELI_EVAL_ASSERT_NOTNULL(self)) {}
+      : self_(ABSL_DIE_IF_NULL(self)) {}
 
   using Pos = Position;
 
@@ -687,8 +688,8 @@ std::optional<PartialOrdering> RecordReaderBase::SearchImpl(
 }
 
 inline bool RecordReaderBase::ReadChunk() {
-  RIEGELI_ASSERT_OK(*this)
-      << "Failed precondition of RecordReaderBase::ReadChunk()";
+  ABSL_DCHECK(ok()) << "Failed precondition of RecordReaderBase::ReadChunk(): "
+                    << status();
   ChunkReader& src = *SrcChunkReader();
   chunk_begin_ = src.pos();
   Chunk chunk;

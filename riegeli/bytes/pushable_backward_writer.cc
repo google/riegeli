@@ -23,12 +23,12 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/chain.h"
@@ -55,20 +55,20 @@ void PushableBackwardWriter::OnFail() {
 }
 
 void PushableBackwardWriter::DoneBehindScratch() {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableBackwardWriter::DoneBehindScratch(): "
          "scratch used";
   FlushBehindScratch(FlushType::kFromObject);
 }
 
 inline bool PushableBackwardWriter::SyncScratch() {
-  RIEGELI_ASSERT(scratch_used())
+  ABSL_DCHECK(scratch_used())
       << "Failed precondition of PushableBackwardWriter::SyncScratch(): "
          "scratch not used";
-  RIEGELI_ASSERT_EQ(limit(), scratch_->buffer.data())
+  ABSL_DCHECK_EQ(limit(), scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
-  RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
+  ABSL_DCHECK_EQ(start_to_limit(), scratch_->buffer.size())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   const size_t length_to_write = start_to_cursor();
@@ -76,14 +76,14 @@ inline bool PushableBackwardWriter::SyncScratch() {
              scratch_->original_start_to_cursor);
   set_start_pos(start_pos() - start_to_cursor());
   SizedSharedBuffer buffer = std::move(scratch_->buffer);
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Moving should have left the source SizedSharedBuffer cleared";
   const char* const data = buffer.data() + buffer.size() - length_to_write;
   if (ABSL_PREDICT_FALSE(!Write(ExternalRef(
           std::move(buffer), absl::string_view(data, length_to_write))))) {
     return false;
   }
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "WriteSlow(absl::string_view) must not start using scratch, "
          "in particular if PushBehindScratch() calls ForcePushUsingScratch() "
          "then WriteSlow(absl::string_view) must be overridden to avoid "
@@ -96,14 +96,14 @@ inline bool PushableBackwardWriter::SyncScratch() {
 
 bool PushableBackwardWriter::PushSlow(size_t min_length,
                                       size_t recommended_length) {
-  RIEGELI_ASSERT_LT(available(), min_length)
+  ABSL_DCHECK_LT(available(), min_length)
       << "Failed precondition of BackwardWriter::PushSlow(): "
          "enough space available, use Push() instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
-    RIEGELI_ASSERT_EQ(limit(), scratch_->buffer.data())
+    ABSL_DCHECK_EQ(limit(), scratch_->buffer.data())
         << "Failed invariant of PushableBackwardWriter: "
            "scratch used but buffer pointers do not point to scratch";
-    RIEGELI_ASSERT_EQ(start_to_limit(), scratch_->buffer.size())
+    ABSL_DCHECK_EQ(start_to_limit(), scratch_->buffer.size())
         << "Failed invariant of PushableBackwardWriter: "
            "scratch used but buffer pointers do not point to scratch";
     if (ABSL_PREDICT_FALSE(!SyncScratch())) return false;
@@ -138,11 +138,11 @@ bool PushableBackwardWriter::PushSlow(size_t min_length,
 }
 
 bool PushableBackwardWriter::ForcePushUsingScratch() {
-  RIEGELI_ASSERT_EQ(available(), 0u)
+  ABSL_DCHECK_EQ(available(), 0u)
       << "Failed precondition of "
          "PushableBackwardWriter::ForcePushUsingScratch(): "
          "some space available, nothing to do";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::ForcePushUsingScratch(): "
          "scratch used";
@@ -159,11 +159,11 @@ bool PushableBackwardWriter::ForcePushUsingScratch() {
 }
 
 bool PushableBackwardWriter::WriteBehindScratch(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(string_view): "
          "enough space available, use Write(string_view) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(string_view): "
          "scratch used";
@@ -181,11 +181,11 @@ bool PushableBackwardWriter::WriteBehindScratch(absl::string_view src) {
 }
 
 bool PushableBackwardWriter::WriteBehindScratch(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(ExternalRef): "
          "scratch used";
@@ -193,11 +193,11 @@ bool PushableBackwardWriter::WriteBehindScratch(ExternalRef src) {
 }
 
 bool PushableBackwardWriter::WriteBehindScratch(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Chain): "
          "enough space available, use Write(Chain) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Chain): "
          "scratch used";
@@ -209,11 +209,11 @@ bool PushableBackwardWriter::WriteBehindScratch(const Chain& src) {
 }
 
 bool PushableBackwardWriter::WriteBehindScratch(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Chain&&): "
          "scratch used";
@@ -222,11 +222,11 @@ bool PushableBackwardWriter::WriteBehindScratch(Chain&& src) {
 }
 
 bool PushableBackwardWriter::WriteBehindScratch(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Cord): "
          "enough space available, use Write(Cord) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Cord): "
          "scratch used";
@@ -249,11 +249,11 @@ bool PushableBackwardWriter::WriteBehindScratch(const absl::Cord& src) {
 }
 
 bool PushableBackwardWriter::WriteBehindScratch(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(Cord&&): "
          "scratch used";
@@ -262,11 +262,11 @@ bool PushableBackwardWriter::WriteBehindScratch(absl::Cord&& src) {
 }
 
 bool PushableBackwardWriter::WriteBehindScratch(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::WriteBehindScratch(ByteFill): "
          "scratch used";
@@ -286,14 +286,14 @@ bool PushableBackwardWriter::WriteBehindScratch(ByteFill src) {
 }
 
 bool PushableBackwardWriter::FlushBehindScratch(FlushType flush_type) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of PushableBackwardWriter::FlushBehindScratch(): "
          "scratch used";
   return ok();
 }
 
 bool PushableBackwardWriter::TruncateBehindScratch(Position new_size) {
-  RIEGELI_ASSERT(!scratch_used())
+  ABSL_DCHECK(!scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::TruncateBehindScratch(): "
          "scratch used";
@@ -302,7 +302,7 @@ bool PushableBackwardWriter::TruncateBehindScratch(Position new_size) {
 }
 
 bool PushableBackwardWriter::WriteSlow(absl::string_view src) {
-  RIEGELI_ASSERT_LT(available(), src.size())
+  ABSL_DCHECK_LT(available(), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(string_view): "
          "enough space available, use Write(string_view) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
@@ -317,7 +317,7 @@ bool PushableBackwardWriter::WriteSlow(absl::string_view src) {
 }
 
 bool PushableBackwardWriter::WriteSlow(ExternalRef src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ExternalRef): "
          "enough space available, use Write(ExternalRef) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
@@ -332,7 +332,7 @@ bool PushableBackwardWriter::WriteSlow(ExternalRef src) {
 }
 
 bool PushableBackwardWriter::WriteSlow(const Chain& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain): "
          "enough space available, use Write(Chain) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
@@ -347,7 +347,7 @@ bool PushableBackwardWriter::WriteSlow(const Chain& src) {
 }
 
 bool PushableBackwardWriter::WriteSlow(Chain&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Chain&&): "
          "enough space available, use Write(Chain&&) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
@@ -362,7 +362,7 @@ bool PushableBackwardWriter::WriteSlow(Chain&& src) {
 }
 
 bool PushableBackwardWriter::WriteSlow(const absl::Cord& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord): "
          "enough space available, use Write(Cord) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
@@ -377,7 +377,7 @@ bool PushableBackwardWriter::WriteSlow(const absl::Cord& src) {
 }
 
 bool PushableBackwardWriter::WriteSlow(absl::Cord&& src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(Cord&&): "
          "enough space available, use Write(Cord&&) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
@@ -392,7 +392,7 @@ bool PushableBackwardWriter::WriteSlow(absl::Cord&& src) {
 }
 
 bool PushableBackwardWriter::WriteSlow(ByteFill src) {
-  RIEGELI_ASSERT_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
+  ABSL_DCHECK_LT(UnsignedMin(available(), kMaxBytesToCopy), src.size())
       << "Failed precondition of BackwardWriter::WriteSlow(ByteFill): "
          "enough space available, use Write(ByteFill) instead";
   if (ABSL_PREDICT_FALSE(scratch_used())) {
@@ -422,15 +422,14 @@ bool PushableBackwardWriter::TruncateImpl(Position new_size) {
 }
 
 void PushableBackwardWriter::BehindScratch::Enter() {
-  RIEGELI_ASSERT(context_->scratch_used())
+  ABSL_DCHECK(context_->scratch_used())
       << "Failed precondition of "
          "PushableBackwardWriter::BehindScratch::Enter(): "
          "scratch not used";
-  RIEGELI_ASSERT_EQ(context_->limit(), context_->scratch_->buffer.data())
+  ABSL_DCHECK_EQ(context_->limit(), context_->scratch_->buffer.data())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
-  RIEGELI_ASSERT_EQ(context_->start_to_limit(),
-                    context_->scratch_->buffer.size())
+  ABSL_DCHECK_EQ(context_->start_to_limit(), context_->scratch_->buffer.size())
       << "Failed invariant of PushableBackwardWriter: "
          "scratch used but buffer pointers do not point to scratch";
   scratch_ = std::move(context_->scratch_);
@@ -442,7 +441,7 @@ void PushableBackwardWriter::BehindScratch::Enter() {
 }
 
 void PushableBackwardWriter::BehindScratch::Leave() {
-  RIEGELI_ASSERT_NE(scratch_, nullptr)
+  ABSL_DCHECK(scratch_ != nullptr)
       << "Failed precondition of "
          "PushableBackwardWriter::BehindScratch::Leave(): "
          "scratch not used";

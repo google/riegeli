@@ -22,11 +22,11 @@
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/bytes/reader.h"
 
 namespace riegeli {
@@ -130,7 +130,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadVarintFromCordBufferLoop(
 template <typename T, bool canonical, size_t index>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool ReadVarintFromCordLoop(
     absl::Cord::CharIterator& src, size_t available, T acc, T& dest) {
-  RIEGELI_ASSERT_GT(available, index)
+  ABSL_DCHECK_GT(available, index)
       << "Failed precondition of ReadVarintFromCordLoop(): not enough data";
   const T byte = T{static_cast<uint8_t>(*src)};
   acc += (byte - 1) << (index * 7);
@@ -258,7 +258,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t CopyVarintFromCordBufferLoop(
 template <typename T, bool canonical, size_t index>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline size_t CopyVarintFromCordLoop(
     absl::Cord::CharIterator& src, size_t available, char* dest) {
-  RIEGELI_ASSERT_GT(available, index)
+  ABSL_DCHECK_GT(available, index)
       << "Failed precondition of CopyVarintFromCordLoop(): not enough data";
   const uint8_t byte = static_cast<uint8_t>(*src);
   dest[index] = static_cast<char>(byte);
@@ -374,7 +374,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SkipVarintFromCordBufferLoop(
 template <typename T, bool canonical, size_t index>
 ABSL_ATTRIBUTE_ALWAYS_INLINE inline bool SkipVarintFromCordLoop(
     absl::Cord::CharIterator& src, size_t available) {
-  RIEGELI_ASSERT_GT(available, index)
+  ABSL_DCHECK_GT(available, index)
       << "Failed precondition of SkipVarintFromCordLoop(): not enough data";
   const T byte = T{static_cast<uint8_t>(*src)};
   if constexpr (index == kMaxLengthVarint<T> - 1) {
@@ -430,7 +430,7 @@ namespace varint_internal {
 template <typename T, bool canonical, size_t initial_index>
 bool ReadVarintFromReaderBuffer(Reader& src, const char* cursor, T acc,
                                 T& dest) {
-  RIEGELI_ASSERT_GE(src.available(), initial_index)
+  ABSL_DCHECK_GE(src.available(), initial_index)
       << "Failed precondition of ReadVarintFromReaderBuffer(): "
          "not enough buffered data";
   if (ABSL_PREDICT_TRUE(src.available() >= kMaxLengthVarint<T>) ||
@@ -462,7 +462,7 @@ template bool ReadVarintFromReaderBuffer<uint64_t, true, 2>(Reader& src,
 
 template <typename T, bool canonical, size_t initial_index>
 bool ReadVarintFromReader(Reader& src, T acc, T& dest) {
-  RIEGELI_ASSERT_GE(src.available(), initial_index)
+  ABSL_DCHECK_GE(src.available(), initial_index)
       << "Failed precondition of ReadVarintFromReader(): "
          "not enough buffered data";
   return ReadVarintFromReaderLoop<T, canonical, initial_index>(src, acc, dest);
@@ -483,7 +483,7 @@ template <typename T, bool canonical, size_t initial_index>
 bool ReadVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available,
                               T acc, T& dest) {
   const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
-  RIEGELI_ASSERT_GE(chunk.size(), initial_index)
+  ABSL_DCHECK_GE(chunk.size(), initial_index)
       << "Failed precondition of ReadVarintFromCordBuffer(): "
          "not enough buffered data";
   const size_t available_in_buffer = UnsignedMin(available, chunk.size());
@@ -515,7 +515,7 @@ template bool ReadVarintFromCordBuffer<uint64_t, true, 2>(
 template <typename T, bool canonical, size_t initial_index>
 bool ReadVarintFromCord(absl::Cord::CharIterator& src, size_t available, T acc,
                         T& dest) {
-  RIEGELI_ASSERT_GT(available, initial_index)
+  ABSL_DCHECK_GT(available, initial_index)
       << "Failed precondition of ReadVarintFromCord(): not enough data";
   absl::Cord::Advance(&src, initial_index);
   return ReadVarintFromCordLoop<T, canonical, initial_index>(src, available,
@@ -537,7 +537,7 @@ template bool ReadVarintFromCord<uint64_t, true, 1>(
 
 template <typename T, bool canonical, size_t initial_index>
 size_t ReadVarintFromArray(const char* src, size_t available, T acc, T& dest) {
-  RIEGELI_ASSERT_GE(available, initial_index)
+  ABSL_DCHECK_GE(available, initial_index)
       << "Failed precondition of ReadVarintFromArray(): not enough data";
   return ReadVarintFromArrayLoop<T, canonical, initial_index, initial_index>(
       src, available, acc, dest);
@@ -562,7 +562,7 @@ template size_t ReadVarintFromArray<uint64_t, true, 2>(const char* src,
 
 template <typename T, bool canonical, size_t initial_index>
 size_t CopyVarintFromReaderBuffer(Reader& src, const char* cursor, char* dest) {
-  RIEGELI_ASSERT_GE(src.available(), initial_index)
+  ABSL_DCHECK_GE(src.available(), initial_index)
       << "Failed precondition of CopyVarintFromReaderBuffer(): "
          "not enough buffered data";
   if (ABSL_PREDICT_TRUE(src.available() >= kMaxLengthVarint<T>) ||
@@ -585,7 +585,7 @@ template size_t CopyVarintFromReaderBuffer<uint64_t, true, 2>(
 
 template <typename T, bool canonical, size_t initial_index>
 size_t CopyVarintFromReader(Reader& src, char* dest) {
-  RIEGELI_ASSERT_GE(src.available(), initial_index)
+  ABSL_DCHECK_GE(src.available(), initial_index)
       << "Failed precondition of CopyVarintFromReader(): "
          "not enough buffered data";
   return CopyVarintFromReaderLoop<T, canonical, initial_index, initial_index>(
@@ -605,7 +605,7 @@ template <typename T, bool canonical, size_t initial_index>
 size_t CopyVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available,
                                 char* dest) {
   const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
-  RIEGELI_ASSERT_GE(chunk.size(), initial_index)
+  ABSL_DCHECK_GE(chunk.size(), initial_index)
       << "Failed precondition of CopyVarintFromCordBuffer(): "
          "not enough buffered data";
   const size_t available_in_buffer = UnsignedMin(available, chunk.size());
@@ -631,7 +631,7 @@ template size_t CopyVarintFromCordBuffer<uint64_t, true, 2>(
 template <typename T, bool canonical, size_t initial_index>
 size_t CopyVarintFromCord(absl::Cord::CharIterator& src, size_t available,
                           char* dest) {
-  RIEGELI_ASSERT_GT(available, initial_index)
+  ABSL_DCHECK_GT(available, initial_index)
       << "Failed precondition of CopyVarintFromCord(): not enough data";
   absl::Cord::Advance(&src, initial_index);
   return CopyVarintFromCordLoop<T, canonical, initial_index>(src, available,
@@ -649,7 +649,7 @@ template size_t CopyVarintFromCord<uint64_t, true, 1>(
 
 template <typename T, bool canonical, size_t initial_index>
 size_t CopyVarintFromArray(const char* src, size_t available, char* dest) {
-  RIEGELI_ASSERT_GE(available, initial_index)
+  ABSL_DCHECK_GE(available, initial_index)
       << "Failed precondition of CopyVarintFromArray(): not enough data";
   return CopyVarintFromArrayLoop<T, canonical, initial_index, initial_index>(
       src, available, dest);
@@ -670,7 +670,7 @@ template size_t CopyVarintFromArray<uint64_t, true, 2>(const char* src,
 
 template <typename T, bool canonical, size_t initial_index>
 bool SkipVarintFromReaderBuffer(Reader& src, const char* cursor) {
-  RIEGELI_ASSERT_GE(src.available(), initial_index)
+  ABSL_DCHECK_GE(src.available(), initial_index)
       << "Failed precondition of SkipVarintFromReaderBuffer(): "
          "not enough buffered data";
   if (ABSL_PREDICT_TRUE(src.available() >= kMaxLengthVarint<T>) ||
@@ -693,7 +693,7 @@ template bool SkipVarintFromReaderBuffer<uint64_t, true, 2>(Reader& src,
 
 template <typename T, bool canonical, size_t initial_index>
 bool SkipVarintFromReader(Reader& src) {
-  RIEGELI_ASSERT_GE(src.available(), initial_index)
+  ABSL_DCHECK_GE(src.available(), initial_index)
       << "Failed precondition of SkipVarintFromReader(): "
          "not enough buffered data";
   return SkipVarintFromReaderLoop<T, canonical, initial_index>(src);
@@ -707,7 +707,7 @@ template bool SkipVarintFromReader<uint64_t, true, 1>(Reader& src);
 template <typename T, bool canonical, size_t initial_index>
 bool SkipVarintFromCordBuffer(absl::Cord::CharIterator& src, size_t available) {
   const absl::string_view chunk = absl::Cord::ChunkRemaining(src);
-  RIEGELI_ASSERT_GE(chunk.size(), initial_index)
+  ABSL_DCHECK_GE(chunk.size(), initial_index)
       << "Failed precondition of SkipVarintFromCordBuffer(): "
          "not enough buffered data";
   const size_t available_in_buffer = UnsignedMin(available, chunk.size());
@@ -732,7 +732,7 @@ template bool SkipVarintFromCordBuffer<uint64_t, true, 2>(
 
 template <typename T, bool canonical, size_t initial_index>
 bool SkipVarintFromCord(absl::Cord::CharIterator& src, size_t available) {
-  RIEGELI_ASSERT_GT(available, initial_index)
+  ABSL_DCHECK_GT(available, initial_index)
       << "Failed precondition of SkipVarintFromCord(): not enough data";
   absl::Cord::Advance(&src, initial_index);
   return SkipVarintFromCordLoop<T, canonical, initial_index>(src, available);
@@ -749,7 +749,7 @@ template bool SkipVarintFromCord<uint64_t, true, 1>(
 
 template <typename T, bool canonical, size_t initial_index>
 size_t SkipVarintFromArray(const char* src, size_t available) {
-  RIEGELI_ASSERT_GE(available, initial_index)
+  ABSL_DCHECK_GE(available, initial_index)
       << "Failed precondition of SkipVarintFromArray(): not enough data";
   return SkipVarintFromArrayLoop<T, canonical, initial_index>(src, available);
 }

@@ -17,8 +17,8 @@
 #include <stdint.h>
 
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/string_view.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/bytes/reader.h"
 #include "riegeli/bytes/writer.h"
@@ -29,7 +29,7 @@ namespace riegeli {
 
 ChunkHeader::ChunkHeader(const Chain& data, ChunkType chunk_type,
                          uint64_t num_records, uint64_t decoded_data_size) {
-  RIEGELI_ASSERT_LE(num_records, kMaxNumRecords)
+  ABSL_DCHECK_LE(num_records, kMaxNumRecords)
       << "Failed precondition of ChunkHeader::ChunkHeader(): "
          "number of records out of range";
   set_data_size(data.size());

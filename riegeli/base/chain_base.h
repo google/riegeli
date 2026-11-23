@@ -31,11 +31,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/macros.h"
+#include "absl/log/absl_check.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/buffering.h"
 #include "riegeli/base/bytes_ref.h"
 #include "riegeli/base/compare.h"
@@ -134,7 +134,7 @@ class Chain : public WithCompare<Chain, absl::string_view> {
     // Default: `kDefaultMaxBlockSize` (64K).
     Options& set_max_block_size(size_t max_block_size) &
         ABSL_ATTRIBUTE_LIFETIME_BOUND {
-      RIEGELI_ASSERT_GT(max_block_size, 0u)
+      ABSL_DCHECK_GT(max_block_size, 0u)
           << "Failed precondition of Chain::Options::set_max_block_size(): "
              "zero block size";
       max_block_size_ = UnsignedMin(max_block_size, uint32_t{1} << 31);
@@ -390,7 +390,7 @@ class Chain : public WithCompare<Chain, absl::string_view> {
     dest->Append(src);
   }
 
-  // For testing. If `RIEGELI_DEBUG` is defined, verifies internal invariants,
+  // For testing. If `NDEBUG` is not defined, verifies internal invariants,
   // otherwise does nothing.
   void VerifyInvariants() const;
 
@@ -469,9 +469,8 @@ class Chain : public WithCompare<Chain, absl::string_view> {
   // The offset of the block offsets part of the block pointer array, in array
   // elements.
   size_t block_offsets() const {
-    RIEGELI_ASSERT(has_allocated())
-        << "Failed precondition of block_offsets(): "
-           "block pointer array is not allocated";
+    ABSL_DCHECK(has_allocated()) << "Failed precondition of block_offsets(): "
+                                    "block pointer array is not allocated";
     return PtrDistance(block_ptrs_.allocated.begin, block_ptrs_.allocated.end);
   }
 
@@ -714,17 +713,17 @@ class Chain::RawBlock {
   template <typename T>
   static constexpr size_t kExternalObjectOffset();
 
-#if RIEGELI_DEBUG
+#ifndef NDEBUG
   template <typename T, std::enable_if_t<
                             std::is_convertible_v<const T&, BytesRef>, int> = 0>
   static void AssertSubstr(const T& object, absl::string_view substr) {
     if (!substr.empty()) {
       const BytesRef whole = object;
-      RIEGELI_ASSERT(std::greater_equal<>()(substr.data(), whole.data()))
+      ABSL_DCHECK(std::greater_equal<>()(substr.data(), whole.data()))
           << "Failed precondition of Chain::Block::Block(): "
              "substring not contained in whole data";
-      RIEGELI_ASSERT(std::less_equal<>()(substr.data() + substr.size(),
-                                         whole.data() + whole.size()))
+      ABSL_DCHECK(std::less_equal<>()(substr.data() + substr.size(),
+                                      whole.data() + whole.size()))
           << "Failed precondition of Chain::Block::Block(): "
              "substring not contained in whole data";
     }

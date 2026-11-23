@@ -34,11 +34,11 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"
+#include "absl/log/absl_check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
-#include "riegeli/base/assert.h"
 #include "riegeli/base/chain.h"
 #include "riegeli/base/compare.h"
 #include "riegeli/base/types.h"
@@ -51,7 +51,7 @@ namespace riegeli::python {
 class PythonLock {
  public:
   static void AssertHeld() {
-    RIEGELI_ASSERT(PyGILState_Check()) << "Python GIL was assumed to be held";
+    ABSL_DCHECK(PyGILState_Check()) << "Python GIL was assumed to be held";
   }
 
   PythonLock() { gstate_ = PyGILState_Ensure(); }
@@ -154,11 +154,11 @@ class PythonWrapped {
   bool has_value() const { return has_value_; }
 
   T* get() ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(has_value_) << "Object uninitialized";
+    ABSL_DCHECK(has_value_) << "Object uninitialized";
     return std::launder(reinterpret_cast<T*>(storage_));
   }
   const T* get() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(has_value_) << "Object uninitialized";
+    ABSL_DCHECK(has_value_) << "Object uninitialized";
     return std::launder(reinterpret_cast<const T*>(storage_));
   }
   T& operator*() ABSL_ATTRIBUTE_LIFETIME_BOUND { return *get(); }
@@ -301,7 +301,7 @@ class Identifier : public py_internal::StaticObject {
     PythonLock::AssertHeld();
     PyObject* result = value();
     if (ABSL_PREDICT_FALSE(result == nullptr)) {
-      RIEGELI_CHECK(AllocateValue()) << Exception::Fetch().message();
+      ABSL_CHECK(AllocateValue()) << Exception::Fetch().message();
       result = value();
     }
     return result;
@@ -345,7 +345,7 @@ class ImportedConstant : public py_internal::StaticObject {
     PythonLock::AssertHeld();
     PyObject* result = value();
     if (ABSL_PREDICT_FALSE(result == nullptr)) {
-      RIEGELI_CHECK(AllocateValue()) << Exception::Fetch().message();
+      ABSL_CHECK(AllocateValue()) << Exception::Fetch().message();
       result = value();
     }
     return result;
@@ -390,7 +390,7 @@ class ImportedCapsule : public py_internal::ImportedCapsuleBase {
     PythonLock::AssertHeld();
     void* result = value();
     if (ABSL_PREDICT_FALSE(result == nullptr)) {
-      RIEGELI_CHECK(ImportValue()) << Exception::Fetch().message();
+      ABSL_CHECK(ImportValue()) << Exception::Fetch().message();
       result = value();
     }
     return static_cast<const T*>(result);
@@ -478,7 +478,7 @@ class BytesLike {
   //
   // Must be called at most once for each `BytesLike` object.
   bool FromPython(PyObject* object) {
-    RIEGELI_ASSERT_EQ(buffer_.obj, nullptr)
+    ABSL_DCHECK(buffer_.obj == nullptr)
         << "Failed precondition of BytesLike::FromPython(): "
            "called more than once";
     return PyObject_GetBuffer(object, &buffer_, PyBUF_CONTIG_RO) == 0;

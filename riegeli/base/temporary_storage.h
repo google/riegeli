@@ -23,7 +23,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
-#include "riegeli/base/assert.h"
+#include "absl/log/absl_check.h"
 
 ABSL_POINTERS_DEFAULT_NONNULL
 
@@ -56,7 +56,7 @@ class TemporaryStorage {
   template <typename... Args,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
       T& emplace(Args&&... args) & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_EQ(state_, State::kUninitialized)
+    ABSL_DCHECK_EQ(state_, State::kUninitialized)
         << "Failed precondition of TemporaryStorage::emplace()";
     new (&value_) T(std::forward<Args>(args)...);
     state_ = State::kValid;
@@ -65,7 +65,7 @@ class TemporaryStorage {
   template <typename... Args,
             std::enable_if_t<std::is_constructible_v<T, Args&&...>, int> = 0>
       T&& emplace(Args&&... args) && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_EQ(state_, State::kUninitialized)
+    ABSL_DCHECK_EQ(state_, State::kUninitialized)
         << "Failed precondition of TemporaryStorage::emplace()";
     new (&value_) T(std::forward<Args>(args)...);
     state_ = State::kMovedFrom;
@@ -73,23 +73,23 @@ class TemporaryStorage {
   }
 
   T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_EQ(state_, State::kValid)
+    ABSL_DCHECK_EQ(state_, State::kValid)
         << "Failed precondition of TemporaryStorage::operator*";
     return value_;
   }
   const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_EQ(state_, State::kValid)
+    ABSL_DCHECK_EQ(state_, State::kValid)
         << "Failed precondition of TemporaryStorage::operator*";
     return value_;
   }
   T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_EQ(state_, State::kValid)
+    ABSL_DCHECK_EQ(state_, State::kValid)
         << "Failed precondition of TemporaryStorage::operator*";
     state_ = State::kMovedFrom;
     return std::move(value_);
   }
   const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT_EQ(state_, State::kValid)
+    ABSL_DCHECK_EQ(state_, State::kValid)
         << "Failed precondition of TemporaryStorage::operator*";
     state_ = State::kMovedFrom;
     return std::move(value_);
@@ -212,22 +212,22 @@ class TemporaryStorage<T, std::enable_if_t<std::is_reference_v<T>>> {
   }
 
   T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(value_ != nullptr)
+    ABSL_DCHECK(value_ != nullptr)
         << "Failed precondition of TemporaryStorage::operator*";
     return *value_;
   }
   const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(value_ != nullptr)
+    ABSL_DCHECK(value_ != nullptr)
         << "Failed precondition of TemporaryStorage::operator*";
     return *value_;
   }
   T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(value_ != nullptr)
+    ABSL_DCHECK(value_ != nullptr)
         << "Failed precondition of TemporaryStorage::operator*";
     return std::forward<T>(*value_);
   }
   const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    RIEGELI_ASSERT(value_ != nullptr)
+    ABSL_DCHECK(value_ != nullptr)
         << "Failed precondition of TemporaryStorage::operator*";
     return std::forward<T>(*value_);
   }
