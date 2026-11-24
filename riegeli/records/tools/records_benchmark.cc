@@ -219,8 +219,7 @@ bool Benchmarks::ReadFile(absl::string_view filename,
   riegeli::FdReader<> file_reader(filename);
   if (ABSL_PREDICT_FALSE(!file_reader.ok())) {
     riegeli::StdErr errors;
-    riegeli::WriteLine("Could not open file: ", file_reader.status().ToString(),
-                       errors);
+    riegeli::WriteLine("Could not open file: ", file_reader.status(), errors);
     errors.Close();
     std::exit(1);
   }

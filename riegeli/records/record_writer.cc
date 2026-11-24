@@ -925,7 +925,7 @@ absl::Status RecordWriterBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 absl::Status RecordWriterBase::AnnotateOverDest(absl::Status status) {
-  return Annotate(status, absl::StrCat("at record ", Pos().get().ToString()));
+  return Annotate(status, absl::StrCat("at record ", Pos().get()));
 }
 
 bool RecordWriterBase::WriteRecord(const google::protobuf::MessageLite& record,

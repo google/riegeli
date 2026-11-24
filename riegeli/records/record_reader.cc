@@ -197,7 +197,7 @@ absl::Status RecordReaderBase::AnnotateStatusImpl(absl::Status status) {
 }
 
 absl::Status RecordReaderBase::AnnotateOverSrc(absl::Status status) {
-  return Annotate(status, absl::StrCat("at record ", pos().ToString()));
+  return Annotate(status, absl::StrCat("at record ", pos()));
 }
 
 bool RecordReaderBase::CheckFileFormat() {

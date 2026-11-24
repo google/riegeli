@@ -292,7 +292,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
     if (ABSL_PREDICT_FALSE(!chunk_reader.PullChunkHeader(&chunk_header))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        WriteLine("  # FILE CORRUPTED: ", skipped_region.ToString(), report);
+        WriteLine("  # FILE CORRUPTED: ", skipped_region, report);
         continue;
       }
       break;
@@ -317,7 +317,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
     if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        WriteLine("    # FILE CORRUPTED: ", skipped_region.ToString(), report);
+        WriteLine("    # FILE CORRUPTED: ", skipped_region, report);
         continue;
       }
       break;
