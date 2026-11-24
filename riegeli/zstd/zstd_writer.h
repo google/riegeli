@@ -322,6 +322,18 @@ class ZstdWriterBase : public BufferedWriter {
     void operator()(ZSTD_CCtx* ptr) const { ZSTD_freeCCtx(ptr); }
   };
 
+  struct ZSTD_CCtxShouldRecycle {
+    bool operator()(const ZSTD_CCtx* ptr) const {
+      // Return unpledged compression contexts up to level 8 (`windowLog <= 21`,
+      // ~7.7 MiB) and pledged small-block streams to `RecyclingPool`, while
+      // evicting larger (> 8 MiB) workspaces.
+      return ZSTD_sizeof_CCtx(ptr) <= (size_t{8} << 20);
+    }
+  };
+
+  using ZSTD_CCtxPool =
+      RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter, ZSTD_CCtxShouldRecycle>;
+
   static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   bool WriteInternal(absl::string_view src, Writer& dest,
@@ -335,7 +347,7 @@ class ZstdWriterBase : public BufferedWriter {
   RecyclingPoolOptions recycling_pool_options_;
   // If `ok()` but `compressor_ == nullptr` then `*pledged_size_` has been
   // reached. In this case `ZSTD_compressStream()` must not be called again.
-  RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::Handle compressor_;
+  ZSTD_CCtxPool::Handle compressor_;
 
   AssociatedReader<ZstdReader<Reader*>> associated_reader_;
 };

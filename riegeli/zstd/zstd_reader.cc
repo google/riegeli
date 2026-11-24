@@ -59,8 +59,7 @@ void ZstdReaderBase::Initialize(Reader* src) {
 
 inline void ZstdReaderBase::InitializeDecompressor(Reader& src) {
   decompressor_ =
-      RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::global(
-          recycling_pool_options_)
+      ZSTD_DCtxPool::global(recycling_pool_options_)
           .Get(
               [] {
                 return std::unique_ptr<ZSTD_DCtx, ZSTD_DCtxDeleter>(

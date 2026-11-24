@@ -185,6 +185,18 @@ class ZstdReaderBase : public BufferedReader {
     void operator()(ZSTD_DCtx* ptr) const { ZSTD_freeDCtx(ptr); }
   };
 
+  struct ZSTD_DCtxShouldRecycle {
+    bool operator()(const ZSTD_DCtx* ptr) const {
+      // Return streaming decompression contexts up to `windowLog == 21`
+      // (~2.5 MiB) to `RecyclingPool`, while evicting larger `windowLog >= 22`
+      // (> 4 MiB) workspaces.
+      return ZSTD_sizeof_DCtx(ptr) <= (size_t{4} << 20);
+    }
+  };
+
+  using ZSTD_DCtxPool =
+      RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter, ZSTD_DCtxShouldRecycle>;
+
   static constexpr Position kMaxPosition = std::numeric_limits<Position>::max();
 
   void InitializeDecompressor(Reader& src);
@@ -205,7 +217,7 @@ class ZstdReaderBase : public BufferedReader {
   // If `ok()` but `decompressor_ == nullptr` then all data have been
   // decompressed, `exact_size() == limit_pos()`, and `ReadInternal()` must not
   // be called again.
-  RecyclingPool<ZSTD_DCtx, ZSTD_DCtxDeleter>::Handle decompressor_;
+  ZSTD_DCtxPool::Handle decompressor_;
 };
 
 // A `Reader` which decompresses data with Zstd after getting it from another

@@ -64,8 +64,7 @@ void ZstdWriterBase::Initialize(Writer* dest, int compression_level,
     return;
   }
   initial_compressed_pos_ = dest->pos();
-  compressor_ = RecyclingPool<ZSTD_CCtx, ZSTD_CCtxDeleter>::global(
-                    recycling_pool_options_)
+  compressor_ = ZSTD_CCtxPool::global(recycling_pool_options_)
                     .Get(
                         [] {
                           return std::unique_ptr<ZSTD_CCtx, ZSTD_CCtxDeleter>(
