@@ -22,6 +22,7 @@
 #include <limits>
 #include <list>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -94,10 +95,10 @@ class RecyclingPoolOptions {
 
  private:
   // For `max_size_` and `max_age_seconds_`.
-  template <typename T, typename Deleter>
+  template <typename T, typename Deleter, typename ShouldRecycle>
   friend class RecyclingPool;
   // For `max_size_` and `max_age_seconds_`.
-  template <typename T, typename Key, typename Deleter>
+  template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
   friend class KeyedRecyclingPool;
 
   static uint32_t AgeToSeconds(absl::Duration age);  // Round up.
@@ -109,24 +110,43 @@ class RecyclingPoolOptions {
   uint32_t max_age_seconds_ = 60;  // `AgeToSeconds(kDefaultMaxAge)`
 };
 
-// `RecyclingPool<T, Deleter>` keeps a pool of idle objects of type `T`, so that
-// instead of creating a new object of type `T`, an existing object can be
-// recycled. This is helpful if constructing a new object is more expensive than
-// resetting an existing object to the desired state.
+// Default `ShouldRecycle` predicate for `RecyclingPool` and
+// `KeyedRecyclingPool` which recycles all objects.
+struct DefaultShouldRecycle {
+  template <typename T>
+  bool operator()(const T* /*ptr*/) const {
+    return true;
+  }
+};
+
+// `RecyclingPool<T, Deleter, ShouldRecycle>` keeps a pool of idle objects of
+// type `T`, so that instead of creating a new object of type `T`, an existing
+// object can be recycled. This is helpful if constructing a new object is more
+// expensive than resetting an existing object to the desired state.
 //
-// Deleter specifies how an object should be eventually deleted, like in
+// `Deleter` specifies how an object should be eventually deleted, like in
 // `std::unique_ptr<T, Deleter>`.
 //
+// `ShouldRecycle` specifies a predicate over `T*` determining whether an object
+// is suitable for recycling. If it returns `false`, the `Handle` destructor
+// destroys the object immediately instead of putting it into the pool. If the
+// condition depends on state outside the object, `DoNotRecycle()` can be used
+// instead.
+//
 // `RecyclingPool` is thread-safe.
-template <typename T, typename Deleter = std::default_delete<T>>
+template <typename T, typename Deleter = std::default_delete<T>,
+          typename ShouldRecycle = DefaultShouldRecycle>
 class RecyclingPool : public BackgroundCleanee {
  public:
+  static_assert(std::is_default_constructible_v<ShouldRecycle>,
+                "ShouldRecycle must be default-constructible");
+
   // A deleter which puts the object back into the pool.
   class Recycler;
 
   // A `std::unique_ptr` which puts the object back into the pool instead of
-  // deleting it. If a particular object is not suitable for recycling,
-  // `DoNotRecycle()` can be used.
+  // deleting it when `ShouldRecycle` returns `true`. If a particular object is
+  // not suitable for recycling, `DoNotRecycle()` can be used.
   using Handle = std::unique_ptr<T, Recycler>;
 
   // A `std::unique_ptr` which deletes the object. If a particular object is
@@ -176,7 +196,9 @@ class RecyclingPool : public BackgroundCleanee {
   // Deletes the object immediately, does not return it into the pool.
   //
   // This can be called on the result of `Get()` if the object turned out to be
-  // not suitable for recycling.
+  // not suitable for recycling based on state outside the object. If the
+  // condition can be determined from the object alone, prefer `ShouldRecycle`
+  // so it applies automatically wherever a `Handle` is destroyed.
   //
   // Equivalent to calling the original `Deleter` if `object != nullptr`.
   static void DoNotRecycle(Handle object);
@@ -188,7 +210,8 @@ class RecyclingPool : public BackgroundCleanee {
   RawHandle RawGet(Factory&& factory,
                    Refurbisher&& refurbisher = DefaultRefurbisher());
 
-  // Puts an idle object into the pool for recycling.
+  // Puts an idle object into the pool for recycling if `object != nullptr` and
+  // `ShouldRecycle` returns `true`, otherwise destroys it.
   void RawPut(RawHandle object);
 
  protected:
@@ -212,13 +235,19 @@ class RecyclingPool : public BackgroundCleanee {
   std::vector<Entry> ring_buffer_by_age_;
 };
 
-// `KeyedRecyclingPool<T, Key, Deleter>` keeps a pool of idle objects of type
-// `T`, so that instead of creating a new object of type `T`, an existing object
-// can be recycled. This is helpful if constructing a new object is more
-// expensive than resetting an existing object to the desired state.
+// `KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>` keeps a pool of idle
+// objects of type `T`, so that instead of creating a new object of type `T`, an
+// existing object can be recycled. This is helpful if constructing a new object
+// is more expensive than resetting an existing object to the desired state.
 //
-// Deleter specifies how an object should be eventually deleted, like in
+// `Deleter` specifies how an object should be eventually deleted, like in
 // `std::unique_ptr<T, Deleter>`.
+//
+// `ShouldRecycle` specifies a predicate over `T*` determining whether an object
+// is suitable for recycling. If it returns `false`, the `Handle` destructor
+// destroys the object immediately instead of putting it into the pool. If the
+// condition depends on state outside the object, `DoNotRecycle()` can be used
+// instead.
 //
 // The `Key` parameter allows to find an object to reuse only among compatible
 // objects, which should be assigned the same key. The `Key` type must be
@@ -226,15 +255,19 @@ class RecyclingPool : public BackgroundCleanee {
 // copyable.
 //
 // `KeyedRecyclingPool` is thread-safe.
-template <typename T, typename Key, typename Deleter = std::default_delete<T>>
+template <typename T, typename Key, typename Deleter = std::default_delete<T>,
+          typename ShouldRecycle = DefaultShouldRecycle>
 class KeyedRecyclingPool : public BackgroundCleanee {
  public:
+  static_assert(std::is_default_constructible_v<ShouldRecycle>,
+                "ShouldRecycle must be default-constructible");
+
   // A deleter which puts the object back into the pool.
   class Recycler;
 
   // A `std::unique_ptr` which puts the object back into the pool instead of
-  // deleting it. If a particular object is not suitable for recycling,
-  // `DoNotRecycle()` can be used.
+  // deleting it when `ShouldRecycle` returns `true`. If a particular object is
+  // not suitable for recycling, `DoNotRecycle()` can be used.
   using Handle = std::unique_ptr<T, Recycler>;
 
   // A `std::unique_ptr` which deletes the object. If a particular object is
@@ -285,7 +318,9 @@ class KeyedRecyclingPool : public BackgroundCleanee {
   // Deletes the object immediately, does not return it into the pool.
   //
   // This can be called on the result of `Get()` if the object turned out to be
-  // not suitable for recycling.
+  // not suitable for recycling based on state outside the object. If the
+  // condition can be determined from the object alone, prefer `ShouldRecycle`
+  // so it applies automatically wherever a `Handle` is destroyed.
   //
   // Equivalent to calling the original `Deleter` if `object != nullptr`.
   static void DoNotRecycle(Handle object);
@@ -298,7 +333,8 @@ class KeyedRecyclingPool : public BackgroundCleanee {
                    Refurbisher&& refurbisher = DefaultRefurbisher());
 
   // Puts an idle object into the pool for recycling, possibly under a different
-  // key.
+  // key, if `object != nullptr` and `ShouldRecycle` returns `true`, otherwise
+  // destroys it.
   void RawPut(const Key& key, RawHandle object);
 
  protected:
@@ -403,8 +439,8 @@ struct RecyclingPoolOptionsKey : WithEqual<RecyclingPoolOptionsKey> {
 
 }  // namespace recycling_pool_internal
 
-template <typename T, typename Deleter>
-class RecyclingPool<T, Deleter>::Recycler {
+template <typename T, typename Deleter, typename ShouldRecycle>
+class RecyclingPool<T, Deleter, ShouldRecycle>::Recycler {
  public:
   Recycler() = default;
 
@@ -428,14 +464,14 @@ class RecyclingPool<T, Deleter>::Recycler {
   recycling_pool_internal::RecyclerRepr<RecyclingPool, Deleter> repr_;
 };
 
-template <typename T, typename Deleter>
-RecyclingPool<T, Deleter>::~RecyclingPool() {
+template <typename T, typename Deleter, typename ShouldRecycle>
+RecyclingPool<T, Deleter, ShouldRecycle>::~RecyclingPool() {
   if (cleaner_ != nullptr) cleaner_->Unregister(cleaner_token_);
 }
 
-template <typename T, typename Deleter>
-RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
-    RecyclingPoolOptions options) {
+template <typename T, typename Deleter, typename ShouldRecycle>
+RecyclingPool<T, Deleter, ShouldRecycle>&
+RecyclingPool<T, Deleter, ShouldRecycle>::global(RecyclingPoolOptions options) {
   class ABSL_CACHELINE_ALIGNED Pools {
    public:
     RecyclingPool& GetPool(RecyclingPoolOptions options) {
@@ -470,8 +506,8 @@ RecyclingPool<T, Deleter>& RecyclingPool<T, Deleter>::global(
   return Global([] { return Pools(); }).GetPool(options);
 }
 
-template <typename T, typename Deleter>
-void RecyclingPool<T, Deleter>::SetBackgroundCleaner(
+template <typename T, typename Deleter, typename ShouldRecycle>
+void RecyclingPool<T, Deleter, ShouldRecycle>::SetBackgroundCleaner(
     BackgroundCleaner* cleaner) {
   ABSL_DCHECK(cleaner_ == nullptr)
       << "Failed precondition of RecyclingPool::SetBackgroundCleaner(): "
@@ -480,8 +516,8 @@ void RecyclingPool<T, Deleter>::SetBackgroundCleaner(
   cleaner_token_ = cleaner_->Register(this);
 }
 
-template <typename T, typename Deleter>
-void RecyclingPool<T, Deleter>::Clear() {
+template <typename T, typename Deleter, typename ShouldRecycle>
+void RecyclingPool<T, Deleter, ShouldRecycle>::Clear() {
   if (cleaner_ != nullptr) cleaner_->CancelCleaning(cleaner_token_);
   absl::InlinedVector<RawHandle, 16> evicted;
   absl::MutexLock lock(mutex_);
@@ -497,27 +533,29 @@ void RecyclingPool<T, Deleter>::Clear() {
   // Destroy `evicted` after releasing `mutex_`.
 }
 
-template <typename T, typename Deleter>
+template <typename T, typename Deleter, typename ShouldRecycle>
 template <typename Factory, typename Refurbisher>
-typename RecyclingPool<T, Deleter>::Handle RecyclingPool<T, Deleter>::Get(
-    Factory&& factory,
-    Refurbisher&& refurbisher) ABSL_ATTRIBUTE_LIFETIME_BOUND {
+typename RecyclingPool<T, Deleter, ShouldRecycle>::Handle
+RecyclingPool<T, Deleter, ShouldRecycle>::Get(Factory&& factory,
+                                              Refurbisher&& refurbisher)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RawHandle returned = RawGet(std::forward<Factory>(factory),
                               std::forward<Refurbisher>(refurbisher));
   return Handle(returned.release(),
                 Recycler(this, std::move(returned.get_deleter())));
 }
 
-template <typename T, typename Deleter>
-void RecyclingPool<T, Deleter>::DoNotRecycle(Handle object) {
+template <typename T, typename Deleter, typename ShouldRecycle>
+void RecyclingPool<T, Deleter, ShouldRecycle>::DoNotRecycle(Handle object) {
   T* const ptr = object.release();
   if (ptr != nullptr) object.get_deleter().original_deleter()(ptr);
 }
 
-template <typename T, typename Deleter>
+template <typename T, typename Deleter, typename ShouldRecycle>
 template <typename Factory, typename Refurbisher>
-typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
-    Factory&& factory, Refurbisher&& refurbisher) {
+typename RecyclingPool<T, Deleter, ShouldRecycle>::RawHandle
+RecyclingPool<T, Deleter, ShouldRecycle>::RawGet(Factory&& factory,
+                                                 Refurbisher&& refurbisher) {
   RawHandle returned;
   {
     absl::MutexLock lock(mutex_);
@@ -539,9 +577,13 @@ typename RecyclingPool<T, Deleter>::RawHandle RecyclingPool<T, Deleter>::RawGet(
   return returned;
 }
 
-template <typename T, typename Deleter>
-void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
-  if (ABSL_PREDICT_FALSE(ring_buffer_by_age_.empty())) return;
+template <typename T, typename Deleter, typename ShouldRecycle>
+void RecyclingPool<T, Deleter, ShouldRecycle>::RawPut(RawHandle object) {
+  if (ABSL_PREDICT_FALSE(ring_buffer_by_age_.empty()) ||
+      ABSL_PREDICT_FALSE(object == nullptr) ||
+      ABSL_PREDICT_FALSE(!ShouldRecycle()(object.get()))) {
+    return;
+  }
   RawHandle evicted;
   absl::Time deadline = absl::InfiniteFuture();
   {
@@ -573,8 +615,8 @@ void RecyclingPool<T, Deleter>::RawPut(RawHandle object) {
   cleaner_->ScheduleCleaning(cleaner_token_, deadline);
 }
 
-template <typename T, typename Deleter>
-void RecyclingPool<T, Deleter>::Clean(absl::Time now) {
+template <typename T, typename Deleter, typename ShouldRecycle>
+void RecyclingPool<T, Deleter, ShouldRecycle>::Clean(absl::Time now) {
   absl::InlinedVector<RawHandle, 16> evicted;
   absl::Time deadline;
   {
@@ -604,8 +646,8 @@ void RecyclingPool<T, Deleter>::Clean(absl::Time now) {
   cleaner_->ScheduleCleaning(cleaner_token_, deadline);
 }
 
-template <typename T, typename Key, typename Deleter>
-class KeyedRecyclingPool<T, Key, Deleter>::Recycler {
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+class KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::Recycler {
  public:
   Recycler() = default;
 
@@ -630,14 +672,15 @@ class KeyedRecyclingPool<T, Key, Deleter>::Recycler {
   Key key_;
 };
 
-template <typename T, typename Key, typename Deleter>
-KeyedRecyclingPool<T, Key, Deleter>::~KeyedRecyclingPool() {
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::~KeyedRecyclingPool() {
   if (cleaner_ != nullptr) cleaner_->Unregister(cleaner_token_);
 }
 
-template <typename T, typename Key, typename Deleter>
-KeyedRecyclingPool<T, Key, Deleter>&
-KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>&
+KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::global(
+    RecyclingPoolOptions options) {
   class Pools {
    public:
     KeyedRecyclingPool& GetPool(RecyclingPoolOptions options) {
@@ -674,8 +717,8 @@ KeyedRecyclingPool<T, Key, Deleter>::global(RecyclingPoolOptions options) {
   return Global([] { return Pools(); }).GetPool(options);
 }
 
-template <typename T, typename Key, typename Deleter>
-void KeyedRecyclingPool<T, Key, Deleter>::SetBackgroundCleaner(
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+void KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::SetBackgroundCleaner(
     BackgroundCleaner* cleaner) {
   ABSL_DCHECK(cleaner_ == nullptr)
       << "Failed precondition of KeyedRecyclingPool::SetBackgroundCleaner(): "
@@ -684,8 +727,8 @@ void KeyedRecyclingPool<T, Key, Deleter>::SetBackgroundCleaner(
   cleaner_token_ = cleaner_->Register(this);
 }
 
-template <typename T, typename Key, typename Deleter>
-void KeyedRecyclingPool<T, Key, Deleter>::Clear() {
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+void KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::Clear() {
   if (cleaner_ != nullptr) cleaner_->CancelCleaning(cleaner_token_);
   ByAge evicted_by_age;
   ByKey evicted_by_key;
@@ -696,12 +739,12 @@ void KeyedRecyclingPool<T, Key, Deleter>::Clear() {
   // Destroy `evicted_by_age` and `evicted_by_key` after releasing `mutex_`.
 }
 
-template <typename T, typename Key, typename Deleter>
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
 template <typename Factory, typename Refurbisher>
-typename KeyedRecyclingPool<T, Key, Deleter>::Handle
-KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory&& factory,
-                                         Refurbisher&& refurbisher)
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+typename KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::Handle
+KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::Get(
+    Key key, Factory&& factory,
+    Refurbisher&& refurbisher) ABSL_ATTRIBUTE_LIFETIME_BOUND {
   RawHandle returned = RawGet(key, std::forward<Factory>(factory),
                               std::forward<Refurbisher>(refurbisher));
   return Handle(
@@ -709,17 +752,18 @@ KeyedRecyclingPool<T, Key, Deleter>::Get(Key key, Factory&& factory,
       Recycler(this, std::move(key), std::move(returned.get_deleter())));
 }
 
-template <typename T, typename Key, typename Deleter>
-void KeyedRecyclingPool<T, Key, Deleter>::DoNotRecycle(Handle object) {
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+void KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::DoNotRecycle(
+    Handle object) {
   T* const ptr = object.release();
   if (ptr != nullptr) object.get_deleter().original_deleter()(ptr);
 }
 
-template <typename T, typename Key, typename Deleter>
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
 template <typename Factory, typename Refurbisher>
-typename KeyedRecyclingPool<T, Key, Deleter>::RawHandle
-KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
-                                            Refurbisher&& refurbisher) {
+typename KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::RawHandle
+KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::RawGet(
+    const Key& key, Factory&& factory, Refurbisher&& refurbisher) {
   RawHandle returned;
   {
     absl::MutexLock lock(mutex_);
@@ -758,10 +802,14 @@ KeyedRecyclingPool<T, Key, Deleter>::RawGet(const Key& key, Factory&& factory,
   return returned;
 }
 
-template <typename T, typename Key, typename Deleter>
-void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
-                                                 RawHandle object) {
-  if (ABSL_PREDICT_FALSE(max_size_ == 0)) return;
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+void KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::RawPut(
+    const Key& key, RawHandle object) {
+  if (ABSL_PREDICT_FALSE(max_size_ == 0) ||
+      ABSL_PREDICT_FALSE(object == nullptr) ||
+      ABSL_PREDICT_FALSE(!ShouldRecycle()(object.get()))) {
+    return;
+  }
   RawHandle evicted;
   absl::Time deadline = absl::InfiniteFuture();
   {
@@ -837,8 +885,8 @@ void KeyedRecyclingPool<T, Key, Deleter>::RawPut(const Key& key,
   cleaner_->ScheduleCleaning(cleaner_token_, deadline);
 }
 
-template <typename T, typename Key, typename Deleter>
-void KeyedRecyclingPool<T, Key, Deleter>::Clean(absl::Time now) {
+template <typename T, typename Key, typename Deleter, typename ShouldRecycle>
+void KeyedRecyclingPool<T, Key, Deleter, ShouldRecycle>::Clean(absl::Time now) {
   absl::InlinedVector<RawHandle, 16> evicted;
   absl::Time deadline;
   {
