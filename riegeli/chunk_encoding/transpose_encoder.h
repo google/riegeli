@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -26,7 +27,6 @@
 
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/strings/cord.h"
 #include "absl/types/span.h"
 #include "riegeli/base/bytes_ref.h"
@@ -175,6 +175,14 @@ class TransposeEncoder : public ChunkEncoder {
   static constexpr size_t kNumBufferTypes =
       static_cast<size_t>(BufferType::kNumBufferTypes);
 
+  // Maximum varint value to encode as varint subtype instead of using the
+  // buffer.
+  static constexpr uint8_t kMaxVarintInline = 3;
+
+  static_assert(kMaxVarintInline < 0x80,
+                "Only one byte is used to store inline varint and its value "
+                "must coincide with its varint encoding");
+
   // Information about a field with unique proto path.
   struct MessageNode {
     explicit MessageNode(chunk_encoding_internal::MessageId message_id);
@@ -184,8 +192,10 @@ class TransposeEncoder : public ChunkEncoder {
     // Unique ID for every instance of this class within `TransposeEncoder`.
     chunk_encoding_internal::MessageId message_id;
     // Position of encoded tag in `tags_list_` per subtype.
-    // Size 14 works well with `kMaxVarintInline == 3`.
-    absl::InlinedVector<uint32_t, 14> encoded_tag_pos;
+    std::array<uint32_t, static_cast<size_t>(
+                             chunk_encoding_internal::Subtype::kVarintInline0) +
+                             kMaxVarintInline + 1>
+        encoded_tag_pos;
   };
 
   // We build a tree structure of protocol buffer tags. `NodeId` uniquely
