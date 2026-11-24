@@ -67,6 +67,7 @@ cc_binary(
     deps = [
         ":tfrecord_recognizer",
         "//riegeli/base:arithmetic",
+        "//riegeli/base:byte_fill",
         "//riegeli/base:initializer",
         "//riegeli/base:options_parser",
         "//riegeli/bytes:fd_reader",
@@ -77,7 +78,6 @@ cc_binary(
         "//riegeli/records:chunk_reader",
         "//riegeli/records:record_reader",
         "//riegeli/records:record_writer",
-        "//riegeli/text:ascii_align",
         "//riegeli/varint:varint_writing",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/flags:flag",
