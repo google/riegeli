@@ -51,8 +51,6 @@
 #include "riegeli/chunk_encoding/decompressor.h"
 #include "riegeli/chunk_encoding/field_projection.h"
 #include "riegeli/chunk_encoding/transpose_decoder.h"
-#include "riegeli/lines/line_writing.h"
-#include "riegeli/lines/text_writer.h"
 #include "riegeli/messages/parse_message.h"
 #include "riegeli/messages/text_print_message.h"
 #include "riegeli/records/chunk_reader.h"
@@ -274,12 +272,12 @@ absl::Status DescribeTransposedChunk(
 }
 
 void DescribeFile(absl::string_view filename, Writer& report) {
-  WriteLine("file {", report);
-  WriteLine("  filename: \"", absl::Utf8SafeCEscape(filename), '"', report);
+  report.Write("file {\n");
+  report.Write("  filename: \"", absl::Utf8SafeCEscape(filename), "\"\n");
   DefaultChunkReader chunk_reader(riegeli::Maker<FdReader>(filename));
   if (chunk_reader.SupportsRandomAccess()) {
     const std::optional<Position> size = chunk_reader.Size();
-    if (size != std::nullopt) WriteLine("  file_size: ", *size, report);
+    if (size != std::nullopt) report.Write("  file_size: ", *size, '\n');
   }
   TextPrintMessageOptions print_options;
   print_options.printer().SetInitialIndentLevel(2);
@@ -292,7 +290,7 @@ void DescribeFile(absl::string_view filename, Writer& report) {
     if (ABSL_PREDICT_FALSE(!chunk_reader.PullChunkHeader(&chunk_header))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        WriteLine("  # FILE CORRUPTED: ", skipped_region, report);
+        report.Write("  # FILE CORRUPTED: ", skipped_region, '\n');
         continue;
       }
       break;
@@ -306,18 +304,17 @@ void DescribeFile(absl::string_view filename, Writer& report) {
     chunk_summary.set_num_records(chunk_header->num_records());
     chunk_summary.set_decoded_data_size(chunk_header->decoded_data_size());
 
-    WriteLine("  chunk {", report);
+    report.Write("  chunk {\n");
     absl::Cleanup report_chunk = [&] {
-      TextPrintMessage(chunk_summary, TextWriter(&report), print_options)
-          .IgnoreError();
-      WriteLine("  }", report);
+      TextPrintMessage(chunk_summary, report, print_options).IgnoreError();
+      report.Write("  }\n");
     };
 
     Chunk chunk;
     if (ABSL_PREDICT_FALSE(!chunk_reader.ReadChunk(chunk))) {
       SkippedRegion skipped_region;
       if (chunk_reader.Recover(&skipped_region)) {
-        WriteLine("    # FILE CORRUPTED: ", skipped_region, report);
+        report.Write("    # FILE CORRUPTED: ", skipped_region, '\n');
         continue;
       }
       break;
@@ -343,18 +340,19 @@ void DescribeFile(absl::string_view filename, Writer& report) {
         break;
     }
     if (ABSL_PREDICT_FALSE(!status.ok())) {
-      WriteLine("    # FILE CORRUPTED: ",
-                Annotate(chunk_reader.AnnotateStatus(status),
-                         absl::StrCat("at record ", chunk_summary.chunk_begin(),
-                                      "/0"))
-                    .message(),
-                report);
+      report.Write("    # FILE CORRUPTED: ",
+                   Annotate(chunk_reader.AnnotateStatus(status),
+                            absl::StrCat("at record ",
+                                         chunk_summary.chunk_begin(), "/0"))
+                       .message(),
+                   '\n');
     }
   }
   if (!chunk_reader.Close()) {
-    WriteLine("  # FILE READ ERROR: ", chunk_reader.status().message(), report);
+    report.Write("  # FILE READ ERROR: ", chunk_reader.status().message(),
+                 '\n');
   }
-  WriteLine('}', report);
+  report.Write("}\n");
   report.Flush();
 }
 
@@ -369,7 +367,7 @@ const char kUsage[] =
 int main(int argc, char** argv) {
   absl::SetProgramUsageMessage(riegeli::tools::kUsage);
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
-  riegeli::StdOut std_out;
+  riegeli::StdOut std_out(riegeli::StdOut::Options().set_text(true));
   for (size_t i = 1; i < args.size(); ++i) {
     riegeli::tools::DescribeFile(args[i], std_out);
   }

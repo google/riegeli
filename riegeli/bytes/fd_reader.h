@@ -106,8 +106,8 @@ class FdReaderBase : public BufferedReader {
     // CR-LF character pairs are translated to LF, and a ^Z character is
     // interpreted as end of file.
     //
-    // It is recommended to use `ReadLine()` or `TextReader` instead, which
-    // expect a binary mode `Reader`.
+    // It is recommended to use `ReadLine()` instead, which expects a binary
+    // mode `Reader`.
     //
     // `set_text()` has an effect only on Windows. It is applicable whenever
     // `FdReader` opens a fd with a filename or reads from an already open fd.

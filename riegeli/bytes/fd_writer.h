@@ -247,8 +247,8 @@ class FdWriterBase : public BufferedWriter {
     // If `true`, text mode translation will be applied on Windows:
     // LF characters are translated to CR-LF.
     //
-    // It is recommended to use `WriteLine()` or `TextWriter` instead, which
-    // expect a binary mode `Writer`.
+    // It is recommended to use `WriteLine()` instead, which expects a binary
+    // mode `Writer`.
     //
     // `set_text()` has an effect only on Windows. It is applicable whenever
     // `FdWriter` opens a fd with a filename or writes to an already open fd.

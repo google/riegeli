@@ -52,8 +52,6 @@
 #include "riegeli/bytes/std_io.h"
 #include "riegeli/bytes/writer.h"
 #include "riegeli/lines/line_writing.h"
-#include "riegeli/lines/newline.h"
-#include "riegeli/lines/text_writer.h"
 #include "riegeli/records/chunk_reader.h"
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
@@ -533,8 +531,7 @@ int main(int argc, char** argv) {
   const std::vector<char*> args = absl::ParseCommandLine(argc, argv);
   std::vector<std::string> records;
   if (args.size() <= 1) {
-    riegeli::TextWriter<riegeli::WriteNewline::kNative, riegeli::StdErr>
-        std_err(riegeli::Maker());
+    riegeli::StdErr std_err;
     std_err.Write(kUsage, '\n');
     std_err.Close();
     return 1;
