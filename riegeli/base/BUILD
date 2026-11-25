@@ -621,17 +621,6 @@ cc_library(
     ],
 )
 
-# TODO: Migrate to std::vector.
-cc_library(
-    name = "uninitialized_vector",
-    hdrs = ["uninitialized_vector.h"],
-    visibility = ["//riegeli:__subpackages__"],
-    deps = [
-        "@com_google_absl//absl/base:nullability",
-        "@com_google_absl//absl/container:inlined_vector",
-    ],
-)
-
 # TODO: Eliminate.
 cc_library(
     name = "compact_string",

@@ -99,11 +99,8 @@ using CompactStringWriterBase = ResizableWriterBase;
 // closed or no longer used, except that it is allowed to read the
 // `CompactString` immediately after `Flush()`.
 //
-// `CompactStringWriter` is more efficient than `StringWriter`
-// because the destination can be resized with uninitialized space.
-// `VectorWriter` with `UninitializedVector<char>` or
-// `UninitializedInlinedVector<char, inlined_size>` can also be used
-// for this purpose.
+// `CompactStringWriter` is more efficient than `StringWriter` because the
+// destination can be resized with uninitialized space.
 template <typename Dest = CompactString*>
 class CompactStringWriter
     : public ResizableWriter<

@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include <type_traits>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/log/absl_check.h"
@@ -25,24 +26,14 @@
 #include "riegeli/base/dependency.h"
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/object.h"
-#include "riegeli/base/uninitialized_vector.h"
 #include "riegeli/bytes/resizable_writer.h"
 
 namespace riegeli {
 
 namespace vector_writer_internal {
 
-template <typename VectorType, typename Enable = void>
-struct HasAllocatorType : std::false_type {};
-
-template <typename VectorType>
-struct HasAllocatorType<VectorType,
-                        std::void_t<typename VectorType::allocator_type>>
-    : std::true_type {};
-
-// `ResizableTraits` for `std::vector<T, Alloc>` including
-// `UninitializedVector<T>`, `absl::InlinedVector<T, inlined_size, Alloc>`
-// including `UninitializedInlinedVector<T, inlined_size>`, or a similar type.
+// `ResizableTraits` for `std::vector<T, Alloc>`,
+// `absl::InlinedVector<T, inlined_size, Alloc>`, or a similar type.
 // Its value type must be trivially copyable, usually `char`.
 //
 // The vector type must support at least the following members:
@@ -114,13 +105,6 @@ struct VectorResizableTraits {
            "no need to grow";
     const size_t new_num_elements = SizeToNumElements(new_size);
     if (new_num_elements > dest.capacity()) return false;
-    if constexpr (HasAllocatorType<Resizable>::value) {
-      if constexpr (std::is_same_v<typename Resizable::allocator_type,
-                                   UninitializedAllocator<T>>) {
-        dest.resize(dest.capacity());
-        return true;
-      }
-    }
     dest.resize(UnsignedClamp(
         dest.size() + UnsignedClamp(dest.size(),
                                     SizeToNumElements(kDefaultMinBlockSize),
@@ -156,10 +140,9 @@ struct VectorResizableTraits {
 // Template parameter independent part of `VectorWriter`.
 using VectorWriterBase = ResizableWriterBase;
 
-// A `Writer` which writes to `std::vector<T, Alloc>` including
-// `UninitializedVector<T>`, `absl::InlinedVector<T, inlined_size, Alloc>`,
-// including `UninitializedInlinedVector<T, inlined_size>`, or a similar
-// type supported by `VectorResizableTraits`, called `VectorType` here.
+// A `Writer` which writes to `std::vector<T, Alloc>`,
+// `absl::InlinedVector<T, inlined_size, Alloc>`, or a similar type supported by
+// `VectorResizableTraits`, called `VectorType` here.
 // Its value type must be trivially copyable, usually `char`.
 //
 // If `Options::append()` is `false` (the default), replaces existing contents
@@ -174,7 +157,7 @@ using VectorWriterBase = ResizableWriterBase;
 // `VectorType` (owned), `Any<VectorType*>` (maybe owned).
 //
 // By relying on CTAD the template argument can be deduced as
-// `UninitializedVector<char>` if there are no constructor arguments or the only
+// `std::vector<char>` if there are no constructor arguments or the only
 // argument is `Options`, otherwise as `TargetT` of the type of the first
 // constructor argument, except that CTAD is deleted if the first constructor
 // argument is a `VectorType&` or `const VectorType&` (to avoid writing to an
@@ -183,12 +166,7 @@ using VectorWriterBase = ResizableWriterBase;
 // The `VectorType` must not be accessed until the `VectorWriter` is closed or
 // no longer used, except that it is allowed to read the `VectorType`
 // immediately after `Flush()`.
-//
-// `VectorWriter` with `UninitializedVector<char>`
-// or `UninitializedInlinedVector<char, inlined_size>` is more efficient
-// than `StringWriter` because the destination can be resized with uninitialized
-// space. `CompactStringWriter` can also be used for this purpose.
-template <typename Dest = UninitializedVector<char>*>
+template <typename Dest = std::vector<char>*>
 class VectorWriter
     : public ResizableWriter<
           vector_writer_internal::VectorResizableTraits<std::remove_pointer_t<
@@ -214,7 +192,7 @@ explicit VectorWriter(Dest&& dest, VectorWriterBase::Options options =
         DeleteCtad<Dest&&>, TargetT<Dest>>>;
 explicit VectorWriter(
     VectorWriterBase::Options options = VectorWriterBase::Options())
-    -> VectorWriter<UninitializedVector<char>>;
+    -> VectorWriter<std::vector<char>>;
 
 }  // namespace riegeli
 
