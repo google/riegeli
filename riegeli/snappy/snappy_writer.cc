@@ -266,7 +266,9 @@ absl::Status SnappyCompressImpl(Reader& src, Writer& dest,
   }
   ReaderSnappySource source(&src, *size);
   WriterSnappySink sink(&dest);
-  snappy::Compress(&source, &sink, {/*level=*/options.compression_level()});
+  snappy::Compress(
+      &source, &sink,
+      snappy::CompressionOptions{/*level=*/options.compression_level()});
   if (ABSL_PREDICT_FALSE(!dest.ok())) return dest.status();
   if (ABSL_PREDICT_FALSE(!src.ok())) return src.status();
   return absl::OkStatus();
