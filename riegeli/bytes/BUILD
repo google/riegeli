@@ -193,10 +193,9 @@ cc_library(
     name = "write_int_internal",
     srcs = ["write_int_internal.cc"],
     hdrs = ["write_int_internal.h"],
-    visibility = ["//riegeli:__subpackages__"],
+    visibility = ["//visibility:private"],
     deps = [
         "//riegeli/base:arithmetic",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/numeric:int128",

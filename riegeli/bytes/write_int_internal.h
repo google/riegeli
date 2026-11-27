@@ -37,8 +37,7 @@ struct FitsIn<T, Target,
     : std::bool_constant<(std::numeric_limits<T>::max() <=
                           std::numeric_limits<Target>::max())> {};
 
-// `WriteDec()` with no width parameter writes no leading zeros, except for 0
-// itself.
+// `WriteDec()` writes no leading zeros, except for 0 itself.
 char* WriteDec(uint32_t src, char* dest);
 char* WriteDec(uint64_t src, char* dest);
 char* WriteDec(absl::uint128 src, char* dest);
@@ -46,8 +45,7 @@ char* WriteDec(int32_t src, char* dest);
 char* WriteDec(int64_t src, char* dest);
 char* WriteDec(absl::int128 src, char* dest);
 
-// `WriteDecUnsigned()` with no width parameter writes no leading zeros, except
-// for 0 itself.
+// `WriteDecUnsigned()` writes no leading zeros, except for 0 itself.
 
 template <typename T, std::enable_if_t<FitsIn<T, uint32_t>::value, int> = 0>
 inline char* WriteDecUnsigned(T src, char* dest) {
@@ -70,8 +68,7 @@ inline char* WriteDecUnsigned(T src, char* dest) {
   return WriteDec(IntCast<absl::uint128>(src), dest);
 }
 
-// `WriteDecSigned()` with no width parameter writes no leading zeros, except
-// for 0 itself.
+// `WriteDecSigned()` writes no leading zeros, except for 0 itself.
 
 template <typename T, std::enable_if_t<FitsIn<T, int32_t>::value, int> = 0>
 inline char* WriteDecSigned(T src, char* dest) {
@@ -92,67 +89,6 @@ template <typename T,
                            int> = 0>
 inline char* WriteDecSigned(T src, char* dest) {
   return WriteDec(IntCast<absl::int128>(src), dest);
-}
-
-// `WriteDec()` with a width parameter writes at least `width` characters.
-char* WriteDec(uint32_t src, char* dest, size_t width);
-char* WriteDec(uint64_t src, char* dest, size_t width);
-char* WriteDec(absl::uint128 src, char* dest, size_t width);
-char* WriteDec(int32_t src, char* dest, size_t width);
-char* WriteDec(int64_t src, char* dest, size_t width);
-char* WriteDec(absl::int128 src, char* dest, size_t width);
-
-// `WriteDecUnsigned()` with a width parameter writes at least `width`
-// characters.
-
-template <typename T, std::enable_if_t<FitsIn<T, uint32_t>::value, int> = 0>
-inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
-  return width <= 1 ? WriteDec(IntCast<uint32_t>(src), dest)
-                    : WriteDec(IntCast<uint32_t>(src), dest, width);
-}
-
-template <typename T, std::enable_if_t<
-                          std::conjunction_v<std::negation<FitsIn<T, uint32_t>>,
-                                             FitsIn<T, uint64_t>>,
-                          int> = 0>
-inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
-  return width <= 1 ? WriteDec(IntCast<uint64_t>(src), dest)
-                    : WriteDec(IntCast<uint64_t>(src), dest, width);
-}
-
-template <typename T, std::enable_if_t<
-                          std::conjunction_v<std::negation<FitsIn<T, uint64_t>>,
-                                             FitsIn<T, absl::uint128>>,
-                          int> = 0>
-inline char* WriteDecUnsigned(T src, char* dest, size_t width) {
-  return width <= 1 ? WriteDec(IntCast<absl::uint128>(src), dest)
-                    : WriteDec(IntCast<absl::uint128>(src), dest, width);
-}
-
-// `WriteDecSigned()` with a width parameter writes at least `width` characters.
-
-template <typename T, std::enable_if_t<FitsIn<T, int32_t>::value, int> = 0>
-inline char* WriteDecSigned(T src, char* dest, size_t width) {
-  return width <= 1 ? WriteDec(IntCast<int32_t>(src), dest)
-                    : WriteDec(IntCast<int32_t>(src), dest, width);
-}
-
-template <typename T,
-          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int32_t>>,
-                                              FitsIn<T, int64_t>>,
-                           int> = 0>
-inline char* WriteDecSigned(T src, char* dest, size_t width) {
-  return width <= 1 ? WriteDec(IntCast<int64_t>(src), dest)
-                    : WriteDec(IntCast<int64_t>(src), dest, width);
-}
-
-template <typename T,
-          std::enable_if_t<std::conjunction_v<std::negation<FitsIn<T, int64_t>>,
-                                              FitsIn<T, absl::int128>>,
-                           int> = 0>
-inline char* WriteDecSigned(T src, char* dest, size_t width) {
-  return width <= 1 ? WriteDec(IntCast<absl::int128>(src), dest)
-                    : WriteDec(IntCast<absl::int128>(src), dest, width);
 }
 
 // `WriteDecBackward()` writes no leading zeros, except for 0 itself.

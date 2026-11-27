@@ -45,6 +45,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "riegeli/base/arithmetic.h"
+#include "riegeli/base/byte_fill.h"
 #include "riegeli/base/maker.h"
 #include "riegeli/base/options_parser.h"
 #include "riegeli/bytes/fd_reader.h"
@@ -56,7 +57,6 @@
 #include "riegeli/records/record_reader.h"
 #include "riegeli/records/record_writer.h"
 #include "riegeli/records/tools/tfrecord_recognizer.h"
-#include "riegeli/text/ascii_align.h"
 #include "riegeli/varint/varint_writing.h"
 #include "tensorflow/core/lib/io/compression.h"
 #include "tensorflow/core/lib/io/record_reader.h"
@@ -393,16 +393,13 @@ void Benchmarks::RunAll(riegeli::Writer& report) {
   riegeli::WriteLine(" MB", report);
   riegeli::WriteLine("Creating files ", output_dir_, "/record_benchmark_*",
                      report);
-  riegeli::WriteLine(riegeli::AsciiLeft(max_name_width_),
+  riegeli::WriteLine(riegeli::ByteFill(max_name_width_, ' '),
                      "  Compr.    Write       Read", report);
-  riegeli::WriteLine(riegeli::AsciiLeft(max_name_width_),
+  riegeli::WriteLine(riegeli::ByteFill(max_name_width_, ' '),
                      "  ratio    CPU Real   CPU Real", report);
-  riegeli::WriteLine(riegeli::AsciiLeft(max_name_width_),
+  riegeli::WriteLine(riegeli::ByteFill(max_name_width_, ' '),
                      "    %     MB/s MB/s  MB/s MB/s", report);
-  riegeli::WriteLine(riegeli::AsciiLeft(riegeli::AlignOptions()
-                                            .set_width(max_name_width_ + 30)
-                                            .set_fill('-')),
-                     report);
+  riegeli::WriteLine(riegeli::ByteFill(max_name_width_ + 30, '-'), report);
 
   for (const std::pair<std::string, const char*>& tfrecord_options :
        tfrecord_benchmarks_) {
@@ -446,7 +443,10 @@ void Benchmarks::RunOne(
     absl::FunctionRef<void(absl::string_view, std::vector<std::string>*)>
         read_records,
     riegeli::Writer& report) {
-  report.Write(riegeli::AsciiLeft(name, max_name_width_), ' ');
+  report.Write(name,
+               riegeli::ByteFill(
+                   riegeli::SaturatingSub(max_name_width_, name.size()), ' '),
+               ' ');
   report.Flush();
   const std::string filename =
       absl::StrCat(output_dir_, "/record_benchmark_", Filename(name));

@@ -22,7 +22,6 @@
 #include <limits>
 #include <type_traits>
 
-#include "absl/base/attributes.h"
 #include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
 #include "absl/numeric/int128.h"
@@ -32,7 +31,7 @@ namespace riegeli::write_int_internal {
 
 namespace {
 
-// `WriteDec{1,2}Impl()` write a fixed number of digits.
+// `WriteDec{1,2,8,10}Impl()` write a fixed number of digits.
 
 inline char* WriteDec1Impl(uint32_t src, char* dest) {
   ABSL_DCHECK_LT(src, 10u)
@@ -66,50 +65,67 @@ inline char* WriteDec2Impl(uint32_t src, char* dest) {
   return dest + 2;
 }
 
-// `WriteDecImpl()` writes at least `width` digits.
+inline char* WriteDec8Impl(uint32_t src, char* dest) {
+  ABSL_DCHECK_LT(src, 100'000'000u)
+      << "Failed precondition of WriteDec8Impl(): value too large";
+  uint32_t digits = src / 1'000'000;
+  src %= 1'000'000;
+  dest = WriteDec2Impl(digits, dest);
+  digits = src / 10'000;
+  src %= 10'000;
+  dest = WriteDec2Impl(digits, dest);
+  digits = src / 100;
+  src %= 100;
+  dest = WriteDec2Impl(digits, dest);
+  return WriteDec2Impl(src, dest);
+}
 
-// Inline to optimize for a constant `width`.
-ABSL_ATTRIBUTE_ALWAYS_INLINE
-inline char* WriteDecImpl(uint32_t src, char* dest, size_t width) {
+inline char* WriteDec10Impl(uint64_t src, char* dest) {
+  ABSL_DCHECK_LT(src, 10'000'000'000u)
+      << "Failed precondition of WriteDec10Impl(): value too large";
+  const uint32_t digits = IntCast<uint32_t>(src / 100'000'000);
+  src %= 100'000'000;
+  dest = WriteDec2Impl(digits, dest);
+  return WriteDec8Impl(IntCast<uint32_t>(src), dest);
+}
+
+}  // namespace
+
+char* WriteDec(uint32_t src, char* dest) {
   uint32_t digits;
 
-  if (src < 100 && width <= 2) {
-    if (src >= 10 || width == 2) goto write_2_digits;
+  if (src < 100) {
+    if (src >= 10) goto write_2_digits;
     return WriteDec1Impl(src, dest);
   }
-  if (src < 10'000 && width <= 4) {
-    if (src >= 1'000 || width == 4) goto write_4_digits;
+  if (src < 10'000) {
+    if (src >= 1'000) goto write_4_digits;
     digits = src / 100;
     src %= 100;
     dest = WriteDec1Impl(digits, dest);
     goto write_2_digits;
   }
-  if (src < 1'000'000 && width <= 6) {
-    if (src >= 100'000 || width == 6) goto write_6_digits;
+  if (src < 1'000'000) {
+    if (src >= 100'000) goto write_6_digits;
     digits = src / 10'000;
     src %= 10'000;
     dest = WriteDec1Impl(digits, dest);
     goto write_4_digits;
   }
-  if (src < 100'000'000 && width <= 8) {
-    if (src >= 10'000'000 || width == 8) goto write_8_digits;
+  if (src < 100'000'000) {
+    if (src >= 10'000'000) goto write_8_digits;
     digits = src / 1'000'000;
     src %= 1'000'000;
     dest = WriteDec1Impl(digits, dest);
     goto write_6_digits;
   }
-  if (src < 1'000'000'000 && width <= 9) {
+  if (src < 1'000'000'000) {
     digits = src / 100'000'000;
     src %= 100'000'000;
     dest = WriteDec1Impl(digits, dest);
     goto write_8_digits;
   }
 
-  if (width > 10) {
-    // Redundant condition suppresses gcc warning `-Wstringop-overflow`.
-    std::memset(dest, '0', width > 10 ? width - 10 : 0);
-    dest += width - 10;
-  }
   digits = src / 100'000'000;
   src %= 100'000'000;
   dest = WriteDec2Impl(digits, dest);
@@ -129,63 +145,38 @@ write_2_digits:
   return WriteDec2Impl(src, dest);
 }
 
-// Inline to optimize for a constant `width`.
-ABSL_ATTRIBUTE_ALWAYS_INLINE
-inline char* WriteDecImpl(uint64_t src, char* dest, size_t width) {
+char* WriteDec(uint64_t src, char* dest) {
   if (src <= std::numeric_limits<uint32_t>::max()) {
-    return WriteDecImpl(IntCast<uint32_t>(src), dest, width);
+    return WriteDec(IntCast<uint32_t>(src), dest);
   }
   // `src` needs at least 10 digits.
-  if (src >= 10'000'000'000 || width > 10) {
+  if (src >= 10'000'000'000) {
     // `src` needs more than 10 digits.
     const uint64_t over_10_digits = src / 10'000'000'000;
     src %= 10'000'000'000;
-    dest = WriteDecImpl(IntCast<uint32_t>(over_10_digits), dest,
-                        SaturatingSub(width, size_t{10}));
+    dest = WriteDec(IntCast<uint32_t>(over_10_digits), dest);
   }
-  // Now `src < 1e10`. Write `src` using exactly 10 digits. Leading zeros are
-  // needed for the case where the original `src` needed more than 10 digits or
-  // `width > 10`.
-  const uint32_t digits = IntCast<uint32_t>(src / 100'000'000);
-  src %= 100'000'000;
-  dest = WriteDec2Impl(digits, dest);
-  return WriteDecImpl(IntCast<uint32_t>(src), dest, 8);
+  // Now `src < 1e10`. Write `src` using exactly 10 digits.
+  return WriteDec10Impl(src, dest);
 }
 
-// Inline to optimize for a constant `width`.
-ABSL_ATTRIBUTE_ALWAYS_INLINE
-inline char* WriteDecImpl(absl::uint128 src, char* dest, size_t width) {
+char* WriteDec(absl::uint128 src, char* dest) {
   if (src <= std::numeric_limits<uint64_t>::max()) {
-    return WriteDecImpl(IntCast<uint64_t>(src), dest, width);
+    return WriteDec(IntCast<uint64_t>(src), dest);
   }
   // `src` needs at least 20 digits.
   constexpr absl::uint128 k1e20 = absl::MakeUint128(5, 0x6bc75e2d63100000);
   ABSL_DCHECK_EQ(k1e20,
                  absl::uint128(10'000'000'000) * absl::uint128(10'000'000'000));
-  if (src >= k1e20 || width > 20) {
+  if (src >= k1e20) {
     // `src` needs more than 20 digits.
     const absl::uint128 over_20_digits = src / k1e20;
     src %= k1e20;
-    dest = WriteDecImpl(IntCast<uint64_t>(over_20_digits), dest,
-                        SaturatingSub(width, size_t{20}));
+    dest = WriteDec(IntCast<uint64_t>(over_20_digits), dest);
   }
-  // Now `src < 1e20`. Write `src` using exactly 20 digits. Leading zeros are
-  // needed for the case where the original `src` needed more than 20 digits or
-  // `width > 20`.
-  const uint32_t digits = IntCast<uint32_t>(src / 1'000'000'000'000'000'000);
-  src %= 1'000'000'000'000'000'000;
-  dest = WriteDec2Impl(digits, dest);
-  return WriteDecImpl(IntCast<uint64_t>(src), dest, 18);
-}
-
-}  // namespace
-
-char* WriteDec(uint32_t src, char* dest) { return WriteDecImpl(src, dest, 0); }
-
-char* WriteDec(uint64_t src, char* dest) { return WriteDecImpl(src, dest, 0); }
-
-char* WriteDec(absl::uint128 src, char* dest) {
-  return WriteDecImpl(src, dest, 0);
+  // Now `src < 1e20`. Write `src` using exactly 20 digits.
+  dest = WriteDec10Impl(IntCast<uint64_t>(src / 10'000'000'000), dest);
+  return WriteDec10Impl(IntCast<uint64_t>(src % 10'000'000'000), dest);
 }
 
 char* WriteDec(int32_t src, char* dest) {
@@ -222,57 +213,6 @@ char* WriteDec(absl::int128 src, char* dest) {
     abs_value = NegatingUnsignedCast(src);
   }
   return WriteDec(abs_value, dest);
-}
-
-char* WriteDec(uint32_t src, char* dest, size_t width) {
-  return WriteDecImpl(src, dest, width);
-}
-
-char* WriteDec(uint64_t src, char* dest, size_t width) {
-  return WriteDecImpl(src, dest, width);
-}
-
-char* WriteDec(absl::uint128 src, char* dest, size_t width) {
-  return WriteDecImpl(src, dest, width);
-}
-
-char* WriteDec(int32_t src, char* dest, size_t width) {
-  uint32_t abs_value;
-  if (src >= 0) {
-    abs_value = UnsignedCast(src);
-  } else {
-    *dest = '-';
-    ++dest;
-    abs_value = NegatingUnsignedCast(src);
-    width = SaturatingSub(width, size_t{1});
-  }
-  return WriteDec(abs_value, dest, width);
-}
-
-char* WriteDec(int64_t src, char* dest, size_t width) {
-  uint64_t abs_value;
-  if (src >= 0) {
-    abs_value = UnsignedCast(src);
-  } else {
-    *dest = '-';
-    ++dest;
-    abs_value = NegatingUnsignedCast(src);
-    width = SaturatingSub(width, size_t{1});
-  }
-  return WriteDec(abs_value, dest, width);
-}
-
-char* WriteDec(absl::int128 src, char* dest, size_t width) {
-  absl::uint128 abs_value;
-  if (src >= 0) {
-    abs_value = UnsignedCast(src);
-  } else {
-    *dest = '-';
-    ++dest;
-    abs_value = NegatingUnsignedCast(src);
-    width = SaturatingSub(width, size_t{1});
-  }
-  return WriteDec(abs_value, dest, width);
 }
 
 char* WriteDecBackward(uint32_t src, char* dest) {
