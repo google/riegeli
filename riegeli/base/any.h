@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/fast_type_id.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/log/absl_check.h"
@@ -42,7 +43,6 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/temporary_storage.h"
-#include "riegeli/base/type_id.h"
 #include "riegeli/base/type_traits.h"
 
 namespace riegeli {
@@ -104,14 +104,16 @@ class AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>,
       std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int> = 0>
   const Manager* GetIf() const ABSL_ATTRIBUTE_LIFETIME_BOUND;
 
-  // Returns the `TypeId` corresponding to the stored `Manager` type, stripping
-  // any toplevel reference.
-  TypeId type_id() const { return methods_and_handle_.methods->type_id; }
+  // Returns the `absl::FastTypeIdType` corresponding to the stored `Manager`
+  // type, stripping any toplevel reference.
+  absl::FastTypeIdType type_id() const {
+    return methods_and_handle_.methods->type_id;
+  }
 
   // Returns `true` when the stored `Manager` has exactly this type or a
   // reference to it.
   //
-  // Same as `type_id() == TypeId::For<Manager>()`.
+  // Same as `type_id() == absl::FastTypeId<Manager>()`.
   //
   // Same as `GetIf<Manager>() != nullptr` but more efficient if the type
   // matches.
@@ -119,7 +121,7 @@ class AnyBase : public WithEqual<AnyBase<Handle, inline_size, inline_align>,
       typename Manager,
       std::enable_if_t<SupportsDependency<Handle, Manager&&>::value, int> = 0>
   bool Holds() const {
-    return type_id() == TypeId::For<Manager>();
+    return type_id() == absl::FastTypeId<Manager>();
   }
 
   // Supports `MemoryEstimator`.

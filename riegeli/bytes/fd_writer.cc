@@ -50,6 +50,7 @@
 #include <optional>
 #include <utility>
 
+#include "absl/base/fast_type_id.h"
 #include "absl/base/optimization.h"
 #include "absl/log/absl_check.h"
 #include "absl/numeric/bits.h"
@@ -61,7 +62,6 @@
 #include "riegeli/base/byte_fill.h"
 #include "riegeli/base/global.h"
 #include "riegeli/base/status.h"
-#include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffered_writer.h"
 #ifdef _WIN32
@@ -78,7 +78,9 @@ namespace riegeli {
 const Position FdWriterBase::kMaxPosition =
     Position{std::numeric_limits<fd_internal::Offset>::max()};
 
-TypeId FdWriterBase::GetTypeId() const { return TypeId::For<FdWriterBase>(); }
+absl::FastTypeIdType FdWriterBase::GetTypeId() const {
+  return absl::FastTypeId<FdWriterBase>();
+}
 
 void FdWriterBase::Initialize(int dest, const Options& options) {
   ABSL_DCHECK_GE(dest, 0)

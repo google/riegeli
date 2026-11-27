@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/fast_type_id.h"
 #include "absl/meta/type_traits.h"
 #include "riegeli/base/arithmetic.h"
 #include "riegeli/base/closing_ptr.h"
@@ -31,7 +32,6 @@
 #include "riegeli/base/initializer.h"
 #include "riegeli/base/memory_estimator.h"
 #include "riegeli/base/type_erased_ref.h"
-#include "riegeli/base/type_id.h"
 
 namespace riegeli {
 
@@ -160,10 +160,11 @@ struct Methods {
                          MethodsAndHandle<Handle>* dest_methods_and_handle);
   size_t used_size;
   size_t used_align;
-  TypeId type_id;
+  absl::FastTypeIdType type_id;
   bool (*is_owning)(const Storage self);
   // Returns the `Manager&` stored in `self`, with the `Manager` type
-  // corresponding to `type_id`. Used only if `type_id != nullptr`.
+  // corresponding to `type_id`. Used only if
+  // `type_id != absl::FastTypeIdType()`.
   // If `self` is const then `Manager` should be const, otherwise `Manager`
   // can be non-const.
   TypeErasedRef (*get_raw_manager)(const Storage self);
@@ -247,8 +248,8 @@ struct NullMethods {
 
  public:
   static constexpr Methods<Handle> kMethods = {
-      Destroy, Move,    nullptr,  Move,    0,
-      0,       nullptr, IsOwning, nullptr, RegisterSubobjects};
+      Destroy,  Move,    nullptr,           Move, 0, 0, absl::FastTypeIdType(),
+      IsOwning, nullptr, RegisterSubobjects};
 };
 
 template <typename Handle, typename Manager>
@@ -281,7 +282,7 @@ struct MethodsForReference {
       Move,
       0,
       0,
-      TypeId::For<absl::remove_cvref_t<Manager>>(),
+      absl::FastTypeId<absl::remove_cvref_t<Manager>>(),
       IsOwning,
       GetRawManager,
       RegisterSubobjects};
@@ -333,7 +334,7 @@ struct MethodsFor<Handle, Manager, false> {
       MakeReference,
       0,
       0,
-      TypeId::For<absl::remove_cvref_t<Manager>>(),
+      absl::FastTypeId<absl::remove_cvref_t<Manager>>(),
       IsOwning,
       GetRawManager,
       RegisterSubobjects};
@@ -403,7 +404,7 @@ struct MethodsFor<Handle, Manager, true> {
       MakeReference,
       UsedSize<Handle, Manager>(),
       UsedAlign<Handle, Manager>(),
-      TypeId::For<absl::remove_cvref_t<Manager>>(),
+      absl::FastTypeId<absl::remove_cvref_t<Manager>>(),
       IsOwning,
       GetRawManager,
       RegisterSubobjects};

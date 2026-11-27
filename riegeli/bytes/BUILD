@@ -1253,7 +1253,7 @@ cc_library(
         "//conditions:default": [
             ":buffered_writer",
             ":writer",
-            "//riegeli/base:type_id",
+            "@com_google_absl//absl/base:fast_type_id",
         ],
     }),
 )
@@ -1319,9 +1319,9 @@ cc_library(
         "//riegeli/base:object",
         "//riegeli/base:reset",
         "//riegeli/base:status",
-        "//riegeli/base:type_id",
         "//riegeli/base:types",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:fast_type_id",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/status",

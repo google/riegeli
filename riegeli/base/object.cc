@@ -18,10 +18,10 @@
 
 #include <utility>
 
+#include "absl/base/fast_type_id.h"
 #include "absl/base/optimization.h"
 #include "absl/log/absl_check.h"
 #include "absl/status/status.h"
-#include "riegeli/base/type_id.h"
 
 namespace riegeli {
 
@@ -132,6 +132,8 @@ absl::Status Object::StatusOrAnnotate(absl::Status other_status) {
   return AnnotateStatus(std::move(other_status));
 }
 
-TypeId Object::GetTypeId() const { return TypeId(); }
+absl::FastTypeIdType Object::GetTypeId() const {
+  return absl::FastTypeIdType();
+}
 
 }  // namespace riegeli

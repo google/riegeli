@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/fast_type_id.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
@@ -36,7 +37,6 @@
 #include "riegeli/base/maker.h"
 #include "riegeli/base/object.h"
 #include "riegeli/base/reset.h"
-#include "riegeli/base/type_id.h"
 #include "riegeli/base/types.h"
 #include "riegeli/bytes/buffer_options.h"
 #include "riegeli/bytes/buffered_writer.h"
@@ -356,7 +356,7 @@ class FdWriterBase : public BufferedWriter {
   // `Close()`, otherwise unchanged.
   virtual int DestFd() const ABSL_ATTRIBUTE_LIFETIME_BOUND = 0;
 
-  TypeId GetTypeId() const override;
+  absl::FastTypeIdType GetTypeId() const override;
 
   // Returns the filename of the fd being written to, or "<none>" for
   // closed-constructed or moved-from `FdWriter`. Unchanged by `Close()`.

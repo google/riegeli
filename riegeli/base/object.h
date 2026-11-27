@@ -21,10 +21,10 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/base/fast_type_id.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "riegeli/base/maker.h"
-#include "riegeli/base/type_id.h"
 
 namespace riegeli {
 
@@ -210,11 +210,11 @@ class Object {
   // Returns a token which allows to detect the class of the `Object` at
   // runtime.
   //
-  // By default returns `TypeId()`. In order for a class to participate in class
-  // detection at runtime, it must override `GetTypeId()`:
+  // By default returns `absl::FastTypeIdType()`. In order for a class to
+  // participate in class detection at runtime, it must override `GetTypeId()`:
   // ```
-  //   riegeli::TypeId A::GetTypeId() const override {
-  //     return riegeli::TypeId::For<A>();
+  //   absl::FastTypeIdType A::GetTypeId() const override {
+  //     return absl::FastTypeId<A>();
   //   }
   // ```
   //
@@ -226,7 +226,7 @@ class Object {
   // ```
   //
   // This solution is more limited but faster than `typeid` or `dynamic_cast`.
-  virtual TypeId GetTypeId() const;
+  virtual absl::FastTypeIdType GetTypeId() const;
 
   // Casts the runtime type of `this`, as determined by `GetTypeId()`, down to
   // `Target*`. Returns `nullptr` if the type does not match.
@@ -327,7 +327,7 @@ template <typename Target>
 inline Target* Object::GetIf() {
   static_assert(std::is_base_of_v<Object, Target>,
                 "GetIf() supports only downcasts");
-  if (GetTypeId() != TypeId::For<Target>()) return nullptr;
+  if (GetTypeId() != absl::FastTypeId<Target>()) return nullptr;
   return static_cast<Target*>(this);
 }
 
@@ -335,7 +335,7 @@ template <typename Target>
 inline const Target* Object::GetIf() const {
   static_assert(std::is_base_of_v<Object, Target>,
                 "GetIf() supports only downcasts");
-  if (GetTypeId() != TypeId::For<Target>()) return nullptr;
+  if (GetTypeId() != absl::FastTypeId<Target>()) return nullptr;
   return static_cast<const Target*>(this);
 }
 

@@ -192,17 +192,6 @@ cc_library(
     ],
 )
 
-# TODO: Migrate to absl::FastTypeId<T>().
-cc_library(
-    name = "type_id",
-    hdrs = ["type_id.h"],
-    visibility = ["//riegeli:__subpackages__"],
-    deps = [
-        ":compare",
-        "@com_google_absl//absl/base:nullability",
-    ],
-)
-
 cc_library(
     name = "reset",
     hdrs = ["reset.h"],
@@ -389,9 +378,9 @@ cc_library(
         ":initializer",
         ":memory_estimator",
         ":type_erased_ref",
-        ":type_id",
         ":type_traits",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:fast_type_id",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/meta:type_traits",
@@ -428,8 +417,8 @@ cc_library(
     hdrs = ["object.h"],
     deps = [
         ":initializer",
-        ":type_id",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:fast_type_id",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/status",
     ],
