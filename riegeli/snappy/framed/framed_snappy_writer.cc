@@ -131,7 +131,8 @@ inline bool FramedSnappyWriterBase::PushInternal(Writer& dest) {
   size_t compressed_length;
   snappy::RawCompress(uncompressed_data, uncompressed_length,
                       compressed_chunk + 2 * sizeof(uint32_t),
-                      &compressed_length, {/*level=*/compression_level_});
+                      &compressed_length,
+                      snappy::CompressionOptions{/*level=*/compression_level_});
   if (compressed_length < uncompressed_length) {
     WriteLittleEndian<uint32_t>(
         IntCast<uint32_t>(0x00 /* Compressed data */ |

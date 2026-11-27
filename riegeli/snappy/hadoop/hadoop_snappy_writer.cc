@@ -119,7 +119,8 @@ inline bool HadoopSnappyWriterBase::PushInternal(Writer& dest) {
   size_t compressed_length;
   snappy::RawCompress(uncompressed_data, uncompressed_length,
                       compressed_chunk + 2 * sizeof(uint32_t),
-                      &compressed_length, {/*level=*/compression_level_});
+                      &compressed_length,
+                      snappy::CompressionOptions{/*level=*/compression_level_});
   WriteBigEndian<uint32_t>(IntCast<uint32_t>(compressed_length),
                            compressed_chunk + sizeof(uint32_t));
   dest.move_cursor(2 * sizeof(uint32_t) + compressed_length);
