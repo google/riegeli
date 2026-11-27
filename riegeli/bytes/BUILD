@@ -914,7 +914,6 @@ cc_library(
         "//riegeli/base:dependency",
         "//riegeli/base:initializer",
         "//riegeli/base:object",
-        "//riegeli/base:uninitialized_vector",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:absl_check",
     ],
